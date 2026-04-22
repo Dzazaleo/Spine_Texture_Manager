@@ -1,26 +1,31 @@
 /**
- * Phase 0 Plan 04 — Tests for `src/core/sampler.ts`.
+ * Phase 0 Plans 04 + 05 — Tests for `src/core/sampler.ts`.
  *
- * Behavior gates pulled from the plan's `<behavior>` block:
- *   1. `sampleSkeleton(loadResult)` on SIMPLE_TEST returns a Map with >=3 entries
- *      (one per unique (skin, slot, attachment) tuple ever touched).
- *   2. Each PeakRecord's `animationName` is a real animation name OR the literal
- *      string "Setup Pose (Default)".
- *   3. Determinism — two sequential calls with no interleaved state produce
- *      bit-identical peak values (requirement N1.6, threat T-00-04-02).
- *   4. `sampleSkeleton(loadResult, { samplingHz: 60 })` uses dt = 1/60
- *      (smoke: runs to completion with the configurable rate; tick count should
- *      differ from the default-120 run).
- *   5. `DEFAULT_SAMPLING_HZ === 120` (CLAUDE.md rule #6 — locked default).
- *   6. Hot loop uses `Physics.reset` once per animation and `Physics.update`
- *      every tick — enforced by source-grep hygiene tests below (the same
- *      pattern plan 00-03 established for bounds.ts).
- *   7. N2.3: no `node:fs` / `node:path` / `node:child_process` / `node:net` /
- *      `node:http` / `sharp` / `skeleton.fps` in the compiled source — by
- *      construction, the hot loop performs zero I/O.
+ * Requirement coverage matrix (every N-tag appears in at least one test name):
+ *   - N1.1 setup-pose sizes — sampler returns peak records for every textured
+ *     attachment in the default skin, with finite positive scales.
+ *   - N1.2 simple leaf-bone — SQUARE has a plausible setup/animation peak with
+ *     correct sourceW/H == 1000 matching the fixture atlas bounds.
+ *   - N1.3 bone-chain — CIRCLE mesh's peak `animationName` is a real animation
+ *     (not "Setup Pose (Default)"), proving chain-scale animations drive the
+ *     mesh vertices via weighted-sum.
+ *   - N1.4 weighted-mesh DIFFERENTIAL (Strategy B) — doubling bone index 5
+ *     (CHAIN_5, dominant weight for CIRCLE's vertex 0) produces a CIRCLE
+ *     worldW > 1.5x baseline. Proves the sampler reads bones via weights.
+ *   - N1.5 TransformConstraint (locked per CONTEXT.md) — clone skeletonData,
+ *     remove the transform constraint whose bones include SQUARE, compare
+ *     constrained vs unconstrained peaks. Strict delta > 1e-6 required.
+ *   - N1.6 PhysicsConstraint determinism — two sequential runs on the same
+ *     LoadResult produce bit-identical peak values (threat T-00-04-02).
+ *   - EASING-CURVE STRETCH — `it.skip` per CONTEXT.md; fixture contains only
+ *     "stepped" curves, no non-linear easing to test sub-frame peak capture.
+ *   - N2.1 perf gate — full sampler run on SIMPLE_TEST completes in < 500 ms.
+ *   - N2.3 no FS in hot loop — src/core/sampler.ts and src/core/bounds.ts
+ *     have no node:fs / node:path / sharp imports (grep-enforced at test time).
  *
- * The spec file mirrors bounds.spec.ts's structure so both core modules have
- * the same shape of coverage: behavioral + module-hygiene grep tests.
+ * Other behavioral smokes (from plan 00-04, preserved here):
+ *   - Map size >= 3, animationName labeling, samplingHz override, default 120 Hz,
+ *     record shape, lifecycle ordering via source-grep, Physics.reset before loop.
  */
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
@@ -36,7 +41,178 @@ const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const SAMPLER_SRC = path.resolve('src/core/sampler.ts');
 const SETUP_POSE_LABEL = 'Setup Pose (Default)';
 
-describe('sampler — sampleSkeleton', () => {
+describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
+  it('N1.1: returns peak records for every textured attachment in the default skin', () => {
+    // N1.1 REQUIREMENTS.md: every core/ function has golden tests driven by
+    // the SIMPLE_PROJECT fixture. Each PeakRecord must have finite, positive
+    // scale with scale == max(scaleX, scaleY).
+    const load = loadSkeleton(FIXTURE);
+    const peaks = sampleSkeleton(load);
+    expect(peaks.size).toBeGreaterThanOrEqual(3);
+    const names = new Set(
+      [...peaks.keys()].map((k) => k.split('/')[2]),
+    );
+    expect(names.has('CIRCLE')).toBe(true);
+    expect(names.has('SQUARE')).toBe(true);
+    expect(names.has('TRIANGLE')).toBe(true);
+    for (const rec of peaks.values()) {
+      expect(Number.isFinite(rec.scale)).toBe(true);
+      expect(rec.scale).toBeGreaterThan(0);
+      expect(Number.isFinite(rec.scaleX)).toBe(true);
+      expect(Number.isFinite(rec.scaleY)).toBe(true);
+      expect(rec.scale).toBe(Math.max(rec.scaleX, rec.scaleY));
+    }
+  });
+
+  it('N1.2 simple leaf-bone: SQUARE has a plausible peak with fixture atlas source dims', () => {
+    // N1.2: plain region on a leaf bone. The SQUARE slot's attachment is the
+    // 1000×1000 region from SIMPLE_TEST.atlas, bound to the SQUARE bone which
+    // is a child of CTRL (not deep in the CHAIN_* chain). Peak must be finite
+    // and strictly positive; sourceW/H must match the atlas bounds.
+    const load = loadSkeleton(FIXTURE);
+    const peaks = sampleSkeleton(load);
+    const square = [...peaks.values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    );
+    expect(square).toBeDefined();
+    expect(square!.sourceW).toBe(1000);
+    expect(square!.sourceH).toBe(1000);
+    expect(square!.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(square!.scale)).toBe(true);
+  });
+
+  it('N1.3 bone-chain: CIRCLE mesh peak comes from an animation (chain scale drives the mesh)', () => {
+    // N1.3: the CIRCLE mesh is weighted to bones in the CHAIN_* chain. The
+    // PATH animation scales CHAIN_2 by 2x, SIMPLE_SCALE scales CHAIN_2 by 2x
+    // (with a CHAIN_8 sub-keyframe), and TRANSFORM rotates+scales every
+    // CHAIN_* bone. Peak for CIRCLE therefore must come from an animation,
+    // not the setup pose — proves chain transforms reach the mesh vertices.
+    const load = loadSkeleton(FIXTURE);
+    const peaks = sampleSkeleton(load);
+    const circle = [...peaks.values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    );
+    expect(circle).toBeDefined();
+    expect(circle!.animationName).not.toBe('Setup Pose (Default)');
+    const animationNames = new Set(
+      load.skeletonData.animations.map((a) => a.name),
+    );
+    expect(animationNames.has(circle!.animationName)).toBe(true);
+    // Sanity: peak scale > setup (which would be ~1x for identity atlas).
+    // Fixture observation: CIRCLE worldW during PATH animation exceeds 1500,
+    // sourceW is 699 → scale comfortably above 1. Plausibility gate only.
+    expect(circle!.scale).toBeGreaterThan(1);
+  });
+
+  it('N1.4 weighted-mesh DIFFERENTIAL (Strategy B): doubling dominant bone scale grows CIRCLE worldW > 1.5x baseline', () => {
+    // Fixture inspection: CIRCLE mesh vertex 0 has bones=[4,5] weights=[0.00761, 0.99239].
+    // Bone index 5 in the mesh's `bones` array refers to the SKELETON bone ordinal;
+    // spine-core resolves `skeleton.bones[5]` which is `CHAIN_5` in SIMPLE_TEST.
+    // We mutate `skeletonData.bones[5].scaleX/Y` to 2× BEFORE the sampler instantiates
+    // the Skeleton — the bone's setup pose scale is doubled, cascading through the
+    // weighted-sum math in computeWorldVertices.
+    //
+    // If the sampler ignored bone influences (e.g. treated weights as identity),
+    // worldW wouldn't change. Observed ratio on the fixture ~1.78×; threshold 1.5×
+    // is conservative and well above FP noise / per-vertex weight distribution.
+    const baseline = sampleSkeleton(loadSkeleton(FIXTURE));
+    const baseCircle = [...baseline.values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    );
+    expect(baseCircle).toBeDefined();
+
+    const mutated = loadSkeleton(FIXTURE);
+    const targetBoneIndex = 5;
+    const boneData = mutated.skeletonData.bones[targetBoneIndex];
+    expect(boneData).toBeDefined();
+    // Sanity: we're mutating the expected chain bone.
+    expect(boneData!.name.startsWith('CHAIN_')).toBe(true);
+    boneData!.scaleX = (boneData!.scaleX ?? 1) * 2.0;
+    boneData!.scaleY = (boneData!.scaleY ?? 1) * 2.0;
+
+    const scaledPeaks = sampleSkeleton(mutated);
+    const scaledCircle = [...scaledPeaks.values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    );
+    expect(scaledCircle).toBeDefined();
+
+    // Differential gate — proves weighted-sum path actively reads bone transforms.
+    expect(scaledCircle!.worldW).toBeGreaterThan(baseCircle!.worldW * 1.5);
+  });
+
+  it('N1.5 TransformConstraint (LOCKED per CONTEXT.md): SQUARE constrained-vs-unconstrained peaks differ strictly', () => {
+    // Fixture: transform constraint name="CHAIN_8", bones=["SQUARE"] (driven),
+    // target="CHAIN_8", mixScaleX=0.5. Multiple animations scale CHAIN_8 (via
+    // its chain ancestors in PATH/SIMPLE_SCALE and directly in TRANSFORM),
+    // so the constrained SQUARE's peak receives a 50%-mixed scaleX push from
+    // CHAIN_8's animated scale. Cloning skeletonData without the constraint
+    // leaves SQUARE at setup scale — the two peaks MUST differ strictly.
+    //
+    // CONTEXT.md Test Strategy explicitly locks this constrained-vs-unconstrained
+    // shape. The > 1e-6 threshold is far below the observed delta (~1.10 on the
+    // fixture) but still tight enough to fail on broken constraint wiring.
+    const constrainedLoad = loadSkeleton(FIXTURE);
+    const constrainedPeaks = sampleSkeleton(constrainedLoad);
+    const constrainedSquare = [...constrainedPeaks.values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    );
+    expect(constrainedSquare).toBeDefined();
+
+    // Fresh load; filter out the transform constraint whose `bones` list
+    // contains the SQUARE bone. The selector matches by BoneData.name, which
+    // spine-core 4.2's TransformConstraintData exposes as BoneData[] with a
+    // string `name` field.
+    const uncLoad = loadSkeleton(FIXTURE);
+    const before = uncLoad.skeletonData.transformConstraints.length;
+    uncLoad.skeletonData.transformConstraints =
+      uncLoad.skeletonData.transformConstraints.filter(
+        (c) => !c.bones.some((b) => b.name === 'SQUARE'),
+      );
+    // Fixture shape assertion — fires if the fixture is ever edited to change
+    // the constraint layout. Forces a revisit of N1.5 rather than silent pass.
+    expect(uncLoad.skeletonData.transformConstraints.length).toBe(before - 1);
+
+    const uncPeaks = sampleSkeleton(uncLoad);
+    const unconstrainedSquare = [...uncPeaks.values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    );
+    expect(unconstrainedSquare).toBeDefined();
+
+    const delta = Math.abs(
+      constrainedSquare!.scale - unconstrainedSquare!.scale,
+    );
+    expect(delta).toBeGreaterThan(1e-6);
+  });
+
+  it.skip('EASING-CURVE STRETCH: 120 Hz catches mid-frame peak within 1% of 480 Hz reference', () => {
+    // STRETCH per CONTEXT.md Test Strategy: "flag as a stretch test" when the
+    // fixture lacks a suitable non-linear easing. SIMPLE_TEST.json contains
+    // only "stepped" curves (verified by inspection — all three "curve" entries
+    // are "stepped") — no non-linear bezier easing that would expose sub-frame
+    // peak refinement. Un-skip once a bezier-easing animation is added.
+    //
+    // When enabled the strategy is:
+    //   1. Sample at 120 Hz → peak_120.
+    //   2. Sample at 480 Hz (reference) → peak_ref.
+    //   3. Assert |peak_120 - peak_ref| / peak_ref < 0.01 on the attachment
+    //      whose animation path crosses the non-linear curve.
+    const load = loadSkeleton(FIXTURE);
+    const peaks120 = sampleSkeleton(load, { samplingHz: 120 });
+    const peaksRef = sampleSkeleton(load, { samplingHz: 480 });
+    const target = '<pending fixture extension>';
+    const p120 = [...peaks120.values()].find(
+      (r) => r.attachmentName === target,
+    );
+    const pRef = [...peaksRef.values()].find(
+      (r) => r.attachmentName === target,
+    );
+    expect(p120).toBeDefined();
+    expect(pRef).toBeDefined();
+    const rel = Math.abs(p120!.scale - pRef!.scale) / pRef!.scale;
+    expect(rel).toBeLessThan(0.01);
+  });
+
+  // Preserved from plan 00-04 — basic Map>=3 smoke (now tagged as a sibling of N1.1).
   it('returns a Map with >= 3 peak entries on SIMPLE_TEST', () => {
     const load = loadSkeleton(FIXTURE);
     const peaks = sampleSkeleton(load);
@@ -57,7 +233,7 @@ describe('sampler — sampleSkeleton', () => {
     }
   });
 
-  it('produces bit-identical peak values on two sequential runs (N1.6 determinism)', () => {
+  it('N1.6 PhysicsConstraint determinism: two sequential runs produce bit-identical peak values', () => {
     const load = loadSkeleton(FIXTURE);
     const a = sampleSkeleton(load);
     const b = sampleSkeleton(load);
@@ -116,21 +292,26 @@ describe('sampler — sampleSkeleton', () => {
     });
   });
 
-  it('completes the SIMPLE_TEST sampler run in <500 ms (N2.1 perf gate smoke)', () => {
+  it('N2.1 perf gate: full SIMPLE_TEST sampler run completes in <500 ms', () => {
     const load = loadSkeleton(FIXTURE);
     const t0 = performance.now();
     sampleSkeleton(load);
     const elapsed = performance.now() - t0;
-    // Loose 500 ms gate — the real N2.1 assertion lives in plan 00-07, this
-    // is just a smoke that the sampler is not pathologically slow.
+    // Log elapsed for plan 00-05 SUMMARY visibility.
+    // eslint-disable-next-line no-console
+    console.log(`[N2.1] SIMPLE_TEST sampler elapsed: ${elapsed.toFixed(2)} ms`);
     expect(elapsed).toBeLessThan(500);
   });
 });
 
 describe('sampler — module hygiene (N2.3 by construction)', () => {
   const src = fs.readFileSync(SAMPLER_SRC, 'utf8');
+  const boundsSrc = fs.readFileSync(
+    path.resolve('src/core/bounds.ts'),
+    'utf8',
+  );
 
-  it('does not import node:fs / node:path / node:child_process / node:net / node:http', () => {
+  it('N2.3: src/core/sampler.ts does not import node:fs / node:path / node:child_process / node:net / node:http', () => {
     expect(src).not.toMatch(/from ['"]node:fs['"]/);
     expect(src).not.toMatch(/from ['"]node:path['"]/);
     expect(src).not.toMatch(/from ['"]node:child_process['"]/);
@@ -138,7 +319,16 @@ describe('sampler — module hygiene (N2.3 by construction)', () => {
     expect(src).not.toMatch(/from ['"]node:http['"]/);
   });
 
-  it('does not reference "sharp" (PNG-decode library belongs in Phase 8)', () => {
+  it('N2.3: src/core/bounds.ts (called in the hot loop) does not import node:fs / node:path / sharp', () => {
+    // The sampler calls bounds.ts every tick × every visible slot; if bounds.ts
+    // leaks FS I/O we violate N2.3 transitively. Belt-and-braces coverage on
+    // top of bounds.spec.ts's own hygiene tests.
+    expect(boundsSrc).not.toMatch(/from ['"]node:fs['"]/);
+    expect(boundsSrc).not.toMatch(/from ['"]node:path['"]/);
+    expect(boundsSrc).not.toMatch(/from ['"]sharp['"]/);
+  });
+
+  it('N2.3: sampler does not reference "sharp" (PNG-decode library belongs in Phase 8)', () => {
     expect(src).not.toMatch(/\bsharp\b/);
   });
 
