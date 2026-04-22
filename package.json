@@ -1,0 +1,25 @@
+{
+  "name": "spine-texture-manager",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Desktop app that computes per-attachment peak render scale for Spine 4.2+ skeletons.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx scripts/cli.ts"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-core": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# User's Spine editor source files — NOT part of the app
+temp/
+
+# OS cruft
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
