@@ -30,7 +30,7 @@ Plans:
 - [x] 00-01-PLAN.md — Bootstrap TypeScript + vitest scaffolding (git init, `.gitignore`, `package.json`, `tsconfig.json`, `vitest.config.ts`, `npm install`). ✅ 2026-04-22 — commit `796480d`, SUMMARY at `.planning/phases/00-core-math-spike/00-01-SUMMARY.md`.
 - [x] 00-02-PLAN.md — Headless Spine loader (`src/core/loader.ts` + types + typed errors) with stub TextureLoader. ✅ 2026-04-22 — commit `8c2a4a7`, SUMMARY at `.planning/phases/00-core-math-spike/00-02-SUMMARY.md`.
 - [x] 00-03-PLAN.md — Per-attachment AABB + scale math (`src/core/bounds.ts`) — pure, zero I/O. ✅ 2026-04-22 — commit `b619347`, SUMMARY at `.planning/phases/00-core-math-spike/00-03-SUMMARY.md`.
-- [ ] 00-04-PLAN.md — Sampler with locked tick lifecycle (`src/core/sampler.ts`) — 120 Hz default, Physics.reset + Physics.update.
+- [x] 00-04-PLAN.md — Sampler with locked tick lifecycle (`src/core/sampler.ts`) — 120 Hz default, Physics.reset + Physics.update. ✅ 2026-04-22 — commit `60709d6`, SUMMARY at `.planning/phases/00-core-math-spike/00-04-SUMMARY.md`.
 - [ ] 00-05-PLAN.md — Vitest golden suite covering N1.1–N1.6 correctness, N2.1 <500 ms perf gate, N2.3 FS-free hot loop.
 - [ ] 00-06-PLAN.md — CLI entrypoint (`scripts/cli.ts`) — renders peak table + elapsed footer.
 - [ ] 00-07-PLAN.md — Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE.
