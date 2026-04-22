@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 00-02-PLAN.md
-last_updated: "2026-04-22T11:50:51.988Z"
+stopped_at: Completed 00-03-PLAN.md
+last_updated: "2026-04-22T11:58:58.884Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 7
-  completed_plans: 2
-  percent: 29
+  completed_plans: 3
+  percent: 43
 ---
 
 # State
@@ -21,14 +21,15 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 0 — Core-math spike** (in progress — plans 00-01, 00-02 complete, 2/7 plans done)
+**Phase 0 — Core-math spike** (in progress — plans 00-01, 00-02, 00-03 complete, 3/7 plans done)
 
 ## Current plan
 
-**Plan 00-03 — next up** (sampler scaffolding — per-animation loop structure)
+**Plan 00-04 — next up** (sampler with locked tick lifecycle — 120 Hz default, Physics.reset + Physics.update)
 
 ## Last completed
 
+- **Plan 00-03 (2026-04-22):** Per-attachment world AABB + scale math. `b619347`. `src/core/bounds.ts` (144 lines) + `tests/core/bounds.spec.ts` (200 lines, 10/10 green). `attachmentWorldAABB(slot, attachment)` delegates to spine-core's `computeWorldVertices` for Region (4 verts) and VertexAttachment/MeshAttachment (N verts); returns `null` for BoundingBox/Path/Point/Clipping skip-list. `computeScale` applies T-00-03-03 zero-dim guard. N2.3 "no I/O" locked into spec (grep tests fail CI on any future `node:*` / `sharp` import). F2.3 + F2.5 completed. 2 deviations (1 Rule 1 comment-grep self-violation, 1 Rule 2 spec-file committed atomically). See `.planning/phases/00-core-math-spike/00-03-SUMMARY.md`.
 - **Plan 00-02 (2026-04-22):** Headless Spine loader. `8c2a4a7`. `src/core/loader.ts` + `types.ts` + `errors.ts` (304 lines total); `loadSkeleton()` parses SIMPLE_TEST fixture returning 3 regions with correct `atlas-bounds` provenance; stub `TextureLoader` never decodes PNG bytes; typed error hierarchy. F1.1–F1.4 completed. 3 deviations (1 Rule 1 bug fix to `hasOrig` check, 1 directed cleanup of stale index.ts, 1 scope convention). See `.planning/phases/00-core-math-spike/00-02-SUMMARY.md`.
 - **Plan 00-01 (2026-04-22):** Bootstrap TypeScript + vitest scaffolding. `796480d`. `@esotericsoftware/spine-core` 4.2.111 + vitest 4.1.5 + typescript 6.0.3 + tsx 4.21.0 + @types/node 25.6.0 installed; `.gitignore` blocks `temp/`; `tsc --noEmit` and `npm test` both green on empty scaffold. Single atomic bootstrap commit. See `.planning/phases/00-core-math-spike/00-01-SUMMARY.md`.
 - Project initialization: `.planning/` scaffolded from approved plan.
@@ -36,7 +37,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-Execute plan 00-03 (sampler scaffolding — per-animation loop structure) via `/gsd-execute-phase 0`.
+Execute plan 00-04 (sampler with locked tick lifecycle — 120 Hz default, Physics.reset + Physics.update) via `/gsd-execute-phase 0`.
 
 ## Open questions
 
@@ -51,6 +52,9 @@ Execute plan 00-03 (sampler scaffolding — per-animation loop structure) via `/
 - Plan 00-02: sourceDims provenance uses origW !== packedW || origH !== packedH — spine-core 4.2 auto-backfills originalWidth/Height from bounds, so a simple > 0 check mislabels every region
 - Plan 00-02: StubTexture is a dedicated subclass of spine-core's Texture rather than reusing FakeTexture — stable public API + named stack traces
 - Plan 00-02: src/core/index.ts placeholder deleted (not converted to barrel) — no consumer imports from it; plan 00-01 explicitly scheduled this removal
+- Plan 00-03: bounds.ts is pure delegation — attachmentWorldAABB calls spine-core's computeWorldVertices and folds the result; never re-implements bone-chain / weighted-mesh / constraint math. CLAUDE.md rule #2 locked in by code.
+- Plan 00-03: instanceof ordering (Region → 4 skip subclasses → generic VertexAttachment) documented inline — skip types MUST precede the generic branch because they all extend VertexAttachment in spine-core 4.2 (fact was slightly wrong in plan's <interfaces> block for PointAttachment).
+- Plan 00-03: bounds.spec.ts committed atomically with bounds.ts — plan's Task 2 only listed bounds.ts but the spec locks N2.3 hygiene (no node:fs / node:path / sharp) into CI, strengthening the plan's stated invariant (Rule 2 deviation).
 
 ## Performance Metrics
 
@@ -58,12 +62,13 @@ Execute plan 00-03 (sampler scaffolding — per-animation loop structure) via `/
 | ----- | ----- | -------- | ----- | ----- | ---------------------------------------------------------------------- |
 | 00    | 00-01 | ~3 min   | 3     | 9     | Atomic bootstrap commit `796480d`; 2 deviations (1 Rule 3, 1 version bump). |
 | 00    | 00-02 | ~4 min   | 3     | 3     | Headless loader commit `8c2a4a7`; 3 deviations (1 Rule 1 bug fix, 1 stale-placeholder cleanup, 1 scope convention). F1.1–F1.4 done. |
+| 00    | 00-03 | ~3 min   | 2     | 2     | Bounds + scale math commit `b619347`; 2 deviations (1 Rule 1 comment self-violating grep, 1 Rule 2 spec-file committed atomically). F2.3 + F2.5 done. 10/10 tests green. |
 
 ## Last session
 
-- **Timestamp:** 2026-04-22T11:50:51Z
-- **Stopped at:** Completed 00-02-PLAN.md
-- **Resume file:** `.planning/phases/00-core-math-spike/00-03-PLAN.md` (sampler scaffolding)
+- **Timestamp:** 2026-04-22T11:56:33Z
+- **Stopped at:** Completed 00-03-PLAN.md
+- **Resume file:** `.planning/phases/00-core-math-spike/00-04-PLAN.md` (sampler with locked tick lifecycle)
 - **Blockers:** None
 
 ## Links
