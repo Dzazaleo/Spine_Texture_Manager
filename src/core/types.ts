@@ -59,7 +59,7 @@ export interface SampleRecord {
   skinName: string;
   slotName: string;
   attachmentName: string;
-  /** `"__SETUP__"` for setup-pose pass; animation name otherwise. */
+  /** `"Setup Pose (Default)"` for setup-pose pass; animation name otherwise. */
   animationName: string;
   /** Seconds since animation start (Spine's authoritative unit). */
   time: number;
