@@ -1,0 +1,20 @@
+{
+  "project_name": "Spine Texture Manager",
+  "workflow": "gsd",
+  "model_profile": "inherit",
+  "tech_stack": {
+    "shell": "electron",
+    "language": "typescript",
+    "ui": "react+vite+tailwind",
+    "core_runtime": "@esotericsoftware/spine-core",
+    "image_processing": "sharp",
+    "testing": "vitest"
+  },
+  "phases": {
+    "strict_order": true,
+    "require_phase_plan_before_exec": true,
+    "require_tests_before_phase_close": true
+  },
+  "current_milestone": 1,
+  "current_phase": 0
+}
