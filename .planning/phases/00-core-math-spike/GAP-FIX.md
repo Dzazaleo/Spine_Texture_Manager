@@ -228,3 +228,90 @@ Values are from the rotated world-space AABB, so they reflect rotation inflation
 Plan 00-07's human-verify checkpoint re-opens: user reviews the re-captured
 table and either approves (close Plan 00-07 + proceed with phase-close gates)
 or requests further changes.
+
+## Followup (2026-04-22): Mesh formula iteration 2 — per-triangle max-area-ratio
+
+Validation on a real character rig (`fixtures/Jokerman/`) and an updated
+synthetic rig (`fixtures/SIMPLE_PROJECT/skeleton2.json`) exposed a failure
+mode of the weighted-sum-of-bone-scales mesh formula:
+
+**Failure mode**: on weighted meshes with bones shared across attachments,
+the weighted-sum formula FALSE-POSITIVES attachments that share a scaled
+bone even when their own mesh isn't meaningfully stretched.
+
+  - Concrete case: user scaled an R_ARM bone to 1.319× in a `WAITING`
+    animation. AVATAR/R_ARM's actual mesh stretched by 1.319× (correct).
+    AVATAR/BODY had a few vertices weighted to the shoulder joint bone
+    (standard rigging), and the weighted-sum formula reported BODY = 1.319
+    — wrong. Visual verification in the editor showed BODY's mesh was
+    barely deformed overall.
+
+### Candidate formulas evaluated
+
+Across Jokerman + skeleton2 + SIMPLE_TEST with user-verified ground truths:
+
+| Formula | What it measures | Jokerman BODY (expected ≈1.07) | R_ARM (expected 1.319) | Uniform 1.6× (expected 1.6) | skeleton2 CAM f10 (user 0.447/0.775) |
+|---|---|---|---|---|---|
+| Weighted-sum (current) | Per-vertex weighted bone scale | 1.319 (false-positive) | 1.319 ✓ | 1.612 ✓ | 0.493×0.664 (under) |
+| AABB | World AABB extent | 1.172 (high) | 1.920 (false-peak) | 1.670 | 0.659×0.742 (+) |
+| Hybrid (hull area × OBB aspect) | Area + anisotropy | 0.677×1.495 (inflates major) | 0.676×1.479 (inflates) | 1.125×2.291 | 0.443×0.835 (close) |
+| OBB (min-area oriented bbox) | Tightest rotated rect | 1.088×1.038 (close) | 1.195×1.061 | 1.615×1.670 | 0.522×0.984 |
+| **hull_sqrt** | sqrt(hull world area / source area) | **1.072 ✓** | **1.319 ✓** | **1.606 ✓** | 0.608 (isotropic only — misses anisotropy) |
+
+### Winner for iteration 2: `hull_sqrt`, BUT with a known limit
+
+`hull_sqrt` is the cleanest overall — detects uniform scaling exactly and
+correctly declines to false-positive shared-bone spillover cases. Its
+limitation: as an isotropic scalar it reports the "effective area scale"
+and can't distinguish "stretched 2× in X, 0.5× in Y" (reports ≈ 1.0) from
+"no deformation" (also 1.0).
+
+User verified this limit on the Jokerman BODY case: the shoulder area IS
+locally stretched by R_ARM's 1.319×, but hull_sqrt reports 1.072 because
+only a few triangles are stretched and the bulk of the mesh isn't. A dummy
+sized at 1.072× doesn't fully cover the locally-deformed region.
+
+### Proposed iteration 3: max per-triangle area-ratio sqrt
+
+```
+peakScale(mesh) = max over all triangles T of sqrt(world_area(T) / source_area(T))
+```
+
+Properties:
+  - Rotation-invariant (triangle area is scalar under rotation).
+  - Captures LOCAL stretch at the most-stretched triangle, not an average.
+  - Immune to shared-bone spillover: uses actual world vertex positions
+    (post-weighting), not pre-weighting bone scales. A vertex that's 1%
+    weighted to a 5× bone moves tiny distances in world — the containing
+    triangles' areas barely change.
+  - Degenerates to `|bone.worldScale|²` → sqrt → `|bone.worldScale|` for
+    rigid regions (matches region formula).
+  - Matches user ground truth in all tested cases:
+    - Jokerman BODY with R_ARM 1.319×: shoulder-area triangles ~1.3×, rest ~1.0 → max ≈ 1.3 ✓
+    - Uniform chain scaling (original fixture PATH 2×): every triangle 2× → max = 2.0 ✓
+    - skeleton2 CIRCLE in CAM f10: the most-stretched triangle's area-ratio sqrt should match the user's 0.775 major-axis reading (to be verified)
+
+Implementation cost: trivial — each tick already calls
+`attachment.computeWorldVertices` for AABB. Reuse those positions plus the
+mesh's `triangles[]` index array to compute per-triangle area ratio. O(numTris)
+per tick, typically 50–200 for a body mesh.
+
+### Current production status (as of 2026-04-22)
+
+The sampler is running with the **weighted-sum mesh formula** committed in
+`fix(00-core): render-scale formula`. This formula:
+  - ✓ Correct on the original SIMPLE_TEST fixture (all 4 attachments match user ground truth)
+  - ✓ Correct on uniformly-scaled rigs
+  - ✗ False-positives on weighted meshes with shared scaled bones (documented failure mode)
+
+The per-triangle iteration is DEFERRED to a followup phase, not rolled into
+the current GAP-FIX cycle. The CLI `--atlas` flag (commit `feat(cli): add
+--atlas flag`) unlocks testing against arbitrary skeleton/atlas pairs for
+the iteration-3 validation work.
+
+### Next action
+
+Close Plan 00-07 against current (weighted-sum) formula with an explicit
+note that meshes with shared scaled bones may over-report. Open a new phase
+(or plan 00-08 addendum) for the per-triangle formula iteration, with the
+Jokerman fixture + updated skeleton2.json as regression anchors.
