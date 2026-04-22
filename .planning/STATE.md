@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 00-05-PLAN.md
-last_updated: "2026-04-22T12:24:51.302Z"
+stopped_at: Completed 00-06-PLAN.md
+last_updated: "2026-04-22T12:32:35.575Z"
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # State
@@ -21,14 +21,15 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 0 — Core-math spike** (in progress — plans 00-01, 00-02, 00-03, 00-04, 00-05 complete, 5/7 plans done)
+**Phase 0 — Core-math spike** (in progress — plans 00-01, 00-02, 00-03, 00-04, 00-05, 00-06 complete, 6/7 plans done)
 
 ## Current plan
 
-**Plan 00-06 — next up** (CLI scaffolding — `npm run cli -- <path-to-skeleton.json>` prints peak-scale table)
+**Plan 00-07 — next up** (Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE)
 
 ## Last completed
 
+- **Plan 00-06 (2026-04-22):** Headless CLI entrypoint. `8365ce2`. `scripts/cli.ts` (150 lines) — thin wrapper: argv parse → `loadSkeleton` → `sampleSkeleton` → 7-column plain-text table (Attachment, Skin, Source W×H, Peak W×H, Scale, Source Animation, Frame) with elapsed-ms footer. `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` exits 0 with CIRCLE/SQUARE/SQUARE2/TRIANGLE rows in 9.3 ms. Structured exit codes: 0 success, 1 unexpected (stack), 2 bad argv, 3 SpineLoaderError (clean name:message — T-00-06-01 info-disclosure mitigation). `--hz <n>` override validated via `Number.isFinite(n) && n > 0` (T-00-06-02). Zero new tests (thin wrapper verified end-to-end); `npm test` still 35/35 + 1 skip; `npx tsc --noEmit` clean. F2.1, F2.2, F2.5, F2.6 re-confirmed via CLI smoke. 1 deviation (scope convention, identical to prior plans). See `.planning/phases/00-core-math-spike/00-06-SUMMARY.md`.
 - **Plan 00-05 (2026-04-22):** Golden correctness + perf + I/O test suite. `244782f` + `11492d6` + `470391b`. `tests/core/loader.spec.ts` (NEW, 114 lines, 5 specs) + `tests/core/bounds.spec.ts` augmented (+49/-17, 11 specs) + `tests/core/sampler.spec.ts` augmented (+217/-27, 20 specs incl. 1 skipped stretch). Every Phase 0 requirement ID {F1.1, F1.4, F2.3, F2.5, F2.7, N1.1, N1.2, N1.3, N1.4, N1.5, N1.6, N2.1, N2.3} appears in a named test. N1.4 is a DIFFERENTIAL test (bone index 5 doubled → CIRCLE worldW 1.782× baseline). N1.5 is the LOCKED constrained-vs-unconstrained TransformConstraint comparison on SQUARE (delta 1.10, gate >1e-6). Easing-curve test is `it.skip` with documented un-skip recipe (fixture has only stepped curves). N2.1 observed 2.5 ms (200× under gate). `npm test` 35/35 pass + 1 skip. N1.1–N1.6 + N2.1 + N2.3 completed. 3 deviations (1 Rule 2 AUGMENT-not-overwrite per critical_project_rules, 1 scope convention, 1 structural Task-4 consolidation). See `.planning/phases/00-core-math-spike/00-05-SUMMARY.md`.
 - **Plan 00-04 (2026-04-22):** Per-attachment peak sampler with locked tick order. `60709d6`. `src/core/sampler.ts` (251 lines) + `tests/core/sampler.spec.ts` (181 lines, 13/13 green). `sampleSkeleton(load, opts?)` returns `Map<attachmentKey, PeakRecord>` with 4 entries on SIMPLE_TEST in 9.7 ms (50x under N2.1 gate). Locked lifecycle `state.update → state.apply → skeleton.update → updateWorldTransform(Physics.update)` grep-enforced in spec. `Physics.reset` once per (skin, animation) pair anchors N1.6 determinism. Setup-pose pass per skin; default 120 Hz configurable via `opts.samplingHz`. F2.1, F2.2, F2.4, F2.6, F2.7 completed. 4 deviations (1 Rule 1 `setAnimation`→`setAnimationWith` TS fix, 1 Rule 1 self-violating `skeleton.fps` comment, 1 Rule 2 spec-file committed atomically, 1 Rule 1 stale `"__SETUP__"` comment cleanup in types.ts). See `.planning/phases/00-core-math-spike/00-04-SUMMARY.md`.
 - **Plan 00-03 (2026-04-22):** Per-attachment world AABB + scale math. `b619347`. `src/core/bounds.ts` (144 lines) + `tests/core/bounds.spec.ts` (200 lines, 10/10 green). `attachmentWorldAABB(slot, attachment)` delegates to spine-core's `computeWorldVertices` for Region (4 verts) and VertexAttachment/MeshAttachment (N verts); returns `null` for BoundingBox/Path/Point/Clipping skip-list. `computeScale` applies T-00-03-03 zero-dim guard. N2.3 "no I/O" locked into spec (grep tests fail CI on any future `node:*` / `sharp` import). F2.3 + F2.5 completed. 2 deviations (1 Rule 1 comment-grep self-violation, 1 Rule 2 spec-file committed atomically). See `.planning/phases/00-core-math-spike/00-03-SUMMARY.md`.
@@ -39,7 +40,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-Execute plan 00-06 (CLI scaffolding — `npm run cli -- <path-to-skeleton.json>` prints peak-scale table) via `/gsd-execute-phase 0`.
+Execute plan 00-07 (Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE) via `/gsd-execute-phase 0`.
 
 ## Open questions
 
@@ -66,6 +67,9 @@ Execute plan 00-06 (CLI scaffolding — `npm run cli -- <path-to-skeleton.json>`
 - Plan 00-05: N1.5 locked per CONTEXT.md: constrained-vs-unconstrained TransformConstraint comparison on SQUARE. Fixture-shape assertion (expect before-1) catches silent fixture drift that would otherwise no-op the filter
 - Plan 00-05: Easing-curve test as it.skip with inlined un-skip recipe — CONTEXT.md explicitly permits stretch flag when fixture lacks non-linear easing (SIMPLE_TEST only has stepped curves)
 - Plan 00-05: Every Phase 0 requirement ID (F1.1/F1.4/F2.3/F2.5/F2.7/N1.1-N1.6/N2.1/N2.3) tagged in a test name — grep-anchored traceability from REQUIREMENTS.md to exact assertion. Makes verify-work trivial
+- Plan 00-06: scripts/cli.ts is a strict thin wrapper — zero duplicated math, imports only loadSkeleton + sampleSkeleton + SpineLoaderError + PeakRecord type. All logic sits in src/core/; CLI contains only argv parse, table render, exit-code branching.
+- Plan 00-06: Structured exit codes 0/1/2/3 — CONTEXT.md requires only zero/non-zero; finer codes (1 unexpected-with-stack, 2 bad-argv, 3 typed-SpineLoaderError-clean-message) cost zero complexity and are CI-friendly. T-00-06-01 info-disclosure threat mitigated by instanceof branch that prints only `name: message`, no stack.
+- Plan 00-06: Two-space column separator (no pipes) — CONTEXT.md's hand-rolled-preferred stance plus plan 07 smoke checker benefits from text that diffs cleanly. Sort key (skin, slot, attachment) — deterministic, human-readable.
 
 ## Performance Metrics
 
@@ -76,12 +80,13 @@ Execute plan 00-06 (CLI scaffolding — `npm run cli -- <path-to-skeleton.json>`
 | 00    | 00-03 | ~3 min   | 2     | 2     | Bounds + scale math commit `b619347`; 2 deviations (1 Rule 1 comment self-violating grep, 1 Rule 2 spec-file committed atomically). F2.3 + F2.5 done. 10/10 tests green. |
 | 00    | 00-04 | ~5 min   | 2     | 3     | Sampler commit `60709d6`; 4 deviations (1 Rule 1 setAnimation→setAnimationWith TS fix, 1 Rule 1 self-violating `skeleton.fps` comment, 1 Rule 2 spec-file committed atomically, 1 Rule 1 stale `__SETUP__` comment cleanup). F2.1+F2.2+F2.4+F2.6+F2.7 done. 13/13 sampler tests green, 23/23 overall. Smoke run 9.7ms / 4 peaks (50x under N2.1 gate). |
 | 00    | 00-05 | ~7 min   | 4     | 3     | Golden test suite commits `244782f` (loader) + `11492d6` (bounds augment) + `470391b` (sampler augment); 3 deviations (1 Rule 2 AUGMENT-not-overwrite, 1 scope convention, 1 structural Task-4 consolidation). N1.1–N1.6 + N2.1 + N2.3 completed. 35/35 tests green + 1 documented skip (easing-curve stretch). N2.1 perf observed at 2.5 ms (200× under 500 ms gate). N1.4 observed ratio 1.782×; N1.5 observed delta 1.10. |
+| 00    | 00-06 | ~2 min   | 2     | 1     | CLI entrypoint commit `8365ce2`; 1 deviation (scope convention, identical to prior plans). F2.1+F2.2+F2.5+F2.6 re-confirmed via CLI smoke. `scripts/cli.ts` 150 lines (thin wrapper). Fixture smoke: exit 0, 9.3 ms elapsed, CIRCLE/SQUARE/SQUARE2/TRIANGLE rows rendered. Missing-path: exit 3 with typed error message to stderr. 35/35 tests still green + 1 skip; `npx tsc --noEmit` clean. |
 
 ## Last session
 
-- **Timestamp:** 2026-04-22T12:20:43Z
-- **Stopped at:** Completed 00-05-PLAN.md
-- **Resume file:** `.planning/phases/00-core-math-spike/00-06-PLAN.md` (CLI scaffolding)
+- **Timestamp:** 2026-04-22T12:29:17Z
+- **Stopped at:** Completed 00-06-PLAN.md
+- **Resume file:** `.planning/phases/00-core-math-spike/00-07-PLAN.md` (Exit-criteria sweep + human-verify checkpoint)
 - **Blockers:** None
 
 ## Links
