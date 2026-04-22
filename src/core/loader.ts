@@ -172,11 +172,19 @@ export function loadSkeleton(
     });
   }
 
+  // Editor dopesheet FPS for DISPLAY purposes (CLI Frame column). spine-core
+  // only populates `skeletonData.fps` when the JSON has a top-level `fps`
+  // field (SkeletonJson.js:73). Spine's editor default is 30 — fall back to
+  // that silently when the field is absent. NOT used for sampling rate
+  // (CLAUDE.md rule #1 forbids fps-driven sampling).
+  const editorFps = skeletonData.fps || 30;
+
   return {
     skeletonPath: path.resolve(skeletonPath),
     atlasPath: path.resolve(atlasPath),
     skeletonData,
     atlas,
     sourceDims,
+    editorFps,
   };
 }

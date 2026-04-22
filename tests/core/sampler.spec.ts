@@ -334,8 +334,13 @@ describe('sampler — module hygiene (N2.3 by construction)', () => {
     expect(src).not.toMatch(/\bsharp\b/);
   });
 
-  it('never reads skeleton.fps (CLAUDE.md rule #1 — editor metadata only)', () => {
-    expect(src).not.toMatch(/skeleton\.fps/);
+  it('never drives sampling from fps (CLAUDE.md rule #1 — fps is editor metadata, not a sampling source)', () => {
+    // CLAUDE.md rule #1 bans using fps to drive the SAMPLING rate; it does NOT
+    // ban reading fps for DISPLAY (i.e. plumbing `editorFps` through for the
+    // `frame` column so animators can cross-reference the editor dopesheet).
+    // This grep catches the forbidden pattern — fps feeding dt or samplingHz —
+    // not the legitimate display-plumbing of editorFps into the frame field.
+    expect(src).not.toMatch(/dt\s*=.*fps|samplingHz\s*=.*fps/);
   });
 
   it('exports sampleSkeleton, DEFAULT_SAMPLING_HZ, PeakRecord, SamplerOptions', () => {

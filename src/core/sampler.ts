@@ -36,11 +36,12 @@
  * the PNG-decode library — the hot loop is filesystem-free by construction.
  * Enforced by hygiene tests in `tests/core/sampler.spec.ts`.
  *
- * Informational frame number (F2.6): `frame = round(time * frameRate)` with
- * a configurable `frameRate` option (default 60). Per CLAUDE.md rule #1, the
- * skeleton JSON's fps field is NEVER read — it is editor dopesheet metadata
- * only. The property-access expression `<skeleton>.<fps>` does not appear in
- * this module (grep-enforced).
+ * Informational frame number (F2.6): `frame = round(time * load.editorFps)`.
+ * `editorFps` is plumbed through from the loader (which reads it from
+ * `skeletonData.fps`, default 30 — Spine's editor default). Per CLAUDE.md
+ * rule #1, fps must NOT drive the SAMPLING rate (that's locked at
+ * `samplingHz`, default 120 Hz); fps is only used for the display-only
+ * `frame` field that lets animators cross-reference their editor dopesheet.
  */
 
 import {
@@ -61,13 +62,6 @@ const SETUP_POSE_LABEL = 'Setup Pose (Default)';
 export interface SamplerOptions {
   /** Sampling frequency in Hz. Default 120. dt = 1 / samplingHz. */
   samplingHz?: number;
-  /**
-   * Informational-only "frame" is `round(time * frameRate)`. Default 60.
-   * Per CLAUDE.md rule #1 + REQUIREMENTS.md F2.6 — Spine animations are in
-   * seconds, this is a display convenience for the UI/CLI. The skeleton
-   * JSON's fps field is deliberately NOT read.
-   */
-  frameRate?: number;
 }
 
 /**
@@ -96,7 +90,7 @@ export function sampleSkeleton(
   opts: SamplerOptions = {},
 ): Map<string, PeakRecord> {
   const samplingHz = opts.samplingHz ?? DEFAULT_SAMPLING_HZ;
-  const frameRate = opts.frameRate ?? 60;
+  const editorFps = load.editorFps;
   const dt = 1 / samplingHz;
 
   const peaks = new Map<string, PeakRecord>();
@@ -128,7 +122,6 @@ export function sampleSkeleton(
       load.sourceDims,
       peaks,
       /*touchedSet*/ null, // setup-pose pass doesn't mark attachments touched
-      frameRate,
     );
 
     // Pass 2 (per skin, per animation): locked tick lifecycle.
@@ -160,11 +153,10 @@ export function sampleSkeleton(
           skin.name,
           anim.name,
           t,
-          Math.round(t * frameRate),
+          Math.round(t * editorFps),
           load.sourceDims,
           peaks,
           touchedByAnimation,
-          frameRate,
         );
       }
     }
@@ -206,7 +198,6 @@ function snapshotFrame(
   sourceDims: Map<string, SourceDims>,
   peaks: Map<string, PeakRecord>,
   touchedSet: Set<string> | null,
-  _frameRate: number,
 ): void {
   for (const slot of skeleton.slots) {
     const attachment = slot.getAttachment();

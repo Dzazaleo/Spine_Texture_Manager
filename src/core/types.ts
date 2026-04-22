@@ -44,6 +44,14 @@ export interface LoadResult {
    * otherwise falls back to the packed `width/height` ("bounds").
    */
   sourceDims: Map<string, SourceDims>;
+  /**
+   * Editor dopesheet FPS (from `skeleton.fps` in the JSON, default 30 —
+   * Spine's own editor default when the field is omitted). DISPLAY-ONLY:
+   * drives the `frame` column so animators can cross-reference their
+   * dopesheet. CLAUDE.md rule #1 forbids using fps for SAMPLING — sampling
+   * rate stays at the configured `samplingHz`.
+   */
+  editorFps: number;
 }
 
 export interface AABB {
