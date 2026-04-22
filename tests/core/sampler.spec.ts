@@ -56,11 +56,11 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     expect(names.has('SQUARE')).toBe(true);
     expect(names.has('TRIANGLE')).toBe(true);
     for (const rec of peaks.values()) {
-      expect(Number.isFinite(rec.scale)).toBe(true);
-      expect(rec.scale).toBeGreaterThan(0);
-      expect(Number.isFinite(rec.scaleX)).toBe(true);
-      expect(Number.isFinite(rec.scaleY)).toBe(true);
-      expect(rec.scale).toBe(Math.max(rec.scaleX, rec.scaleY));
+      expect(Number.isFinite(rec.peakScale)).toBe(true);
+      expect(rec.peakScale).toBeGreaterThan(0);
+      expect(Number.isFinite(rec.peakScaleX)).toBe(true);
+      expect(Number.isFinite(rec.peakScaleY)).toBe(true);
+      expect(rec.peakScale).toBe(Math.max(rec.peakScaleX, rec.peakScaleY));
     }
   });
 
@@ -77,8 +77,8 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     expect(square).toBeDefined();
     expect(square!.sourceW).toBe(1000);
     expect(square!.sourceH).toBe(1000);
-    expect(square!.scale).toBeGreaterThan(0);
-    expect(Number.isFinite(square!.scale)).toBe(true);
+    expect(square!.peakScale).toBeGreaterThan(0);
+    expect(Number.isFinite(square!.peakScale)).toBe(true);
   });
 
   it('N1.3 bone-chain: CIRCLE mesh peak comes from an animation (chain scale drives the mesh)', () => {
@@ -98,10 +98,11 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
       load.skeletonData.animations.map((a) => a.name),
     );
     expect(animationNames.has(circle!.animationName)).toBe(true);
-    // Sanity: peak scale > setup (which would be ~1x for identity atlas).
-    // Fixture observation: CIRCLE worldW during PATH animation exceeds 1500,
-    // sourceW is 699 → scale comfortably above 1. Plausibility gate only.
-    expect(circle!.scale).toBeGreaterThan(1);
+    // Sanity: peak scale > setup (which would be ~1x for identity chain).
+    // With the render-scale formula, CHAIN_2 stepping to 2.0 propagates through
+    // the chain so CIRCLE's weighted per-vertex max reaches ≈ 2.0. Plausibility
+    // gate only — exact goldens live in the numeric-goldens block below.
+    expect(circle!.peakScale).toBeGreaterThan(1);
   });
 
   it('N1.4 weighted-mesh DIFFERENTIAL (Strategy B): doubling dominant bone scale grows CIRCLE worldW > 1.5x baseline', () => {
@@ -179,7 +180,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     expect(unconstrainedSquare).toBeDefined();
 
     const delta = Math.abs(
-      constrainedSquare!.scale - unconstrainedSquare!.scale,
+      constrainedSquare!.peakScale - unconstrainedSquare!.peakScale,
     );
     expect(delta).toBeGreaterThan(1e-6);
   });
@@ -208,7 +209,8 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     );
     expect(p120).toBeDefined();
     expect(pRef).toBeDefined();
-    const rel = Math.abs(p120!.scale - pRef!.scale) / pRef!.scale;
+    const rel =
+      Math.abs(p120!.peakScale - pRef!.peakScale) / pRef!.peakScale;
     expect(rel).toBeLessThan(0.01);
   });
 
@@ -243,9 +245,9 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
       const recB = b.get(key);
       expect(recB, `missing key on second run: ${key}`).toBeDefined();
       const rb = recB as PeakRecord;
-      expect(rb.scale).toBe(recA.scale);
-      expect(rb.scaleX).toBe(recA.scaleX);
-      expect(rb.scaleY).toBe(recA.scaleY);
+      expect(rb.peakScale).toBe(recA.peakScale);
+      expect(rb.peakScaleX).toBe(recA.peakScaleX);
+      expect(rb.peakScaleY).toBe(recA.peakScaleY);
       expect(rb.worldW).toBe(recA.worldW);
       expect(rb.worldH).toBe(recA.worldH);
       expect(rb.time).toBe(recA.time);
@@ -282,9 +284,9 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
       animationName: expect.any(String),
       time: expect.any(Number),
       frame: expect.any(Number),
-      scaleX: expect.any(Number),
-      scaleY: expect.any(Number),
-      scale: expect.any(Number),
+      peakScaleX: expect.any(Number),
+      peakScaleY: expect.any(Number),
+      peakScale: expect.any(Number),
       worldW: expect.any(Number),
       worldH: expect.any(Number),
       sourceW: expect.any(Number),

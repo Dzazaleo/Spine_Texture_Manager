@@ -63,12 +63,14 @@ export interface SampleRecord {
   animationName: string;
   /** Seconds since animation start (Spine's authoritative unit). */
   time: number;
-  /** `round(time * 60)` — informational only, per CONTEXT. */
+  /** `round(time * editorFps)` — informational only, per CONTEXT. */
   frame: number;
-  scaleX: number;
-  scaleY: number;
-  /** `max(scaleX, scaleY)` — the single-number "peak scale" per record. */
-  scale: number;
+  /** Per-axis intrinsic render-scale (from `bone.getWorldScaleX()` or per-vertex weighted sum for meshes). */
+  peakScaleX: number;
+  peakScaleY: number;
+  /** `max(peakScaleX, peakScaleY)` — single-number peak scale used for resize decisions. */
+  peakScale: number;
+  /** World-space AABB extents — informational (reflects rotation); drives the CLI "Peak W×H" column. */
   worldW: number;
   worldH: number;
   sourceW: number;

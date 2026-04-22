@@ -50,7 +50,7 @@ import {
   Physics,
 } from '@esotericsoftware/spine-core';
 import type { LoadResult, SampleRecord, SourceDims } from './types.js';
-import { attachmentWorldAABB, computeScale } from './bounds.js';
+import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
 
 /** CLAUDE.md rule #6 — default 120 Hz. Above typical 60 Hz game render cadence. */
 export const DEFAULT_SAMPLING_HZ = 120;
@@ -220,7 +220,9 @@ function snapshotFrame(
     const sd = sourceDims.get(attachment.name);
     if (sd === undefined || sd.w <= 0 || sd.h <= 0) continue;
 
-    const { scaleX, scaleY, scale } = computeScale(aabb, sd);
+    const rs = computeRenderScale(slot, attachment);
+    if (rs === null) continue; // non-textured attachment (defensive; AABB guard above already skipped)
+    const { scale: peakScale, scaleX: peakScaleX, scaleY: peakScaleY } = rs;
     const worldW = aabb.maxX - aabb.minX;
     const worldH = aabb.maxY - aabb.minY;
 
@@ -228,7 +230,7 @@ function snapshotFrame(
     if (touchedSet !== null) touchedSet.add(key);
 
     const existing = peaks.get(key);
-    if (existing === undefined || scale > existing.scale) {
+    if (existing === undefined || peakScale > existing.peakScale) {
       peaks.set(key, {
         attachmentKey: key,
         skinName,
@@ -237,9 +239,9 @@ function snapshotFrame(
         animationName,
         time,
         frame,
-        scaleX,
-        scaleY,
-        scale,
+        peakScaleX,
+        peakScaleY,
+        peakScale,
         worldW,
         worldH,
         sourceW: sd.w,

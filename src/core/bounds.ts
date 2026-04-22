@@ -38,7 +38,7 @@ import {
   type Slot,
   type Attachment,
 } from '@esotericsoftware/spine-core';
-import type { AABB, SourceDims } from './types.js';
+import type { AABB } from './types.js';
 
 /**
  * Compute the world-space AABB of a single attachment on a slot.
@@ -120,25 +120,89 @@ function aabbFromFloat32(buf: Float32Array, vertexCount: number): AABB {
 }
 
 /**
- * Derive per-axis and peak scale factors for an attachment, given its world
- * AABB and source (pre-pack) dimensions.
+ * Derive the intrinsic render-scale applied to an attachment's source pixels,
+ * independent of any rotation that widens the world-space AABB.
  *
- *   scaleX = worldW / sourceW
- *   scaleY = worldH / sourceH
- *   scale  = max(scaleX, scaleY)    ← single-number peak reported per F2.5.
+ *   - RegionAttachment: the attachment's source pixels are stretched by the
+ *     slot bone's world scale. Per-axis magnitudes are the canonical
+ *     `|bone.getWorldScaleX()|` / `|bone.getWorldScaleY()|` (which spine-core
+ *     derives from the bone's 2×2 affine as `sqrt(a²+c²)` / `sqrt(b²+d²)`).
+ *   - Mesh / VertexAttachment: per-vertex effective world-scale is the
+ *     weighted sum of influencing bones' `|worldScaleX|` / `|worldScaleY|`
+ *     (weights normalize to 1 per vertex by construction; we still take
+ *     literal `Σ wᵢ |bᵢ.worldScale|` without renormalizing because that's the
+ *     same composition computeWorldVertices uses for positions). We return
+ *     the MAX across vertices so the peak reflects the most-stretched vertex.
+ *   - Non-textured VertexAttachment subclasses (BoundingBox, Path, Point,
+ *     Clipping): return `null`.
  *
- * Zero-dim guard (T-00-03-03): if `sourceDims.w` or `.h` is `0`, we return `0`
- * for that axis rather than `Infinity` / `NaN`. This keeps downstream
- * aggregation (peak tables, CLI rendering) from poisoning on malformed atlases.
+ * Rationale: the prior `computeScale(aabb, sourceDims)` implementation used
+ * `worldAABB_W/sourceW` as scale, which for a rotated attachment inflates
+ * scale by up to √2 (rotation widens the AABB). `computeRenderScale` isolates
+ * the actual scaling applied before rotation — which is what an animator
+ * needs to right-size a source texture. Peak AABB W×H is still reported
+ * separately via `attachmentWorldAABB` for layout purposes.
+ *
+ * Precondition (caller responsibility): same as `attachmentWorldAABB` — a
+ * prior `skeleton.updateWorldTransform(Physics.update)` must have been run
+ * so bone `a/b/c/d/worldX/worldY` are current.
  */
-export function computeScale(
-  aabb: AABB,
-  sourceDims: SourceDims,
-): { scaleX: number; scaleY: number; scale: number } {
-  const worldW = aabb.maxX - aabb.minX;
-  const worldH = aabb.maxY - aabb.minY;
-  const scaleX = sourceDims.w > 0 ? worldW / sourceDims.w : 0;
-  const scaleY = sourceDims.h > 0 ? worldH / sourceDims.h : 0;
-  const scale = Math.max(scaleX, scaleY);
-  return { scaleX, scaleY, scale };
+export function computeRenderScale(
+  slot: Slot,
+  attachment: Attachment,
+): { scale: number; scaleX: number; scaleY: number } | null {
+  // 1) Region — source pixels transform by slot.bone only.
+  if (attachment instanceof RegionAttachment) {
+    return boneAxisScales(slot);
+  }
+
+  // 2) Skip list — non-textured VertexAttachment subclasses.
+  if (
+    attachment instanceof BoundingBoxAttachment ||
+    attachment instanceof PathAttachment ||
+    attachment instanceof PointAttachment ||
+    attachment instanceof ClippingAttachment
+  ) {
+    return null;
+  }
+
+  // 3) VertexAttachment (mesh) — weighted per-vertex.
+  if (attachment instanceof VertexAttachment) {
+    const bones = attachment.bones;
+    // Non-weighted mesh: all vertices live in slot.bone's local frame.
+    if (!bones) return boneAxisScales(slot);
+
+    const skeletonBones = slot.bone.skeleton.bones;
+    const verts = attachment.vertices;
+    let maxX = 0;
+    let maxY = 0;
+    let v = 0; // cursor into `bones`      — `[n, boneIdx, boneIdx, …]` per vertex
+    let b = 0; // cursor into `vertices`   — `[x, y, weight]` per bone-influence
+    const numVerts = attachment.worldVerticesLength >> 1;
+    for (let i = 0; i < numVerts; i++) {
+      const n = bones[v++]!;
+      let vx = 0;
+      let vy = 0;
+      for (let j = 0; j < n; j++, v++, b += 3) {
+        const bone = skeletonBones[bones[v]!]!;
+        const weight = verts[b + 2] as number;
+        vx += Math.abs(bone.getWorldScaleX()) * weight;
+        vy += Math.abs(bone.getWorldScaleY()) * weight;
+      }
+      if (vx > maxX) maxX = vx;
+      if (vy > maxY) maxY = vy;
+    }
+    return { scaleX: maxX, scaleY: maxY, scale: Math.max(maxX, maxY) };
+  }
+
+  return null;
+}
+
+function boneAxisScales(
+  slot: Slot,
+): { scale: number; scaleX: number; scaleY: number } {
+  const bone = slot.bone;
+  const scaleX = Math.abs(bone.getWorldScaleX());
+  const scaleY = Math.abs(bone.getWorldScaleY());
+  return { scaleX, scaleY, scale: Math.max(scaleX, scaleY) };
 }

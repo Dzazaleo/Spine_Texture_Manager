@@ -6,8 +6,9 @@
  *   - F2.3 Vertex/Mesh path: MeshAttachment → N-vertex AABB, cross-checked
  *     against a direct computeWorldVertices call to 5 decimal places.
  *   - F2.3 Skip list: BoundingBox/Path/Point/Clipping → null.
- *   - F2.5 computeScale: {scaleX, scaleY, scale=max(scaleX,scaleY)} with the
- *     T-00-03-03 zero-dim guard returning 0 instead of Infinity.
+ *   - F2.5 computeRenderScale: {scale, scaleX, scaleY} derived from
+ *     `bone.getWorldScaleX/Y()` (Region) or weighted per-vertex bone scale
+ *     (Mesh). Returns `null` for non-textured VertexAttachment subclasses.
  *   - N1.1 setup-pose sizes: every RegionAttachment on the fixture has a
  *     finite, positive-extent AABB in the setup pose (bounds.ts works on
  *     the raw bone hierarchy without any animation state applied).
@@ -29,7 +30,10 @@ import {
   PathAttachment,
 } from '@esotericsoftware/spine-core';
 import { loadSkeleton } from '../../src/core/loader.js';
-import { attachmentWorldAABB, computeScale } from '../../src/core/bounds.js';
+import {
+  attachmentWorldAABB,
+  computeRenderScale,
+} from '../../src/core/bounds.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 
@@ -48,26 +52,88 @@ function primedSkeleton(): Skeleton {
   return skeleton;
 }
 
-describe('computeScale (F2.5)', () => {
-  it('F2.5: returns scaleX, scaleY, and scale=max(scaleX,scaleY)', () => {
-    const result = computeScale(
-      { minX: 0, minY: 0, maxX: 200, maxY: 100 },
-      { w: 100, h: 100, source: 'atlas-orig' },
+describe('computeRenderScale (F2.5)', () => {
+  it('F2.5: Region — returns |bone.worldScaleX| / |worldScaleY| regardless of rotation', () => {
+    // TRIANGLE is a Region attached to CHAIN_8, which sits ~35° rotated in setup.
+    // Under the old AABB/source formula this inflated to ~1.44×; the render-scale
+    // formula must be exactly 1.0 in the setup pose (no bone scale applied).
+    const skeleton = primedSkeleton();
+    const slot = skeleton.slots.find((s) => s.data.name === 'TRIANGLE');
+    expect(slot).toBeDefined();
+    const att = slot!.getAttachment();
+    expect(att instanceof RegionAttachment).toBe(true);
+    const rs = computeRenderScale(slot!, att!);
+    expect(rs).not.toBeNull();
+    expect(rs!.scaleX).toBeCloseTo(
+      Math.abs(slot!.bone.getWorldScaleX()),
+      10,
     );
-    expect(result.scaleX).toBe(2);
-    expect(result.scaleY).toBe(1);
-    expect(result.scale).toBe(2);
+    expect(rs!.scaleY).toBeCloseTo(
+      Math.abs(slot!.bone.getWorldScaleY()),
+      10,
+    );
+    expect(rs!.scale).toBe(Math.max(rs!.scaleX, rs!.scaleY));
+    // Setup pose: no animated bone scaling. Chain inherits identity scale →
+    // render-scale ≈ 1.0 (within FP slop).
+    expect(rs!.scale).toBeCloseTo(1.0, 5);
   });
 
-  it('F2.5: guards zero-width source dims → returns 0, not Infinity (T-00-03-03)', () => {
-    const result = computeScale(
-      { minX: 0, minY: 0, maxX: 50, maxY: 50 },
-      { w: 0, h: 0, source: 'atlas-bounds' },
+  it('F2.5: Region — pre-scaled bone surfaces its non-unit world scale', () => {
+    // SQUARE2 slot is parented to SQUARE2 bone which has a setup-pose scaleX/Y
+    // of 0.2538 per fixture inspection. Render-scale must pick that up.
+    const skeleton = primedSkeleton();
+    const slot = skeleton.slots.find((s) => s.data.name === 'SQUARE2');
+    expect(slot).toBeDefined();
+    const att = slot!.getAttachment();
+    expect(att instanceof RegionAttachment).toBe(true);
+    const rs = computeRenderScale(slot!, att!);
+    expect(rs).not.toBeNull();
+    expect(rs!.scale).toBeGreaterThan(0);
+    expect(rs!.scale).toBeLessThan(1);
+    // Sanity: matches slot.bone.getWorldScaleX/Y() (no rotation on SQUARE2 bone).
+    expect(rs!.scaleX).toBeCloseTo(
+      Math.abs(slot!.bone.getWorldScaleX()),
+      10,
     );
-    expect(result.scaleX).toBe(0);
-    expect(result.scaleY).toBe(0);
-    expect(result.scale).toBe(0);
-    expect(Number.isFinite(result.scale)).toBe(true);
+  });
+
+  it('F2.5: Mesh — returns weighted per-vertex max (non-null, > 0 on fixture CIRCLE)', () => {
+    // CIRCLE is a MeshAttachment weighted to CHAIN_* bones (confirmed in
+    // sampler.spec.ts N1.4). In the setup pose the chain is identity, so
+    // weighted sum of |worldScale| per vertex ≈ 1.0. Any animation-driven
+    // peak is asserted in sampler.spec.ts.
+    const skeleton = primedSkeleton();
+    const slot = skeleton.slots.find((s) => s.data.name === 'CIRCLE');
+    expect(slot).toBeDefined();
+    const att = slot!.getAttachment();
+    expect(att).not.toBeNull();
+    const rs = computeRenderScale(slot!, att!);
+    expect(rs).not.toBeNull();
+    expect(Number.isFinite(rs!.scale)).toBe(true);
+    expect(rs!.scale).toBeCloseTo(1.0, 3); // setup pose, identity chain
+    expect(rs!.scale).toBe(Math.max(rs!.scaleX, rs!.scaleY));
+  });
+
+  it('F2.5: Skip list — PathAttachment returns null', () => {
+    const skeleton = primedSkeleton();
+    let pathEntry: {
+      slot: ReturnType<Skeleton['findSlot']>;
+      att: PathAttachment;
+    } | null = null;
+    for (const skin of skeleton.data.skins) {
+      for (const entry of skin.getAttachments()) {
+        if (entry.attachment instanceof PathAttachment) {
+          pathEntry = {
+            slot: skeleton.slots[entry.slotIndex]!,
+            att: entry.attachment,
+          };
+          break;
+        }
+      }
+      if (pathEntry) break;
+    }
+    if (!pathEntry) throw new Error('fixture has no PathAttachment');
+    expect(computeRenderScale(pathEntry.slot!, pathEntry.att)).toBeNull();
   });
 });
 
@@ -212,9 +278,9 @@ describe('bounds.ts module hygiene (N2.3 by construction)', () => {
     expect(src).not.toMatch(/\bsharp\b/);
   });
 
-  it('exports attachmentWorldAABB and computeScale', () => {
+  it('exports attachmentWorldAABB and computeRenderScale', () => {
     expect(src).toMatch(/export\s+function\s+attachmentWorldAABB/);
-    expect(src).toMatch(/export\s+function\s+computeScale/);
+    expect(src).toMatch(/export\s+function\s+computeRenderScale/);
   });
 
   it('references both RegionAttachment and VertexAttachment delegation paths', () => {

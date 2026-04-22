@@ -88,7 +88,7 @@ function renderTable(peaks: Map<string, PeakRecord>): string {
       rec.skinName,
       `${rec.sourceW}×${rec.sourceH}`,
       `${worldW}×${worldH}`,
-      rec.scale.toFixed(3),
+      rec.peakScale.toFixed(3),
       rec.animationName,
       String(rec.frame),
     ]);
