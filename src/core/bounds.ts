@@ -31,6 +31,7 @@
 import {
   RegionAttachment,
   VertexAttachment,
+  MeshAttachment,
   BoundingBoxAttachment,
   PathAttachment,
   PointAttachment,
@@ -125,23 +126,20 @@ function aabbFromFloat32(buf: Float32Array, vertexCount: number): AABB {
  *
  *   - RegionAttachment: the attachment's source pixels are stretched by the
  *     slot bone's world scale. Per-axis magnitudes are the canonical
- *     `|bone.getWorldScaleX()|` / `|bone.getWorldScaleY()|` (which spine-core
- *     derives from the bone's 2×2 affine as `sqrt(a²+c²)` / `sqrt(b²+d²)`).
- *   - Mesh / VertexAttachment: per-vertex effective world-scale is the
- *     weighted sum of influencing bones' `|worldScaleX|` / `|worldScaleY|`
- *     (weights normalize to 1 per vertex by construction; we still take
- *     literal `Σ wᵢ |bᵢ.worldScale|` without renormalizing because that's the
- *     same composition computeWorldVertices uses for positions). We return
- *     the MAX across vertices so the peak reflects the most-stretched vertex.
+ *     `|bone.getWorldScaleX()|` / `|bone.getWorldScaleY()|`.
+ *   - MeshAttachment (iteration-3, GAP-FIX "Followup 2026-04-22"):
+ *     `peakScale = max over triangles T of sqrt(world_area(T) / source_area(T))`.
+ *     World area uses post-transform vertex positions; source area uses the
+ *     mesh's page-normalized `uvs` scaled by atlas-page pixel dimensions.
+ *     Isotropic by construction → `scaleX = scaleY = scale` (no X/Y split
+ *     until a future iteration introduces per-axis edge projections).
+ *   - Other (non-Mesh) VertexAttachment subtypes with no `triangles[]`:
+ *     fall back to the weighted per-vertex bone-scale sum (iteration-1
+ *     formula). NOTE: MeshAttachment always ships `triangles[]`, so this
+ *     fallback only triggers for future VertexAttachment subtypes that gain
+ *     pixel data without a triangulation.
  *   - Non-textured VertexAttachment subclasses (BoundingBox, Path, Point,
  *     Clipping): return `null`.
- *
- * Rationale: the prior `computeScale(aabb, sourceDims)` implementation used
- * `worldAABB_W/sourceW` as scale, which for a rotated attachment inflates
- * scale by up to √2 (rotation widens the AABB). `computeRenderScale` isolates
- * the actual scaling applied before rotation — which is what an animator
- * needs to right-size a source texture. Peak AABB W×H is still reported
- * separately via `attachmentWorldAABB` for layout purposes.
  *
  * Precondition (caller responsibility): same as `attachmentWorldAABB` — a
  * prior `skeleton.updateWorldTransform(Physics.update)` must have been run
@@ -166,36 +164,148 @@ export function computeRenderScale(
     return null;
   }
 
-  // 3) VertexAttachment (mesh) — weighted per-vertex.
-  if (attachment instanceof VertexAttachment) {
-    const bones = attachment.bones;
-    // Non-weighted mesh: all vertices live in slot.bone's local frame.
-    if (!bones) return boneAxisScales(slot);
+  // 3) MeshAttachment — per-triangle max area-ratio (iteration-3).
+  if (attachment instanceof MeshAttachment) {
+    const n = attachment.worldVerticesLength;
+    if (n <= 0) return null;
+    const wv = new Float32Array(n);
+    attachment.computeWorldVertices(slot, 0, n, wv, 0, 2);
+    return perTriangleMaxAreaRatio(attachment, wv)
+      ?? weightedSumMeshRenderScale(slot, attachment);
+  }
 
-    const skeletonBones = slot.bone.skeleton.bones;
-    const verts = attachment.vertices;
-    let maxX = 0;
-    let maxY = 0;
-    let v = 0; // cursor into `bones`      — `[n, boneIdx, boneIdx, …]` per vertex
-    let b = 0; // cursor into `vertices`   — `[x, y, weight]` per bone-influence
-    const numVerts = attachment.worldVerticesLength >> 1;
-    for (let i = 0; i < numVerts; i++) {
-      const n = bones[v++]!;
-      let vx = 0;
-      let vy = 0;
-      for (let j = 0; j < n; j++, v++, b += 3) {
-        const bone = skeletonBones[bones[v]!]!;
-        const weight = verts[b + 2] as number;
-        vx += Math.abs(bone.getWorldScaleX()) * weight;
-        vy += Math.abs(bone.getWorldScaleY()) * weight;
-      }
-      if (vx > maxX) maxX = vx;
-      if (vy > maxY) maxY = vy;
-    }
-    return { scaleX: maxX, scaleY: maxY, scale: Math.max(maxX, maxY) };
+  // 4) Generic VertexAttachment — future pixel-bearing subtypes without
+  //    `triangles[]`. Fall back to weighted per-vertex bone-scale sum.
+  if (attachment instanceof VertexAttachment) {
+    return weightedSumMeshRenderScale(slot, attachment);
   }
 
   return null;
+}
+
+/**
+ * Per-triangle max-area-ratio render-scale (iteration-3 mesh formula).
+ *
+ * For every triangle T in the mesh:
+ *   r(T) = sqrt( world_area(T) / source_area(T) )
+ *   - world_area(T)  uses post-transform vertex positions (from `worldVertices`).
+ *   - source_area(T) uses the mesh's page-normalized `uvs` scaled by the atlas
+ *     page's pixel dimensions — the same basis `computeWorldVertices` uses
+ *     for mesh positions at identity, so ratio ≈ 1.0 at setup pose.
+ * Return `max(r)` across triangles. Isotropic by design → scaleX = scaleY = scale.
+ *
+ * Rationale (GAP-FIX "Followup 2026-04-22"): the weighted-sum formula
+ * false-positives shared-bone spillover (BODY mesh reporting R_ARM's 1.319×
+ * because a few vertices are rigged to the shoulder bone, even though the
+ * mesh as a whole barely deforms). Reading triangle areas from actual world
+ * vertex positions — AFTER bone weighting — captures local stretch where it
+ * happens and ignores small-weight bone influences that move vertices
+ * negligibly.
+ *
+ * Returns `null` if per-triangle computation is not possible (missing
+ * `triangles[]`, missing region, or zero-sized page). Caller falls back to
+ * the weighted-sum formula in those cases.
+ */
+function perTriangleMaxAreaRatio(
+  attachment: MeshAttachment,
+  worldVertices: Float32Array,
+): { scale: number; scaleX: number; scaleY: number } | null {
+  const triangles = attachment.triangles;
+  if (!triangles || triangles.length < 3) return null;
+
+  // Defensive: spine-core 4.2 ships `TextureAtlasRegion` with a direct
+  // `.page` field. Older / alternative region shapes nest the page under
+  // `.texture.page`. Guard both so a rehomed region type doesn't trip us.
+  const region = attachment.region as
+    | {
+        page?: { width?: number; height?: number };
+        texture?: { page?: { width?: number; height?: number } };
+      }
+    | null;
+  const page = region?.page ?? region?.texture?.page;
+  const pageW = page?.width ?? 0;
+  const pageH = page?.height ?? 0;
+  if (pageW <= 0 || pageH <= 0) return null;
+
+  const uvs = attachment.uvs;
+  if (!uvs || uvs.length < 6) return null;
+
+  let maxRatio = 0;
+  for (let ti = 0; ti < triangles.length; ti += 3) {
+    const i0 = triangles[ti]! * 2;
+    const i1 = triangles[ti + 1]! * 2;
+    const i2 = triangles[ti + 2]! * 2;
+
+    const wx0 = worldVertices[i0]!;
+    const wy0 = worldVertices[i0 + 1]!;
+    const wx1 = worldVertices[i1]!;
+    const wy1 = worldVertices[i1 + 1]!;
+    const wx2 = worldVertices[i2]!;
+    const wy2 = worldVertices[i2 + 1]!;
+    // 2× world triangle area (signed; take |.| below).
+    const worldDouble =
+      (wx1 - wx0) * (wy2 - wy0) - (wx2 - wx0) * (wy1 - wy0);
+
+    const sx0 = (uvs[i0] as number) * pageW;
+    const sy0 = (uvs[i0 + 1] as number) * pageH;
+    const sx1 = (uvs[i1] as number) * pageW;
+    const sy1 = (uvs[i1 + 1] as number) * pageH;
+    const sx2 = (uvs[i2] as number) * pageW;
+    const sy2 = (uvs[i2 + 1] as number) * pageH;
+    const srcDouble =
+      (sx1 - sx0) * (sy2 - sy0) - (sx2 - sx0) * (sy1 - sy0);
+
+    // Skip degenerate (collinear or zero-area) source triangles — they can't
+    // yield a meaningful ratio and would divide-by-zero.
+    const srcAbs = Math.abs(srcDouble);
+    if (srcAbs <= 1e-12) continue;
+    const ratio = Math.abs(worldDouble) / srcAbs;
+    if (ratio > maxRatio) maxRatio = ratio;
+  }
+
+  // All triangles degenerated (shouldn't happen on real meshes) — caller
+  // will fall back to weighted-sum.
+  if (maxRatio <= 0) return null;
+
+  const scale = Math.sqrt(maxRatio);
+  // Isotropic: sqrt(area-ratio) is a scalar, so X/Y are reported equal.
+  // A future iteration may split per-axis via edge-projection ratios.
+  return { scale, scaleX: scale, scaleY: scale };
+}
+
+/**
+ * Weighted per-vertex bone-scale fallback (iteration-1 mesh formula). Kept for
+ * future VertexAttachment subtypes that lack `triangles[]` — MeshAttachment
+ * always ships triangles, so this path is currently unreachable in practice.
+ */
+function weightedSumMeshRenderScale(
+  slot: Slot,
+  attachment: VertexAttachment,
+): { scale: number; scaleX: number; scaleY: number } {
+  const bones = attachment.bones;
+  if (!bones) return boneAxisScales(slot);
+
+  const skeletonBones = slot.bone.skeleton.bones;
+  const verts = attachment.vertices;
+  let maxX = 0;
+  let maxY = 0;
+  let v = 0;
+  let b = 0;
+  const numVerts = attachment.worldVerticesLength >> 1;
+  for (let i = 0; i < numVerts; i++) {
+    const n = bones[v++]!;
+    let vx = 0;
+    let vy = 0;
+    for (let j = 0; j < n; j++, v++, b += 3) {
+      const bone = skeletonBones[bones[v]!]!;
+      const weight = verts[b + 2] as number;
+      vx += Math.abs(bone.getWorldScaleX()) * weight;
+      vy += Math.abs(bone.getWorldScaleY()) * weight;
+    }
+    if (vx > maxX) maxX = vx;
+    if (vy > maxY) maxY = vy;
+  }
+  return { scaleX: maxX, scaleY: maxY, scale: Math.max(maxX, maxY) };
 }
 
 function boneAxisScales(
