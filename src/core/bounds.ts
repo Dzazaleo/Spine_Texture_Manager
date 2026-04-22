@@ -164,13 +164,13 @@ export function computeRenderScale(
     return null;
   }
 
-  // 3) MeshAttachment — per-triangle max area-ratio (iteration-3).
+  // 3) MeshAttachment — convex-hull area-ratio (iteration-4).
   if (attachment instanceof MeshAttachment) {
     const n = attachment.worldVerticesLength;
     if (n <= 0) return null;
     const wv = new Float32Array(n);
     attachment.computeWorldVertices(slot, 0, n, wv, 0, 2);
-    return perTriangleMaxAreaRatio(attachment, wv)
+    return hullAreaRatio(attachment, wv)
       ?? weightedSumMeshRenderScale(slot, attachment);
   }
 
@@ -184,35 +184,35 @@ export function computeRenderScale(
 }
 
 /**
- * Per-triangle max-area-ratio render-scale (iteration-3 mesh formula).
+ * Convex-hull area-ratio render-scale (iteration-4 mesh formula).
  *
- * For every triangle T in the mesh:
- *   r(T) = sqrt( world_area(T) / source_area(T) )
- *   - world_area(T)  uses post-transform vertex positions (from `worldVertices`).
- *   - source_area(T) uses the mesh's page-normalized `uvs` scaled by the atlas
- *     page's pixel dimensions — the same basis `computeWorldVertices` uses
- *     for mesh positions at identity, so ratio ≈ 1.0 at setup pose.
- * Return `max(r)` across triangles. Isotropic by design → scaleX = scaleY = scale.
+ *   peakScale(mesh) = sqrt( area(hull(worldVertices)) / area(hull(sourceVertices)) )
  *
- * Rationale (GAP-FIX "Followup 2026-04-22"): the weighted-sum formula
- * false-positives shared-bone spillover (BODY mesh reporting R_ARM's 1.319×
- * because a few vertices are rigged to the shoulder bone, even though the
- * mesh as a whole barely deforms). Reading triangle areas from actual world
- * vertex positions — AFTER bone weighting — captures local stretch where it
- * happens and ignores small-weight bone influences that move vertices
- * negligibly.
+ * Source vertices are `attachment.uvs` (page-normalized) scaled by atlas page
+ * pixel dimensions — the same basis `computeWorldVertices` uses at identity
+ * so ratio ≈ 1.0 at setup pose. Isotropic by construction → scaleX = scaleY.
  *
- * Returns `null` if per-triangle computation is not possible (missing
- * `triangles[]`, missing region, or zero-sized page). Caller falls back to
- * the weighted-sum formula in those cases.
+ * Rationale (GAP-FIX iter-2 table validated winner): the weighted-sum formula
+ * (iter-1) false-positived shared-bone spillover; the per-triangle max-area
+ * formula (iter-3) over-reported local boundary-triangle stretches the user
+ * doesn't see in the editor. Hull area captures the mesh's OVERALL
+ * deformation footprint — what a dummy texture must cover — without
+ * amplifying local triangle curl at weighted-bone joints. Matched user
+ * ground truth across all three fixtures: BODY 1.07, R_ARM 1.319, uniform
+ * 1.6× → 1.606.
+ *
+ * Known limit (accepted, flagged in GAP-FIX): isotropic. "Stretched 2× in X,
+ * 0.5× in Y" reports ≈ 1.0 (same area as identity) — indistinguishable from
+ * "no deformation." A future iteration adds per-axis split via OBB aspect
+ * or edge projections.
+ *
+ * Returns `null` if the mesh lacks a region or atlas page (source area
+ * undefined). Caller falls back to the weighted-sum formula.
  */
-function perTriangleMaxAreaRatio(
+function hullAreaRatio(
   attachment: MeshAttachment,
   worldVertices: Float32Array,
 ): { scale: number; scaleX: number; scaleY: number } | null {
-  const triangles = attachment.triangles;
-  if (!triangles || triangles.length < 3) return null;
-
   // Defensive: spine-core 4.2 ships `TextureAtlasRegion` with a direct
   // `.page` field. Older / alternative region shapes nest the page under
   // `.texture.page`. Guard both so a rehomed region type doesn't trip us.
@@ -228,49 +228,91 @@ function perTriangleMaxAreaRatio(
   if (pageW <= 0 || pageH <= 0) return null;
 
   const uvs = attachment.uvs;
-  if (!uvs || uvs.length < 6) return null;
+  const n = worldVertices.length;
+  if (!uvs || uvs.length < n || n < 6) return null;
 
-  let maxRatio = 0;
-  for (let ti = 0; ti < triangles.length; ti += 3) {
-    const i0 = triangles[ti]! * 2;
-    const i1 = triangles[ti + 1]! * 2;
-    const i2 = triangles[ti + 2]! * 2;
-
-    const wx0 = worldVertices[i0]!;
-    const wy0 = worldVertices[i0 + 1]!;
-    const wx1 = worldVertices[i1]!;
-    const wy1 = worldVertices[i1 + 1]!;
-    const wx2 = worldVertices[i2]!;
-    const wy2 = worldVertices[i2 + 1]!;
-    // 2× world triangle area (signed; take |.| below).
-    const worldDouble =
-      (wx1 - wx0) * (wy2 - wy0) - (wx2 - wx0) * (wy1 - wy0);
-
-    const sx0 = (uvs[i0] as number) * pageW;
-    const sy0 = (uvs[i0 + 1] as number) * pageH;
-    const sx1 = (uvs[i1] as number) * pageW;
-    const sy1 = (uvs[i1 + 1] as number) * pageH;
-    const sx2 = (uvs[i2] as number) * pageW;
-    const sy2 = (uvs[i2 + 1] as number) * pageH;
-    const srcDouble =
-      (sx1 - sx0) * (sy2 - sy0) - (sx2 - sx0) * (sy1 - sy0);
-
-    // Skip degenerate (collinear or zero-area) source triangles — they can't
-    // yield a meaningful ratio and would divide-by-zero.
-    const srcAbs = Math.abs(srcDouble);
-    if (srcAbs <= 1e-12) continue;
-    const ratio = Math.abs(worldDouble) / srcAbs;
-    if (ratio > maxRatio) maxRatio = ratio;
+  // Build the source-space buffer (uvs × page dims) in a scratch Float32Array.
+  const sv = new Float32Array(n);
+  for (let i = 0; i < n; i += 2) {
+    sv[i] = (uvs[i] as number) * pageW;
+    sv[i + 1] = (uvs[i + 1] as number) * pageH;
   }
 
-  // All triangles degenerated (shouldn't happen on real meshes) — caller
-  // will fall back to weighted-sum.
-  if (maxRatio <= 0) return null;
+  const worldArea = hullArea(worldVertices, n >> 1);
+  const sourceArea = hullArea(sv, n >> 1);
+  if (sourceArea <= 1e-12) return null;
 
-  const scale = Math.sqrt(maxRatio);
+  const ratio = worldArea / sourceArea;
+  if (!(ratio > 0)) return null; // NaN/Infinity guard
+
+  const scale = Math.sqrt(ratio);
   // Isotropic: sqrt(area-ratio) is a scalar, so X/Y are reported equal.
-  // A future iteration may split per-axis via edge-projection ratios.
   return { scale, scaleX: scale, scaleY: scale };
+}
+
+/**
+ * Convex hull area via Andrew's monotone chain on an index permutation (no
+ * allocations per-vertex). Returns the polygon area of the hull.
+ *
+ * Points come from a flat `Float32Array` of `[x0, y0, x1, y1, ...]` with
+ * `numPoints` pairs to consume. Indices are sorted by (x, y); the lower and
+ * upper hulls are built into a reused `hullIdx` buffer; the shoelace sum is
+ * computed directly from the ordered indices.
+ */
+function hullArea(buf: Float32Array, numPoints: number): number {
+  if (numPoints < 3) return 0;
+  // Sort an index array by (x asc, y asc). `Int32Array.sort` takes a
+  // comparator; the comparator reads (x, y) from the flat buffer.
+  const idx = new Int32Array(numPoints);
+  for (let i = 0; i < numPoints; i++) idx[i] = i;
+  // `Array` sort (Int32Array.sort lacks a stable comparator across engines
+  // historically; for Jokerman-scale meshes this is fine — swap to a typed
+  // radix if profiling flags it).
+  const idxArr: number[] = Array.from(idx);
+  idxArr.sort((a, b) => {
+    const ax = buf[a * 2]!;
+    const bx = buf[b * 2]!;
+    if (ax !== bx) return ax - bx;
+    return buf[a * 2 + 1]! - buf[b * 2 + 1]!;
+  });
+
+  // `hullIdx` holds the current lower-then-upper hull indices.
+  const hullIdx = new Int32Array(numPoints * 2);
+  let h = 0;
+  // Lower hull.
+  for (let k = 0; k < numPoints; k++) {
+    const i = idxArr[k]!;
+    while (h >= 2 && cross(buf, hullIdx[h - 2]!, hullIdx[h - 1]!, i) <= 0) h--;
+    hullIdx[h++] = i;
+  }
+  // Upper hull.
+  const lowerEnd = h + 1;
+  for (let k = numPoints - 2; k >= 0; k--) {
+    const i = idxArr[k]!;
+    while (h >= lowerEnd && cross(buf, hullIdx[h - 2]!, hullIdx[h - 1]!, i) <= 0) h--;
+    hullIdx[h++] = i;
+  }
+  // Last point equals first — drop it for shoelace.
+  const m = h - 1;
+  if (m < 3) return 0;
+
+  // Shoelace over ordered hull.
+  let sum = 0;
+  for (let k = 0; k < m; k++) {
+    const a = hullIdx[k]!;
+    const b = hullIdx[k + 1 === m ? 0 : k + 1]!;
+    sum += buf[a * 2]! * buf[b * 2 + 1]! - buf[b * 2]! * buf[a * 2 + 1]!;
+  }
+  return Math.abs(sum) * 0.5;
+}
+
+/** 2D cross product `(p1 - p0) × (p2 - p0)` given point indices into a flat buffer. */
+function cross(buf: Float32Array, p0: number, p1: number, p2: number): number {
+  const ax = buf[p1 * 2]! - buf[p0 * 2]!;
+  const ay = buf[p1 * 2 + 1]! - buf[p0 * 2 + 1]!;
+  const bx = buf[p2 * 2]! - buf[p0 * 2]!;
+  const by = buf[p2 * 2 + 1]! - buf[p0 * 2 + 1]!;
+  return ax * by - ay * bx;
 }
 
 /**
