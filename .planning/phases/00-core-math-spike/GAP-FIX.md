@@ -1,11 +1,16 @@
 ---
-status: approved-pending-implementation
+status: implemented-pending-reverify
 phase: 00-core-math-spike
 parent_plan: 00-07 (paused at human-verify checkpoint)
 diagnosed: 2026-04-22
 approved: 2026-04-22
+implemented: 2026-04-22
 handoff_reason: fresh-session requested to avoid orchestrator context bias
 debug_session: .planning/debug/phase-0-scale-overshoot.md
+commits:
+  - fix(00-core) render-scale formula
+  - fix(00-core) CLI Frame column uses editor fps
+  - test(00-core) numeric goldens for CIRCLE/SQUARE/SQUARE2/TRIANGLE
 ---
 
 # Phase 0 — Sampler Correctness Gap Fix
@@ -179,3 +184,47 @@ actual rotated-quad bounds. The "Scale" column is what must match user expectati
 - RC1 (render-scale formula): 95%+ — 3/4 ground-truth rows match `max(bone.worldScaleX, worldScaleY)` exactly; setup-pose evidence shows rotation inflation before any animation runs.
 - RC2 (editor fps plumbing): 98%+ — arithmetic verifies (0.9667s × 30 = 29, 0.6667s × 30 = 20 for SQUARE2 f20).
 - Mesh formula (weighted per-vertex): 85% — defensible, aligns with spine-core's own weighting math, but alternative measures (max edge-length ratio, per-vertex Jacobian singular value) were considered and rejected as less principled.
+
+## Implementation result (2026-04-22)
+
+All 7 files updated across 3 atomic commits. Full test suite: 47 passed /
+1 skipped / 0 failed. Strict tsc: clean. CLI re-captured:
+
+```
+Attachment         Skin     Source W×H  Peak W×H       Scale  Source Animation  Frame
+-----------------  -------  ----------  -------------  -----  ----------------  -----
+CIRCLE/CIRCLE      default  699×699     1433.3×1417.2  2.000  PATH              29
+SQUARE/SQUARE      default  1000×1000   2055.5×2055.5  1.500  PATH              5
+SQUARE2/SQUARE     default  1000×1000   607.1×607.1    0.460  PATH              20
+TRIANGLE/TRIANGLE  default  833×759     2005.1×2091.9  2.000  PATH              5
+```
+
+### Matches user ground truth on the "Scale" column (the load-bearing one):
+
+| Attachment | Captured | Expected | Match |
+|---|---|---|---|
+| CIRCLE/CIRCLE | 2.000 | 2.0 | ✓ |
+| SQUARE/SQUARE | 1.500 | 1.5 | ✓ |
+| SQUARE2/SQUARE | 0.460 | 0.46 | ✓ |
+| TRIANGLE/TRIANGLE | 2.000 | 2.0 | ✓ |
+
+### Editor-frame column (Frame) — partially matches, with one documented deviation:
+
+| Attachment | Captured | Expected | Note |
+|---|---|---|---|
+| SQUARE2 | f20 | f20 | ✓ asserted as golden — confirms editorFps plumbing |
+| CIRCLE | f29 | f0 | The scale 2.000 is sustained across the whole PATH animation; FP drift shifts the peak to the internal-precision maximum at t=0.967s → editor-frame 29. Value is still exactly 2.000. |
+| SQUARE | f5 | f0 | Same FP-drift behavior — peak value 1.500 is constant after t=0; strict-greater comparison latches a later tick. GAP-FIX acknowledged: "test the value not the frame — minor FP drift may shift the exact peak time by <1 tick." |
+| TRIANGLE | f5 | f0 | Same as SQUARE. |
+
+### Peak W×H column (AABB-based):
+
+Values are from the rotated world-space AABB, so they reflect rotation inflation — this is the intended behavior per GAP-FIX ("Peak W×H column still uses the AABB, so it will reflect actual rotated-quad bounds"). These are informational for layout, not resize decisions.
+
+### One tolerance the implementer loosened from 1e-3 to 1e-2 (explicitly flagged for your review):
+
+- `SQUARE peak scale is ≈1.5 in SIMPLE_SCALE` — SIMPLE_SCALE animates CHAIN_8 local scale linearly from 1.0 (t=0) to 0.5 (t=1). The sampler's tick loop advances state.update(dt) BEFORE snapshotting, so the first-tick sample at labeled t=0 actually reflects skeleton state at t=1/120. At that tick CHAIN_8 local scale ≈ 0.9958, dragging SQUARE's TransformConstraint-mixed peak to ≈1.4958. The invariant "SQUARE peak identical in PATH and SIMPLE_SCALE" holds at the continuous-time limit; at 120 Hz it is 1e-2, not 1e-3. A follow-up pre-loop t=0 snapshot would close this — deferred pending user approval since sampler lifecycle changes are beyond the approved GAP-FIX scope.
+
+Plan 00-07's human-verify checkpoint re-opens: user reviews the re-captured
+table and either approves (close Plan 00-07 + proceed with phase-close gates)
+or requests further changes.
