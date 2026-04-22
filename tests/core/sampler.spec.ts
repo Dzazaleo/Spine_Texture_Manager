@@ -354,13 +354,14 @@ describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
     return sampleSkeleton(scoped);
   };
 
-  it('CIRCLE peak scale ≈ 2.0 in PATH (iteration-4 hull_sqrt) — within 5e-2 of uniform chain scale', () => {
-    // GAP-FIX iteration-4 swapped the mesh formula to convex-hull area-ratio:
-    // sqrt(hullArea(worldVerts) / hullArea(sourceVerts)). For a mesh wrapped
-    // around a uniform-2× chain the overall world hull grows by ≈4× (each
-    // vertex 2× from origin), sqrt → ≈2.0. Minor (<5%) over-report from
-    // physics/FP drift and rotated-chain edge-cases is expected; tolerance
-    // 5e-2 reflects that. Observed anchor: 2.018.
+  it('CIRCLE peak scale ≈ 2.0 in PATH (iteration-5 affine SVD) — within 5e-2 of uniform chain scale', () => {
+    // GAP-FIX iteration-5 swapped the mesh formula to best-fit affine SVD:
+    // find the 2×2 matrix A that minimizes ‖W − A·S‖² over centered
+    // world/source vertex positions, then take singular values σ₁ ≥ σ₂.
+    // peakScale = σ₁ (major), peakScaleX = σ₁, peakScaleY = σ₂.
+    // For a mesh wrapped around a uniform-2× chain, A ≈ 2·I so σ₁ = σ₂ ≈ 2.
+    // Observed anchor: 2.033. Under 5e-2 tolerance to absorb small
+    // non-affine boundary contributions from weighted-bone joints.
     const p = [...perAnimationPeaks('PATH').values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     );
@@ -368,11 +369,11 @@ describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
     expect(Math.abs(p!.peakScale - 2.0)).toBeLessThan(5e-2);
   });
 
-  it('CIRCLE peak scale ≈ 2.0 in SIMPLE_SCALE (iteration-4 hull_sqrt) — within 5e-2', () => {
-    // SIMPLE_SCALE drives CHAIN_2 to 2× via a linear curve. Hull area ratio
-    // tracks the mesh's overall footprint; at the peak tick it lands at
-    // ≈1.997 — effectively identical to PATH's 2.018, confirming the
-    // invariant "same rig, same peak footprint" holds under iteration-4.
+  it('CIRCLE peak scale ≈ 2.0 in SIMPLE_SCALE (iteration-5 affine SVD) — within 5e-2', () => {
+    // SIMPLE_SCALE drives CHAIN_2 to 2× via a linear curve. Best-fit affine
+    // singular values capture the mesh-wide stretch; peak σ₁ lands at
+    // ≈2.027 — effectively identical to PATH's 2.033, confirming the rig-
+    // level invariant "same CHAIN_2 → 2×, same peak stretch" under iter-5.
     const p = [...perAnimationPeaks('SIMPLE_SCALE').values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     );
@@ -381,11 +382,11 @@ describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
   });
 
   it('CIRCLE PATH peak ≈ SIMPLE_SCALE peak (invariant within 5e-2 — same rig, different curve types)', () => {
-    // PATH steps CHAIN_2 to 2×, SIMPLE_SCALE linear-interpolates to 2×. Hull
-    // area ratio is less sensitive to peak-tick aliasing than the iter-3
-    // per-triangle formula was, but the 120 Hz sampling still admits small
-    // delta between stepped and linear curves. 5e-2 bound is deliberately
-    // loose.
+    // PATH steps CHAIN_2 to 2×, SIMPLE_SCALE linear-interpolates to 2×.
+    // Affine SVD is much less sensitive to peak-tick aliasing than iter-3's
+    // per-triangle max or iter-4's hull area (it averages over all vertices
+    // in a least-squares fit), so the stepped/linear distinction is well
+    // under 5e-2 — but the bound stays loose for FP + physics drift.
     const a = [...perAnimationPeaks('PATH').values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     )!;

@@ -164,13 +164,13 @@ export function computeRenderScale(
     return null;
   }
 
-  // 3) MeshAttachment — convex-hull area-ratio (iteration-4).
+  // 3) MeshAttachment — best-fit affine SVD stretch (iteration-5).
   if (attachment instanceof MeshAttachment) {
     const n = attachment.worldVerticesLength;
     if (n <= 0) return null;
     const wv = new Float32Array(n);
     attachment.computeWorldVertices(slot, 0, n, wv, 0, 2);
-    return hullAreaRatio(attachment, wv)
+    return affineStretch(attachment, wv)
       ?? weightedSumMeshRenderScale(slot, attachment);
   }
 
@@ -184,32 +184,43 @@ export function computeRenderScale(
 }
 
 /**
- * Convex-hull area-ratio render-scale (iteration-4 mesh formula).
+ * Best-fit affine stretch via 2×2 SVD (iteration-5 mesh formula).
  *
- *   peakScale(mesh) = sqrt( area(hull(worldVertices)) / area(hull(sourceVertices)) )
+ *   A = argmin_A ‖ W − A·S ‖²        (normal equations, post-centering)
+ *   SVD(A) = U·Σ·Vᵀ, Σ = diag(σ₁, σ₂) with σ₁ ≥ σ₂ ≥ 0
+ *   peakScaleX = σ₁   (major stretch — longer-axis)
+ *   peakScaleY = σ₂   (minor stretch — shorter-axis)
+ *   peakScale  = σ₁
  *
- * Source vertices are `attachment.uvs` (page-normalized) scaled by atlas page
- * pixel dimensions — the same basis `computeWorldVertices` uses at identity
- * so ratio ≈ 1.0 at setup pose. Isotropic by construction → scaleX = scaleY.
+ * Where `S` is the 2×N matrix of centered source positions
+ * (`attachment.uvs × (pageW, pageH)`) and `W` is the 2×N matrix of centered
+ * world vertex positions (from `computeWorldVertices`). `A` is the best-fit
+ * 2×2 linear map capturing the mesh's overall deformation; its singular
+ * values are rotation-invariant and encode the stretch along the mesh's
+ * principal deformation axes.
  *
- * Rationale (GAP-FIX iter-2 table validated winner): the weighted-sum formula
- * (iter-1) false-positived shared-bone spillover; the per-triangle max-area
- * formula (iter-3) over-reported local boundary-triangle stretches the user
- * doesn't see in the editor. Hull area captures the mesh's OVERALL
- * deformation footprint — what a dummy texture must cover — without
- * amplifying local triangle curl at weighted-bone joints. Matched user
- * ground truth across all three fixtures: BODY 1.07, R_ARM 1.319, uniform
- * 1.6× → 1.606.
+ * Rationale (supersedes iter-4 isotropic hull_sqrt AND the earlier iter-5
+ * attempt using min-area OBB): hull_sqrt collapses anisotropic deformation
+ * (`2× in X, 0.5× in Y` reads as ≈1.0). The OBB-of-hull approach recovers
+ * anisotropy but is dominated by hull-outlier vertices, over-reporting
+ * attachments like AVATAR/LEGS (OBB: 1.584 vs user's expected 1.07 range).
+ * SVD-of-best-fit-affine is outlier-robust because every vertex contributes
+ * linearly to the normal equations — a single extreme vertex can't hijack
+ * the fit the way it hijacks a hull extent.
  *
- * Known limit (accepted, flagged in GAP-FIX): isotropic. "Stretched 2× in X,
- * 0.5× in Y" reports ≈ 1.0 (same area as identity) — indistinguishable from
- * "no deformation." A future iteration adds per-axis split via OBB aspect
- * or edge projections.
+ * Properties:
+ *   - Rigid rotation yields σ₁ = σ₂ = 1.0 (A is orthogonal).
+ *   - Uniform scale λ yields σ₁ = σ₂ = λ.
+ *   - Anisotropic a × b (source-X × source-Y) yields σ₁ = max(a,b), σ₂ = min.
+ *   - Non-affine deformation yields the least-squares BEST AFFINE
+ *     APPROXIMATION of the mesh's stretch — what a single resize would
+ *     need to cover.
  *
- * Returns `null` if the mesh lacks a region or atlas page (source area
- * undefined). Caller falls back to the weighted-sum formula.
+ * Returns `null` if the mesh lacks a region or atlas page, or if the
+ * source-positions matrix is degenerate (collinear). Caller falls back to
+ * the weighted-sum formula.
  */
-function hullAreaRatio(
+function affineStretch(
   attachment: MeshAttachment,
   worldVertices: Float32Array,
 ): { scale: number; scaleX: number; scaleY: number } | null {
@@ -231,88 +242,74 @@ function hullAreaRatio(
   const n = worldVertices.length;
   if (!uvs || uvs.length < n || n < 6) return null;
 
-  // Build the source-space buffer (uvs × page dims) in a scratch Float32Array.
-  const sv = new Float32Array(n);
-  for (let i = 0; i < n; i += 2) {
-    sv[i] = (uvs[i] as number) * pageW;
-    sv[i + 1] = (uvs[i + 1] as number) * pageH;
+  const numVerts = n >> 1;
+
+  // Centroids of source and world positions.
+  let scx = 0, scy = 0, wcx = 0, wcy = 0;
+  for (let i = 0; i < numVerts; i++) {
+    const ix = i * 2;
+    scx += (uvs[ix] as number) * pageW;
+    scy += (uvs[ix + 1] as number) * pageH;
+    wcx += worldVertices[ix]!;
+    wcy += worldVertices[ix + 1]!;
+  }
+  scx /= numVerts;
+  scy /= numVerts;
+  wcx /= numVerts;
+  wcy /= numVerts;
+
+  // Assemble the normal-equation sums over CENTERED positions.
+  //   S·Sᵀ = [[Sxx, Sxy], [Sxy, Syy]]   (source Gram)
+  //   W·Sᵀ = [[Cxx, Cxy], [Cyx, Cyy]]   (cross-correlation)
+  let Sxx = 0, Syy = 0, Sxy = 0;
+  let Cxx = 0, Cxy = 0, Cyx = 0, Cyy = 0;
+  for (let i = 0; i < numVerts; i++) {
+    const ix = i * 2;
+    const sx = (uvs[ix] as number) * pageW - scx;
+    const sy = (uvs[ix + 1] as number) * pageH - scy;
+    const wx = worldVertices[ix]! - wcx;
+    const wy = worldVertices[ix + 1]! - wcy;
+    Sxx += sx * sx;
+    Syy += sy * sy;
+    Sxy += sx * sy;
+    Cxx += wx * sx;
+    Cxy += wx * sy;
+    Cyx += wy * sx;
+    Cyy += wy * sy;
   }
 
-  const worldArea = hullArea(worldVertices, n >> 1);
-  const sourceArea = hullArea(sv, n >> 1);
-  if (sourceArea <= 1e-12) return null;
+  const detS = Sxx * Syy - Sxy * Sxy;
+  if (detS < 1e-9) return null; // collinear source — fit undefined
 
-  const ratio = worldArea / sourceArea;
-  if (!(ratio > 0)) return null; // NaN/Infinity guard
+  // (S·Sᵀ)⁻¹ entries.
+  const invS00 = Syy / detS;
+  const invS01 = -Sxy / detS;
+  const invS11 = Sxx / detS;
 
-  const scale = Math.sqrt(ratio);
-  // Isotropic: sqrt(area-ratio) is a scalar, so X/Y are reported equal.
-  return { scale, scaleX: scale, scaleY: scale };
-}
+  // A = (W·Sᵀ) · (S·Sᵀ)⁻¹
+  const A11 = Cxx * invS00 + Cxy * invS01;
+  const A12 = Cxx * invS01 + Cxy * invS11;
+  const A21 = Cyx * invS00 + Cyy * invS01;
+  const A22 = Cyx * invS01 + Cyy * invS11;
 
-/**
- * Convex hull area via Andrew's monotone chain on an index permutation (no
- * allocations per-vertex). Returns the polygon area of the hull.
- *
- * Points come from a flat `Float32Array` of `[x0, y0, x1, y1, ...]` with
- * `numPoints` pairs to consume. Indices are sorted by (x, y); the lower and
- * upper hulls are built into a reused `hullIdx` buffer; the shoelace sum is
- * computed directly from the ordered indices.
- */
-function hullArea(buf: Float32Array, numPoints: number): number {
-  if (numPoints < 3) return 0;
-  // Sort an index array by (x asc, y asc). `Int32Array.sort` takes a
-  // comparator; the comparator reads (x, y) from the flat buffer.
-  const idx = new Int32Array(numPoints);
-  for (let i = 0; i < numPoints; i++) idx[i] = i;
-  // `Array` sort (Int32Array.sort lacks a stable comparator across engines
-  // historically; for Jokerman-scale meshes this is fine — swap to a typed
-  // radix if profiling flags it).
-  const idxArr: number[] = Array.from(idx);
-  idxArr.sort((a, b) => {
-    const ax = buf[a * 2]!;
-    const bx = buf[b * 2]!;
-    if (ax !== bx) return ax - bx;
-    return buf[a * 2 + 1]! - buf[b * 2 + 1]!;
-  });
+  // Singular values of 2×2 A via closed form:
+  //   σ₁² + σ₂² = ‖A‖_F² = A11² + A12² + A21² + A22²
+  //   σ₁·σ₂ = |det A|
+  // So σ² = (‖A‖_F² ± √(‖A‖_F⁴ − 4·det²)) / 2.
+  const frobSq = A11 * A11 + A12 * A12 + A21 * A21 + A22 * A22;
+  const detA = A11 * A22 - A12 * A21;
+  const disc = Math.max(0, frobSq * frobSq - 4 * detA * detA);
+  const sqrtDisc = Math.sqrt(disc);
+  const s1sq = (frobSq + sqrtDisc) * 0.5;
+  const s2sq = Math.max(0, (frobSq - sqrtDisc) * 0.5);
+  const major = Math.sqrt(s1sq);
+  const minor = Math.sqrt(s2sq);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return null;
 
-  // `hullIdx` holds the current lower-then-upper hull indices.
-  const hullIdx = new Int32Array(numPoints * 2);
-  let h = 0;
-  // Lower hull.
-  for (let k = 0; k < numPoints; k++) {
-    const i = idxArr[k]!;
-    while (h >= 2 && cross(buf, hullIdx[h - 2]!, hullIdx[h - 1]!, i) <= 0) h--;
-    hullIdx[h++] = i;
-  }
-  // Upper hull.
-  const lowerEnd = h + 1;
-  for (let k = numPoints - 2; k >= 0; k--) {
-    const i = idxArr[k]!;
-    while (h >= lowerEnd && cross(buf, hullIdx[h - 2]!, hullIdx[h - 1]!, i) <= 0) h--;
-    hullIdx[h++] = i;
-  }
-  // Last point equals first — drop it for shoelace.
-  const m = h - 1;
-  if (m < 3) return 0;
-
-  // Shoelace over ordered hull.
-  let sum = 0;
-  for (let k = 0; k < m; k++) {
-    const a = hullIdx[k]!;
-    const b = hullIdx[k + 1 === m ? 0 : k + 1]!;
-    sum += buf[a * 2]! * buf[b * 2 + 1]! - buf[b * 2]! * buf[a * 2 + 1]!;
-  }
-  return Math.abs(sum) * 0.5;
-}
-
-/** 2D cross product `(p1 - p0) × (p2 - p0)` given point indices into a flat buffer. */
-function cross(buf: Float32Array, p0: number, p1: number, p2: number): number {
-  const ax = buf[p1 * 2]! - buf[p0 * 2]!;
-  const ay = buf[p1 * 2 + 1]! - buf[p0 * 2 + 1]!;
-  const bx = buf[p2 * 2]! - buf[p0 * 2]!;
-  const by = buf[p2 * 2 + 1]! - buf[p0 * 2 + 1]!;
-  return ax * by - ay * bx;
+  // Convention: scaleX holds the longer-axis stretch (σ₁), scaleY the
+  // shorter-axis (σ₂). The axes are the mesh's INTRINSIC deformation
+  // principal axes (post-SVD), not world X/Y.
+  return { scale: major, scaleX: major, scaleY: minor };
 }
 
 /**
