@@ -1,16 +1,21 @@
 /**
- * Phase 0 Plan 03 — Tests for `src/core/bounds.ts`.
+ * Phase 0 Plans 03 + 05 — Tests for `src/core/bounds.ts`.
  *
- * Behavior gates pulled from the plan's `<behavior>` block:
- *   1. Region attachment on unit-transform leaf bone → AABB matching region size (modulo rotation).
- *   2. BoundingBox/Path/Point/Clipping attachments → `null`.
- *   3. Weighted mesh → AABB covering all N transformed vertices.
- *   4. `computeScale({minX:0,minY:0,maxX:200,maxY:100}, {w:100,h:100,source:'atlas-orig'})`
- *      returns `{ scaleX: 2, scaleY: 1, scale: 2 }`.
- *   5. Module has zero top-level imports of `node:fs` / `node:path` / `sharp` (grep-enforced).
+ * Behavior gates:
+ *   - F2.3 Region path: RegionAttachment → 4-vertex AABB.
+ *   - F2.3 Vertex/Mesh path: MeshAttachment → N-vertex AABB, cross-checked
+ *     against a direct computeWorldVertices call to 5 decimal places.
+ *   - F2.3 Skip list: BoundingBox/Path/Point/Clipping → null.
+ *   - F2.5 computeScale: {scaleX, scaleY, scale=max(scaleX,scaleY)} with the
+ *     T-00-03-03 zero-dim guard returning 0 instead of Infinity.
+ *   - N1.1 setup-pose sizes: every RegionAttachment on the fixture has a
+ *     finite, positive-extent AABB in the setup pose (bounds.ts works on
+ *     the raw bone hierarchy without any animation state applied).
+ *   - N2.3 hygiene greps: no `node:fs` / `node:path` / `sharp` imports.
  *
- * These exercise the delegation contract — we never re-implement spine-core's math,
- * only fold its output into AABB/scale numbers.
+ * N1.5 (TransformConstraint on SQUARE — constrained-vs-unconstrained peak)
+ * lives in sampler.spec.ts per the plan's locked test strategy, because
+ * the constraint only fires during animation application.
  */
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
@@ -43,8 +48,8 @@ function primedSkeleton(): Skeleton {
   return skeleton;
 }
 
-describe('computeScale', () => {
-  it('returns scaleX, scaleY, and scale=max(scaleX,scaleY)', () => {
+describe('computeScale (F2.5)', () => {
+  it('F2.5: returns scaleX, scaleY, and scale=max(scaleX,scaleY)', () => {
     const result = computeScale(
       { minX: 0, minY: 0, maxX: 200, maxY: 100 },
       { w: 100, h: 100, source: 'atlas-orig' },
@@ -54,7 +59,7 @@ describe('computeScale', () => {
     expect(result.scale).toBe(2);
   });
 
-  it('guards zero-width source dims → returns 0, not Infinity (T-00-03-03)', () => {
+  it('F2.5: guards zero-width source dims → returns 0, not Infinity (T-00-03-03)', () => {
     const result = computeScale(
       { minX: 0, minY: 0, maxX: 50, maxY: 50 },
       { w: 0, h: 0, source: 'atlas-bounds' },
@@ -66,8 +71,35 @@ describe('computeScale', () => {
   });
 });
 
-describe('attachmentWorldAABB', () => {
-  it('returns an AABB for a RegionAttachment whose world bounds match the region size at identity transform', () => {
+describe('attachmentWorldAABB (F2.3)', () => {
+  it('N1.1 setup-pose sizes: every RegionAttachment on the fixture returns a finite AABB with positive extents', () => {
+    // N1.1 per REQUIREMENTS.md: "Every `core/` function has golden unit tests
+    // driven by `fixtures/SIMPLE_PROJECT/`." This asserts the bounds module's
+    // setup-pose contract: for every Region slot on the fixture, the AABB has
+    // finite min/max and non-zero width/height. This is the "setup-pose sizes"
+    // gate before any animation runs — it proves bounds.ts works on the raw
+    // bone hierarchy without any state/animation application.
+    const skeleton = primedSkeleton();
+    let regionCount = 0;
+    for (const slot of skeleton.slots) {
+      const att = slot.getAttachment();
+      if (!(att instanceof RegionAttachment)) continue;
+      regionCount++;
+      const aabb = attachmentWorldAABB(slot, att);
+      expect(aabb, `slot ${slot.data.name}: AABB null`).not.toBeNull();
+      expect(Number.isFinite(aabb!.minX)).toBe(true);
+      expect(Number.isFinite(aabb!.minY)).toBe(true);
+      expect(Number.isFinite(aabb!.maxX)).toBe(true);
+      expect(Number.isFinite(aabb!.maxY)).toBe(true);
+      expect(aabb!.maxX - aabb!.minX).toBeGreaterThan(0);
+      expect(aabb!.maxY - aabb!.minY).toBeGreaterThan(0);
+    }
+    // Fixture has 3 region attachments: SQUARE, SQUARE2 (shares SQUARE region),
+    // TRIANGLE. CIRCLE is a mesh. So expect >= 3 region slots.
+    expect(regionCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('F2.3 Region path: returns an AABB for a RegionAttachment whose world bounds match the region size at identity transform', () => {
     const skeleton = primedSkeleton();
     // Find a RegionAttachment slot. SQUARE/TRIANGLE/CIRCLE are the candidates per CLAUDE.md.
     let found: { slot: ReturnType<Skeleton['findSlot']>; att: RegionAttachment } | null = null;
@@ -88,7 +120,7 @@ describe('attachmentWorldAABB', () => {
     expect(Number.isFinite(aabb!.maxY)).toBe(true);
   });
 
-  it('returns an AABB for a MeshAttachment (delegating to VertexAttachment.computeWorldVertices)', () => {
+  it('F2.3 Vertex/Mesh path: returns an AABB for a MeshAttachment (delegating to VertexAttachment.computeWorldVertices)', () => {
     const skeleton = primedSkeleton();
     // SIMPLE_TEST contains at least one mesh attachment (CIRCLE per fixture inventory).
     let mesh: {
@@ -131,7 +163,7 @@ describe('attachmentWorldAABB', () => {
     expect(aabb!.maxY).toBeCloseTo(gotMaxY, 5);
   });
 
-  it('returns null for a PathAttachment (skip-list)', () => {
+  it('F2.3 Skip list: returns null for a PathAttachment', () => {
     const skeleton = primedSkeleton();
     // SIMPLE_TEST fixture has a PathConstraint/path attachment (per `type:"path"` grep).
     let pathEntry: {
