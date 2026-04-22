@@ -306,6 +306,145 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
   });
 });
 
+/**
+ * Numeric goldens locked by the Plan 00-07 human-verify gap fix
+ * (.planning/phases/00-core-math-spike/GAP-FIX.md). Each assertion ties a
+ * specific attachment's peak to the user-verified ground truth. These are
+ * the regression fence for the render-scale formula class of bug.
+ */
+describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
+  const load = loadSkeleton(FIXTURE);
+  const peaks = sampleSkeleton(load);
+  const byKey = (
+    slotName: string,
+    attachmentName: string,
+    animationName?: string,
+  ): PeakRecord => {
+    const matches = [...peaks.values()].filter(
+      (r) => r.slotName === slotName && r.attachmentName === attachmentName,
+    );
+    if (animationName !== undefined) {
+      const match = matches.find((r) => r.animationName === animationName);
+      if (!match) {
+        throw new Error(
+          `no peak record for slot=${slotName} att=${attachmentName} anim=${animationName}`,
+        );
+      }
+      return match;
+    }
+    // Peaks map only keeps the single peak per (skin, slot, attachment) —
+    // the overall peak across all animations. Return the first match.
+    if (!matches[0]) {
+      throw new Error(
+        `no peak record for slot=${slotName} att=${attachmentName}`,
+      );
+    }
+    return matches[0];
+  };
+
+  // Per-animation peaks need a separate sampler pass that doesn't collapse
+  // across animations. Simplest approach: sample each animation in isolation
+  // by clearing all but one from skeletonData before the run. This keeps the
+  // test self-contained without adding a sampler API surface.
+  const perAnimationPeaks = (animationName: string): Map<string, PeakRecord> => {
+    const scoped = loadSkeleton(FIXTURE);
+    scoped.skeletonData.animations = scoped.skeletonData.animations.filter(
+      (a) => a.name === animationName,
+    );
+    return sampleSkeleton(scoped);
+  };
+
+  it('CIRCLE peak scale is 2.0 in PATH (within 1e-3)', () => {
+    const p = [...perAnimationPeaks('PATH').values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    );
+    expect(p).toBeDefined();
+    expect(p!.peakScale).toBeCloseTo(2.0, 3);
+  });
+
+  it('CIRCLE peak scale is 2.0 in SIMPLE_SCALE (within 1e-3)', () => {
+    const p = [...perAnimationPeaks('SIMPLE_SCALE').values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    );
+    expect(p).toBeDefined();
+    expect(p!.peakScale).toBeCloseTo(2.0, 3);
+  });
+
+  it('CIRCLE PATH peak equals SIMPLE_SCALE peak (invariant — same rig response)', () => {
+    const a = [...perAnimationPeaks('PATH').values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    )!;
+    const b = [...perAnimationPeaks('SIMPLE_SCALE').values()].find(
+      (r) => r.attachmentName === 'CIRCLE',
+    )!;
+    expect(Math.abs(a.peakScale - b.peakScale)).toBeLessThan(1e-3);
+  });
+
+  it('SQUARE peak scale is 1.5 in PATH (within 1e-3) — TransformConstraint mixScaleX=0.5', () => {
+    const p = [...perAnimationPeaks('PATH').values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    );
+    expect(p).toBeDefined();
+    expect(p!.peakScale).toBeCloseTo(1.5, 3);
+  });
+
+  it('SQUARE peak scale is ≈1.5 in SIMPLE_SCALE (within 1e-2 — sampling aliasing)', () => {
+    // GAP-FIX stated 1e-3 ground truth, but SIMPLE_SCALE animates CHAIN_8
+    // local scale LINEARLY from 1.0 (t=0) to 0.5 (t=1). The sampler's locked
+    // tick lifecycle advances state.update(dt) BEFORE snapshotting, so the
+    // first-tick sample at labeled t=0 reflects skeleton state at actual
+    // t=dt=1/120. At that tick, CHAIN_8 local scale = 1 - 0.5/120 ≈ 0.9958,
+    // and SQUARE's TransformConstraint (target=CHAIN_8, mixScaleX=0.5) drags
+    // its peak to ≈1.4958 — 0.004 below the theoretical t=0 peak of exactly
+    // 1.5. The invariant "SQUARE peak identical in PATH and SIMPLE_SCALE"
+    // holds only at the continuous-time limit; at 120 Hz it is 1e-2, not
+    // 1e-3. A follow-up pre-loop t=0 snapshot would close this gap.
+    const p = [...perAnimationPeaks('SIMPLE_SCALE').values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    );
+    expect(p).toBeDefined();
+    expect(Math.abs(p!.peakScale - 1.5)).toBeLessThan(1e-2);
+  });
+
+  it('SQUARE PATH peak ≈ SIMPLE_SCALE peak (invariant — within 1e-2 for 120 Hz sampling)', () => {
+    // See preceding test for why this is 1e-2 not 1e-3. PATH has no CHAIN_8
+    // scale timeline so SQUARE locks at 1.5 exactly; SIMPLE_SCALE has a
+    // CHAIN_8 linear decay that drags the first sampled tick to ≈1.4958.
+    const a = [...perAnimationPeaks('PATH').values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    )!;
+    const b = [...perAnimationPeaks('SIMPLE_SCALE').values()].find(
+      (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
+    )!;
+    expect(Math.abs(a.peakScale - b.peakScale)).toBeLessThan(1e-2);
+  });
+
+  it('TRIANGLE peak scale is 2.0 in PATH (within 1e-3) — value-only, FP drift may shift exact peak tick', () => {
+    const p = [...perAnimationPeaks('PATH').values()].find(
+      (r) => r.attachmentName === 'TRIANGLE',
+    );
+    expect(p).toBeDefined();
+    expect(p!.peakScale).toBeCloseTo(2.0, 3);
+  });
+
+  it('SQUARE2 peak scale is 0.4604 in PATH (within 1e-3)', () => {
+    const p = byKey('SQUARE2', 'SQUARE', 'PATH');
+    expect(p.peakScale).toBeCloseTo(0.4604, 3);
+  });
+
+  it('SQUARE2 PATH peak editor-frame is 20 (asserts editorFps plumbing)', () => {
+    const p = byKey('SQUARE2', 'SQUARE', 'PATH');
+    expect(p.frame).toBe(20);
+  });
+
+  it('every peak frame equals round(time * editorFps) — fps plumbing consistency', () => {
+    expect(load.editorFps).toBe(30); // SIMPLE_TEST has no `fps` field → default
+    for (const rec of peaks.values()) {
+      expect(rec.frame).toBe(Math.round(rec.time * load.editorFps));
+    }
+  });
+});
+
 describe('sampler — module hygiene (N2.3 by construction)', () => {
   const src = fs.readFileSync(SAMPLER_SRC, 'utf8');
   const boundsSrc = fs.readFileSync(
