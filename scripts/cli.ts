@@ -32,6 +32,7 @@ import { SpineLoaderError } from '../src/core/errors.js';
 interface Args {
   skeletonPath: string;
   samplingHz: number;
+  atlasPath?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -40,6 +41,7 @@ function parseArgs(argv: string[]): Args {
   // `--` to the script; `tsx` sets process.argv[2] to the first forwarded arg.
   const positional: string[] = [];
   let samplingHz = DEFAULT_SAMPLING_HZ;
+  let atlasPath: string | undefined;
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--hz' || a === '--samplingHz') {
@@ -49,8 +51,14 @@ function parseArgs(argv: string[]): Args {
         throw new Error(`Invalid --hz value: ${v}`);
       }
       samplingHz = n;
+    } else if (a === '--atlas') {
+      const v = argv[++i];
+      if (!v) throw new Error('Missing value for --atlas');
+      atlasPath = v;
     } else if (a === '--help' || a === '-h') {
-      console.log('Usage: npm run cli -- <path/to/skeleton.json> [--hz 120]');
+      console.log(
+        'Usage: npm run cli -- <path/to/skeleton.json> [--hz 120] [--atlas path/to/atlas]',
+      );
       process.exit(0);
     } else if (!a.startsWith('-')) {
       positional.push(a);
@@ -59,9 +67,11 @@ function parseArgs(argv: string[]): Args {
     }
   }
   if (positional.length !== 1) {
-    throw new Error('Usage: npm run cli -- <path/to/skeleton.json> [--hz 120]');
+    throw new Error(
+      'Usage: npm run cli -- <path/to/skeleton.json> [--hz 120] [--atlas path/to/atlas]',
+    );
   }
-  return { skeletonPath: positional[0], samplingHz };
+  return { skeletonPath: positional[0], samplingHz, atlasPath };
 }
 
 function renderTable(peaks: Map<string, PeakRecord>): string {
@@ -125,7 +135,9 @@ function main(): void {
   }
 
   try {
-    const load = loadSkeleton(args.skeletonPath);
+    const load = loadSkeleton(args.skeletonPath, {
+      atlasPath: args.atlasPath,
+    });
     const t0 = performance.now();
     const peaks = sampleSkeleton(load, { samplingHz: args.samplingHz });
     const elapsed = performance.now() - t0;
