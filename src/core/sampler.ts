@@ -56,6 +56,18 @@ import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
 /** CLAUDE.md rule #6 — default 120 Hz. Above typical 60 Hz game render cadence. */
 export const DEFAULT_SAMPLING_HZ = 120;
 
+/**
+ * Epsilon for peak-comparison ties. Without this, tiny floating-point noise
+ * in the bone chain (≈1e-14 accumulated across multi-bone world transforms)
+ * lets the peak latch migrate across dozens of frames on rigs where the
+ * effective scale is static — e.g. CARDS on a static hand bone would
+ * "peak" at f35 instead of f0 because the second frame happened to compute
+ * 1.00000000000002 vs the first's 1.00000000000001. 1e-9 is far above FP
+ * noise and far below any meaningful scale delta (user-facing goldens use
+ * 1e-3 tolerance).
+ */
+const PEAK_EPSILON = 1e-9;
+
 /** Label used for attachments that no animation timeline touches. */
 const SETUP_POSE_LABEL = 'Setup Pose (Default)';
 
@@ -229,7 +241,7 @@ function snapshotFrame(
     if (touchedSet !== null) touchedSet.add(key);
 
     const existing = peaks.get(key);
-    if (existing === undefined || peakScale > existing.peakScale) {
+    if (existing === undefined || peakScale > existing.peakScale + PEAK_EPSILON) {
       peaks.set(key, {
         attachmentKey: key,
         skinName,
