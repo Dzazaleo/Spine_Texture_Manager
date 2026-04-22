@@ -208,7 +208,15 @@ function snapshotFrame(
     const aabb = attachmentWorldAABB(slot, attachment);
     if (aabb === null) continue; // BoundingBox / Path / Point / Clipping
 
-    const sd = sourceDims.get(attachment.name);
+    // Spine skins allow an attachment to use `path` indirection to point at a
+    // differently-named atlas region (e.g. slot "CARDS_R_HAND_1" carrying an
+    // attachment whose texture lives at atlas region "AVATAR/CARDS_R_HAND_1").
+    // Our sourceDims map is keyed by atlas region name, so prefer the
+    // attachment's region.name when present and fall back to attachment.name
+    // only for attachments without a region (shouldn't happen for pixel-bearing
+    // ones at this point — the AABB guard above already filtered them).
+    const regionName = (attachment as { region?: { name?: string } }).region?.name;
+    const sd = sourceDims.get(regionName ?? attachment.name);
     if (sd === undefined || sd.w <= 0 || sd.h <= 0) continue;
 
     const rs = computeRenderScale(slot, attachment);
