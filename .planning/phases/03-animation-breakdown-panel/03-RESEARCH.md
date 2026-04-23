@@ -758,7 +758,7 @@ export function AnimationBreakdownPanel({
 
 **Items requiring user confirmation in `/gsd-discuss-phase 3`:** A1, A2, A7 are the only ones with non-trivial downstream implications. A1 is validated by the `npm run test` perf gate; A2 by human-verify card contents on SIMPLE_TEST; A7 by planner's call whether to introduce happy-dom / Testing Library in Phase 3 or defer to Phase 4.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Setup-pose baseline delivery mechanism (Pitfall 2).** Three options: (a) third Map `setupPosePeaks`, (b) widen PeakRecord with `setupPosePeakScale` field, (c) derive from `globalPeaks` filtered by `isSetupPosePeak === true` + skeleton traversal for never-animated. (a) is cleanest; (b) is scope-minimal; (c) has the edge case of attachments that ANY animation touches losing their setup-pose visibility. **Recommendation:** (a) — name `setupPosePeaks` — with IPC field-name discipline the same as the existing `peaks`. Planner should confirm during plan write-up.
 
