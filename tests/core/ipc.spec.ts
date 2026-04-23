@@ -26,7 +26,7 @@ import { handleSkeletonLoad } from '../../src/main/ipc.js';
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 
 describe('handleSkeletonLoad (F1-integrated, D-10)', () => {
-  it('F1-integrated: happy path returns {ok: true, summary: {...}}', async () => {
+  it('F1-integrated: happy path returns {ok: true, summary: {..., animationBreakdown}}', async () => {
     const resp = await handleSkeletonLoad(FIXTURE);
     expect(resp.ok).toBe(true);
     if (resp.ok) {
@@ -37,6 +37,10 @@ describe('handleSkeletonLoad (F1-integrated, D-10)', () => {
       // to one row — one row per unique texture name).
       expect(resp.summary.peaks.length).toBe(3);
       expect(resp.summary.elapsedMs).toBeGreaterThanOrEqual(0);
+      // Phase 3: animationBreakdown carries setup-pose + per-animation cards.
+      expect(Array.isArray(resp.summary.animationBreakdown)).toBe(true);
+      expect(resp.summary.animationBreakdown.length).toBeGreaterThanOrEqual(1);
+      expect(resp.summary.animationBreakdown[0].cardId).toBe('setup-pose');
     }
   });
 

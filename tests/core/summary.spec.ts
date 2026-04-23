@@ -25,16 +25,16 @@ const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 describe('buildSummary (D-21, D-22)', () => {
   it('D-22: output survives structuredClone (no Map/class instances)', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
-    const summary = buildSummary(load, peaks, 12.3);
+    const sampled = sampleSkeleton(load);
+    const summary = buildSummary(load, sampled, 12.3);
     const cloned = structuredClone(summary);
     expect(cloned).toEqual(summary);
   });
 
   it('D-21: populates bones/slots/attachments/skins/animations from SkeletonData', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
-    const s = buildSummary(load, peaks, 0);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
 
     // SIMPLE_TEST fixture actually contains 12 bones
     // (root, CTRL, CHAIN_2..CHAIN_8, SQUARE, CTRL_PATH, SQUARE2).
@@ -57,8 +57,8 @@ describe('buildSummary (D-21, D-22)', () => {
 
   it('D-16 sort: peaks[] sorted by (skinName, slotName, attachmentName)', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
-    const s = buildSummary(load, peaks, 0);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
 
     const sorted = [...s.peaks].sort((a, b) => {
       if (a.skinName !== b.skinName) return a.skinName.localeCompare(b.skinName);
@@ -66,5 +66,23 @@ describe('buildSummary (D-21, D-22)', () => {
       return a.attachmentName.localeCompare(b.attachmentName);
     });
     expect(s.peaks).toEqual(sorted);
+  });
+
+  it('F4.1/F4.2: animationBreakdown populated with setup-pose + one card per animation; structuredClone-safe', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    expect(Array.isArray(s.animationBreakdown)).toBe(true);
+    expect(s.animationBreakdown.length).toBe(load.skeletonData.animations.length + 1);
+    expect(s.animationBreakdown[0].cardId).toBe('setup-pose');
+    expect(s.animationBreakdown[0].isSetupPose).toBe(true);
+    // Each subsequent card's cardId starts with 'anim:'.
+    for (let i = 1; i < s.animationBreakdown.length; i++) {
+      expect(s.animationBreakdown[i].cardId.startsWith('anim:')).toBe(true);
+      expect(s.animationBreakdown[i].isSetupPose).toBe(false);
+    }
+    // T-03-01-01: structured clone invariant holds for the new field.
+    const cloned = structuredClone(s.animationBreakdown);
+    expect(cloned).toEqual(s.animationBreakdown);
   });
 });

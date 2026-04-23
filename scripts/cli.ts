@@ -144,13 +144,17 @@ function main(): void {
       atlasPath: args.atlasPath,
     });
     const t0 = performance.now();
-    const peaks = sampleSkeleton(load, { samplingHz: args.samplingHz });
+    const sampled = sampleSkeleton(load, { samplingHz: args.samplingHz });
     const elapsed = performance.now() - t0;
 
-    process.stdout.write(renderTable(peaks) + '\n');
+    // Phase 3: sampler return is SamplerOutput; CLI reads globalPeaks only.
+    // renderTable() signature unchanged — it consumes Map<string, PeakRecord>.
+    // Byte-for-byte stdout preserved: the footer reads sampled.globalPeaks.size,
+    // which matches the Phase 2 peaks.size for any input.
+    process.stdout.write(renderTable(sampled.globalPeaks) + '\n');
     process.stdout.write(
       `\nSampled in ${elapsed.toFixed(1)} ms at ${args.samplingHz} Hz ` +
-        `(${peaks.size} attachments across ${load.skeletonData.skins.length} skins, ` +
+        `(${sampled.globalPeaks.size} attachments across ${load.skeletonData.skins.length} skins, ` +
         `${load.skeletonData.animations.length} animations)\n`,
     );
     process.exit(0);

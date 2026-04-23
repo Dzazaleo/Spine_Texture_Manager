@@ -54,9 +54,9 @@ export async function handleSkeletonLoad(jsonPath: unknown): Promise<LoadRespons
   try {
     const t0 = performance.now();
     const load = loadSkeleton(jsonPath);
-    const peaks = sampleSkeleton(load);
+    const sampled = sampleSkeleton(load);
     const elapsedMs = performance.now() - t0;
-    const summary = buildSummary(load, peaks, elapsedMs);
+    const summary = buildSummary(load, sampled, elapsedMs);
     return { ok: true, summary };
   } catch (err) {
     if (err instanceof SpineLoaderError && KNOWN_KINDS.has(err.name as KnownErrorKind)) {
