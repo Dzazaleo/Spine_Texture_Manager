@@ -49,6 +49,7 @@ import {
   AnimationState,
   AnimationStateData,
   Physics,
+  AttachmentTimeline,
 } from '@esotericsoftware/spine-core';
 import type { LoadResult, SampleRecord, SourceDims } from './types.js';
 import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
@@ -67,6 +68,15 @@ export const DEFAULT_SAMPLING_HZ = 120;
  * 1e-3 tolerance).
  */
 const PEAK_EPSILON = 1e-9;
+
+/**
+ * Per-animation "affected" threshold (D-54). Distinct from the 1e-9 peak-latch
+ * tolerance above — 1e-6 is well above animator-meaningful bone-scale deltas
+ * but still filters out floating-point noise + compensating-constraint residue.
+ * Governs only the per-animation emission gate; the 1e-9 peak-latch stays
+ * owned by the global-peak fold.
+ */
+const SCALE_DELTA_EPSILON = 1e-6;
 
 /** Label used for attachments that no animation timeline touches. */
 const SETUP_POSE_LABEL = 'Setup Pose (Default)';
@@ -90,17 +100,42 @@ export interface PeakRecord extends SampleRecord {
 }
 
 /**
+ * Phase 3 Plan 01 — Extended sampler output (D-53).
+ *
+ * - `globalPeaks`: per-(skin, slot, attachment) peak across all animations and
+ *   setup-pose passes. Key: `${skinName}/${slotName}/${attachmentName}`.
+ *   Phase 2 contract preserved — analyzer's existing `analyze()` consumes
+ *   this Map unchanged.
+ * - `perAnimation`: per-(animation, skin, slot, attachment) peak, populated
+ *   ONLY for attachments passing the "affected" test per D-54 (scale-delta
+ *   greater than the 1e-6 threshold OR named by an AttachmentTimeline on the
+ *   corresponding slot). The setup-pose pass does not populate this map.
+ *   Key: `${animationName}/${skinName}/${slotName}/${attachmentName}`.
+ * - `setupPosePeaks`: per-(skin, slot, attachment) peak from the setup-pose
+ *   pass only, independent of any animation. Consumed by the breakdown
+ *   analyzer to build the static-pose top card (D-60) including attachments
+ *   that no animation touches.
+ */
+export interface SamplerOutput {
+  globalPeaks: Map<string, PeakRecord>;
+  perAnimation: Map<string, PeakRecord>;
+  setupPosePeaks: Map<string, PeakRecord>;
+}
+
+/**
  * Run the sampler across every `(skin, animation)` pair in the loaded skeleton
  * and return a map of per-attachment peak records.
  *
  * @param load LoadResult from `loadSkeleton()`.
  * @param opts Sampler options (`samplingHz`, `frameRate`).
- * @returns Map keyed `${skin}/${slot}/${attachment}` → `PeakRecord`.
+ * @returns SamplerOutput — three Maps: globalPeaks (Phase 2 preserved),
+ *          perAnimation (D-54 affected-attachment per-animation), setupPosePeaks
+ *          (Pass-1-only static pose map for D-60 Setup Pose card coverage).
  */
 export function sampleSkeleton(
   load: LoadResult,
   opts: SamplerOptions = {},
-): Map<string, PeakRecord> {
+): SamplerOutput {
   const samplingHz = opts.samplingHz ?? DEFAULT_SAMPLING_HZ;
   const editorFps = load.editorFps;
   const dt = 1 / samplingHz;
@@ -184,7 +219,10 @@ export function sampleSkeleton(
     }
   }
 
-  return peaks;
+  // Task 2 populates perAnimation + setupPosePeaks in the same single-pass
+  // lifecycle. Task 1 returns empty Maps so the type-change lands first; the
+  // extended tests in this task are RED until Task 2's GREEN.
+  return { globalPeaks: peaks, perAnimation: new Map(), setupPosePeaks: new Map() };
 }
 
 /**

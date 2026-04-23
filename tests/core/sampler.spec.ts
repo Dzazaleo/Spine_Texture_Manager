@@ -47,7 +47,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // the SIMPLE_PROJECT fixture. Each PeakRecord must have finite, positive
     // scale with scale == max(scaleX, scaleY).
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     expect(peaks.size).toBeGreaterThanOrEqual(3);
     const names = new Set(
       [...peaks.keys()].map((k) => k.split('/')[2]),
@@ -70,7 +70,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // is a child of CTRL (not deep in the CHAIN_* chain). Peak must be finite
     // and strictly positive; sourceW/H must match the atlas bounds.
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const square = [...peaks.values()].find(
       (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
     );
@@ -88,7 +88,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // CHAIN_* bone. Peak for CIRCLE therefore must come from an animation,
     // not the setup pose — proves chain transforms reach the mesh vertices.
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const circle = [...peaks.values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     );
@@ -116,7 +116,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // If the sampler ignored bone influences (e.g. treated weights as identity),
     // worldW wouldn't change. Observed ratio on the fixture ~1.78×; threshold 1.5×
     // is conservative and well above FP noise / per-vertex weight distribution.
-    const baseline = sampleSkeleton(loadSkeleton(FIXTURE));
+    const baseline = sampleSkeleton(loadSkeleton(FIXTURE)).globalPeaks;
     const baseCircle = [...baseline.values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     );
@@ -131,7 +131,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     boneData!.scaleX = (boneData!.scaleX ?? 1) * 2.0;
     boneData!.scaleY = (boneData!.scaleY ?? 1) * 2.0;
 
-    const scaledPeaks = sampleSkeleton(mutated);
+    const scaledPeaks = sampleSkeleton(mutated).globalPeaks;
     const scaledCircle = [...scaledPeaks.values()].find(
       (r) => r.attachmentName === 'CIRCLE',
     );
@@ -153,7 +153,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // shape. The > 1e-6 threshold is far below the observed delta (~1.10 on the
     // fixture) but still tight enough to fail on broken constraint wiring.
     const constrainedLoad = loadSkeleton(FIXTURE);
-    const constrainedPeaks = sampleSkeleton(constrainedLoad);
+    const constrainedPeaks = sampleSkeleton(constrainedLoad).globalPeaks;
     const constrainedSquare = [...constrainedPeaks.values()].find(
       (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
     );
@@ -173,7 +173,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // the constraint layout. Forces a revisit of N1.5 rather than silent pass.
     expect(uncLoad.skeletonData.transformConstraints.length).toBe(before - 1);
 
-    const uncPeaks = sampleSkeleton(uncLoad);
+    const uncPeaks = sampleSkeleton(uncLoad).globalPeaks;
     const unconstrainedSquare = [...uncPeaks.values()].find(
       (r) => r.slotName === 'SQUARE' && r.attachmentName === 'SQUARE',
     );
@@ -198,8 +198,8 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     //   3. Assert |peak_120 - peak_ref| / peak_ref < 0.01 on the attachment
     //      whose animation path crosses the non-linear curve.
     const load = loadSkeleton(FIXTURE);
-    const peaks120 = sampleSkeleton(load, { samplingHz: 120 });
-    const peaksRef = sampleSkeleton(load, { samplingHz: 480 });
+    const peaks120 = sampleSkeleton(load, { samplingHz: 120 }).globalPeaks;
+    const peaksRef = sampleSkeleton(load, { samplingHz: 480 }).globalPeaks;
     const target = '<pending fixture extension>';
     const p120 = [...peaks120.values()].find(
       (r) => r.attachmentName === target,
@@ -217,13 +217,13 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
   // Preserved from plan 00-04 — basic Map>=3 smoke (now tagged as a sibling of N1.1).
   it('returns a Map with >= 3 peak entries on SIMPLE_TEST', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     expect(peaks.size).toBeGreaterThanOrEqual(3);
   });
 
   it('labels every peak with either an animation name or "Setup Pose (Default)"', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const animationNames = new Set(
       load.skeletonData.animations.map((a) => a.name),
     );
@@ -237,8 +237,8 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
 
   it('N1.6 PhysicsConstraint determinism: two sequential runs produce bit-identical peak values', () => {
     const load = loadSkeleton(FIXTURE);
-    const a = sampleSkeleton(load);
-    const b = sampleSkeleton(load);
+    const a = sampleSkeleton(load).globalPeaks;
+    const b = sampleSkeleton(load).globalPeaks;
     expect(a.size).toBe(b.size);
     // Compare every key/value — peak scale must match bit-for-bit.
     for (const [key, recA] of a) {
@@ -260,8 +260,8 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // attachmentKeys; scale values may differ by sub-frame peak sampling, but
     // the key set is stable (same (skin, slot, attachment) tuples).
     const load = loadSkeleton(FIXTURE);
-    const peaksDefault = sampleSkeleton(load);
-    const peaks60 = sampleSkeleton(load, { samplingHz: 60 });
+    const peaksDefault = sampleSkeleton(load).globalPeaks;
+    const peaks60 = sampleSkeleton(load, { samplingHz: 60 }).globalPeaks;
     expect(peaks60.size).toBe(peaksDefault.size);
     const keysA = [...peaksDefault.keys()].sort();
     const keysB = [...peaks60.keys()].sort();
@@ -274,7 +274,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
 
   it('peak record shape carries all F2.6 fields', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const first = [...peaks.values()][0] as PeakRecord;
     expect(first).toMatchObject({
       attachmentKey: expect.any(String),
@@ -314,7 +314,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
  */
 describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
   const load = loadSkeleton(FIXTURE);
-  const peaks = sampleSkeleton(load);
+  const peaks = sampleSkeleton(load).globalPeaks;
   const byKey = (
     slotName: string,
     attachmentName: string,
@@ -351,7 +351,7 @@ describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
     scoped.skeletonData.animations = scoped.skeletonData.animations.filter(
       (a) => a.name === animationName,
     );
-    return sampleSkeleton(scoped);
+    return sampleSkeleton(scoped).globalPeaks;
   };
 
   it('CIRCLE peak scale ≈ 2.0 in PATH (iteration-4 hull_sqrt) — within 5e-2 of uniform chain scale', () => {
@@ -456,6 +456,91 @@ describe('sampler — numeric goldens (GAP-FIX ground truth)', () => {
     expect(load.editorFps).toBe(30); // SIMPLE_TEST has no `fps` field → default
     for (const rec of peaks.values()) {
       expect(rec.frame).toBe(Math.round(rec.time * load.editorFps));
+    }
+  });
+});
+
+describe('sampler — per-animation breakdown extension (D-53, D-54, D-55)', () => {
+  it('D-53: sampleSkeleton returns SamplerOutput with globalPeaks, perAnimation, setupPosePeaks Maps', () => {
+    const load = loadSkeleton(FIXTURE);
+    const out = sampleSkeleton(load);
+    expect(out.globalPeaks).toBeInstanceOf(Map);
+    expect(out.perAnimation).toBeInstanceOf(Map);
+    expect(out.setupPosePeaks).toBeInstanceOf(Map);
+    expect(out.globalPeaks.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('D-53: globalPeaks key format unchanged (${skin}/${slot}/${attachment})', () => {
+    const load = loadSkeleton(FIXTURE);
+    const out = sampleSkeleton(load);
+    for (const key of out.globalPeaks.keys()) {
+      // Three slash-separated segments, none empty.
+      const segs = key.split('/');
+      expect(segs.length).toBe(3);
+      for (const s of segs) expect(s.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('D-53: perAnimation key format is ${animation}/${skin}/${slot}/${attachment}', () => {
+    const load = loadSkeleton(FIXTURE);
+    const out = sampleSkeleton(load);
+    const animNames = new Set(load.skeletonData.animations.map((a) => a.name));
+    for (const key of out.perAnimation.keys()) {
+      const firstSlash = key.indexOf('/');
+      expect(firstSlash).toBeGreaterThan(0);
+      expect(animNames.has(key.slice(0, firstSlash))).toBe(true);
+      // Remainder splits into 3 more segments (skin/slot/attachment).
+      const rest = key.slice(firstSlash + 1);
+      expect(rest.split('/').length).toBe(3);
+    }
+  });
+
+  it('D-54: perAnimation is populated (SIMPLE_TEST has scale-animating animations across CIRCLE/TRIANGLE/SQUARE)', () => {
+    const load = loadSkeleton(FIXTURE);
+    const out = sampleSkeleton(load);
+    // At least one animation affects at least one attachment — SIMPLE_TEST's
+    // SIMPLE_SCALE + TRANSFORM animations all drive bone scale.
+    expect(out.perAnimation.size).toBeGreaterThan(0);
+  });
+
+  it('D-60 / Pitfall 2: setupPosePeaks covers every textured attachment (>=3 on SIMPLE_TEST)', () => {
+    const load = loadSkeleton(FIXTURE);
+    const out = sampleSkeleton(load);
+    // Sampler emits one entry per (skin, slot, attachment) tuple — pre-dedupe
+    // this is 4 entries for SIMPLE_TEST (CIRCLE, SQUARE on slot SQUARE, SQUARE on slot SQUARE2, TRIANGLE).
+    expect(out.setupPosePeaks.size).toBeGreaterThanOrEqual(3);
+    // Pitfall 2 anchor: SQUARE attachment on slot SQUARE2 captures the
+    // pre-scaled bone scale 2.0× at setup pose.
+    const square2Entry = [...out.setupPosePeaks.values()].find(
+      (r) => r.attachmentName === 'SQUARE' && r.slotName === 'SQUARE2',
+    );
+    expect(square2Entry).toBeDefined();
+    expect(square2Entry!.peakScale).toBeCloseTo(2.0, 2);
+  });
+
+  it('D-55 / SCALE_DELTA_EPSILON: constant appears in sampler source at 1e-6 (distinct from 1e-9 PEAK_EPSILON)', () => {
+    const src = fs.readFileSync(SAMPLER_SRC, 'utf8');
+    expect(src).toMatch(/SCALE_DELTA_EPSILON\s*=\s*1e-6/);
+    expect(src).toMatch(/PEAK_EPSILON\s*=\s*1e-9/);
+  });
+
+  it('N1.6 extended: two sampleSkeleton(load) runs produce bit-identical perAnimation AND setupPosePeaks Maps', () => {
+    const load = loadSkeleton(FIXTURE);
+    const a = sampleSkeleton(load);
+    const b = sampleSkeleton(load);
+    expect(a.perAnimation.size).toBe(b.perAnimation.size);
+    for (const [k, recA] of a.perAnimation) {
+      const recB = b.perAnimation.get(k);
+      expect(recB).toBeDefined();
+      expect(recB!.peakScale).toBe(recA.peakScale);
+      expect(recB!.frame).toBe(recA.frame);
+      expect(recB!.time).toBe(recA.time);
+    }
+    expect(a.setupPosePeaks.size).toBe(b.setupPosePeaks.size);
+    for (const [k, recA] of a.setupPosePeaks) {
+      const recB = b.setupPosePeaks.get(k);
+      expect(recB).toBeDefined();
+      expect(recB!.peakScale).toBe(recA.peakScale);
     }
   });
 });

@@ -51,6 +51,48 @@ export interface DisplayRow {
 }
 
 /**
+ * Phase 3 Plan 01 — Row shape consumed by the per-animation cards.
+ *
+ * Extends DisplayRow with the two Bone Path fields required by F4.3. All
+ * fields primitive — structuredClone-safe. Preformatted in src/core/analyzer.ts;
+ * renderer does zero formatting.
+ *
+ * Extending DisplayRow means the existing dedup-by-attachment-name helper in
+ * analyzer.ts can operate on either shape via a single generic parameter —
+ * the comparator reads only attachmentName + peakScale + skinName + slotName,
+ * all present on both row types.
+ *
+ * frameLabel is the em-dash character (U+2014) on setup-pose rows per D-60;
+ * `String(frame)` on animation rows per D-57. Preformatted so the renderer
+ * never branches on isSetupPose for this column.
+ */
+export interface BreakdownRow extends DisplayRow {
+  /** Raw bone chain: [rootName, ...ancestorNames, slotBoneName, slotName, attachmentName]. */
+  bonePath: string[];
+  /** Preformatted bone-chain label using U+2192 (right arrow) space-flanked separator. */
+  bonePathLabel: string;
+}
+
+/**
+ * Phase 3 Plan 01 — A single card in the Animation Breakdown panel.
+ *
+ * Emitted in card order per D-58: static-pose card FIRST (cardId === 'setup-pose'),
+ * then one card per animation in skeletonData.animations order
+ * (cardId === `anim:${animationName}`). Empty `rows` === the
+ * "No assets referenced" renderer state (D-62).
+ *
+ * `uniqueAssetCount` === rows.length. Provided explicitly so the renderer's
+ * collapsed-header string doesn't need to read rows.length.
+ */
+export interface AnimationBreakdown {
+  cardId: string;
+  animationName: string;
+  isSetupPose: boolean;
+  uniqueAssetCount: number;
+  rows: BreakdownRow[];
+}
+
+/**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
  * to render the panel header + table without recomputing anything.
  */
@@ -67,6 +109,8 @@ export interface SkeletonSummary {
   animations: { count: number; names: string[] };
   /** Sorted by (skinName, slotName, attachmentName) — matches CLI byte-for-byte. */
   peaks: DisplayRow[];
+  /** Phase 3: static-pose card first (cardId === 'setup-pose'), then one card per animation in JSON order. */
+  animationBreakdown: AnimationBreakdown[];
   /** `loadSkeleton + sampleSkeleton` wall-clock time in ms. */
   elapsedMs: number;
 }
