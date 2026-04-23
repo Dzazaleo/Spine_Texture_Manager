@@ -1,26 +1,29 @@
 /**
- * Phase 1 Plan 03 — Top-level renderer state machine.
+ * Phase 1 Plan 04 — Top-level wiring.
  *
- * Owns the `AppState` discriminated union per D-20 (plain useState, no state
- * library). Renders:
- *   - 'idle'    — pre-drop empty-state message (D-18).
- *   - 'loading' — pre-drop message remains visible with a subtle hint.
- *   - 'loaded'  — DebugPanel (added in Plan 01-04).
- *   - 'error'   — inline muted-orange error text citing typed-error kind
- *                 and message (D-19).
+ * Owns AppState discriminated union (D-20; plain useState, no library).
+ * Composes DropZone (full-window drag target) with context-appropriate
+ * children for each state:
  *
- * The drop-target + drag handlers + path resolution happen downstream in
- * Plan 01-04's DropZone component. This file exposes the seam via props:
- * DropZone will receive a setState callback; DebugPanel will receive the
- * loaded summary.
+ *   status: 'idle'    → pre-drop empty-state copy (D-18)
+ *   status: 'loading' → "Loading foo.json…" hint
+ *   status: 'loaded'  → DebugPanel (D-19 in-place replacement; D-17 echoes to console)
+ *   status: 'error'   → inline muted-orange error line (D-19, text-accent-muted)
  *
- * Plan 01-04 wires concrete DropZone + DebugPanel imports; for now the
- * pre-drop empty state (D-18) renders a simple full-window message so
- * `npx electron-vite build` emits a working renderer bundle at end of
- * Plan 01-03.
+ * D-17 console echo fires in a useEffect gated on status === 'loaded' — keeps
+ * DebugPanel side-effect-free (Task 2 invariant), and the StrictMode
+ * double-fire in dev is harmless (the echo is idempotent). In production
+ * builds (app.isPackaged), consider reducing console verbosity — Phase 9
+ * concern per RESEARCH Security Domain line 1065.
  */
-import { useState } from 'react';
-import type { SkeletonSummary, SerializableError } from '../../shared/types.js';
+import { useCallback, useEffect, useState } from 'react';
+import { DropZone } from './components/DropZone';
+import { DebugPanel } from './components/DebugPanel';
+import type {
+  SkeletonSummary,
+  SerializableError,
+  LoadResponse,
+} from '../../shared/types.js';
 
 export type AppState =
   | { status: 'idle' }
@@ -29,31 +32,52 @@ export type AppState =
   | { status: 'error'; fileName: string; error: SerializableError };
 
 export function App() {
-  // Plan 01-04 lifts this state + wires DropZone + DebugPanel.
-  const [state] = useState<AppState>({ status: 'idle' });
+  const [state, setState] = useState<AppState>({ status: 'idle' });
+
+  const handleLoadStart = useCallback((fileName: string) => {
+    setState({ status: 'loading', fileName });
+  }, []);
+
+  const handleLoad = useCallback((resp: LoadResponse, fileName: string) => {
+    if (resp.ok) {
+      setState({ status: 'loaded', fileName, summary: resp.summary });
+    } else {
+      setState({ status: 'error', fileName, error: resp.error });
+    }
+  }, []);
+
+  // D-17: echo summary to console on successful load (ROADMAP exit criterion).
+  useEffect(() => {
+    if (state.status === 'loaded') {
+      // eslint-disable-next-line no-console
+      console.log('[Spine Texture Manager] Loaded skeleton summary:', state.summary);
+    }
+  }, [state]);
 
   return (
-    <div className="w-full min-h-screen bg-surface text-fg font-sans antialiased">
-      <main className="w-full min-h-screen flex items-center justify-center">
-        {state.status === 'idle' && (
-          <p className="text-fg-muted font-mono text-sm">
-            Drop a <code>.spine</code> JSON file anywhere in this window
-          </p>
-        )}
-        {state.status === 'loading' && (
-          <p className="text-fg-muted font-mono text-sm">Loading {state.fileName}…</p>
-        )}
-        {state.status === 'loaded' && (
-          <p className="text-fg font-mono text-sm">
-            Loaded {state.fileName} — {state.summary.peaks.length} peaks (DebugPanel lands in Plan 01-04)
-          </p>
-        )}
-        {state.status === 'error' && (
+    <DropZone onLoad={handleLoad} onLoadStart={handleLoadStart}>
+      {state.status === 'idle' && (
+        <p className="text-fg-muted font-mono text-sm">
+          Drop a <code>.spine</code> JSON file anywhere in this window
+        </p>
+      )}
+      {state.status === 'loading' && (
+        <p className="text-fg-muted font-mono text-sm">
+          Loading {state.fileName}…
+        </p>
+      )}
+      {state.status === 'loaded' && <DebugPanel summary={state.summary} />}
+      {state.status === 'error' && (
+        <div className="w-full max-w-3xl mx-auto p-8">
           <p className="text-accent-muted font-mono text-sm">
-            {state.error.kind}: {state.error.message}
+            <span className="font-semibold">{state.error.kind}:</span>{' '}
+            {state.error.message}
           </p>
-        )}
-      </main>
-    </div>
+          <p className="mt-2 text-fg-muted font-mono text-xs">
+            Dropped: <code>{state.fileName}</code>
+          </p>
+        </div>
+      )}
+    </DropZone>
   );
 }
