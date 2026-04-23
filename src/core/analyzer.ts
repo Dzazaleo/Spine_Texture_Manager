@@ -233,16 +233,19 @@ export function analyzeBreakdown(
   });
 
   // 2. One card per animation in skeletonData.animations order (D-58).
-  //    perAnimation keys are `${animation}/${skin}/${slot}/${attachment}` —
-  //    split once on the first '/' to extract the animation-name prefix.
+  //    Group by rec.animationName rather than parsing the compound
+  //    perAnimation key — Spine animation names legally contain '/' for
+  //    namespacing (e.g. 'CHAR/BLINK', 'LOOK/AROUND'), so first-slash
+  //    parsing misroutes every such animation's rows to an empty card.
+  const rowsByAnim = new Map<string, BreakdownRow[]>();
+  for (const rec of perAnimation.values()) {
+    const bucket = rowsByAnim.get(rec.animationName);
+    const row = toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ false);
+    if (bucket === undefined) rowsByAnim.set(rec.animationName, [row]);
+    else bucket.push(row);
+  }
   for (const anim of skeletonData.animations) {
-    const rowsForAnim: BreakdownRow[] = [];
-    for (const [key, rec] of perAnimation) {
-      const firstSlash = key.indexOf('/');
-      if (firstSlash > 0 && key.slice(0, firstSlash) === anim.name) {
-        rowsForAnim.push(toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ false));
-      }
-    }
+    const rowsForAnim = rowsByAnim.get(anim.name) ?? [];
     const deduped = dedupByAttachmentName<BreakdownRow>(rowsForAnim);
     deduped.sort((a, b) => b.peakScale - a.peakScale);
     cards.push({

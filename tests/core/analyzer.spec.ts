@@ -299,4 +299,51 @@ describe('analyzeBreakdown (D-54, D-56, D-57, D-58, D-59, D-60, F4)', () => {
       }
     }
   });
+
+  it('D-58: animation names containing "/" (e.g. namespaced "CHAR/BLINK", "LOOK/AROUND") route rows to the correct card', () => {
+    // Regression: earlier first-slash key-parsing misrouted every
+    // slash-containing animation to an empty card — manifests on every
+    // real fixture that namespaces animations (Girl's 15 "CHAR/..." cards,
+    // Jokerman's 8 "LOOK/..." cards). Fix groups by rec.animationName.
+    const mkRec = (animationName: string, attachmentName: string, peakScale: number): PeakRecord => ({
+      attachmentKey: `default/slot/${attachmentName}`,
+      skinName: 'default',
+      slotName: 'slot',
+      attachmentName,
+      animationName,
+      time: 0,
+      frame: 0,
+      peakScaleX: peakScale,
+      peakScaleY: peakScale,
+      peakScale,
+      worldW: 10,
+      worldH: 10,
+      sourceW: 10,
+      sourceH: 10,
+      isSetupPosePeak: false,
+    });
+    const perAnimation = new Map<string, PeakRecord>([
+      ['CHAR/BLINK/default/slot/EYE', mkRec('CHAR/BLINK', 'EYE', 1.05)],
+      ['LOOK/AROUND/default/slot/EYE', mkRec('LOOK/AROUND', 'EYE', 1.02)],
+      ['JUMP/default/slot/BODY', mkRec('JUMP', 'BODY', 1.10)],
+    ]);
+    const setupPosePeaks = new Map<string, PeakRecord>([
+      ['default/slot/EYE', { ...mkRec('Setup Pose (Default)', 'EYE', 1.0), isSetupPosePeak: true }],
+    ]);
+    const fakeSkeletonData = {
+      animations: [
+        { name: 'CHAR/BLINK' },
+        { name: 'LOOK/AROUND' },
+        { name: 'JUMP' },
+      ],
+    } as unknown as Parameters<typeof analyzeBreakdown>[2];
+    const cards = analyzeBreakdown(perAnimation, setupPosePeaks, fakeSkeletonData, []);
+    const byName = new Map(cards.map((c) => [c.animationName, c]));
+    expect(byName.get('CHAR/BLINK')?.rows.length).toBe(1);
+    expect(byName.get('CHAR/BLINK')?.rows[0].attachmentName).toBe('EYE');
+    expect(byName.get('LOOK/AROUND')?.rows.length).toBe(1);
+    expect(byName.get('LOOK/AROUND')?.rows[0].attachmentName).toBe('EYE');
+    expect(byName.get('JUMP')?.rows.length).toBe(1);
+    expect(byName.get('JUMP')?.rows[0].attachmentName).toBe('BODY');
+  });
 });
