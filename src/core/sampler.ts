@@ -49,6 +49,7 @@ import {
   AnimationState,
   AnimationStateData,
   Physics,
+  AttachmentTimeline,
 } from '@esotericsoftware/spine-core';
 import type { LoadResult, SampleRecord, SourceDims } from './types.js';
 import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
@@ -67,6 +68,15 @@ export const DEFAULT_SAMPLING_HZ = 120;
  * 1e-3 tolerance).
  */
 const PEAK_EPSILON = 1e-9;
+
+/**
+ * Per-animation "affected" threshold (D-54). Distinct from the 1e-9 peak-latch
+ * tolerance above — 1e-6 is well above animator-meaningful bone-scale deltas
+ * but still filters out floating-point noise + compensating-constraint residue.
+ * Governs only the per-animation emission gate; the 1e-9 peak-latch stays
+ * owned by the global-peak fold.
+ */
+const SCALE_DELTA_EPSILON = 1e-6;
 
 /** Label used for attachments that no animation timeline touches. */
 const SETUP_POSE_LABEL = 'Setup Pose (Default)';
@@ -90,22 +100,57 @@ export interface PeakRecord extends SampleRecord {
 }
 
 /**
+ * Phase 3 Plan 01 — Extended sampler output (D-53).
+ *
+ * - `globalPeaks`: per-(skin, slot, attachment) peak across all animations and
+ *   setup-pose passes. Key: `${skinName}/${slotName}/${attachmentName}`.
+ *   Phase 2 contract preserved — analyzer's existing `analyze()` consumes
+ *   this Map unchanged.
+ * - `perAnimation`: per-(animation, skin, slot, attachment) peak, populated
+ *   ONLY for attachments passing the "affected" test per D-54 (scale-delta
+ *   greater than the 1e-6 threshold OR named by an AttachmentTimeline on the
+ *   corresponding slot). The setup-pose pass does not populate this map.
+ *   Key: `${animationName}/${skinName}/${slotName}/${attachmentName}`.
+ * - `setupPosePeaks`: per-(skin, slot, attachment) peak from the setup-pose
+ *   pass only, independent of any animation. Consumed by the breakdown
+ *   analyzer to build the static-pose top card (D-60) including attachments
+ *   that no animation touches.
+ */
+export interface SamplerOutput {
+  globalPeaks: Map<string, PeakRecord>;
+  perAnimation: Map<string, PeakRecord>;
+  setupPosePeaks: Map<string, PeakRecord>;
+}
+
+/**
  * Run the sampler across every `(skin, animation)` pair in the loaded skeleton
  * and return a map of per-attachment peak records.
  *
  * @param load LoadResult from `loadSkeleton()`.
  * @param opts Sampler options (`samplingHz`, `frameRate`).
- * @returns Map keyed `${skin}/${slot}/${attachment}` → `PeakRecord`.
+ * @returns SamplerOutput — three Maps: globalPeaks (Phase 2 preserved),
+ *          perAnimation (D-54 affected-attachment per-animation), setupPosePeaks
+ *          (Pass-1-only static pose map for D-60 Setup Pose card coverage).
  */
 export function sampleSkeleton(
   load: LoadResult,
   opts: SamplerOptions = {},
-): Map<string, PeakRecord> {
+): SamplerOutput {
   const samplingHz = opts.samplingHz ?? DEFAULT_SAMPLING_HZ;
   const editorFps = load.editorFps;
   const dt = 1 / samplingHz;
 
-  const peaks = new Map<string, PeakRecord>();
+  // Phase 3: globalPeaks is Phase 2's renamed `peaks` — same semantics.
+  const globalPeaks = new Map<string, PeakRecord>();
+  // Phase 3 Plan 01 — per-animation affected attachments only (D-54).
+  const perAnimation = new Map<string, PeakRecord>();
+  // Phase 3 Plan 01 — Pass-1-only static pose peak map; drives the top card
+  // so it covers every textured attachment even if no animation touches it.
+  const setupPosePeaks = new Map<string, PeakRecord>();
+  // Keyed by the global key (`${skin}/${slot}/${attachment}`). Populated during
+  // Pass 1 (setup-pose) and read during Pass 2's per-tick affected-check.
+  // Never read from globalPeaks mid-flight — see RESEARCH Pitfall 3.
+  const setupPoseBaseline = new Map<string, number>();
   // Tracks which attachment keys were seen during any animation tick. Keys
   // present only from the setup-pose pass are labeled `isSetupPosePeak: true`.
   const touchedByAnimation = new Set<string>();
@@ -132,12 +177,28 @@ export function sampleSkeleton(
       /*time*/ 0,
       /*frame*/ 0,
       load.sourceDims,
-      peaks,
+      globalPeaks,
       /*touchedSet*/ null, // setup-pose pass doesn't mark attachments touched
+      /*setupPosePeaks*/ setupPosePeaks,
+      /*setupPoseBaseline*/ setupPoseBaseline,
+      /*perAnimation*/ null,
+      /*perAnimationNames*/ null,
     );
 
     // Pass 2 (per skin, per animation): locked tick lifecycle.
     for (const anim of load.skeletonData.animations) {
+      // Pre-loop: one-time collection of AttachmentTimeline-named pairs
+      // `${slotIndex}/${attachmentName}` for the second arm of D-54's
+      // "affected" test. Uses instanceof on each timeline.
+      const animAttachmentNames = new Set<string>();
+      for (const tl of anim.timelines) {
+        if (tl instanceof AttachmentTimeline) {
+          for (const name of tl.attachmentNames) {
+            if (name !== null) animAttachmentNames.add(`${tl.slotIndex}/${name}`);
+          }
+        }
+      }
+
       skeleton.setToSetupPose();
       skeleton.setSlotsToSetupPose();
       state.clearTracks();
@@ -167,8 +228,12 @@ export function sampleSkeleton(
           t,
           Math.round(t * editorFps),
           load.sourceDims,
-          peaks,
+          globalPeaks,
           touchedByAnimation,
+          /*setupPosePeaks*/ null,
+          /*setupPoseBaseline*/ setupPoseBaseline,
+          /*perAnimation*/ perAnimation,
+          /*perAnimationNames*/ animAttachmentNames,
         );
       }
     }
@@ -178,13 +243,13 @@ export function sampleSkeleton(
   // stays flagged as a setup-pose peak. The snapshotFrame constructor already
   // sets `isSetupPosePeak` correctly per-insert; this loop normalizes the
   // flag for any key only ever written by the animation pass(es).
-  for (const [key, rec] of peaks) {
+  for (const [key, rec] of globalPeaks) {
     if (touchedByAnimation.has(key) && rec.animationName !== SETUP_POSE_LABEL) {
       rec.isSetupPosePeak = false;
     }
   }
 
-  return peaks;
+  return { globalPeaks, perAnimation, setupPosePeaks };
 }
 
 /**
@@ -208,17 +273,31 @@ function snapshotFrame(
   time: number,
   frame: number,
   sourceDims: Map<string, SourceDims>,
-  peaks: Map<string, PeakRecord>,
+  globalPeaks: Map<string, PeakRecord>,
   touchedSet: Set<string> | null,
+  setupPosePeaks: Map<string, PeakRecord> | null,
+  setupPoseBaseline: Map<string, number>,
+  perAnimation: Map<string, PeakRecord> | null,
+  perAnimationNames: Set<string> | null,
 ): void {
+  let slotIndex = 0;
   for (const slot of skeleton.slots) {
     const attachment = slot.getAttachment();
-    if (attachment === null) continue;
+    if (attachment === null) {
+      slotIndex++;
+      continue;
+    }
     // Canonical visibility: alpha 0 slots are invisible at runtime.
-    if (slot.color.a <= 0) continue;
+    if (slot.color.a <= 0) {
+      slotIndex++;
+      continue;
+    }
 
     const aabb = attachmentWorldAABB(slot, attachment);
-    if (aabb === null) continue; // BoundingBox / Path / Point / Clipping
+    if (aabb === null) {
+      slotIndex++;
+      continue; // BoundingBox / Path / Point / Clipping
+    }
 
     // Spine skins allow an attachment to use `path` indirection to point at a
     // differently-named atlas region (e.g. slot "CARDS_R_HAND_1" carrying an
@@ -229,10 +308,16 @@ function snapshotFrame(
     // ones at this point — the AABB guard above already filtered them).
     const regionName = (attachment as { region?: { name?: string } }).region?.name;
     const sd = sourceDims.get(regionName ?? attachment.name);
-    if (sd === undefined || sd.w <= 0 || sd.h <= 0) continue;
+    if (sd === undefined || sd.w <= 0 || sd.h <= 0) {
+      slotIndex++;
+      continue;
+    }
 
     const rs = computeRenderScale(slot, attachment);
-    if (rs === null) continue; // non-textured attachment (defensive; AABB guard above already skipped)
+    if (rs === null) {
+      slotIndex++;
+      continue; // non-textured attachment (defensive; AABB guard above already skipped)
+    }
     const { scale: peakScale, scaleX: peakScaleX, scaleY: peakScaleY } = rs;
     const worldW = aabb.maxX - aabb.minX;
     const worldH = aabb.maxY - aabb.minY;
@@ -240,9 +325,9 @@ function snapshotFrame(
     const key = `${skinName}/${slot.data.name}/${attachment.name}`;
     if (touchedSet !== null) touchedSet.add(key);
 
-    const existing = peaks.get(key);
+    const existing = globalPeaks.get(key);
     if (existing === undefined || peakScale > existing.peakScale + PEAK_EPSILON) {
-      peaks.set(key, {
+      globalPeaks.set(key, {
         attachmentKey: key,
         skinName,
         slotName: slot.data.name,
@@ -260,5 +345,64 @@ function snapshotFrame(
         isSetupPosePeak: animationName === SETUP_POSE_LABEL,
       });
     }
+
+    // Phase 3 Plan 01 — Pass 1: record setup-pose baseline + setupPosePeaks.
+    // Pass 1 owns these; Pass 2 passes null for setupPosePeaks.
+    if (setupPosePeaks !== null) {
+      setupPoseBaseline.set(key, peakScale);
+      setupPosePeaks.set(key, {
+        attachmentKey: key,
+        skinName,
+        slotName: slot.data.name,
+        attachmentName: attachment.name,
+        animationName,
+        time,
+        frame,
+        peakScaleX,
+        peakScaleY,
+        peakScale,
+        worldW,
+        worldH,
+        sourceW: sd.w,
+        sourceH: sd.h,
+        isSetupPosePeak: true,
+      });
+    }
+
+    // Phase 3 Plan 01 — Pass 2: per-animation "affected" emission (D-54).
+    // Latch on the higher peak within an animation (PEAK_EPSILON tolerance).
+    if (perAnimation !== null) {
+      const baseline = setupPoseBaseline.get(key) ?? 0;
+      const scaleDelta = Math.abs(peakScale - baseline);
+      const isAffectedByScale = scaleDelta > SCALE_DELTA_EPSILON;
+      const timelineKey = `${slotIndex}/${attachment.name}`;
+      const isAffectedByTimeline =
+        perAnimationNames !== null && perAnimationNames.has(timelineKey);
+      if (isAffectedByScale || isAffectedByTimeline) {
+        const perAnimKey = `${animationName}/${key}`;
+        const existingPA = perAnimation.get(perAnimKey);
+        if (existingPA === undefined || peakScale > existingPA.peakScale + PEAK_EPSILON) {
+          perAnimation.set(perAnimKey, {
+            attachmentKey: key,
+            skinName,
+            slotName: slot.data.name,
+            attachmentName: attachment.name,
+            animationName,
+            time,
+            frame,
+            peakScaleX,
+            peakScaleY,
+            peakScale,
+            worldW,
+            worldH,
+            sourceW: sd.w,
+            sourceH: sd.h,
+            isSetupPosePeak: false,
+          });
+        }
+      }
+    }
+
+    slotIndex++;
   }
 }

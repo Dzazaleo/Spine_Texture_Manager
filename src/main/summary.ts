@@ -16,14 +16,15 @@
  * Consumed by `src/main/ipc.ts`. Not imported by the renderer — the renderer
  * sees only the `SkeletonSummary` object on the far side of IPC.
  */
+import { Skeleton } from '@esotericsoftware/spine-core';
 import type { LoadResult } from '../core/types.js';
-import type { PeakRecord } from '../core/sampler.js';
+import type { SamplerOutput } from '../core/sampler.js';
 import type { SkeletonSummary } from '../shared/types.js';
-import { analyze } from '../core/analyzer.js';
+import { analyze, analyzeBreakdown } from '../core/analyzer.js';
 
 export function buildSummary(
   load: LoadResult,
-  peaks: Map<string, PeakRecord>,
+  sampled: SamplerOutput,
   elapsedMs: number,
 ): SkeletonSummary {
   const { skeletonData } = load;
@@ -50,7 +51,20 @@ export function buildSummary(
   // Fold + sort + preformat delegated to src/core/analyzer.ts (D-33, D-34, D-35).
   // Sort key (skinName, slotName, attachmentName) matches
   // `scripts/cli.ts` renderTable() byte-for-byte — analyzer owns the comparator.
-  const peaksArray = analyze(peaks);
+  const peaksArray = analyze(sampled.globalPeaks);
+
+  // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
+  // AnimationBreakdown[] (F4.1/F4.2/F4.3). boneChainPath walks slot.bone.parent
+  // so we materialize a Skeleton here — SkeletonData alone does not carry
+  // Bone.parent wiring; spine-core's Skeleton constructor resolves it. Cheap
+  // (<1 ms on SIMPLE_TEST), runs once per load.
+  const skeleton = new Skeleton(load.skeletonData);
+  const animationBreakdown = analyzeBreakdown(
+    sampled.perAnimation,
+    sampled.setupPosePeaks,
+    load.skeletonData,
+    skeleton.slots,
+  );
 
   return {
     skeletonPath: load.skeletonPath,
@@ -70,6 +84,7 @@ export function buildSummary(
       names: skeletonData.animations.map((a) => a.name),
     },
     peaks: peaksArray,
+    animationBreakdown,
     elapsedMs,
   };
 }

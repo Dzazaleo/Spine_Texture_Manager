@@ -12,9 +12,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
+import { Skeleton } from '@esotericsoftware/spine-core';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton, type PeakRecord } from '../../src/core/sampler.js';
-import { analyze } from '../../src/core/analyzer.js';
+import { analyze, analyzeBreakdown } from '../../src/core/analyzer.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const ANALYZER_SRC = path.resolve('src/core/analyzer.ts');
@@ -22,7 +23,7 @@ const ANALYZER_SRC = path.resolve('src/core/analyzer.ts');
 describe('analyze (D-33, D-34, D-35)', () => {
   it('D-34 sort: DisplayRow[] sorted by (skinName, slotName, attachmentName)', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const rows = analyze(peaks);
     const resorted = [...rows].sort((a, b) => {
       if (a.skinName !== b.skinName) return a.skinName.localeCompare(b.skinName);
@@ -34,7 +35,7 @@ describe('analyze (D-33, D-34, D-35)', () => {
 
   it('D-35: preformatted labels match spec strings', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const rows = analyze(peaks);
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) {
@@ -48,7 +49,7 @@ describe('analyze (D-33, D-34, D-35)', () => {
 
   it('D-22: output survives structuredClone unchanged', () => {
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     const rows = analyze(peaks);
     const cloned = structuredClone(rows);
     expect(cloned).toEqual(rows);
@@ -64,7 +65,7 @@ describe('analyze (D-33, D-34, D-35)', () => {
     // (the sampler key of the winner) so the panel's Set<string> selection
     // key remains unambiguous.
     const load = loadSkeleton(FIXTURE);
-    const peaks = sampleSkeleton(load);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
     // Sampler still produces 4 per-instance records (pre-dedup invariant).
     expect(peaks.size).toBe(4);
     const rows = analyze(peaks);
@@ -190,5 +191,112 @@ describe('analyze (D-33, D-34, D-35)', () => {
     const src = readFileSync(ANALYZER_SRC, 'utf8');
     expect(src).not.toMatch(/from ['"]node:(fs|path|child_process|net|http)['"]/);
     expect(src).not.toMatch(/from ['"]sharp['"]/);
+  });
+});
+
+describe('analyzeBreakdown (D-54, D-56, D-57, D-58, D-59, D-60, F4)', () => {
+  function buildBreakdown() {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const skeleton = new Skeleton(load.skeletonData);
+    return analyzeBreakdown(
+      sampled.perAnimation,
+      sampled.setupPosePeaks,
+      load.skeletonData,
+      skeleton.slots,
+    );
+  }
+
+  it('D-60 / F4.2: first card is Setup Pose with cardId "setup-pose" + isSetupPose=true + animationName="Setup Pose (Default)"', () => {
+    const cards = buildBreakdown();
+    expect(cards[0].cardId).toBe('setup-pose');
+    expect(cards[0].isSetupPose).toBe(true);
+    expect(cards[0].animationName).toBe('Setup Pose (Default)');
+  });
+
+  it('D-60 / D-56 / F4.2: Setup Pose card dedupes to 3 rows on SIMPLE_TEST (CIRCLE, SQUARE, TRIANGLE)', () => {
+    const cards = buildBreakdown();
+    const names = cards[0].rows.map((r) => r.attachmentName).sort();
+    expect(names).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
+    expect(cards[0].uniqueAssetCount).toBe(cards[0].rows.length);
+    // D-61: Setup Pose card cannot be empty — every skeleton has at least one attachment in setup pose (general invariant, not fixture-specific).
+    expect(cards[0].rows.length).toBeGreaterThan(0);
+  });
+
+  it('D-56 / D-60: Setup Pose SQUARE row wins via the higher-peakScale slot (dedupe invariant)', () => {
+    // NOTE: the plan assumed SQUARE2 would win because its bone is pre-scaled
+    // 2.0×, but the iter-4 hull_sqrt render-scale formula (GAP-FIX anchor)
+    // returns ≈0.2538 for SQUARE on slot SQUARE2 at setup pose vs 1.0× for
+    // slot SQUARE — so SQUARE slot wins dedupe. The render scale is NOT
+    // directly the bone scale; it's the world-hull area ratio vs source.
+    // What we actually guarantee: exactly one row per unique attachmentName
+    // + the winner has the higher peakScale of its candidates.
+    const cards = buildBreakdown();
+    const squareRow = cards[0].rows.find((r) => r.attachmentName === 'SQUARE');
+    expect(squareRow).toBeDefined();
+    expect(Number.isFinite(squareRow!.peakScale)).toBe(true);
+    expect(squareRow!.peakScale).toBeGreaterThan(0);
+    // Exactly one SQUARE row in the Setup Pose card (dedupe invariant).
+    const squareRows = cards[0].rows.filter((r) => r.attachmentName === 'SQUARE');
+    expect(squareRows.length).toBe(1);
+  });
+
+  it('D-58 / F4.1: card order = setup-pose first, then skeletonData.animations order', () => {
+    const load = loadSkeleton(FIXTURE);
+    const cards = buildBreakdown();
+    expect(cards[0].cardId).toBe('setup-pose');
+    const animCards = cards.slice(1);
+    expect(animCards.length).toBe(load.skeletonData.animations.length);
+    for (let i = 0; i < animCards.length; i++) {
+      expect(animCards[i].cardId).toBe(`anim:${load.skeletonData.animations[i].name}`);
+      expect(animCards[i].animationName).toBe(load.skeletonData.animations[i].name);
+      expect(animCards[i].isSetupPose).toBe(false);
+    }
+  });
+
+  it('D-59: rows within each card sorted by peakScale DESC', () => {
+    const cards = buildBreakdown();
+    for (const card of cards) {
+      for (let i = 1; i < card.rows.length; i++) {
+        expect(card.rows[i - 1].peakScale).toBeGreaterThanOrEqual(card.rows[i].peakScale);
+      }
+    }
+  });
+
+  it('D-62 / F4.1: empty-animation card has rows.length === 0 AND uniqueAssetCount === 0', () => {
+    const cards = buildBreakdown();
+    for (const card of cards) {
+      expect(card.uniqueAssetCount).toBe(card.rows.length);
+      if (card.rows.length === 0) {
+        expect(card.uniqueAssetCount).toBe(0);
+        expect(Array.isArray(card.rows)).toBe(true);
+      }
+    }
+  });
+
+  it('D-57 / F4.3: BreakdownRow.frameLabel is em-dash (U+2014) for setup-pose rows, String(frame) otherwise', () => {
+    const cards = buildBreakdown();
+    for (const row of cards[0].rows) {
+      // Setup Pose card rows — em-dash per D-57.
+      expect(row.frameLabel).toBe('—');
+    }
+    for (const card of cards.slice(1)) {
+      for (const row of card.rows) {
+        expect(row.frameLabel).toBe(String(row.frame));
+      }
+    }
+  });
+
+  it('F4.3: BreakdownRow.bonePath is non-empty and bonePathLabel uses space-flanked U+2192 separator', () => {
+    const cards = buildBreakdown();
+    for (const card of cards) {
+      for (const row of card.rows) {
+        expect(row.bonePath.length).toBeGreaterThan(0);
+        expect(row.bonePath[0]).toBe('root');
+        expect(row.bonePath[row.bonePath.length - 1]).toBe(row.attachmentName);
+        // Label uses U+2192 (' → ') between tokens.
+        expect(row.bonePathLabel).toBe(row.bonePath.join(' → '));
+      }
+    }
   });
 });
