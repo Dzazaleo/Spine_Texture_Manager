@@ -1,10 +1,11 @@
 ---
 phase: 3
 slug: animation-breakdown-panel
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-23
+verified: 2026-04-23
 ---
 
 # Phase 3 — Validation Strategy
@@ -40,18 +41,19 @@ created: 2026-04-23
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-01-XX | 01 | 1 | F4.1–F4.3 | — | Sampler extension emits both `globalPeaks` and `perAnimation` maps; N1.6 determinism holds | unit | `npm run test -- tests/core/sampler.spec.ts` | ❌ W0 (augment) | ⬜ pending |
-| 03-01-XX | 01 | 1 | F4.1–F4.3 | — | `analyzeBreakdown(samplerOutput, skeletonData)` produces `AnimationBreakdown[]` with correct dedupe + Setup Pose card | unit | `npm run test -- tests/core/analyzer.spec.ts` | ❌ W0 (augment) | ⬜ pending |
-| 03-01-XX | 01 | 1 | F4.3 | — | `boneChainPath(slot, attachmentName)` traverses `Bone.parent` to root correctly on CHAIN_8 + CTRL fixtures | unit | `npm run test -- tests/core/bones.spec.ts` | ❌ W0 (new) | ⬜ pending |
-| 03-01-XX | 01 | 1 | F4.1–F4.4 | — | IPC payload `SkeletonSummary.animationBreakdown: AnimationBreakdown[]` is structuredClone-safe | unit | `npm run test -- tests/main/summary.spec.ts tests/main/ipc.spec.ts` | ❌ W0 (augment) | ⬜ pending |
-| 03-01-XX | 01 | 1 | F4.1–F4.4 | — | `src/core/*` boundary defense covers new files; no DOM/Node I/O imports | integration | `npm run test -- tests/arch.spec.ts` | ❌ W0 (augment) | ⬜ pending |
-| 03-01-XX | 01 | 1 | — | — | `scripts/cli.ts` output byte-for-byte identical vs `.cli-golden.txt` | integration | `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` + diff | ✅ existing | ⬜ pending |
-| 03-01-XX | 01 | 1 | N2.1 | — | N2.1 perf gate (<500ms on SIMPLE_TEST) preserved after sampler extension | unit | `npm run test -- tests/core/sampler.spec.ts` (perf assert) | ✅ existing | ⬜ pending |
-| 03-02-XX | 02 | 2 | F4.1–F4.4 | — | `src/renderer/src/components/AppShell.tsx` owns tab state; filename chip moved from GlobalMaxRenderPanel | typecheck+grep | `npm run typecheck:web && grep FileChip src/renderer/src/components/AppShell.tsx` | ❌ W0 (new) | ⬜ pending |
-| 03-02-XX | 02 | 2 | F4.1–F4.4 | — | `src/renderer/src/panels/AnimationBreakdownPanel.tsx` renders Setup Pose top card + N animation cards; collapsed by default except Setup Pose | typecheck+grep | `npm run typecheck:web && grep "setup-pose" src/renderer/src/panels/AnimationBreakdownPanel.tsx` | ❌ W0 (new) | ⬜ pending |
-| 03-02-XX | 02 | 2 | F3.1 (D-72) | — | `GlobalMaxRenderPanel.tsx` Source Animation chip upgraded to `<button>` with `onJumpToAnimation` callback | typecheck+grep | `grep "onJumpToAnimation" src/renderer/src/panels/GlobalMaxRenderPanel.tsx` | ✅ existing (touch) | ⬜ pending |
-| 03-03-XX | 03 | 3 | F4.1–F4.4 | — | `App.tsx` wraps `status:'loaded'` branch in `<AppShell>`; renderer boots without console errors | build | `npx electron-vite build` | ✅ existing (touch) | ⬜ pending |
-| 03-03-XX | 03 | 3 | F4.1–F4.4 | — | SIMPLE_TEST drop → tab switch + Setup Pose + expand/collapse + empty-state + Bone Path + Source Animation jump-target all work | manual | `checkpoint:human-verify` | manual | ⬜ pending |
+| 03-01-T2 | 01 | 1 | F4.1–F4.3 | — | Sampler extension emits both `globalPeaks` and `perAnimation` maps; N1.6 determinism holds | unit | `npm run test -- tests/core/sampler.spec.ts` | ✅ W1 (augmented) | ✅ green |
+| 03-01-T3 | 01 | 1 | F4.1–F4.3 | — | `analyzeBreakdown(samplerOutput, skeletonData)` produces `AnimationBreakdown[]` with correct dedupe + Setup Pose card | unit | `npm run test -- tests/core/analyzer.spec.ts` | ✅ W1 (augmented) | ✅ green |
+| 03-01-T2 | 01 | 1 | F4.3 | — | `boneChainPath(slot, attachmentName)` traverses `Bone.parent` to root correctly on CHAIN_8 + CTRL fixtures | unit | `npm run test -- tests/core/bones.spec.ts` | ✅ W1 (new) | ✅ green |
+| 03-01-T4 | 01 | 1 | F4.1–F4.4 | — | IPC payload `SkeletonSummary.animationBreakdown: AnimationBreakdown[]` is structuredClone-safe | unit | `npm run test -- tests/main/summary.spec.ts tests/main/ipc.spec.ts` | ✅ W1 (augmented) | ✅ green |
+| 03-01-T4 | 01 | 1 | F4.1–F4.4 | — | `src/core/*` boundary defense covers new files; no DOM/Node I/O imports | integration | `npm run test -- tests/arch.spec.ts` | ✅ W1 (augmented) | ✅ green |
+| 03-01-T4 | 01 | 1 | — | — | `scripts/cli.ts` output byte-for-byte identical vs `.cli-golden.txt` | integration | `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` + diff | ✅ existing | ✅ green |
+| 03-01-T2 | 01 | 1 | N2.1 | — | N2.1 perf gate (<500ms on SIMPLE_TEST) preserved after sampler extension | unit | `npm run test -- tests/core/sampler.spec.ts` (perf assert) | ✅ existing | ✅ green |
+| 03-02-T1 | 02 | 2 | F4.1–F4.4 | — | `src/renderer/src/components/AppShell.tsx` owns tab state; filename chip moved from GlobalMaxRenderPanel | typecheck+grep | `npm run typecheck:web && grep FileChip src/renderer/src/components/AppShell.tsx` | ✅ W2 (new) | ✅ green |
+| 03-02-T2 | 02 | 2 | F4.1–F4.4 | — | `src/renderer/src/panels/AnimationBreakdownPanel.tsx` renders Setup Pose top card + N animation cards; collapsed by default except Setup Pose | typecheck+grep | `npm run typecheck:web && grep "setup-pose" src/renderer/src/panels/AnimationBreakdownPanel.tsx` | ✅ W2 (new) | ✅ green |
+| 03-02-T3 | 02 | 2 | F3.1 (D-72) | — | `GlobalMaxRenderPanel.tsx` Source Animation chip upgraded to `<button>` with `onJumpToAnimation` callback | typecheck+grep | `grep "onJumpToAnimation" src/renderer/src/panels/GlobalMaxRenderPanel.tsx` | ✅ existing (touched) | ✅ green |
+| 03-03-T1 | 03 | 3 | F4.1–F4.4 | T-03-03-01 | `App.tsx` wraps `status:'loaded'` branch in `<AppShell>`; renderer boots without console errors | build | `npx electron-vite build` | ✅ existing (touched) | ✅ green |
+| 03-03-T2 | 03 | 3 | F4.1–F4.4 | T-03-03-02 | SIMPLE_TEST drop → tab switch + Setup Pose + expand/collapse + empty-state + Bone Path + Source Animation jump-target all work | manual | `checkpoint:human-verify` | manual | ✅ green (signed off 2026-04-23 after gap-fix `dfbcfa5` for namespaced animation names) |
+| 03-03-T3 | 03 | 3 | — | — | 03-VALIDATION.md frontmatter + STATE.md updates land under post-verify commit | docs | manual grep | ✅ existing | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -95,12 +97,12 @@ Wave 0 gaps closed during Wave 1 (tests land same-commit as the core additions p
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s quick / 45s full
-- [ ] `nyquist_compliant: true` set in frontmatter
-- [ ] Human-verify checkpoint scheduled on final plan (Plan 03-03 per RESEARCH §7 wave ordering)
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s quick / 45s full
+- [x] `nyquist_compliant: true` set in frontmatter
+- [x] Human-verify checkpoint scheduled on final plan (Plan 03-03 per RESEARCH §7 wave ordering)
 
-**Approval:** pending — planner fills task IDs during plan generation, then flips `nyquist_compliant: true` and `wave_0_complete: true` as plans land.
+**Approval:** ✅ APPROVED 2026-04-23. Plan 03-01 + Plan 03-02 + Plan 03-03 all GREEN; 88 tests + 6 arch guards + electron-vite build + CLI byte-for-byte diff empty. Plan 03-03 `checkpoint:human-verify` signed off 2026-04-23 after one gap-fix (`dfbcfa5` — analyzer per-animation key routing for namespaced Spine animation names; regression test added covering CHAR/BLINK + LOOK/AROUND). Phase 3 ready for `/gsd-verify-work 3`.
