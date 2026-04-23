@@ -53,13 +53,26 @@ describe('analyze (D-33, D-34, D-35)', () => {
     expect(cloned).toEqual(rows);
   });
 
-  it('D-33: SIMPLE_TEST fixture yields 4 rows (CIRCLE/SQUARE/SQUARE2/TRIANGLE)', () => {
+  it('D-33: SIMPLE_TEST fixture yields 4 rows (CIRCLE, SQUARE, SQUARE, TRIANGLE)', () => {
+    // Ground truth from `npm run cli`: 4 rows — the two `SQUARE` attachments
+    // are carried by different slots (slot `SQUARE` and slot `SQUARE2`; the
+    // `SQUARE2` name in the fixture is a slot/bone name, not an attachment
+    // name). Also verify the attachmentKey distinguishes the two rows so
+    // the panel's Set<string> selection key is unambiguous.
     const load = loadSkeleton(FIXTURE);
     const peaks = sampleSkeleton(load);
     const rows = analyze(peaks);
     expect(rows.length).toBe(4);
     const names = rows.map((r) => r.attachmentName).sort();
-    expect(names).toEqual(['CIRCLE', 'SQUARE', 'SQUARE2', 'TRIANGLE']);
+    expect(names).toEqual(['CIRCLE', 'SQUARE', 'SQUARE', 'TRIANGLE']);
+    const keys = rows.map((r) => r.attachmentKey).sort();
+    expect(new Set(keys).size).toBe(4);
+    expect(keys).toEqual([
+      'default/CIRCLE/CIRCLE',
+      'default/SQUARE/SQUARE',
+      'default/SQUARE2/SQUARE',
+      'default/TRIANGLE/TRIANGLE',
+    ]);
   });
 
   it('N2.3: src/core/analyzer.ts has no node:fs / node:path / node:child_process / sharp / node:http / node:net imports', () => {
