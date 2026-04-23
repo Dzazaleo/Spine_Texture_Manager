@@ -1,10 +1,11 @@
 ---
 phase: 3
 slug: animation-breakdown-panel
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-04-23
+reviewed_at: 2026-04-23
 ---
 
 # Phase 3 — UI Design Contract
