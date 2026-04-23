@@ -11,10 +11,10 @@
  *      test scheduled in Plan 01-05).
  *
  * Port mechanics (PATTERNS §DebugPanel steps 1–4):
- *   - Input: PeakRecordSerializable[] (already sorted by buildSummary —
- *     src/main/summary.ts sorts by (skinName, slotName, attachmentName)
- *     matching cli.ts byte-for-byte per D-16; sort step from cli.ts is
- *     skipped here).
+ *   - Input: DisplayRow[] (already sorted by buildSummary — src/main/summary.ts
+ *     delegates the fold to src/core/analyzer.ts which sorts by
+ *     (skinName, slotName, attachmentName) matching cli.ts byte-for-byte per
+ *     D-16/D-34; sort step from cli.ts is skipped here).
  *   - Output: <pre className="font-mono">{text}</pre> where `text` is the
  *     same string that cli.ts renderTable would emit.
  *
@@ -26,7 +26,7 @@
  */
 import type {
   SkeletonSummary,
-  PeakRecordSerializable,
+  DisplayRow,
 } from '../../../shared/types.js';
 
 export interface DebugPanelProps {
@@ -39,7 +39,7 @@ function displayType(spineClassName: string): string {
 }
 
 /** Byte-for-byte port of scripts/cli.ts renderTable, minus the sort step. */
-function renderTable(peaks: readonly PeakRecordSerializable[]): string {
+function renderTable(peaks: readonly DisplayRow[]): string {
   const rows: string[][] = [];
   rows.push([
     'Attachment',

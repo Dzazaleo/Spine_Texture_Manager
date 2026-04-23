@@ -27,3 +27,7 @@ fixtures/Girl/
 # Logs
 *.log
 npm-debug.log*
+
+# Phase 2 CLI byte-for-byte golden + sibling diff artifacts
+# (handoff between Plan 02-01 Task 3 and Plan 02-03; removed by 02-03 final cleanup)
+fixtures/SIMPLE_PROJECT/.cli-*.txt
