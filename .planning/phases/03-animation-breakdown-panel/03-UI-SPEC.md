@@ -58,15 +58,24 @@ Declared values (all multiples of 4 — uses Tailwind v4 default `0.25rem × n` 
 section-level spacing to communicate "these are siblings in a scrollable list,"
 but enough breathing room that headers are visually distinct when multiple are
 expanded.
-**Exceptions:** `py-0.5` (2px) on chip / `<mark>` styling is inherited from
-Phase 2 D-44/D-40 verbatim; already audited, do not relitigate.
+
+**Permitted 2px exceptions (closed set — grep-verifiable acceptance):**
+- Chip padding `py-0.5` (2px) on the Source Animation chip (inherited from Phase 2 D-44).
+- Chip padding `py-0.5` (2px) on the (disabled) Override button — reuses the same Phase 2 chip shape.
+- Chip padding `py-0.5` (2px) on the filename chip hoisted into AppShell header (inherited from Phase 2 D-44 chip class verbatim).
+- Match-highlight `<mark>` padding `px-0.5` (2px horizontal) (inherited from Phase 2 D-40).
+- Sort-arrow pixel nudge (inherited from Phase 2).
+
+**NO other 2px use allowed in Phase 3.** Any new `py-0.5` / `px-0.5` / `p-0.5`
+beyond the five uses listed above is a contract violation and must be rewritten
+to the 4/8/12/16/24/32 scale.
 
 ---
 
 ## Typography
 
-Three sizes, two weights. All monospace inside the panel body (Phase 2 D-47
-carries forward). System-sans retained only for AppShell chrome headings.
+Three sizes, exactly two weights. All monospace inside the panel body (Phase 2
+D-47 carries forward). System-sans retained only for AppShell chrome headings.
 
 | Role | Size | Weight | Line Height | Tailwind class | Usage |
 |------|------|--------|-------------|----------------|-------|
@@ -75,15 +84,22 @@ carries forward). System-sans retained only for AppShell chrome headings.
 | Table header | 12px | 600 (semibold) | 1.5 | `text-xs font-semibold font-mono` | Column labels inside an expanded card (inherited from Phase 2 D-47) |
 | Row cell | 14px | 400 (regular) | 1.5 | `text-sm font-mono` | Per-row cells (inherited from Phase 2 D-47) |
 | Bone Path cell | 12px | 400 (regular) | 1.5 | `text-xs font-mono text-fg-muted` | De-emphasized structural info (CONTEXT D-67) |
-| Tab button | 14px | 500 (medium) | 1.5 | `text-sm font-medium` | `[ Global ] [ Animation Breakdown ]` tab labels |
+| Tab button (active) | 14px | 600 (semibold) | 1.5 | `text-sm font-semibold` | Active tab label (`Global` or `Animation Breakdown`) |
+| Tab button (inactive) | 14px | 400 (regular) | 1.5 | `text-sm font-normal` | Inactive tab label |
 | Empty state row | 14px | 400 (regular) | 1.5 | `text-sm font-mono text-fg-muted text-center` | "No assets referenced" / "No attachments match…" (CONTEXT D-62, inherits Phase 2 D-41) |
 
-**Weights:** exactly two — regular (400) + semibold (600). Tab buttons use
-medium (500) via `font-medium` only for the active-tab emphasis; this is an
-allowed exception to the 2-weight rule because the built-in system-sans stack
-carries 500 natively at zero font-load cost.
+**Weights:** exactly two — regular (400) + semibold (600). No medium (500)
+anywhere in Phase 3. Active/inactive tab contrast is carried by **color**
+(`text-accent` vs `text-fg-muted`) plus the **2px `bg-accent` underline
+indicator** on the active tab — both high-signal channels that dominate the
+weight delta anyway. Dropping medium matches the rest of the chrome convention
+(card headers + table headers all use 600; everything else 400).
+
 **Line heights:** 1.5 everywhere (Tailwind default); 1.4 on the one `text-lg`
 heading. No `text-2xl`/`text-xl`/`text-4xl` allowed in Phase 3.
+
+**Forbidden classes (grep-verifiable negative acceptance):** `font-medium`,
+`font-weight: 500`, any custom CSS `font-weight` rule between 400 and 600.
 
 ---
 
@@ -195,10 +211,17 @@ decision is grep-verifiable via the cited class signature or exact constant.
 | Element | Specification |
 |---------|---------------|
 | Tab strip container | `<nav role="tablist" className="flex gap-1 items-center">` |
-| Tab button (base) | `<button role="tab" type="button" aria-selected={isActive} className="relative px-4 py-2 text-sm font-medium font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent">` |
-| Tab label color (inactive) | `text-fg-muted hover:text-fg` |
-| Tab label color (active) | `text-accent` (Phase 1 D-14 accent usage list item: this is a _reserved_ element for accent color) |
+| Tab button (base, shared) | `<button role="tab" type="button" aria-selected={isActive} className="relative px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent">` — note: NO weight class on the base; weight is composed per-state below. |
+| Tab label weight + color (inactive) | `font-normal text-fg-muted hover:text-fg` (weight 400) |
+| Tab label weight + color (active) | `font-semibold text-accent` (weight 600) — Phase 1 D-14 accent usage list item: the active tab label is a _reserved_ element for accent color. |
 | Active underline indicator | An absolutely-positioned `<span aria-hidden className="absolute left-0 right-0 -bottom-px h-[2px] bg-accent" />` inside the active tab button only. The 2px height sits on the AppShell header's bottom `border-border` (1px), visually "cutting through" the border to anchor the tab to the content below. Rationale: matches dev-tool panels (Chrome DevTools, VSCode); pill-style active states read as clickable chip-rows rather than sticky navigation; orange under a low-saturation warm-stone chrome gives unambiguous "this is where you are" signal without over-rendering. |
+
+**Active/inactive contrast budget:** three orthogonal channels carry the
+active-state signal — **weight** (600 vs 400) + **color** (`text-accent` vs
+`text-fg-muted`) + **underline** (2px `bg-accent` span vs nothing). Removing
+the medium-weight intermediate step keeps the contract at exactly two weights
+project-wide without weakening the signal, because the remaining two channels
+(color + underline) already give an unambiguous state distinction.
 
 **Rejected:** pill-style background fills like `bg-accent/10 rounded-md` —
 reads as a hover state on other accent-tinted surfaces elsewhere in the app
@@ -229,6 +252,14 @@ match-highlight.
 | Caret glyph | `▸` (U+25B8) when collapsed / `▾` (U+25BE) when expanded — rendered as the first `<span>` inside the button, `text-fg-muted` (caret is structural, not semantic). |
 | Card body | `<div id={bodyId} role="region" className="border-t border-border">{expanded && <Table … />}</div>` — the body is only rendered when `isExpanded === true` (no `display: none` / CSS-hidden) to keep the DOM cheap per CONTEXT D-63. |
 | Keyboard activation | Native `<button>` — Space + Enter both toggle. No custom keydown handler needed. |
+
+**Default expand state (grep-verifiable initial literal, CONTEXT D-63 + D-64):**
+AnimationBreakdownPanel MUST initialize `userExpanded` with the exact literal
+`new Set(['setup-pose'])` — Setup Pose card expanded by default, all animation
+cards collapsed. Executor grep target: `new Set(['setup-pose'])` (single-quoted)
+or `new Set(["setup-pose"])` (double-quoted) — either quoting style is
+acceptable; the literal string token `setup-pose` and the `new Set(` construct
+are the required signatures.
 
 **Rejected:** native `<details>/<summary>` — gives free keyboard support but
 sacrifices tight CSS control over the header row and forces a browser-specific
@@ -367,10 +398,10 @@ New components introduced in Phase 3 (scope: `src/renderer/**` only):
 
 | Component | Path | Responsibility |
 |-----------|------|----------------|
-| `AppShell` | `src/renderer/src/components/AppShell.tsx` | Header bar + filename chip + tab strip + `activeTab` state; renders either `<GlobalMaxRenderPanel>` or `<AnimationBreakdownPanel>` as children |
-| `AnimationBreakdownPanel` | `src/renderer/src/panels/AnimationBreakdownPanel.tsx` | Owns `query` + `userExpanded: Set<string>` state; renders panel header + list of `<AnimationCard>` |
+| `AppShell` | `src/renderer/src/components/AppShell.tsx` | Header bar + filename chip + tab strip + `activeTab` state; renders either `<GlobalMaxRenderPanel>` or `<AnimationBreakdownPanel>` as children. Tab buttons compose weight per-state: active uses `font-semibold`, inactive uses `font-normal` (NO `font-medium` anywhere). |
+| `AnimationBreakdownPanel` | `src/renderer/src/panels/AnimationBreakdownPanel.tsx` | Owns `query: string` + `userExpanded: Set<string>` state. Initial `userExpanded` literal: `new Set(['setup-pose'])` (CONTEXT D-63 + D-64). Renders panel header + list of `<AnimationCard>`. |
 | `AnimationCard` | `src/renderer/src/panels/AnimationBreakdownPanel.tsx` (local sub-component) or `src/renderer/src/components/AnimationCard.tsx` (planner's call) | Single collapsible card; expand/collapse button + optional table body |
-| `TabButton` | `src/renderer/src/components/AppShell.tsx` (local sub-component) | One of the two tab strip buttons (active/inactive styling) |
+| `TabButton` | `src/renderer/src/components/AppShell.tsx` (local sub-component) | One of the two tab strip buttons. MUST apply `font-semibold` when active, `font-normal` when inactive. MUST NOT apply `font-medium`. |
 
 Components reused unchanged:
 - `SearchBar` (`src/renderer/src/components/SearchBar.tsx`) — zero changes.
@@ -387,6 +418,8 @@ Components touched (non-visual wiring only):
 Executor must emit these literal class strings (or a superset ordered
 differently). Human-verify + `gsd-ui-auditor` checks them directly.
 
+### Positive (must appear)
+
 | Signature | Where |
 |-----------|-------|
 | `border border-border rounded-md bg-panel overflow-hidden` | Card outer wrapper |
@@ -402,12 +435,23 @@ differently). Human-verify + `gsd-ui-auditor` checks them directly.
 | `aria-controls={bodyId}` | Card header button |
 | `role="tablist"` | AppShell tab strip `<nav>` |
 | `role="tab"` + `aria-selected={isActive}` | Tab buttons |
+| `font-semibold text-accent` | Active tab label (weight + color composed together on the active branch) |
+| `font-normal text-fg-muted` | Inactive tab label (weight + color composed together on the inactive branch) |
+| `new Set(['setup-pose'])` or `new Set(["setup-pose"])` | AnimationBreakdownPanel `userExpanded` initial state (CONTEXT D-63 + D-64) |
 | `▸` (U+25B8) | Collapsed card caret |
 | `▾` (U+25BE) | Expanded card caret |
 | ` → ` (space, U+2192, space) | Bone Path separator |
 | `…` (U+2026) | Bone Path mid-ellipsis |
 | `—` (U+2014) | Frame column em-dash for Setup Pose rows |
 | `×` (U+00D7) | All size labels and scale labels |
+
+### Negative (must NOT appear — typography contract enforcement)
+
+| Signature | Rationale |
+|-----------|-----------|
+| `font-medium` | Two-weight contract allows only 400 + 600. Medium (500) is forbidden across all Phase 3 new code. |
+| `font-weight: 500` (in any `.css` or inline style) | Same as above — blocks back-door weight-500 via raw CSS. |
+| Any `font-weight` value strictly between 400 and 600 | Same as above. |
 
 ---
 
