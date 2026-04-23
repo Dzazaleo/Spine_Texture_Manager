@@ -36,8 +36,11 @@ describe('buildSummary (D-21, D-22)', () => {
     const peaks = sampleSkeleton(load);
     const s = buildSummary(load, peaks, 0);
 
-    expect(s.bones.count).toBe(9);
-    expect(s.bones.names.length).toBe(9);
+    // SIMPLE_TEST fixture actually contains 12 bones
+    // (root, CTRL, CHAIN_2..CHAIN_8, SQUARE, CTRL_PATH, SQUARE2).
+    // Plan 01-02 documented 9 — mismatch resolved against ground truth (the JSON).
+    expect(s.bones.count).toBe(12);
+    expect(s.bones.names.length).toBe(12);
     expect(s.slots.count).toBe(5);
     expect(s.skins.names).toContain('default');
     expect(s.animations.names.length).toBeGreaterThan(0);

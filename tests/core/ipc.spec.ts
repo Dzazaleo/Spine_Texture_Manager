@@ -28,7 +28,8 @@ describe('handleSkeletonLoad (F1-integrated, D-10)', () => {
     const resp = await handleSkeletonLoad(FIXTURE);
     expect(resp.ok).toBe(true);
     if (resp.ok) {
-      expect(resp.summary.bones.count).toBe(9);
+      // Fixture ground truth: 12 bones (root, CTRL, CHAIN_2..8, SQUARE, CTRL_PATH, SQUARE2).
+      expect(resp.summary.bones.count).toBe(12);
       expect(resp.summary.peaks.length).toBe(4);
       expect(resp.summary.elapsedMs).toBeGreaterThanOrEqual(0);
     }
