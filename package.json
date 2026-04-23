@@ -3,18 +3,38 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./out/main/index.js",
   "description": "Desktop app that computes per-attachment peak render scale for Spine 4.2+ skeletons.",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "cli": "tsx scripts/cli.ts"
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "cli": "tsx scripts/cli.ts",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && electron-builder --mac dmg",
+    "build:dry": "electron-vite build && electron-builder --mac dmg --dir",
+    "preview": "electron-vite preview"
   },
   "dependencies": {
-    "@esotericsoftware/spine-core": "^4.2.0"
+    "@esotericsoftware/spine-core": "^4.2.0",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@tailwindcss/vite": "^4.2.4",
     "@types/node": "^25.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "clsx": "^2.1.1",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "tailwindcss": "^4.2.4",
     "tsx": "^4.0.0",
     "typescript": "^6.0.0",
     "vitest": "^4.0.0"
