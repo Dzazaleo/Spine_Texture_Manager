@@ -44,6 +44,14 @@ type SortDir = 'asc' | 'desc';
 
 export interface GlobalMaxRenderPanelProps {
   summary: SkeletonSummary;
+  /**
+   * Phase 3 Plan 02 (D-72): clicking the Source Animation chip fires this
+   * callback with `row.sourceLabel` — either the animation name or the
+   * canonical static-pose label. Setting the prop upgrades the chip to an
+   * interactive <button>; when undefined, the chip stays a non-interactive
+   * <span> so the panel remains usable outside the top-tab shell.
+   */
+  onJumpToAnimation?: (animationName: string) => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
@@ -146,9 +154,11 @@ interface RowProps {
   onToggle: (key: string) => void;
   onRangeToggle: (key: string) => void;
   suppressNextChangeRef: MutableRefObject<string | null>;
+  /** Phase 3 D-72 — see GlobalMaxRenderPanelProps.onJumpToAnimation. */
+  onJumpToAnimation?: (animationName: string) => void;
 }
 
-function Row({ row, query, checked, onToggle, onRangeToggle, suppressNextChangeRef }: RowProps) {
+function Row({ row, query, checked, onToggle, onRangeToggle, suppressNextChangeRef, onJumpToAnimation }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
       if (e.shiftKey) {
@@ -201,9 +211,20 @@ function Row({ row, query, checked, onToggle, onRangeToggle, suppressNextChangeR
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.peakSizeLabel}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.scaleLabel}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
-        <span className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono">
-          {row.sourceLabel}
-        </span>
+        {onJumpToAnimation !== undefined ? (
+          <button
+            type="button"
+            onClick={() => onJumpToAnimation(row.sourceLabel)}
+            aria-label={`Jump to ${row.sourceLabel} in Animation Breakdown`}
+            className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg cursor-pointer hover:bg-accent/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            {row.sourceLabel}
+          </button>
+        ) : (
+          <span className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono">
+            {row.sourceLabel}
+          </span>
+        )}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">{row.frameLabel}</td>
     </tr>
@@ -250,7 +271,10 @@ function SelectAllCheckbox({ visibleKeys, selected, onBulk }: SelectAllProps) {
 
 // ----- Main component ----------------------------------------------------
 
-export function GlobalMaxRenderPanel({ summary }: GlobalMaxRenderPanelProps) {
+export function GlobalMaxRenderPanel({
+  summary,
+  onJumpToAnimation,
+}: GlobalMaxRenderPanelProps) {
   // State: plain useState per D-32 (no Zustand / Jotai / Context).
   const [query, setQuery] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('peakScale'); // D-29 default
@@ -338,9 +362,6 @@ export function GlobalMaxRenderPanel({ summary }: GlobalMaxRenderPanelProps) {
   return (
     <div className="w-full max-w-6xl mx-auto p-8">
       <header className="mb-4 flex items-center gap-4">
-        <span className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg">
-          {summary.skeletonPath}
-        </span>
         <SearchBar value={query} onChange={setQuery} />
         <span className="text-fg-muted font-mono text-sm ml-auto">
           {selected.size} selected / {sorted.length} total
@@ -430,6 +451,7 @@ export function GlobalMaxRenderPanel({ summary }: GlobalMaxRenderPanelProps) {
               onToggle={handleToggleRow}
               onRangeToggle={handleRangeToggle}
               suppressNextChangeRef={suppressNextChangeRef}
+              onJumpToAnimation={onJumpToAnimation}
             />
           ))}
         </tbody>
