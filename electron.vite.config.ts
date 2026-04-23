@@ -25,8 +25,24 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   main: {
-    // Empty — v5 default `build.externalizeDeps: true` handles externals
-    // for `@esotericsoftware/spine-core` and any future runtime deps.
+    // Emit CJS with `.cjs` extension. electron-vite v5 default `build.externalizeDeps: true`
+    // handles externals for `@esotericsoftware/spine-core` and any future runtime deps,
+    // but the main-bundle FORMAT still has to be CommonJS — Electron's main process under
+    // Node 24 cannot destructure named imports (`import { app, BrowserWindow } from 'electron'`)
+    // from the `electron` built-in, which exposes a CJS module.exports object. The ESM loader
+    // throws `SyntaxError: Named export 'app' not found. The requested module 'electron' is a
+    // CommonJS module ...` at runtime. Because package.json declares `"type": "module"`,
+    // a plain `.js` output would be interpreted as ESM; the `.cjs` extension forces CJS
+    // resolution regardless of the package type. Mirrors the preload CJS fix from Plan 01-05
+    // (commit b5d6988). Reference: electron-vite v5 docs + Node 24 ESM loader behaviour.
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+        },
+      },
+    },
   },
   preload: {
     // Emit CJS with `.cjs` extension. Electron's sandbox mode (D-06 pinned in

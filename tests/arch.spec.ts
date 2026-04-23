@@ -61,3 +61,23 @@ describe('Sandbox invariant: preload must be CJS (sandbox: true cannot load ESM 
     expect(cfg, 'preload entryFileNames must end in .cjs').toMatch(/\[name\]\.cjs/);
   });
 });
+
+describe('Main-bundle invariant: main must be CJS (Node 24 ESM loader cannot destructure electron named exports)', () => {
+  it('package.json "main" field points at the compiled CJS main bundle, not ESM or plain .js', () => {
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { main?: string };
+    expect(pkg.main, 'package.json main field must point at out/main/index.cjs').toBe('./out/main/index.cjs');
+    expect(pkg.main, 'package.json main must NOT point at out/main/index.js').not.toBe('./out/main/index.js');
+    expect(pkg.main, 'package.json main must NOT point at out/main/index.mjs').not.toBe('./out/main/index.mjs');
+  });
+
+  it('electron.vite.config.ts emits the main bundle as CJS with .cjs extension', () => {
+    const cfg = readFileSync('electron.vite.config.ts', 'utf8');
+    // Isolate the `main:` block (from `main: {` to the sibling `preload:` key at matching indent)
+    // so the preload CJS guard can't accidentally satisfy this assertion.
+    const mainBlockMatch = cfg.match(/main:\s*\{[\s\S]*?\n\s{2}preload:/);
+    expect(mainBlockMatch, 'could not locate main: block in electron.vite.config.ts').not.toBeNull();
+    const mainBlock = mainBlockMatch![0];
+    expect(mainBlock, 'main output.format must be cjs').toMatch(/format:\s*['"]cjs['"]/);
+    expect(mainBlock, 'main entryFileNames must end in .cjs').toMatch(/\[name\]\.cjs/);
+  });
+});

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./out/main/index.js",
+  "main": "./out/main/index.cjs",
   "description": "Desktop app that computes per-attachment peak render scale for Spine 4.2+ skeletons.",
   "scripts": {
     "test": "vitest run",
