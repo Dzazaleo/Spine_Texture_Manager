@@ -55,7 +55,7 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Bootstrap electron 41 + electron-vite 5 + electron-builder 26 + react 19 + tailwindcss 4 toolchain; three-tsconfig split (references + node + web); electron.vite.config.ts scaffold; .gitignore adds out/ + release/.
+- [x] 01-01-PLAN.md — Bootstrap electron 41 + electron-vite 5 + electron-builder 26 + react 19 + tailwindcss 4 toolchain; three-tsconfig split (references + node + web); electron.vite.config.ts scaffold; .gitignore adds out/ + release/. ✅ 2026-04-23 — commits `301a072` + `17a693a` + `8bc85a5`, SUMMARY at `.planning/phases/01-electron-react-scaffold/01-01-SUMMARY.md`. TypeScript 6.x retained (Open Question A1 resolved). 4 deviations auto-fixed (3 Rule 3 blocking/scope-adjacent for TS 6.x TS18003/TS5101/tsbuildinfo; 1 Rule 1 grep-acceptance compliance).
 - [ ] 01-02-PLAN.md — Shared IPC types (`src/shared/types.ts`) + main-process projection (`src/main/summary.ts`) + IPC handler with typed-error envelope (`src/main/ipc.ts`) + Electron app entry with pinned security webPreferences (`src/main/index.ts`) + Wave 0 tests (summary/ipc/arch).
 - [ ] 01-03-PLAN.md — Preload contextBridge surface with `webUtils.getPathForFile` (D-09 correction) + renderer bootstrap (index.html with CSP / main.tsx / App.tsx state machine / env.d.ts) + Tailwind v4 `@theme inline` stylesheet (D-12/D-14 correction) with warm-stone tokens + self-hosted JetBrains Mono.
 - [ ] 01-04-PLAN.md — DropZone (full-window drag target; raw File → preload) + DebugPanel (header + `<pre>` table byte-for-byte port of `scripts/cli.ts renderTable`) + App.tsx wiring (all 4 AppState branches + D-17 console.log echo via useEffect).

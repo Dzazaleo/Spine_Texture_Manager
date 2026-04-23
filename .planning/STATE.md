@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 1 context gathered
-last_updated: "2026-04-23T10:20:12.162Z"
+stopped_at: Plan 01-01 complete — toolchain + three-tsconfig split + electron.vite.config.ts
+last_updated: "2026-04-23T10:31:06.213Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 12
-  completed_plans: 7
-  percent: 58
+  completed_plans: 8
+  percent: 67
 ---
 
 # State
@@ -21,14 +21,15 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 0 — Core-math spike** (COMPLETE — 7/7 plans done)
+**Phase 1 — Electron + React scaffold** (IN PROGRESS — 1/5 plans done)
 
 ## Current plan
 
-**Phase 0 closed.** Next: Phase 1 (UI shell + JSON drop-load) — start with `/gsd-plan-phase 1` when ready.
+**Next: Plan 01-02** (Wave 2) — Shared IPC types + main-process projection + IPC handler + Electron app entry + Wave 0 tests (summary/ipc/arch). Run `/gsd-execute-phase 1` to continue.
 
 ## Last completed
 
+- **Plan 01-01 (2026-04-23):** Electron + Vite + React + Tailwind v4 toolchain + three-tsconfig split. Commits `301a072` (chore: install deps — electron@41.3.0 + electron-vite@5 + electron-builder@26 + react@19.2 + tailwindcss@4.2 + @fontsource/jetbrains-mono + clsx; add main: ./out/main/index.js; new scripts dev/build/build:dry/preview/typecheck:node/typecheck:web) + `17a693a` (chore: three-tsconfig split — root references-only, tsconfig.node.json extends @electron-toolkit base covering main/preload/shared/core/scripts/tests, tsconfig.web.json extends web base covering renderer/preload.d.ts/shared and EXCLUDES src/core/** + @renderer/* alias + ignoreDeprecations 6.0 for baseUrl; src/shared/types.ts seeded empty for TS18003) + `8bc85a5` (build: electron.vite.config.ts with renderer plugins [react(), tailwindcss()] and @renderer alias only (no @core bundler alias — Layer 2 boundary); .gitignore adds out/ + release/ + *.tsbuildinfo). TS 6.x retained (Open Question A1 resolved). Three-layer core/ ↛ renderer/ defense: Layer 1 (tsconfig exclude + no path alias) + Layer 2 (no bundler alias) live; Layer 3 (tests/arch.spec.ts) lands in 01-02. 4 deviations auto-fixed (3 Rule 3 blocking for TS 6.x TS18003/TS5101/tsbuildinfo gitignore; 1 Rule 1 grep-acceptance comment rewording). `npm run typecheck` green on both projects; Phase 0 invariants hold (`npm run test` → 47/47 + 1 skip; `npm run cli` → exit 0 on SIMPLE_TEST.json). N4.1 + N4.2 coverage progresses (full completion Plan 01-05 + Phase 9). Summary at `.planning/phases/01-electron-react-scaffold/01-01-SUMMARY.md`.
 - **Plan 00-07 (2026-04-23):** Exit-criteria sweep + human-verify checkpoint. Phase 0 advances to COMPLETE. Mesh render-scale shipping formula locked at **iter-4 hull_sqrt** (`sqrt(area(hull(worldVerts)) / area(hull(sourceVerts)))`) — commit `cce78c3` on branch `feat/mesh-render-scale-v3`. Five iteration variants explored (iter-1 weighted-sum, iter-3 per-triangle-max, iter-4 hull_sqrt, iter-5 affine SVD, iter-5 Jacobian, iter-5 area-weighted per-triangle) — hull_sqrt accepted by user as "closest to reality" across four real fixtures: SIMPLE_TEST (4 attachments), skeleton2 (anisotropic stress-test, 5 attachments), Jokerman (23 attachments × 18 animations), Girl (145 attachments × 15 animations). Iter-5 best-fit affine SVD archived on `feat/mesh-render-scale-anisotropic` branch for future per-axis work. 47 tests green + 1 skip; `npx tsc --noEmit` clean. Full iteration log in `.planning/phases/00-core-math-spike/GAP-FIX.md`. Summary at `.planning/phases/00-core-math-spike/00-07-SUMMARY.md`.
 - **Plan 00-06 (2026-04-22):** Headless CLI entrypoint. `8365ce2`. `scripts/cli.ts` (150 lines) — thin wrapper: argv parse → `loadSkeleton` → `sampleSkeleton` → 7-column plain-text table (Attachment, Skin, Source W×H, Peak W×H, Scale, Source Animation, Frame) with elapsed-ms footer. `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` exits 0 with CIRCLE/SQUARE/SQUARE2/TRIANGLE rows in 9.3 ms. Structured exit codes: 0 success, 1 unexpected (stack), 2 bad argv, 3 SpineLoaderError (clean name:message — T-00-06-01 info-disclosure mitigation). `--hz <n>` override validated via `Number.isFinite(n) && n > 0` (T-00-06-02). Zero new tests (thin wrapper verified end-to-end); `npm test` still 35/35 + 1 skip; `npx tsc --noEmit` clean. F2.1, F2.2, F2.5, F2.6 re-confirmed via CLI smoke. 1 deviation (scope convention, identical to prior plans). See `.planning/phases/00-core-math-spike/00-06-SUMMARY.md`.
 - **Plan 00-05 (2026-04-22):** Golden correctness + perf + I/O test suite. `244782f` + `11492d6` + `470391b`. `tests/core/loader.spec.ts` (NEW, 114 lines, 5 specs) + `tests/core/bounds.spec.ts` augmented (+49/-17, 11 specs) + `tests/core/sampler.spec.ts` augmented (+217/-27, 20 specs incl. 1 skipped stretch). Every Phase 0 requirement ID {F1.1, F1.4, F2.3, F2.5, F2.7, N1.1, N1.2, N1.3, N1.4, N1.5, N1.6, N2.1, N2.3} appears in a named test. N1.4 is a DIFFERENTIAL test (bone index 5 doubled → CIRCLE worldW 1.782× baseline). N1.5 is the LOCKED constrained-vs-unconstrained TransformConstraint comparison on SQUARE (delta 1.10, gate >1e-6). Easing-curve test is `it.skip` with documented un-skip recipe (fixture has only stepped curves). N2.1 observed 2.5 ms (200× under gate). `npm test` 35/35 pass + 1 skip. N1.1–N1.6 + N2.1 + N2.3 completed. 3 deviations (1 Rule 2 AUGMENT-not-overwrite per critical_project_rules, 1 scope convention, 1 structural Task-4 consolidation). See `.planning/phases/00-core-math-spike/00-05-SUMMARY.md`.
@@ -41,7 +42,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-Phase 0 complete. Ready for Phase 1 (UI shell + JSON drop-load). Run `/gsd-plan-phase 1` when Phase 1 work begins.
+Phase 1 in progress (1/5 plans done). Ready for Plan 01-02 — Shared IPC types + main-process projection + IPC handler + Electron app entry + Wave 0 tests. Run `/gsd-execute-phase 1` to continue.
 
 ## Open questions
 
@@ -71,6 +72,10 @@ Phase 0 complete. Ready for Phase 1 (UI shell + JSON drop-load). Run `/gsd-plan-
 - Plan 00-06: scripts/cli.ts is a strict thin wrapper — zero duplicated math, imports only loadSkeleton + sampleSkeleton + SpineLoaderError + PeakRecord type. All logic sits in src/core/; CLI contains only argv parse, table render, exit-code branching.
 - Plan 00-06: Structured exit codes 0/1/2/3 — CONTEXT.md requires only zero/non-zero; finer codes (1 unexpected-with-stack, 2 bad-argv, 3 typed-SpineLoaderError-clean-message) cost zero complexity and are CI-friendly. T-00-06-01 info-disclosure threat mitigated by instanceof branch that prints only `name: message`, no stack.
 - Plan 00-06: Two-space column separator (no pipes) — CONTEXT.md's hand-rolled-preferred stance plus plan 07 smoke checker benefits from text that diffs cleanly. Sort key (skin, slot, attachment) — deterministic, human-readable.
+- Plan 01-01: TypeScript 6.x retained (not downgraded to 5.9.x) — @electron-toolkit/tsconfig@2.0.0 compatible; npx tsc --noEmit exits 0 against flat tsconfig after install. RESEARCH Open Question A1 resolved.
+- Plan 01-01: TS 6.x TS18003 + TS5101 forced two Rule-3 deviations — src/shared/types.ts seeded with empty export {}, tsconfig.web.json adds ignoreDeprecations: 6.0 for baseUrl. Zero scope creep; shared/types.ts is Plan 01-02's scheduled file.
+- Plan 01-01: Three-layer core/ ↛ renderer/ boundary — Layer 1 (tsconfig.web.json exclude + no @core path alias) + Layer 2 (electron.vite.config.ts: no @core bundler alias) both live; Layer 3 (tests/arch.spec.ts) lands in Plan 01-02.
+- Plan 01-01: *.tsbuildinfo added to .gitignore — composite: true project-references emit these at project root on every typecheck; required to keep working tree clean.
 
 ## Performance Metrics
 
@@ -82,12 +87,13 @@ Phase 0 complete. Ready for Phase 1 (UI shell + JSON drop-load). Run `/gsd-plan-
 | 00    | 00-04 | ~5 min   | 2     | 3     | Sampler commit `60709d6`; 4 deviations (1 Rule 1 setAnimation→setAnimationWith TS fix, 1 Rule 1 self-violating `skeleton.fps` comment, 1 Rule 2 spec-file committed atomically, 1 Rule 1 stale `__SETUP__` comment cleanup). F2.1+F2.2+F2.4+F2.6+F2.7 done. 13/13 sampler tests green, 23/23 overall. Smoke run 9.7ms / 4 peaks (50x under N2.1 gate). |
 | 00    | 00-05 | ~7 min   | 4     | 3     | Golden test suite commits `244782f` (loader) + `11492d6` (bounds augment) + `470391b` (sampler augment); 3 deviations (1 Rule 2 AUGMENT-not-overwrite, 1 scope convention, 1 structural Task-4 consolidation). N1.1–N1.6 + N2.1 + N2.3 completed. 35/35 tests green + 1 documented skip (easing-curve stretch). N2.1 perf observed at 2.5 ms (200× under 500 ms gate). N1.4 observed ratio 1.782×; N1.5 observed delta 1.10. |
 | 00    | 00-06 | ~2 min   | 2     | 1     | CLI entrypoint commit `8365ce2`; 1 deviation (scope convention, identical to prior plans). F2.1+F2.2+F2.5+F2.6 re-confirmed via CLI smoke. `scripts/cli.ts` 150 lines (thin wrapper). Fixture smoke: exit 0, 9.3 ms elapsed, CIRCLE/SQUARE/SQUARE2/TRIANGLE rows rendered. Missing-path: exit 3 with typed error message to stderr. 35/35 tests still green + 1 skip; `npx tsc --noEmit` clean. |
+| 01    | 01-01 | ~6 min   | 3     | 8     | Phase 1 toolchain commits `301a072` (deps install) + `17a693a` (three-tsconfig split) + `8bc85a5` (electron.vite.config.ts + gitignore); 4 deviations auto-fixed (3 Rule 3 blocking for TS 6.x TS18003/TS5101/tsbuildinfo; 1 Rule 1 grep-compliance comment rewording). TS 6.x retained. Three-layer core/ ↛ renderer/ defense: Layer 1 + Layer 2 live. `npm run typecheck` green on both projects; Phase 0 invariants hold (47/47 + 1 skip; CLI exit 0). N4.1 + N4.2 coverage progressed. |
 
 ## Last session
 
 - **Timestamp:** 2026-04-23
-- **Stopped at:** Phase 1 context gathered
-- **Resume file:** --resume-file
+- **Stopped at:** Plan 01-01 complete — toolchain + three-tsconfig split + electron.vite.config.ts
+- **Resume file:** None
 - **Blockers:** None
 
 ## Links
