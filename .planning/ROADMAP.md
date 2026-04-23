@@ -67,16 +67,25 @@ Plans:
 
 **Depends on:** Phase 1 green.
 
+**Goal:** Replace Phase 1's CLI-style `<pre>` DebugPanel with a proper sortable, searchable, selectable per-attachment table (screenshot 1). Ship `src/core/analyzer.ts` (pure-TS fold + format), `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` (hand-rolled table with sort + select), `src/renderer/src/components/SearchBar.tsx` (case-insensitive substring filter). Wire through `src/renderer/src/App.tsx` and `src/main/summary.ts`; `scripts/cli.ts` stays byte-for-byte identical.
+
 **Deliverables:**
-- `src/core/analyzer.ts` folds sampler output → `{ attachment, sourceSize, peakSize, peakScale, sourceAnimation, sourceFrame, sourceSkin }`.
-- `src/renderer/panels/GlobalMaxRenderPanel.tsx` — sortable table per screenshot 1.
-- `src/renderer/components/SearchBar.tsx` — filters by attachment name.
+- `src/core/analyzer.ts` folds sampler output → `DisplayRow[]` (raw numbers + preformatted labels).
+- `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` — sortable table per screenshot 1.
+- `src/renderer/src/components/SearchBar.tsx` — filters by attachment name.
 
 **Exit criteria:**
 - Loading `SIMPLE_TEST.json` produces a table with correct source/peak/scale/source-animation for every attachment.
 - Search filter correctly hides/shows rows.
 
-**Requirement coverage:** F3.
+**Requirement coverage:** F3.1, F3.2, F3.3.
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Core analyzer module + DisplayRow IPC type + byte-for-byte CLI refactor. Introduces `src/core/analyzer.ts` (pure-TS fold + sort + preformat), replaces `PeakRecordSerializable` with `DisplayRow` in `src/shared/types.ts`, delegates fold in `src/main/summary.ts` and `scripts/cli.ts`. Wave 1, autonomous.
+- [ ] 02-02-PLAN.md — Renderer components: `SearchBar` (controlled input with clear button + ESC handling) and `GlobalMaxRenderPanel` (hand-rolled sortable, searchable, multi-select `<table>` with match-highlight, tri-state select-all, shift-click range). Wave 2, autonomous, depends on 02-01.
+- [ ] 02-03-PLAN.md — Wire panel into `App.tsx`, delete prior debug component per Phase 1 D-16, human-verify end-to-end drop flow on SIMPLE_TEST.json. Wave 3, has checkpoint, depends on 02-01 + 02-02.
 
 ---
 
