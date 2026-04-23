@@ -34,7 +34,10 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      // electron-vite emits ESM preload as `index.mjs` (required for Electron
+      // ESM loader since package.json has `"type": "module"`). Plan 01-02's
+      // initial `index.js` reference never resolved at build; fixed in 01-03.
+      preload: join(__dirname, '../preload/index.mjs'),
       // D-06 / T-01-02-03: pin explicitly. All three are Electron 2024+ defaults
       // but making them explicit lets code review catch a regression.
       contextIsolation: true,

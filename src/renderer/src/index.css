@@ -1,0 +1,68 @@
+/*
+ * Phase 1 Plan 03 — Renderer stylesheet (Tailwind v4 CSS-first).
+ *
+ * Architecture:
+ *   - @import "tailwindcss" (v4 — replaces @tailwind base/components/utilities).
+ *   - @theme inline { ... } for warm-stone + orange-accent tokens referencing
+ *     Tailwind built-in color variables (D-12, D-14). The `inline` keyword is
+ *     load-bearing per RESEARCH Finding #2 — without it, utility classes
+ *     chain through variable references at render time (Pitfall 2).
+ *   - Same @theme inline block also holds font stacks (D-15) — literal
+ *     strings, inline is a no-op on those.
+ *   - @font-face for JetBrains Mono via @fontsource/jetbrains-mono asset URL.
+ *
+ * Token map (CONTEXT.md §<specifics>):
+ *   --color-surface  = stone-950 (#0c0a09) — app background
+ *   --color-panel    = stone-900 (#1c1917) — drop zone + debug panel
+ *   --color-border   = stone-800 (#292524) — subtle separators
+ *   --color-fg       = stone-100 (#f5f5f4) — primary text
+ *   --color-fg-muted = stone-400 (#a8a29e) — secondary text
+ *   --color-accent       = orange-500 (#f97316) — drag-over ring + focus outline
+ *   --color-accent-muted = orange-300                 — inline error text
+ *
+ * Emitted utilities (used by Plan 01-03 App.tsx + Plan 01-04 DropZone/DebugPanel):
+ *   bg-surface, bg-panel, border-border, text-fg, text-fg-muted,
+ *   ring-accent, bg-accent/5, outline-accent, text-accent-muted,
+ *   font-sans, font-mono.
+ */
+
+@import "tailwindcss";
+
+/* JetBrains Mono — self-hosted via @fontsource/jetbrains-mono (D-15).
+   Vite resolves the @fontsource asset path and emits a hashed URL at build. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src:
+    url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2") format("woff2"),
+    url("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff") format("woff");
+}
+
+/* Design tokens — `inline` is LOAD-BEARING for color tokens (RESEARCH Finding #2).
+   Colors reference Tailwind's built-in stone and orange palette variables,
+   which are resolved at utility-generation time rather than render time. */
+@theme inline {
+  /* Neutrals — warm stone base, two layers (D-12, D-13) */
+  --color-surface:   var(--color-stone-950);
+  --color-panel:     var(--color-stone-900);
+  --color-border:    var(--color-stone-800);
+  --color-fg:        var(--color-stone-100);
+  --color-fg-muted:  var(--color-stone-400);
+
+  /* Accent — Spine-adjacent orange (D-14) */
+  --color-accent:        var(--color-orange-500);
+  --color-accent-muted:  var(--color-orange-300);
+
+  /* Typography (D-15) — literal strings; inline is a no-op on these but
+     keeping them in the same block for proximity. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Baseline body — surface color + default chrome. */
+body {
+  @apply bg-surface text-fg font-sans antialiased;
+  margin: 0;
+}
