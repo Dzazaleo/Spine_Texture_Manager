@@ -5,6 +5,15 @@ node_modules/
 dist/
 coverage/
 
+# electron-vite bundle output
+out/
+
+# electron-builder release output (defensive — default is dist/ which is already ignored)
+release/
+
+# TypeScript project-references incremental build info (composite: true emits these)
+*.tsbuildinfo
+
 # User's Spine editor source files — NOT part of the app
 temp/
 
