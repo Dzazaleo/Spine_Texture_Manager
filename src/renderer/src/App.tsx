@@ -20,7 +20,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { DropZone } from './components/DropZone';
-import { GlobalMaxRenderPanel } from './panels/GlobalMaxRenderPanel';
+import { AppShell } from './components/AppShell';
 import type {
   SkeletonSummary,
   SerializableError,
@@ -68,7 +68,7 @@ export function App() {
           Loading {state.fileName}…
         </p>
       )}
-      {state.status === 'loaded' && <GlobalMaxRenderPanel summary={state.summary} />}
+      {state.status === 'loaded' && <AppShell summary={state.summary} />}
       {state.status === 'error' && (
         <div className="w-full max-w-3xl mx-auto p-8">
           <p className="text-accent-muted font-mono text-sm">
