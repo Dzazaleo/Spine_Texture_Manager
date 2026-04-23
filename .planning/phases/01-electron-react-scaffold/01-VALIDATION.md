@@ -1,11 +1,12 @@
 ---
 phase: 1
 slug: electron-react-scaffold
-status: ready-for-exit
+status: complete
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-04-23
 last_updated: 2026-04-23
+human_verify_signed_off: 2026-04-23
 ---
 
 # Phase 1 — Validation Strategy
@@ -66,7 +67,7 @@ Additional gates introduced in Phase 1 (documented for planner; wired into tasks
 | 01-05-01   | 01-05 | 5    | N4.1, N4.2               | T-01-05-01              | electron-builder.yml mac.target=[dmg]; no win: block (D-24); files whitelist excludes src/tests/fixtures/.planning; no signing hooks (D-04) | YAML + grep            | `grep -q "target: \\[dmg\\]" electron-builder.yml && ! grep -qE "^win:" electron-builder.yml && ! grep -qE "^(afterPack\|publish\|notarize):" electron-builder.yml` | ✓           | ✅     |
 | 01-05-02   | 01-05 | 5    | N4.1, N4.2, F1.1, F1.2, F1.4 | T-01-05-01          | npm run build:dry exits 0; real .dmg builds < 200MB; portability + Layer 3 greps green end-to-end         | Shell sweep            | `npm run build:dry && test -d "release/mac-arm64/Spine Texture Manager.app" && npm run build && ls release/*.dmg` | ✓           | ✅     |
 | 01-05-03   | 01-05 | 5    | —                        | —                       | VALIDATION.md per-task map populated; frontmatter nyquist_compliant: true; wave_0_complete: true            | File edit              | `grep -q "nyquist_compliant: true" .planning/phases/01-electron-react-scaffold/01-VALIDATION.md`    | ✓           | ✅     |
-| 01-05-04   | 01-05 | 5    | F1.1, F1.2, F1.4         | —                       | Manual drop of SIMPLE_TEST.json renders debug dump matching CLI byte-for-byte; .dmg opens + packaged app launches | Manual                 | Human-verify checkpoint (see Plan 01-05 Task 4)                                                     | n/a         | ⬜     |
+| 01-05-04   | 01-05 | 5    | F1.1, F1.2, F1.4         | T-preload-sandbox*      | Manual drop of SIMPLE_TEST.json renders debug dump matching CLI byte-for-byte; .dmg opens + packaged app launches | Manual                 | Human-verify checkpoint (see Plan 01-05 Task 4) — signed off 2026-04-23 after gap-fix `b5d6988`       | n/a         | ✅     |
 
 *Status legend: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
