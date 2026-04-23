@@ -6,6 +6,10 @@
  *
  *   1. Clear button (D-39): when the input has content, a small glyph button
  *      renders inside the right padding; clicking it resets the query.
+ *      Uses type="text" not type="search" — WebKit/Chromium render a native
+ *      cancel glyph inside type="search" inputs that stacks with our custom
+ *      ✕ button (duplicate clear control); a11y is preserved via the
+ *      aria-label on the custom button.
  *   2. Escape handling (D-42): first tap clears a non-empty value; second
  *      tap blurs. Standard power-user pattern.
  *
@@ -45,7 +49,7 @@ export function SearchBar({ value, onChange, placeholder }: SearchBarProps) {
   return (
     <div className="relative flex-1 max-w-md">
       <input
-        type="search"
+        type="text"
         value={value}
         placeholder={placeholder ?? 'Filter by attachment name…'}
         className="w-full bg-panel border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-fg-muted"
