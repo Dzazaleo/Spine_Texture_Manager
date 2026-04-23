@@ -10,6 +10,7 @@ temp/
 
 # Licensed/third-party rigs used locally for validation only — not redistributable
 fixtures/Jokerman/
+fixtures/Girl/
 
 # OS cruft
 .DS_Store
