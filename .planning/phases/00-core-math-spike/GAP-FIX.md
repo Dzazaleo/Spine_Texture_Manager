@@ -1,16 +1,22 @@
 ---
-status: implemented-pending-reverify
+status: closed-iteration-4-shipping
 phase: 00-core-math-spike
-parent_plan: 00-07 (paused at human-verify checkpoint)
+parent_plan: 00-07 (closed 2026-04-23 on iter-4 hull_sqrt)
 diagnosed: 2026-04-22
 approved: 2026-04-22
 implemented: 2026-04-22
+closed: 2026-04-23
 handoff_reason: fresh-session requested to avoid orchestrator context bias
 debug_session: .planning/debug/phase-0-scale-overshoot.md
+shipping_formula: iter-4 hull_sqrt (branch feat/mesh-render-scale-v3)
+anisotropic_deferred: iter-5 affine SVD on feat/mesh-render-scale-anisotropic — pushed for record, not merged
 commits:
   - fix(00-core) render-scale formula
   - fix(00-core) CLI Frame column uses editor fps
   - test(00-core) numeric goldens for CIRCLE/SQUARE/SQUARE2/TRIANGLE
+  - feat(00-core) convex-hull area-ratio mesh render-scale (iteration-4)
+  - test(00-core) update mesh goldens for iter-4 hull_sqrt formula
+  - docs(00-07) mark iteration-4 hull_sqrt implemented in GAP-FIX.md
 ---
 
 # Phase 0 — Sampler Correctness Gap Fix
@@ -550,3 +556,42 @@ Still PAUSED at human-verify. User to approve:
 1. SIMPLE_TEST CIRCLE at 2.018 vs 1.49 expectation — source of discrepancy?
 2. skeleton2 CAM CIRCLE at 0.610 (matches iter-2 probe's 0.608).
 3. Jokerman all rows — should match iter-1 "1.060 is correct" guidance.
+
+## Iteration-5 experiment and closing decision (2026-04-23)
+
+User accepted iter-4 hull_sqrt's SIMPLE_TEST / Jokerman / Girl (new fixture)
+values as "closest to reality" across all iteration variants tested. The
+skeleton2 CAM anisotropic reading (0.610 isotropic vs user's editor reading
+of 0.447 × 0.775) was deferred as a known limit, matching the existing
+ROADMAP.md "Deferred" entry:
+
+> Aspect-ratio anomaly flag (when `scaleX != scaleY` at peak).
+
+Iter-5 attempts explored — all rejected or inferior to iter-4 overall:
+
+| Formula | Best fit for | Rejected because |
+|---|---|---|
+| Per-triangle max (iter-3) | nothing | over-reports on all rigs |
+| Min-area OBB on hull | anisotropy capture | LEGS 1.584 (outlier-sensitive) |
+| Best-fit affine SVD | anisotropic CAM (0.713) | over-reports Jokerman across the board |
+| Per-vertex Jacobian | Jokerman rigs (1.060 exact) | misses CAM translation-anisotropy (0.5) |
+| Per-triangle area-weighted SVD | nothing uniformly | LEGS 1.595, L_EYELID 1.693 |
+
+Branch `feat/mesh-render-scale-anisotropic` preserves the iter-5 affine
+SVD commit as historical record. Pushed to remote, not merged.
+
+### Validated on Girl fixture (145 attachments, 15 animations)
+
+Girl fixture (Joker rig, top-screen animation, 4 atlas pages) sampled
+clean with iter-4 hull_sqrt. Peaks ranged 0.356–0.524 across main body
+meshes (downscaled rig) and 1.619–1.654 for MAGIC_EXPLOSION VFX sprites.
+User confirmed: values match editor reality within acceptable tolerance.
+
+### Shipping decision
+
+- **Ship:** iter-4 hull_sqrt, branch `feat/mesh-render-scale-v3`.
+- **Archive for record:** iter-5 affine SVD, branch `feat/mesh-render-scale-anisotropic`.
+- **Defer:** per-axis anisotropic split (already in ROADMAP.md Deferred as
+  "aspect-ratio anomaly flag").
+
+Plan 00-07 closes on iter-4. Phase 0 advances to COMPLETE.

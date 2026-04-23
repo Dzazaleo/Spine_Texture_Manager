@@ -33,7 +33,7 @@ Plans:
 - [x] 00-04-PLAN.md — Sampler with locked tick lifecycle (`src/core/sampler.ts`) — 120 Hz default, Physics.reset + Physics.update. ✅ 2026-04-22 — commit `60709d6`, SUMMARY at `.planning/phases/00-core-math-spike/00-04-SUMMARY.md`.
 - [x] 00-05-PLAN.md — Vitest golden suite covering N1.1–N1.6 correctness, N2.1 <500 ms perf gate, N2.3 FS-free hot loop. ✅ 2026-04-22 — commits `244782f` + `11492d6` + `470391b`, SUMMARY at `.planning/phases/00-core-math-spike/00-05-SUMMARY.md`. 35/35 tests green + 1 documented skip (easing-curve stretch).
 - [x] 00-06-PLAN.md — CLI entrypoint (`scripts/cli.ts`) — renders peak table + elapsed footer. ✅ 2026-04-22 — commit `8365ce2`, SUMMARY at `.planning/phases/00-core-math-spike/00-06-SUMMARY.md`. Fixture smoke: exit 0, 9.3 ms elapsed, CIRCLE/SQUARE/SQUARE2/TRIANGLE rows rendered; missing-path exits 3 with typed `SkeletonJsonNotFoundError` to stderr.
-- [ ] 00-07-PLAN.md — Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE.
+- [x] 00-07-PLAN.md — Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE. ✅ 2026-04-23 — shipping mesh formula is iter-4 hull_sqrt (commit `cce78c3`) after a 5-iteration user-verified loop documented in `.planning/phases/00-core-math-spike/GAP-FIX.md`. Validated on SIMPLE_TEST (golden fixture), skeleton2 (anisotropic-deformation test), Jokerman (licensed real rig, 23 attachments × 18 animations), and Girl (145 attachments × 15 animations). Iter-5 best-fit affine SVD archived on `feat/mesh-render-scale-anisotropic` branch. SUMMARY at `.planning/phases/00-core-math-spike/00-07-SUMMARY.md`.
 
 ---
 

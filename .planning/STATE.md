@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Completed 00-06-PLAN.md
-last_updated: "2026-04-22T12:32:35.575Z"
+status: phase-0-complete
+stopped_at: Completed 00-07-PLAN.md
+last_updated: "2026-04-23T00:00:00.000Z"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 86
+  completed_plans: 7
+  percent: 100
 ---
 
 # State
@@ -21,14 +21,15 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 0 — Core-math spike** (in progress — plans 00-01, 00-02, 00-03, 00-04, 00-05, 00-06 complete, 6/7 plans done)
+**Phase 0 — Core-math spike** (COMPLETE — 7/7 plans done)
 
 ## Current plan
 
-**Plan 00-07 — next up** (Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE)
+**Phase 0 closed.** Next: Phase 1 (UI shell + JSON drop-load) — start with `/gsd-plan-phase 1` when ready.
 
 ## Last completed
 
+- **Plan 00-07 (2026-04-23):** Exit-criteria sweep + human-verify checkpoint. Phase 0 advances to COMPLETE. Mesh render-scale shipping formula locked at **iter-4 hull_sqrt** (`sqrt(area(hull(worldVerts)) / area(hull(sourceVerts)))`) — commit `cce78c3` on branch `feat/mesh-render-scale-v3`. Five iteration variants explored (iter-1 weighted-sum, iter-3 per-triangle-max, iter-4 hull_sqrt, iter-5 affine SVD, iter-5 Jacobian, iter-5 area-weighted per-triangle) — hull_sqrt accepted by user as "closest to reality" across four real fixtures: SIMPLE_TEST (4 attachments), skeleton2 (anisotropic stress-test, 5 attachments), Jokerman (23 attachments × 18 animations), Girl (145 attachments × 15 animations). Iter-5 best-fit affine SVD archived on `feat/mesh-render-scale-anisotropic` branch for future per-axis work. 47 tests green + 1 skip; `npx tsc --noEmit` clean. Full iteration log in `.planning/phases/00-core-math-spike/GAP-FIX.md`. Summary at `.planning/phases/00-core-math-spike/00-07-SUMMARY.md`.
 - **Plan 00-06 (2026-04-22):** Headless CLI entrypoint. `8365ce2`. `scripts/cli.ts` (150 lines) — thin wrapper: argv parse → `loadSkeleton` → `sampleSkeleton` → 7-column plain-text table (Attachment, Skin, Source W×H, Peak W×H, Scale, Source Animation, Frame) with elapsed-ms footer. `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` exits 0 with CIRCLE/SQUARE/SQUARE2/TRIANGLE rows in 9.3 ms. Structured exit codes: 0 success, 1 unexpected (stack), 2 bad argv, 3 SpineLoaderError (clean name:message — T-00-06-01 info-disclosure mitigation). `--hz <n>` override validated via `Number.isFinite(n) && n > 0` (T-00-06-02). Zero new tests (thin wrapper verified end-to-end); `npm test` still 35/35 + 1 skip; `npx tsc --noEmit` clean. F2.1, F2.2, F2.5, F2.6 re-confirmed via CLI smoke. 1 deviation (scope convention, identical to prior plans). See `.planning/phases/00-core-math-spike/00-06-SUMMARY.md`.
 - **Plan 00-05 (2026-04-22):** Golden correctness + perf + I/O test suite. `244782f` + `11492d6` + `470391b`. `tests/core/loader.spec.ts` (NEW, 114 lines, 5 specs) + `tests/core/bounds.spec.ts` augmented (+49/-17, 11 specs) + `tests/core/sampler.spec.ts` augmented (+217/-27, 20 specs incl. 1 skipped stretch). Every Phase 0 requirement ID {F1.1, F1.4, F2.3, F2.5, F2.7, N1.1, N1.2, N1.3, N1.4, N1.5, N1.6, N2.1, N2.3} appears in a named test. N1.4 is a DIFFERENTIAL test (bone index 5 doubled → CIRCLE worldW 1.782× baseline). N1.5 is the LOCKED constrained-vs-unconstrained TransformConstraint comparison on SQUARE (delta 1.10, gate >1e-6). Easing-curve test is `it.skip` with documented un-skip recipe (fixture has only stepped curves). N2.1 observed 2.5 ms (200× under gate). `npm test` 35/35 pass + 1 skip. N1.1–N1.6 + N2.1 + N2.3 completed. 3 deviations (1 Rule 2 AUGMENT-not-overwrite per critical_project_rules, 1 scope convention, 1 structural Task-4 consolidation). See `.planning/phases/00-core-math-spike/00-05-SUMMARY.md`.
 - **Plan 00-04 (2026-04-22):** Per-attachment peak sampler with locked tick order. `60709d6`. `src/core/sampler.ts` (251 lines) + `tests/core/sampler.spec.ts` (181 lines, 13/13 green). `sampleSkeleton(load, opts?)` returns `Map<attachmentKey, PeakRecord>` with 4 entries on SIMPLE_TEST in 9.7 ms (50x under N2.1 gate). Locked lifecycle `state.update → state.apply → skeleton.update → updateWorldTransform(Physics.update)` grep-enforced in spec. `Physics.reset` once per (skin, animation) pair anchors N1.6 determinism. Setup-pose pass per skin; default 120 Hz configurable via `opts.samplingHz`. F2.1, F2.2, F2.4, F2.6, F2.7 completed. 4 deviations (1 Rule 1 `setAnimation`→`setAnimationWith` TS fix, 1 Rule 1 self-violating `skeleton.fps` comment, 1 Rule 2 spec-file committed atomically, 1 Rule 1 stale `"__SETUP__"` comment cleanup in types.ts). See `.planning/phases/00-core-math-spike/00-04-SUMMARY.md`.
@@ -40,7 +41,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-Execute plan 00-07 (Exit-criteria sweep + human-verify checkpoint → advance STATE.md to Phase 0 COMPLETE) via `/gsd-execute-phase 0`.
+Phase 0 complete. Ready for Phase 1 (UI shell + JSON drop-load). Run `/gsd-plan-phase 1` when Phase 1 work begins.
 
 ## Open questions
 
@@ -84,9 +85,9 @@ Execute plan 00-07 (Exit-criteria sweep + human-verify checkpoint → advance ST
 
 ## Last session
 
-- **Timestamp:** 2026-04-22T12:29:17Z
-- **Stopped at:** Completed 00-06-PLAN.md
-- **Resume file:** `.planning/phases/00-core-math-spike/00-07-PLAN.md` (Exit-criteria sweep + human-verify checkpoint)
+- **Timestamp:** 2026-04-23
+- **Stopped at:** Completed 00-07-PLAN.md — Phase 0 COMPLETE
+- **Resume file:** Ready for Phase 1 planning (no file — fresh planning required)
 - **Blockers:** None
 
 ## Links
