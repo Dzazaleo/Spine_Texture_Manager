@@ -50,7 +50,7 @@ Phase 1 is the **first UI phase**. It wraps the headless `src/core/` package fro
 - **D-02: Packaging — `electron-builder`.** Produces signed `.dmg` directly, clean config via `electron-builder.yml` or `package.json` `build` key. Integrates with `electron-vite`. Forge makers are viable too but add a second config layer on top of `electron-vite`.
 - **D-03: Dev scripts.** `npm run dev` → `electron-vite dev` (Electron window + renderer HMR). `npm run build` → `electron-vite build && electron-builder --mac dmg`. `npm run preview` → `electron-vite preview`. Existing `npm run cli`, `npm run test`, `npm run typecheck` stay intact.
 - **D-04: Code signing & notarization — deferred.** Phase 1 ships an unsigned `.dmg` (developer-local validation only). Signing + Apple notarization are a Phase 9 / post-MVP concern. Record the `electron-builder` config hook for signing but leave it unset.
-- **D-05: Windows `.exe` — deferred.** ROADMAP Phase 1 requires only `.dmg`. N4.1 full-cross-platform gate is Phase 9.
+- **D-05: Windows `.exe` — deferred build, pre-architected.** ROADMAP Phase 1 exit criterion is `.dmg` only. But Phase 1 code + config must be Windows-ready so adding an `.exe` target in a later phase is a config flip, not a rewrite. See the `<portability>` section below for the exact flips. N4.1 full-cross-platform shipping gate remains Phase 9.
 
 ### IPC & Drop-Handling (Claude's discretion — canonical defaults)
 - **D-06: Main process owns filesystem.** `core/loader.ts` uses `node:fs` and must never run in the renderer. Renderer has `nodeIntegration: false`, `contextIsolation: true` (Electron 2024+ defaults). All skeleton loading happens in main.
@@ -104,6 +104,13 @@ Phase 1 is the **first UI phase**. It wraps the headless `src/core/` package fro
   }
   ```
 - **D-22: `PeakRecordSerializable`.** Matches `PeakRecord` from `src/core/sampler.ts` but flattened to a plain JSON object — no Map, no Float32Array, no class instances. Safe to `structuredClone` across IPC.
+
+### Cross-Platform Readiness (Windows deferred, pre-architected)
+- **D-23: Zero Windows-specific code in Phase 1.** No `process.platform` branches, no `path.sep` hard-codes, no Mac-only Electron APIs. The entire codebase runs unmodified on Windows. Build config flips alone unlock a `.exe` target — see `<portability>` section for the concrete diff.
+- **D-24: `electron-builder` config is target-agnostic.** The `build` block in `package.json` (or `electron-builder.yml`) declares `mac.target: ['dmg']` for Phase 1. Adding `win.target: ['nsis']` + `win.artifactName: 'SpineTextureManager-Setup-${version}.${ext}'` is a pure additive change when Windows is later requested — Phase 1 must not add `mac`-only root-level keys (`afterPack`, `publish`, etc.) that would require a refactor.
+- **D-25: Path handling via `node:path` only.** `src/core/loader.ts` already uses `path.dirname` + `path.join` — no string slicing on `/`. Phase 1 main-process code (auto-discovery of atlas siblings, etc.) must follow the same discipline. Any `'/'` literal in a path context is a review flag.
+- **D-26: File drag-drop uses `file.path`, not relative paths.** Already locked in D-09. `file.path` is absolute on both macOS (`/Users/...`) and Windows (`C:\...`). The renderer forwards the absolute string to main verbatim — no normalization, no slash conversion.
+- **D-27: No macOS-only window chrome.** Skip `titleBarStyle: 'hiddenInset'` and other Mac-only `BrowserWindow` options in Phase 1. Use cross-platform defaults (`titleBarStyle: 'default'`, standard OS frame). Chrome customization can land in a later phase with platform-conditional config behind `process.platform === 'darwin'` guards.
 
 ### Claude's Discretion (not locked)
 - Exact file layout inside `src/main/` and `src/preload/` (single `index.ts` per dir vs `index.ts` + submodules) — planner's call.
@@ -180,6 +187,78 @@ Phase 1 is the **first UI phase**. It wraps the headless `src/core/` package fro
 - N2.3 "Sampler hot loop does zero filesystem I/O" — Phase 1's IPC handler runs `loadSkeleton` (FS reads allowed) then `sampleSkeleton` (no FS). Don't accidentally wire an FS read inside the sample loop via some clever "progressive" handler.
 
 </code_context>
+
+<portability>
+## Cross-Platform Readiness (Windows-add-later checklist)
+
+**Phase 1 exit target is macOS `.dmg` only.** This section documents exactly what would flip to add Windows `.exe` support later. The goal: Windows enablement is a config-only diff, never a code rewrite. Downstream agents MUST hold this line (see D-23 through D-27).
+
+### What Phase 1 locks in as already-portable
+
+| Concern | Phase 1 status | Windows impact |
+|---|---|---|
+| `src/core/*` | Already portable — uses `node:fs` + `node:path`, no platform branches | Zero change |
+| `src/main/*` | Portable — only uses cross-platform Electron APIs (`BrowserWindow`, `ipcMain`, `app`) | Zero change |
+| `src/preload/*` | Portable — pure `contextBridge` + `ipcRenderer` | Zero change |
+| `src/renderer/*` | Pure web — HTML/CSS/React/Tailwind | Zero change |
+| `file.path` (drag-drop) | Works identically on Windows (`C:\path\to\file.json`) and macOS (`/path/to/file.json`) | Zero change |
+| Tailwind tokens + JetBrains Mono `.woff2` | Platform-agnostic | Zero change |
+| Typed IPC error envelope | JSON-serializable, platform-agnostic | Zero change |
+
+### What flips to add Windows `.exe` later
+
+**1. `electron-builder` config (`package.json` `build` block or `electron-builder.yml`):**
+
+```diff
+ build:
+   appId: com.spine-texture-manager.app
+   productName: Spine Texture Manager
+   mac:
+     target: [dmg]
+     category: public.app-category.developer-tools
++  win:
++    target: [nsis]                 # or ['nsis', 'portable'] for both installer + portable
++    artifactName: ${productName}-Setup-${version}.${ext}
+   files:
+     - out/**
+     - package.json
+```
+
+**2. `package.json` scripts:**
+
+```diff
+   "scripts": {
+     "dev":       "electron-vite dev",
+     "build":     "electron-vite build && electron-builder --mac dmg",
++    "build:win": "electron-vite build && electron-builder --win nsis",
++    "build:all": "electron-vite build && electron-builder --mac dmg --win nsis",
+     "preview":   "electron-vite preview"
+   }
+```
+
+**3. Build host considerations:**
+- Cross-compile unsigned `.exe` from macOS: works out of the box via `electron-builder --win nsis` (uses `wine` or a downloaded `nsis` binary — no Windows machine required for *unsigned* builds).
+- Signed `.exe` requires a Windows machine or a CI runner with an EV cert. Out of scope for the flip; separate Phase 9 concern.
+- Signed `.dmg` requires macOS + Apple Developer ID + notarization. Also Phase 9.
+
+**4. CI (future, not Phase 1):**
+- GitHub Actions matrix job running `macos-latest` for `.dmg` + `windows-latest` for signed `.exe`. Zero Phase 1 changes.
+
+### Anti-patterns that would break portability (review gates)
+
+Planner + executor MUST reject any Phase 1 code that:
+- Branches on `process.platform` or `os.platform()` (if you genuinely need a platform branch, flag it in review and justify).
+- Hard-codes `/` in path strings — use `path.join` / `path.sep`.
+- Uses macOS-only `BrowserWindow` options: `titleBarStyle: 'hiddenInset'`, `trafficLightPosition`, `vibrancy`, `visualEffectState`. Use cross-platform alternatives.
+- Imports Mac-only Node native modules (none currently in the dep tree; flag if any appear).
+- Assumes shell commands exist (`open`, `pbcopy`). Use Electron's `shell.openPath`, `clipboard` APIs instead.
+
+### Verification hooks (planner should include in plans)
+
+- A smoke test / typecheck step that runs `electron-builder --win nsis --dry-run` on CI (or locally) to catch config drift even before Windows is a real target.
+- A grep check in CI: `! grep -rn "process.platform\|os.platform()\|titleBarStyle: 'hiddenInset'" src/ --include='*.ts' --include='*.tsx'` — fails the build if any sneaks in.
+
+</portability>
 
 <specifics>
 ## Specific Ideas
