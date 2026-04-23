@@ -8,7 +8,7 @@
  *   - D-22 structuredClone round-trip: no Map / Float32Array / class instances
  *     — every value is plain JSON.
  *   - peaks[] sort order: (skinName, slotName, attachmentName) — matches the
- *     CLI sort order in `scripts/cli.ts` so DebugPanel output matches CLI
+ *     CLI sort order in `scripts/cli.ts` so the prior renderer output matches CLI
  *     byte-for-byte (locked by D-16).
  *
  * These tests lock the IPC serialization contract independently of the IPC

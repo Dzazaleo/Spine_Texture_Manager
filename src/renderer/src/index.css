@@ -20,7 +20,7 @@
  *   --color-accent       = orange-500 (#f97316) — drag-over ring + focus outline
  *   --color-accent-muted = orange-300                 — inline error text
  *
- * Emitted utilities (used by Plan 01-03 App.tsx + Plan 01-04 DropZone/DebugPanel):
+ * Emitted utilities (used by Plan 01-03 App.tsx + Plan 01-04 DropZone and the prior debug panel):
  *   bg-surface, bg-panel, border-border, text-fg, text-fg-muted,
  *   ring-accent, bg-accent/5, outline-accent, text-accent-muted,
  *   font-sans, font-mono.

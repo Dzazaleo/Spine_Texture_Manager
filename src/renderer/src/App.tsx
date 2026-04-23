@@ -2,23 +2,25 @@
  * Phase 1 Plan 04 — Top-level wiring.
  *
  * Owns AppState discriminated union (D-20; plain useState, no library).
- * Composes DropZone (full-window drag target) with context-appropriate
- * children for each state:
+ * Composes DropZone (full-window drag target per D-43) with context-
+ * appropriate children for each state:
  *
  *   status: 'idle'    → pre-drop empty-state copy (D-18)
  *   status: 'loading' → "Loading foo.json…" hint
- *   status: 'loaded'  → DebugPanel (D-19 in-place replacement; D-17 echoes to console)
+ *   status: 'loaded'  → the global-max render panel (D-19 in-place
+ *                       replacement per D-43 — DropZone keeps full-window
+ *                       wrap, no app shell; D-17 echoes summary to console)
  *   status: 'error'   → inline muted-orange error line (D-19, text-accent-muted)
  *
- * D-17 console echo fires in a useEffect gated on status === 'loaded' — keeps
- * DebugPanel side-effect-free (Task 2 invariant), and the StrictMode
- * double-fire in dev is harmless (the echo is idempotent). In production
- * builds (app.isPackaged), consider reducing console verbosity — Phase 9
- * concern per RESEARCH Security Domain line 1065.
+ * D-17 console echo fires in a useEffect gated on status === 'loaded' — the
+ * loaded-branch child component stays side-effect-free (Task 2 invariant),
+ * and the StrictMode double-fire in dev is harmless (the echo is idempotent).
+ * In production builds (app.isPackaged), consider reducing console verbosity
+ * — Phase 9 concern per RESEARCH Security Domain line 1065.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { DropZone } from './components/DropZone';
-import { DebugPanel } from './components/DebugPanel';
+import { GlobalMaxRenderPanel } from './panels/GlobalMaxRenderPanel';
 import type {
   SkeletonSummary,
   SerializableError,
@@ -66,7 +68,7 @@ export function App() {
           Loading {state.fileName}…
         </p>
       )}
-      {state.status === 'loaded' && <DebugPanel summary={state.summary} />}
+      {state.status === 'loaded' && <GlobalMaxRenderPanel summary={state.summary} />}
       {state.status === 'error' && (
         <div className="w-full max-w-3xl mx-auto p-8">
           <p className="text-accent-muted font-mono text-sm">
