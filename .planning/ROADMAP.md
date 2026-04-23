@@ -83,9 +83,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Core analyzer module + DisplayRow IPC type + byte-for-byte CLI refactor. Introduces `src/core/analyzer.ts` (pure-TS fold + sort + preformat), replaces `PeakRecordSerializable` with `DisplayRow` in `src/shared/types.ts`, delegates fold in `src/main/summary.ts` and `scripts/cli.ts`. Wave 1, autonomous.
-- [ ] 02-02-PLAN.md — Renderer components: `SearchBar` (controlled input with clear button + ESC handling) and `GlobalMaxRenderPanel` (hand-rolled sortable, searchable, multi-select `<table>` with match-highlight, tri-state select-all, shift-click range). Wave 2, autonomous, depends on 02-01.
-- [ ] 02-03-PLAN.md — Wire panel into `App.tsx`, delete prior debug component per Phase 1 D-16, human-verify end-to-end drop flow on SIMPLE_TEST.json. Wave 3, has checkpoint, depends on 02-01 + 02-02.
+- [x] 02-01-PLAN.md — Core analyzer module + DisplayRow IPC type + byte-for-byte CLI refactor. Introduces `src/core/analyzer.ts` (pure-TS fold + sort + preformat), replaces `PeakRecordSerializable` with `DisplayRow` in `src/shared/types.ts`, delegates fold in `src/main/summary.ts` and `scripts/cli.ts`. Wave 1, autonomous.
+- [x] 02-02-PLAN.md — Renderer components: `SearchBar` (controlled input with clear button + ESC handling) and `GlobalMaxRenderPanel` (hand-rolled sortable, searchable, multi-select `<table>` with match-highlight, tri-state select-all, shift-click range). Wave 2, autonomous, depends on 02-01.
+- [x] 02-03-PLAN.md — Wire panel into `App.tsx`, delete prior debug component per Phase 1 D-16, human-verify end-to-end drop flow on SIMPLE_TEST.json. Wave 3, has checkpoint, depends on 02-01 + 02-02.
 
 ---
 
