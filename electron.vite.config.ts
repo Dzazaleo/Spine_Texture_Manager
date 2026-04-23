@@ -29,8 +29,20 @@ export default defineConfig({
     // for `@esotericsoftware/spine-core` and any future runtime deps.
   },
   preload: {
-    // Empty — preload imports only from `electron` (always externalized) and
-    // type-only from `../shared/types` (erased at compile time).
+    // Emit CJS with `.cjs` extension. Electron's sandbox mode (D-06 pinned in
+    // src/main/index.ts) requires a CommonJS preload — sandboxed renderers
+    // cannot load ESM preloads. Because package.json declares `"type": "module"`,
+    // a plain `.js` output would be interpreted as ESM by Node/Electron; the
+    // `.cjs` extension forces CJS resolution regardless of the package type.
+    // Reference: electron-vite v5 docs + Electron sandbox tutorial (Electron 20+).
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+        },
+      },
+    },
   },
   renderer: {
     resolve: {

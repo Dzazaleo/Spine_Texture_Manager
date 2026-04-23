@@ -34,10 +34,12 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      // electron-vite emits ESM preload as `index.mjs` (required for Electron
-      // ESM loader since package.json has `"type": "module"`). Plan 01-02's
-      // initial `index.js` reference never resolved at build; fixed in 01-03.
-      preload: join(__dirname, '../preload/index.mjs'),
+      // Preload is emitted as CJS (`.cjs`) per electron.vite.config.ts. Sandbox
+      // mode (pinned below) requires a CommonJS preload; an ESM preload under
+      // sandbox fails silently, leaving `window.api` undefined in the renderer.
+      // Plan 01-03's earlier `.mjs` reference compiled but did not execute
+      // under sandbox — caught at Plan 01-05 human-verify, corrected here.
+      preload: join(__dirname, '../preload/index.cjs'),
       // D-06 / T-01-02-03: pin explicitly. All three are Electron 2024+ defaults
       // but making them explicit lets code review catch a regression.
       contextIsolation: true,

@@ -47,3 +47,17 @@ describe('Portability: no platform-specific code in src/ (D-23)', () => {
     ).toEqual([]);
   });
 });
+
+describe('Sandbox invariant: preload must be CJS (sandbox: true cannot load ESM preloads)', () => {
+  it('src/main/index.ts references the compiled CJS preload, not ESM', () => {
+    const main = readFileSync('src/main/index.ts', 'utf8');
+    expect(main, 'main must point at preload/index.cjs').toMatch(/preload\/index\.cjs/);
+    expect(main, 'main must NOT point at preload/index.mjs').not.toMatch(/preload\/index\.mjs/);
+  });
+
+  it('electron.vite.config.ts emits the preload as CJS with .cjs extension', () => {
+    const cfg = readFileSync('electron.vite.config.ts', 'utf8');
+    expect(cfg, 'preload output.format must be cjs').toMatch(/format:\s*['"]cjs['"]/);
+    expect(cfg, 'preload entryFileNames must end in .cjs').toMatch(/\[name\]\.cjs/);
+  });
+});
