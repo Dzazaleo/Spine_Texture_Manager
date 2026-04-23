@@ -44,7 +44,10 @@ describe('buildSummary (D-21, D-22)', () => {
     expect(s.slots.count).toBe(5);
     expect(s.skins.names).toContain('default');
     expect(s.animations.names.length).toBeGreaterThan(0);
-    expect(s.peaks.length).toBe(4);
+    // Post gap-fix B: analyzer folds sampler records by attachmentName.
+    // SIMPLE_TEST has 4 sampler records (slot SQUARE + slot SQUARE2 both
+    // carry an attachment named `SQUARE`); they fold to 3 DisplayRows.
+    expect(s.peaks.length).toBe(3);
     expect(s.skeletonPath).toBe(FIXTURE);
     expect(s.atlasPath.endsWith('SIMPLE_TEST.atlas')).toBe(true);
     expect(s.elapsedMs).toBe(0);

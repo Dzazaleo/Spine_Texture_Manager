@@ -9,7 +9,9 @@
  *
  * Behavior gates:
  *   - F1-integrated happy path (F1.1 + F1.2 + F1.3): fixture returns
- *     {ok: true, summary.bones.count === 9, summary.peaks.length === 4}.
+ *     {ok: true, summary.bones.count === 12, summary.peaks.length === 3}
+ *     (post gap-fix B: analyzer folds SIMPLE_TEST's two SQUARE sampler
+ *     records — slots SQUARE + SQUARE2 — into one row by attachmentName).
  *   - D-10 / F1.4 typed-error envelope:
  *       * Bogus path → {ok: false, error.kind === 'SkeletonJsonNotFoundError'}
  *       * Missing atlas → {ok: false, error.kind === 'AtlasNotFoundError'}
@@ -30,7 +32,10 @@ describe('handleSkeletonLoad (F1-integrated, D-10)', () => {
     if (resp.ok) {
       // Fixture ground truth: 12 bones (root, CTRL, CHAIN_2..8, SQUARE, CTRL_PATH, SQUARE2).
       expect(resp.summary.bones.count).toBe(12);
-      expect(resp.summary.peaks.length).toBe(4);
+      // Post gap-fix B: SIMPLE_TEST's 4 sampler records fold to 3 DisplayRows
+      // (the two attachments named `SQUARE` on slots SQUARE + SQUARE2 fold
+      // to one row — one row per unique texture name).
+      expect(resp.summary.peaks.length).toBe(3);
       expect(resp.summary.elapsedMs).toBeGreaterThanOrEqual(0);
     }
   });

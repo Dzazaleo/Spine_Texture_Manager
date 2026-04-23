@@ -12,6 +12,20 @@
  * nothing scans core/ for DOM imports because vitest's Node environment
  * would fail on any DOM type at test time anyway).
  *
+ * Dedup-by-attachment-name (Plan 02-03 gap-fix B, Rule 4 deviation):
+ *   The sampler emits one PeakRecord per unique skin/slot/attachment tuple.
+ *   When the same attachment NAME (the user-facing texture name, what the
+ *   atlas uses) appears across multiple slots or skins, each instance gets
+ *   its own sampler record — correct sampler behavior, but the panel's
+ *   purpose is "right-size each TEXTURE before export", so N rows per
+ *   variant is noise. This stage folds by attachmentName, keeping the
+ *   record with the highest peakScale. The kept row's skinName /
+ *   slotName / animationName / time / frame / attachmentKey still point
+ *   at the peak-producing instance, so the Source Animation + Frame
+ *   columns remain actionable. Tiebreaker on equal peakScale: keep the
+ *   record that sorts first by (skinName, slotName) so output is
+ *   deterministic across runs.
+ *
  * Callers:
  *   - src/main/summary.ts — IPC projection (writes DisplayRow[] into
  *     SkeletonSummary.peaks, which crosses structuredClone to the renderer).
@@ -20,9 +34,9 @@
  *     MUST NOT consume the preformatted *Label fields because the CLI and
  *     panel formats legitimately differ per D-45/D-46).
  *
- * Sort key (D-34): (skinName, slotName, attachmentName) — byte-for-byte
- * identical to the comparator the prior main-process projection used, so
- * the CLI contract survives.
+ * Sort key (D-34): (skinName, slotName, attachmentName) — applied AFTER
+ * dedup so ordering is stable; the CLI now prints one row per unique
+ * attachment name (was: one row per sampler key; changed per gap-fix B).
  *
  * Label spec (D-35, D-45, D-46):
  *   originalSizeLabel = `${sourceW}×${sourceH}`
@@ -69,9 +83,38 @@ function byCliContract(a: DisplayRow, b: DisplayRow): number {
 }
 
 /**
+ * Pick the "winner" between two rows for the same attachmentName.
+ * Primary: higher peakScale wins. Tiebreaker: the row that sorts first by
+ * (skinName, slotName) — deterministic across runs.
+ */
+function pickHigherPeak(a: DisplayRow, b: DisplayRow): DisplayRow {
+  if (b.peakScale > a.peakScale) return b;
+  if (a.peakScale > b.peakScale) return a;
+  // Equal peakScale: break ties deterministically on (skinName, slotName).
+  if (a.skinName !== b.skinName) return a.skinName.localeCompare(b.skinName) <= 0 ? a : b;
+  return a.slotName.localeCompare(b.slotName) <= 0 ? a : b;
+}
+
+/**
+ * Fold rows by attachmentName. One row per unique texture name; the kept
+ * row is the one with the highest peakScale (tiebreaker: first by
+ * skin/slot). See the header dedup-by-attachment-name docblock for why.
+ */
+function dedupByAttachmentName(rows: readonly DisplayRow[]): DisplayRow[] {
+  const winners = new Map<string, DisplayRow>();
+  for (const r of rows) {
+    const prev = winners.get(r.attachmentName);
+    winners.set(r.attachmentName, prev === undefined ? r : pickHigherPeak(prev, r));
+  }
+  return [...winners.values()];
+}
+
+/**
  * Fold the sampler's peaks map into a sorted DisplayRow[] with preformatted
- * labels. Pure, deterministic, zero-I/O.
+ * labels. Dedups by attachmentName (one row per unique texture). Pure,
+ * deterministic, zero-I/O.
  */
 export function analyze(peaks: Map<string, PeakRecord>): DisplayRow[] {
-  return [...peaks.values()].map(toDisplayRow).sort(byCliContract);
+  const allRows = [...peaks.values()].map(toDisplayRow);
+  return dedupByAttachmentName(allRows).sort(byCliContract);
 }
