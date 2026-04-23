@@ -18,10 +18,8 @@
  */
 import type { LoadResult } from '../core/types.js';
 import type { PeakRecord } from '../core/sampler.js';
-import type {
-  SkeletonSummary,
-  PeakRecordSerializable,
-} from '../shared/types.js';
+import type { SkeletonSummary } from '../shared/types.js';
+import { analyze } from '../core/analyzer.js';
 
 export function buildSummary(
   load: LoadResult,
@@ -49,32 +47,10 @@ export function buildSummary(
     }
   }
 
-  // Flatten peaks Map -> sorted array of plain objects.
+  // Fold + sort + preformat delegated to src/core/analyzer.ts (D-33, D-34, D-35).
   // Sort key (skinName, slotName, attachmentName) matches
-  // `scripts/cli.ts` renderTable() lines 88–92 byte-for-byte.
-  const peaksArray: PeakRecordSerializable[] = [...peaks.values()]
-    .map((p) => ({
-      attachmentKey: p.attachmentKey,
-      skinName: p.skinName,
-      slotName: p.slotName,
-      attachmentName: p.attachmentName,
-      animationName: p.animationName,
-      time: p.time,
-      frame: p.frame,
-      peakScaleX: p.peakScaleX,
-      peakScaleY: p.peakScaleY,
-      peakScale: p.peakScale,
-      worldW: p.worldW,
-      worldH: p.worldH,
-      sourceW: p.sourceW,
-      sourceH: p.sourceH,
-      isSetupPosePeak: p.isSetupPosePeak,
-    }))
-    .sort((a, b) => {
-      if (a.skinName !== b.skinName) return a.skinName.localeCompare(b.skinName);
-      if (a.slotName !== b.slotName) return a.slotName.localeCompare(b.slotName);
-      return a.attachmentName.localeCompare(b.attachmentName);
-    });
+  // `scripts/cli.ts` renderTable() byte-for-byte — analyzer owns the comparator.
+  const peaksArray = analyze(peaks);
 
   return {
     skeletonPath: load.skeletonPath,

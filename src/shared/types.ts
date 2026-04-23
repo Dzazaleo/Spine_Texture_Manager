@@ -9,45 +9,50 @@
  * If you add a field backed by a class from `@esotericsoftware/spine-core`,
  * flatten it in `src/main/summary.ts` before returning from IPC.
  *
- * D-21 locks SkeletonSummary; D-22 locks PeakRecordSerializable as the flat
- * mirror of `PeakRecord` from `src/core/sampler.ts`. D-10 locks LoadResponse
+ * D-21 locks SkeletonSummary; D-22/D-35 lock the flat row shape exposed via
+ * IPC as DisplayRow, keyed off the sampler's per-attachment record. D-10 locks LoadResponse
  * + SerializableError; D-07 locks the Api interface exposed via contextBridge.
  *
  * These interfaces erase at compile time. No runtime code lives in this file.
  */
 
 /**
- * Flat, serializable mirror of `PeakRecord` from `src/core/sampler.ts`.
- * Every field is a primitive — safe to `structuredClone` across IPC.
- * Field set must stay byte-for-byte identical to PeakRecord minus class internals.
+ * Flat, serializable row consumed by the renderer panel and (in raw-number
+ * form) by the CLI. Produced by `src/core/analyzer.ts` from the sampler's
+ * Map<string, per-attachment record>. Every field is a primitive — safe
+ * to structuredClone across IPC. D-35 locks the 15 raw numeric/string/boolean
+ * fields AND the 5 preformatted label fields; both live here because CLI
+ * and panel format legitimately differ (CLI uses toFixed(1) for pixel
+ * widths to align its monospace columns; the panel uses whole-pixel
+ * toFixed(0) per D-46 and adds a trailing multiplication sign to the
+ * scale per D-45).
  */
-export interface PeakRecordSerializable {
-  /** Composite key: `${skin}/${slot}/${attachment}`. */
+export interface DisplayRow {
   attachmentKey: string;
   skinName: string;
   slotName: string;
   attachmentName: string;
-  /** `"Setup Pose (Default)"` for setup-pose pass; animation name otherwise. */
   animationName: string;
-  /** Seconds since animation start (Spine's authoritative unit). */
   time: number;
-  /** `round(time * editorFps)` — informational only. */
   frame: number;
   peakScaleX: number;
   peakScaleY: number;
-  /** `max(peakScaleX, peakScaleY)`. */
   peakScale: number;
   worldW: number;
   worldH: number;
   sourceW: number;
   sourceH: number;
-  /** True if no animation timeline touched this attachment; scale from setup pose. */
   isSetupPosePeak: boolean;
+  originalSizeLabel: string;
+  peakSizeLabel: string;
+  scaleLabel: string;
+  sourceLabel: string;
+  frameLabel: string;
 }
 
 /**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
- * to render DebugPanel header + table without recomputing anything.
+ * to render the panel header + table without recomputing anything.
  */
 export interface SkeletonSummary {
   /** Absolute path of the loaded skeleton JSON. */
@@ -61,7 +66,7 @@ export interface SkeletonSummary {
   skins: { count: number; names: string[] };
   animations: { count: number; names: string[] };
   /** Sorted by (skinName, slotName, attachmentName) — matches CLI byte-for-byte. */
-  peaks: PeakRecordSerializable[];
+  peaks: DisplayRow[];
   /** `loadSkeleton + sampleSkeleton` wall-clock time in ms. */
   elapsedMs: number;
 }
