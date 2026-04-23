@@ -50,7 +50,16 @@ Plans:
 - Dragging `SIMPLE_TEST.json` into the window renders a debug dump matching the CLI's Phase 0 output.
 - App builds into a `.dmg` on macOS.
 
-**Requirement coverage:** F1 (integrated), N4.
+**Requirement coverage:** F1.1, F1.2, F1.3, F1.4, N4.1, N4.2.
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Bootstrap electron 41 + electron-vite 5 + electron-builder 26 + react 19 + tailwindcss 4 toolchain; three-tsconfig split (references + node + web); electron.vite.config.ts scaffold; .gitignore adds out/ + release/.
+- [ ] 01-02-PLAN.md — Shared IPC types (`src/shared/types.ts`) + main-process projection (`src/main/summary.ts`) + IPC handler with typed-error envelope (`src/main/ipc.ts`) + Electron app entry with pinned security webPreferences (`src/main/index.ts`) + Wave 0 tests (summary/ipc/arch).
+- [ ] 01-03-PLAN.md — Preload contextBridge surface with `webUtils.getPathForFile` (D-09 correction) + renderer bootstrap (index.html with CSP / main.tsx / App.tsx state machine / env.d.ts) + Tailwind v4 `@theme inline` stylesheet (D-12/D-14 correction) with warm-stone tokens + self-hosted JetBrains Mono.
+- [ ] 01-04-PLAN.md — DropZone (full-window drag target; raw File → preload) + DebugPanel (header + `<pre>` table byte-for-byte port of `scripts/cli.ts renderTable`) + App.tsx wiring (all 4 AppState branches + D-17 console.log echo via useEffect).
+- [ ] 01-05-PLAN.md — `electron-builder.yml` macOS-only `.dmg` target (D-24 additive-ready; no signing hooks per D-04) + full automated exit-criteria sweep (build:dry + real .dmg) + populate `01-VALIDATION.md` per-task map + `checkpoint:human-verify` for the drop-test and .dmg-open gates.
 
 ---
 
