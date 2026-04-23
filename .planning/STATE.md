@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Plan 01-04 complete — DropZone + DebugPanel + App.tsx wiring; end-to-end drop-to-debug-dump flow live in renderer bundle
-last_updated: "2026-04-23T11:09:15.143Z"
+stopped_at: Plan 01-05 Tasks 1-3 complete — electron-builder.yml + build:dry/build sweep + VALIDATION.md per-task map populated; Task 4 human-verify checkpoint pending orchestrator sign-off
+last_updated: "2026-04-23T12:20:00.000Z"
 progress:
   total_phases: 2
   completed_phases: 1
@@ -21,11 +21,16 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 1 — Electron + React scaffold** (IN PROGRESS — 4/5 plans done)
+**Phase 1 — Electron + React scaffold** (IN PROGRESS — 4/5 plans done; Plan 01-05 Tasks 1-3 of 4 complete, Task 4 pending human-verify)
 
 ## Current plan
 
-**Next: Plan 01-05** (Wave 5, final Phase 1 wave) — `electron-builder.yml` macOS-only `.dmg` target (D-24 additive-ready; no signing hooks per D-04) + full automated exit-criteria sweep (build:dry + real .dmg) + populate `01-VALIDATION.md` per-task map + tighten CSP `style-src 'self' 'unsafe-inline'` → `'self'` (built HTML confirmed zero inline styles in Plan 01-03) + `checkpoint:human-verify` covering the manual drop-test and .dmg-open gates (CLI↔DebugPanel byte-for-byte match per Plan 01-04 <pre> port needs human eyeball verification). Run `/gsd-execute-phase 1` to continue.
+**Plan 01-05 in progress** (Wave 5, final Phase 1 wave) — Tasks 1-3 landed:
+- Task 01-05-01 (commit `c4a8994`): `electron-builder.yml` authored with `mac.target: [dmg]` only (D-24 additive-ready), no `win:` block, no `afterPack`/`publish`/`notarize` hooks (D-04 unsigned), `files` whitelist includes `out/**` + `package.json` and excludes `src/`, `tests/`, `fixtures/`, `temp/`, `scripts/`, `.planning/`, `tsconfig*.json`. Output dir: `release/`.
+- Task 01-05-02 (verification only — no commit, artifacts gitignored): `npm run build:dry` exit 0 → produced `release/mac-arm64/Spine Texture Manager.app` (277 MB Electron baseline) AND `release/Spine Texture Manager-0.0.0-arm64.dmg` (111 MB compressed; well under 200 MB budget). Current electron-builder@26.8.1 with `--dir` still assembled the DMG, which effectively unifies Step 3 + Step 4 of the plan's sweep. All grep gates re-verified green: Layer 3 renderer↛core, D-23 portability, Task 1 electron-builder. Phase 0 CLI invariant preserved (exit 0 on SIMPLE_TEST.json).
+- Task 01-05-03 (commit `eb57386`): `01-VALIDATION.md` per-task map populated — 15 tasks (01-01-01..01-05-03) flipped ⬜ → ✅; 01-05-04 (human-verify) stays ⬜ pending orchestrator sign-off. Frontmatter `status: ready-for-exit`, `nyquist_compliant: true`, `wave_0_complete: true`. Wave 0 Requirements checkboxes ticked.
+
+**Pending: Task 01-05-04 (human-verify checkpoint)** — orchestrator-handled. User runs `npm run dev`, drops `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, confirms DebugPanel renders CIRCLE/SQUARE/SQUARE2/TRIANGLE table matching `npm run cli` output byte-for-byte; user also runs `open release/Spine\ Texture\ Manager-0.0.0-arm64.dmg`, bypasses Gatekeeper on the unsigned `.app`, and smoke-tests the packaged drop flow. On sign-off, orchestrator creates 01-05-SUMMARY.md, calls `roadmap.update-plan-progress 01`, and advances the plan counter to 5/5.
 
 ## Last completed
 
@@ -45,7 +50,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-Phase 1 in progress (4/5 plans done). Ready for Plan 01-05 — electron-builder.yml .dmg packaging + full exit-criteria sweep + CSP tightening (style-src 'self' — Plan 01-03 confirmed built HTML has zero inline styles) + 01-VALIDATION.md per-task map population + checkpoint:human-verify for the drop-test and .dmg-open gates (CLI↔DebugPanel byte-for-byte match needs human eyeball verification). Run `/gsd-execute-phase 1` to continue.
+Plan 01-05 Task 4 — human-verify checkpoint (orchestrator-handled). User runs `npm run dev`, drops `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, verifies DebugPanel renders byte-for-byte match with `npm run cli` output, then opens `release/Spine\ Texture\ Manager-0.0.0-arm64.dmg`, right-click-Opens the `.app` past Gatekeeper, and smoke-tests the packaged drop flow. On sign-off, orchestrator creates 01-05-SUMMARY.md + calls `roadmap.update-plan-progress 01` + advances plan counter to 5/5. The three Manual-Only Verifications rows in 01-VALIDATION.md — drag-drop match, error UI (non-JSON + missing-atlas), `.dmg` open — are all consolidated into this single checkpoint.
 
 ## Open questions
 
@@ -115,9 +120,9 @@ Phase 1 in progress (4/5 plans done). Ready for Plan 01-05 — electron-builder.
 ## Last session
 
 - **Timestamp:** 2026-04-23
-- **Stopped at:** Plan 01-04 complete — DropZone + DebugPanel + App.tsx wiring; end-to-end drop-to-debug-dump flow live in renderer bundle
+- **Stopped at:** Plan 01-05 Tasks 1-3 complete — electron-builder.yml authored (commit `c4a8994`); build:dry + build sweep produced unsigned `.dmg` (111 MB) and `.app` (277 MB Electron baseline) under `release/`; VALIDATION.md per-task map populated with 15 ✅ (01-05-04 stays ⬜). Task 4 human-verify checkpoint pending orchestrator sign-off.
 - **Resume file:** None
-- **Blockers:** None
+- **Blockers:** None — orchestrator resumes with `checkpoint:human-verify` presentation
 
 ## Links
 
