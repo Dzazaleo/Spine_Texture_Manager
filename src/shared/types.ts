@@ -93,6 +93,42 @@ export interface AnimationBreakdown {
 }
 
 /**
+ * Phase 5 Plan 01 — A single attachment flagged as unused.
+ *
+ * An attachment is "unused" when its name appears in at least one
+ * skin.attachments map in skeletonData.skins but the sampler's
+ * globalPeaks contains no entry with that attachment name (D-92). The
+ * sampler's visibility predicate (slot.color.a > 0 at >= 1 sampled tick)
+ * is the source of truth — Phase 5 does not duplicate the check.
+ *
+ * Keyed by attachmentName per D-96 (name-level aggregation — one row per
+ * unique texture name, regardless of how many skins register it).
+ * sourceW/H are MAX across all registering skins per D-98. definedIn
+ * lists every skin whose attachments map contains the name, preserved
+ * in skin-iteration (JSON parse) order — NOT sorted (Pitfall 7 of
+ * 05-RESEARCH.md).
+ *
+ * All fields primitive / arrays of primitives — structuredClone-safe
+ * per the file-top docblock D-21 lock.
+ */
+export interface UnusedAttachment {
+  /** Primary identifier — unique across the returned array (D-96). */
+  attachmentName: string;
+  /** Max source width across all registering skins (D-98). */
+  sourceW: number;
+  /** Max source height across all registering skins (D-98). */
+  sourceH: number;
+  /** Names of every skin whose attachments map contains this name, in skin-iteration order. */
+  definedIn: string[];
+  /** 1 if all registrations share dims, 2+ if any diverge (D-98). */
+  dimVariantCount: number;
+  /** Preformatted label (D-35 + D-45/D-46 reuse): "256×256" when dimVariantCount===1, "256×256 (N variants)" when >1. */
+  sourceLabel: string;
+  /** Preformatted comma-joined list of definedIn (e.g. "default, boy, girl"). */
+  definedInLabel: string;
+}
+
+/**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
  * to render the panel header + table without recomputing anything.
  */
@@ -111,6 +147,17 @@ export interface SkeletonSummary {
   peaks: DisplayRow[];
   /** Phase 3: static-pose card first (cardId === 'setup-pose'), then one card per animation in JSON order. */
   animationBreakdown: AnimationBreakdown[];
+  /**
+   * Phase 5: attachments registered in skins but never rendered (F6.1, D-92, D-101).
+   *
+   * Optional in Plan 01 (Wave 0 scaffold) so the node-project typecheck stays
+   * clean while `src/main/summary.ts` has not yet been wired by Plan 02. The
+   * summary.spec.ts F6.2 test still locks the field-shape contract at runtime
+   * (Array.isArray + structuredClone round-trip) — that test is RED in Plan 01
+   * and flips GREEN when Plan 02 lands. Plan 02 MAY promote this to required
+   * at the same time it wires the write site.
+   */
+  unusedAttachments?: UnusedAttachment[];
   /** `loadSkeleton + sampleSkeleton` wall-clock time in ms. */
   elapsedMs: number;
 }
