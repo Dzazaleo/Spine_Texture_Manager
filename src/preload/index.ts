@@ -29,6 +29,19 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { Api, LoadResponse } from '../shared/types.js';
 
+// Phase 6 Plan 02 — the Api interface gained 5 new methods
+// (pickOutputDirectory / startExport / cancelExport / onExportProgress /
+// openOutputFolder) for the export pipeline. Plan 06-05 wires the real
+// IPC handlers + preload bridges. Until then we ship typecheck-satisfying
+// "not-yet-implemented" stubs so the preload bundle continues to typecheck
+// AND any accidental early consumer in the renderer fails loudly with a
+// clear message rather than `undefined is not a function`.
+const NOT_YET_WIRED = (method: string): never => {
+  throw new Error(
+    `window.api.${method} is not yet wired — Plan 06-05 ships the IPC handler + preload bridge.`,
+  );
+};
+
 const api: Api = {
   loadSkeletonFromFile: async (file: File): Promise<LoadResponse> => {
     const jsonPath = webUtils.getPathForFile(file);
@@ -48,6 +61,12 @@ const api: Api = {
     // see src/main/ipc.ts handleSkeletonLoad.
     return ipcRenderer.invoke('skeleton:load', jsonPath);
   },
+  // Phase 6 Plan 05 will replace these stubs with real preload bridges.
+  pickOutputDirectory: async (_defaultPath?: string) => NOT_YET_WIRED('pickOutputDirectory'),
+  startExport: async (_plan, _outDir) => NOT_YET_WIRED('startExport'),
+  cancelExport: () => NOT_YET_WIRED('cancelExport'),
+  onExportProgress: (_handler) => NOT_YET_WIRED('onExportProgress'),
+  openOutputFolder: (_dir) => NOT_YET_WIRED('openOutputFolder'),
 };
 
 if (process.contextIsolated) {

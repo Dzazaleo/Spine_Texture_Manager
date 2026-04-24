@@ -52,7 +52,11 @@ export function buildSummary(
   // Fold + sort + preformat delegated to src/core/analyzer.ts (D-33, D-34, D-35).
   // Sort key (skinName, slotName, attachmentName) matches
   // `scripts/cli.ts` renderTable() byte-for-byte — analyzer owns the comparator.
-  const peaksArray = analyze(sampled.globalPeaks);
+  //
+  // Phase 6 Plan 02 — thread load.sourcePaths into DisplayRow + BreakdownRow
+  // so the export plan builder (Plan 06-03) can dedup by source PNG path
+  // (D-108). load.sourcePaths is the loader's Map<regionName, absPath>.
+  const peaksArray = analyze(sampled.globalPeaks, load.sourcePaths);
 
   // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
   // AnimationBreakdown[] (F4.1/F4.2/F4.3). boneChainPath walks slot.bone.parent
@@ -65,6 +69,7 @@ export function buildSummary(
     sampled.setupPosePeaks,
     load.skeletonData,
     skeleton.slots,
+    load.sourcePaths,
   );
 
   // Phase 5 Plan 02 — F6.1 unused-attachment detection. Pure projection per

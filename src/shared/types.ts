@@ -138,6 +138,96 @@ export interface UnusedAttachment {
 }
 
 /**
+ * Phase 6 Plan 02 — One row of the export plan, deduped per atlas region
+ * source PNG path (D-108). attachmentNames carries every attachment that
+ * resolved to this region for traceability — does not affect the resize
+ * itself (one ExportRow → one resize → one output PNG per D-108).
+ *
+ * outPath is ABSOLUTE (RESEARCH §Open Question 2 recommendation) — main
+ * process performs no further path resolution; deterministic for
+ * path-traversal defense at the boundary (Threat-model-lite + D-122).
+ *
+ * effectiveScale is the SAME on both axes (D-110 uniform — anisotropic
+ * export breaks Spine UV sampling; locked memory).
+ *
+ * All fields primitive — structuredClone-safe per the file-top docblock
+ * D-21 lock.
+ */
+export interface ExportRow {
+  sourcePath: string;
+  outPath: string;
+  sourceW: number;
+  sourceH: number;
+  outW: number;
+  outH: number;
+  effectiveScale: number;
+  attachmentNames: string[];
+}
+
+/**
+ * Phase 6 Plan 02 — Result of buildExportPlan(summary, overrides).
+ * excludedUnused lists attachment names dropped by D-109 default
+ * (unused-by-sampler attachments are not exported).
+ */
+export interface ExportPlan {
+  rows: ExportRow[];
+  excludedUnused: string[];
+  totals: { count: number };
+}
+
+/**
+ * Phase 6 Plan 02 — Per-file error surfaced via the export:progress channel
+ * and aggregated in ExportSummary.errors. kind is the discriminator:
+ *   - 'missing-source': fs.access pre-flight failed (D-112).
+ *   - 'sharp-error':    sharp/libvips threw during resize/encode.
+ *   - 'write-error':    fs.rename failed OR path-traversal defense rejected.
+ */
+export interface ExportError {
+  kind: 'missing-source' | 'sharp-error' | 'write-error';
+  path: string;
+  message: string;
+}
+
+/**
+ * Phase 6 Plan 02 — Streaming progress event sent main → renderer once
+ * per file completion via webContents.send('export:progress', event).
+ * D-119: no batching, no throttling — sequential cadence is the natural
+ * throttle. All fields primitive — structuredClone-safe.
+ */
+export interface ExportProgressEvent {
+  index: number;
+  total: number;
+  path: string;
+  outPath: string;
+  status: 'success' | 'error';
+  error?: ExportError;
+}
+
+/**
+ * Phase 6 Plan 02 — Final result of runExport, returned via the
+ * 'export:start' IPC handler envelope (ExportResponse below).
+ * cancelled === true when the user invoked api.cancelExport mid-run
+ * and the loop bailed cooperatively (D-115).
+ */
+export interface ExportSummary {
+  successes: number;
+  errors: ExportError[];
+  outputDir: string;
+  durationMs: number;
+  cancelled: boolean;
+}
+
+/**
+ * Phase 6 Plan 02 — Discriminated-union envelope for 'export:start',
+ * mirrors LoadResponse pattern (D-10). 'already-running' rejected by
+ * the re-entrancy guard (D-115); 'invalid-out-dir' by the F8.4 / D-122
+ * defense (outDir cannot equal source/images or be a child of it).
+ */
+export type ExportResponse =
+  | { ok: true; summary: ExportSummary }
+  | { ok: false; error: { kind: 'already-running' | 'invalid-out-dir' | 'Unknown'; message: string } };
+
+/**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
  * to render the panel header + table without recomputing anything.
  */
@@ -205,4 +295,35 @@ export type LoadResponse =
  */
 export interface Api {
   loadSkeletonFromFile: (file: File) => Promise<LoadResponse>;
+  /**
+   * Phase 6 Plan 05 — Open OS folder picker (Electron dialog.showOpenDialog).
+   * Returns the chosen absolute path or null if user cancels. defaultPath
+   * is honored on macOS + Windows per D-122 (`<skeletonDir>/images-optimized/`).
+   */
+  pickOutputDirectory: (defaultPath?: string) => Promise<string | null>;
+  /**
+   * Phase 6 Plan 05 — Run export. Resolves with ExportResponse envelope
+   * when the export completes, is cancelled, or is rejected (re-entrant /
+   * invalid-out-dir). Per-file progress arrives on the separate
+   * onExportProgress subscription channel.
+   */
+  startExport: (plan: ExportPlan, outDir: string) => Promise<ExportResponse>;
+  /**
+   * Phase 6 Plan 05 — One-way cancel signal. Fire-and-forget. The next
+   * progress event the renderer receives will be the final one and
+   * startExport() resolves with summary.cancelled === true.
+   */
+  cancelExport: () => void;
+  /**
+   * Phase 6 Plan 05 — Subscribe to streaming export progress events.
+   * Returns an unsubscribe function. Implementation detail: the wrapped
+   * listener reference is captured in a local const so removeListener
+   * targets the same reference (RESEARCH §Pitfall 9).
+   */
+  onExportProgress: (handler: (e: ExportProgressEvent) => void) => () => void;
+  /**
+   * Phase 6 Plan 05 — Open Finder/Explorer at the output directory after
+   * a completed export (Electron shell.showItemInFolder). One-way.
+   */
+  openOutputFolder: (dir: string) => void;
 }
