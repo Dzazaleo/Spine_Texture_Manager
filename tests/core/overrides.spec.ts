@@ -1,10 +1,16 @@
 /**
  * Phase 4 Plan 01 — Tests for src/core/overrides.ts + src/renderer/src/lib/overrides-view.ts (D-75, D-79, D-82, D-84).
  *
+ * Semantics superseded at human-verify 2026-04-24 (04-03 gap-fix B):
+ *   - applyOverride no longer takes peak scale; effective scale = clamped / 100.
+ *   - The percent represents target effective scale as a fraction of source
+ *     dimensions (100% = source dimensions, the absolute maximum).
+ *   - See 04-03-SUMMARY.md §Deviations for the full rationale and user quotes.
+ *
  * Behavior gates:
  *   - D-79 clampOverride — silent integer-rounded clamp into [1, 100];
  *     non-finite → 1; 0/-5 → 1; 200 → 100; 49.6 → 50 (Math.round).
- *   - D-82 applyOverride — returns effectiveScale = peakScale * clamped / 100.
+ *   - applyOverride — returns effectiveScale = clampOverride(percent) / 100.
  *   - D-84 applyOverride — sets clamped flag iff the RAW input exceeded 100;
  *     effectiveScale uses the clamped 100 value, but the badge still
  *     renders. Predicate is strictly `> 100` so exactly 100 is NOT clamped.
@@ -18,7 +24,7 @@
  *
  * Layer 3 option-1 parity gate:
  *   - Canonical + renderer copy return byte-identical results across 12
- *     sampled clampOverride inputs and 10 sampled applyOverride pairs.
+ *     sampled clampOverride inputs and 10 sampled applyOverride percents.
  *   - Both files have zero imports.
  *   - Both files share the same Number.isFinite guard signature on
  *     clampOverride and the same `> 100` predicate signature on
@@ -74,42 +80,48 @@ describe('clampOverride (D-79)', () => {
   });
 });
 
-describe('applyOverride (D-82, D-84)', () => {
-  it('D-82: applyOverride(1.78, 50) → { effectiveScale: 0.89, clamped: false }', () => {
-    const result = applyOverride(1.78, 50);
-    expect(result.effectiveScale).toBeCloseTo(0.89, 5);
+describe('applyOverride (new semantics — percent of source dimensions)', () => {
+  it('applyOverride(50) → { effectiveScale: 0.5, clamped: false } (50% of source)', () => {
+    const result = applyOverride(50);
+    expect(result.effectiveScale).toBeCloseTo(0.5, 5);
     expect(result.clamped).toBe(false);
   });
 
-  it('D-84: applyOverride(1.78, 200) → effectiveScale uses clamped 100; clamped flag TRUE', () => {
-    const result = applyOverride(1.78, 200);
-    // effectiveScale = 1.78 × clampOverride(200)/100 = 1.78 × 100/100 = 1.78
-    expect(result.effectiveScale).toBeCloseTo(1.78, 5);
+  it('D-84: applyOverride(200) → effectiveScale uses clamped 100; clamped flag TRUE', () => {
+    const result = applyOverride(200);
+    // effectiveScale = clampOverride(200)/100 = 100/100 = 1.0
+    expect(result.effectiveScale).toBeCloseTo(1.0, 5);
     expect(result.clamped).toBe(true);
   });
 
-  it('D-82: applyOverride(0.6, 50) → { effectiveScale: 0.3, clamped: false }', () => {
-    const result = applyOverride(0.6, 50);
+  it('applyOverride(30) → { effectiveScale: 0.3, clamped: false }', () => {
+    const result = applyOverride(30);
     expect(result.effectiveScale).toBeCloseTo(0.3, 5);
     expect(result.clamped).toBe(false);
   });
 
-  it('D-84: applyOverride(2.0, 100) → clamped FALSE (predicate is strictly > 100)', () => {
-    const result = applyOverride(2.0, 100);
-    expect(result.effectiveScale).toBeCloseTo(2.0, 5);
+  it('D-84: applyOverride(100) → clamped FALSE (predicate is strictly > 100)', () => {
+    const result = applyOverride(100);
+    expect(result.effectiveScale).toBeCloseTo(1.0, 5);
     expect(result.clamped).toBe(false);
   });
 
-  it('D-84: applyOverride(2.0, 101) → clamped TRUE (raw input exceeded 100 by 1)', () => {
-    const result = applyOverride(2.0, 101);
-    // effectiveScale = 2.0 × clampOverride(101)/100 = 2.0 × 100/100 = 2.0
-    expect(result.effectiveScale).toBeCloseTo(2.0, 5);
+  it('D-84: applyOverride(101) → clamped TRUE (raw input exceeded 100 by 1)', () => {
+    const result = applyOverride(101);
+    // effectiveScale = clampOverride(101)/100 = 100/100 = 1.0
+    expect(result.effectiveScale).toBeCloseTo(1.0, 5);
     expect(result.clamped).toBe(true);
   });
 
-  it('D-82: applyOverride(0, 50) → { effectiveScale: 0, clamped: false } (zero peak scale edge)', () => {
-    const result = applyOverride(0, 50);
-    expect(result.effectiveScale).toBeCloseTo(0, 5);
+  it('applyOverride(1) → { effectiveScale: 0.01, clamped: false } (lower bound)', () => {
+    const result = applyOverride(1);
+    expect(result.effectiveScale).toBeCloseTo(0.01, 5);
+    expect(result.clamped).toBe(false);
+  });
+
+  it('applyOverride(0) → { effectiveScale: 0.01, clamped: false } (zero clamps to 1%)', () => {
+    const result = applyOverride(0);
+    expect(result.effectiveScale).toBeCloseTo(0.01, 5);
     expect(result.clamped).toBe(false);
   });
 });
@@ -151,22 +163,11 @@ describe('core ↔ renderer parity (Layer 3 option-1 invariant)', () => {
     }
   });
 
-  it('renderer view reports the same applyOverride result across 10 sampled (peak, percent) pairs', () => {
-    const pairs: Array<[number, number]> = [
-      [1.78, 50],
-      [1.78, 200],
-      [1.78, 100],
-      [1.78, 101],
-      [0.6, 50],
-      [0, 50],
-      [1, 1],
-      [1, 100],
-      [2.5, 75],
-      [3.14, 99],
-    ];
-    for (const [peak, pct] of pairs) {
-      const expected = applyOverride(peak, pct);
-      const actual = applyView(peak, pct);
+  it('renderer view reports the same applyOverride result across 10 sampled percents', () => {
+    const percents = [50, 200, 100, 101, 30, 0, 1, 99, 75, 25];
+    for (const pct of percents) {
+      const expected = applyOverride(pct);
+      const actual = applyView(pct);
       expect(actual.effectiveScale).toBeCloseTo(expected.effectiveScale, 5);
       expect(actual.clamped).toBe(expected.clamped);
     }

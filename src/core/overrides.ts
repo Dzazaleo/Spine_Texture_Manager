@@ -3,10 +3,18 @@
  *
  * Two named exports over raw number primitives: `clampOverride` snaps any
  * integer-rounded user input into [1, 100] (F5.2 source-max clamp — the app
- * does not allow upscaling beyond the peak world-space scale), and
- * `applyOverride` computes the effective scale from a peak scale and a raw
+ * does not allow upscaling beyond the source dimensions), and
+ * `applyOverride` computes the effective scale directly from the clamped
  * percentage, flagging when the raw input exceeded 100 so the renderer can
  * surface a silent-clamp badge per D-84.
+ *
+ * Semantics superseded at human-verify 2026-04-24 (04-03 gap-fix B): the
+ * override percent now represents the target effective scale as a fraction
+ * of source dimensions (100% = source dimensions, the absolute maximum).
+ * `applyOverride` no longer takes peak scale — effective scale is purely
+ * `clampedPercent / 100`. Peak scale remains the floor-free default when no
+ * override is present (resolved at the consumer site, not here). See
+ * 04-03-SUMMARY.md §Deviations for the full rationale and user quotes.
  *
  * Pure, stateless, zero-I/O, zero-dep. No React, no DOM, no spine-core
  * runtime import — this file works on primitives only. CLAUDE.md rule #5
@@ -62,10 +70,16 @@ export function clampOverride(percent: number): number {
 }
 
 /**
- * Apply an override percentage to a peak scale value.
+ * Compute effective scale from an override percentage.
+ *
+ * Supersedes 2026-04-24 at human-verify: the percent represents the target
+ * effective scale as a fraction of source dimensions (100% = source dims).
+ * Peak scale is no longer part of the equation — consumers render
+ * `peakScale` as the default when no override is set, then switch to
+ * `applyOverride(percent).effectiveScale` when an override exists.
  *
  * Returns `{ effectiveScale, clamped }` where:
- *   - `effectiveScale = peakScale * clampOverride(overridePercent) / 100`.
+ *   - `effectiveScale = clampOverride(overridePercent) / 100`.
  *     The clamped percent is always used for the arithmetic, so callers
  *     never have to re-validate.
  *   - `clamped` is strictly `overridePercent > 100` (raw input, pre-clamp).
@@ -79,10 +93,9 @@ export function clampOverride(percent: number): number {
  * "flag as over-max".
  */
 export function applyOverride(
-  peakScale: number,
   overridePercent: number,
 ): { effectiveScale: number; clamped: boolean } {
   const clamped = overridePercent > 100;
   const safe = clampOverride(overridePercent);
-  return { effectiveScale: peakScale * safe / 100, clamped };
+  return { effectiveScale: safe / 100, clamped };
 }
