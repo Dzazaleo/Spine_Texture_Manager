@@ -47,6 +47,16 @@
  *
  * Two-weight typography contract: only font-normal (400) + font-semibold
  * (600) appear. Weight 500 is forbidden project-wide.
+ *
+ * Phase 4 Plan 03 extension: per-row Scale + Peak W×H cells render
+ * override-aware values when `overrides.has(row.attachmentName)` per D-82 /
+ * D-83. Scale `<td>` gains a double-click handler that opens the override
+ * dialog on the clicked row. Phase 3's D-69 placeholder Override Scale button
+ * is UNLOCKED (drop the interaction-blocking attribute + the dim styling,
+ * attach the dialog-open click handler, refresh aria-label). D-90: no batch
+ * path here — selection UI only exists on the Global panel. Layer 3:
+ * `applyOverride` is imported from the renderer-side overrides-view module,
+ * never from the pure-TS math tree.
  */
 import {
   useCallback,
@@ -63,6 +73,7 @@ import type {
   BreakdownRow,
 } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
+import { applyOverride } from '../lib/overrides-view.js';
 
 export interface AnimationBreakdownPanelProps {
   summary: SkeletonSummary;
@@ -79,7 +90,74 @@ export interface AnimationBreakdownPanelProps {
   onOpenOverrideDialog?: (row: BreakdownRow) => void;
 }
 
+/**
+ * Phase 4 Plan 03: effective-scale-enriched breakdown row. Added fields are
+ * strictly renderer-side — src/shared/types.ts is NOT extended (discretion
+ * option A). effectiveScale/worldW/worldH === the raw peak values when the
+ * row has no override.
+ */
+type EnrichedBreakdownRow = BreakdownRow & {
+  effectiveScale: number;
+  effectiveWorldW: number;
+  effectiveWorldH: number;
+  /** undefined when no override; else the clamped integer percent. */
+  override: number | undefined;
+};
+
+/**
+ * Phase 4 Plan 03: an AnimationBreakdown where rows have been enriched. We
+ * Omit<,'rows'> before intersecting so the narrower EnrichedBreakdownRow[]
+ * survives TypeScript's structural merge (a bare `& { rows: EnrichedBreakdownRow[] }`
+ * would still be widened back to BreakdownRow[] by the original field).
+ */
+type EnrichedCard = Omit<AnimationBreakdown, 'rows'> & {
+  rows: EnrichedBreakdownRow[];
+};
+
 // ----- Module-top pure helpers -------------------------------------------
+
+/** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
+ *  allocate a fresh Map on every render. */
+const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
+/** Phase 4 Plan 03: no-op default for the open-dialog callback when the panel
+ *  is rendered standalone (outside AppShell). */
+const NOOP_OPEN_DIALOG: (row: BreakdownRow) => void = () => undefined;
+
+/**
+ * Phase 4 Plan 03: enrich each card's rows with render-time effective
+ * fields derived from the overrides map. Non-overridden rows pass
+ * through with effective fields === raw peak fields.
+ */
+function enrichCardsWithEffective(
+  cards: readonly AnimationBreakdown[],
+  overrides: ReadonlyMap<string, number>,
+): Array<EnrichedCard> {
+  return cards.map((card) => ({
+    ...card,
+    rows: card.rows.map((row) => {
+      const override = overrides.get(row.attachmentName);
+      if (override === undefined) {
+        return {
+          ...row,
+          effectiveScale: row.peakScale,
+          effectiveWorldW: row.worldW,
+          effectiveWorldH: row.worldH,
+          override: undefined,
+        };
+      }
+      const { effectiveScale } = applyOverride(row.peakScale, override);
+      return {
+        ...row,
+        effectiveScale,
+        // Multiply by override/100 directly (not effectiveScale/peakScale) to
+        // avoid a divide-by-zero when peakScale is 0.
+        effectiveWorldW: row.worldW * override / 100,
+        effectiveWorldH: row.worldH * override / 100,
+        override,
+      };
+    }),
+  }));
+}
 
 /**
  * Filter each card's rows by case-insensitive substring match on
@@ -88,16 +166,16 @@ export interface AnimationBreakdownPanelProps {
  * uniqueAssetCount is recomputed post-filter so it matches rows.length.
  */
 function filterCardsByAttachmentName(
-  cards: readonly AnimationBreakdown[],
+  cards: ReadonlyArray<EnrichedCard>,
   query: string,
-): AnimationBreakdown[] {
+): Array<EnrichedCard> {
   const q = query.trim().toLowerCase();
   if (q === '') return cards.slice();
   return cards.map((card) => {
-    const rows = card.rows.filter((r) =>
+    const rows: EnrichedBreakdownRow[] = card.rows.filter((r) =>
       r.attachmentName.toLowerCase().includes(q),
     );
-    return { ...card, rows, uniqueAssetCount: rows.length };
+    return { ...card, uniqueAssetCount: rows.length, rows };
   });
 }
 
@@ -150,7 +228,14 @@ export function AnimationBreakdownPanel({
   summary,
   focusAnimationName,
   onFocusConsumed,
+  overrides,
+  onOpenOverrideDialog,
 }: AnimationBreakdownPanelProps) {
+  // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
+  // (AppShell always passes non-null values).
+  const overridesMap: ReadonlyMap<string, number> = overrides ?? EMPTY_OVERRIDES;
+  const openDialog = onOpenOverrideDialog ?? NOOP_OPEN_DIALOG;
+
   const [query, setQuery] = useState('');
   // D-63/D-64: static-pose card seeded as the only initially-expanded cardId.
   // The literal construction is a grep-verified signature.
@@ -167,14 +252,23 @@ export function AnimationBreakdownPanel({
   }, []);
 
   // Keep a cardId → original card lookup for the 'M / N' filtered header math.
+  // Operates on raw summary (not enriched) — the header math is independent
+  // of override enrichment.
   const originalById = useMemo(
     () => new Map(summary.animationBreakdown.map((c) => [c.cardId, c])),
     [summary.animationBreakdown],
   );
 
+  // Phase 4 Plan 03: enrichment runs BEFORE filter so filtered rows carry the
+  // effective fields needed by BreakdownTable.
+  const enrichedCards = useMemo(
+    () => enrichCardsWithEffective(summary.animationBreakdown, overridesMap),
+    [summary.animationBreakdown, overridesMap],
+  );
+
   const filteredCards = useMemo(
-    () => filterCardsByAttachmentName(summary.animationBreakdown, query),
-    [summary.animationBreakdown, query],
+    () => filterCardsByAttachmentName(enrichedCards, query),
+    [enrichedCards, query],
   );
 
   const effectiveExpanded = useMemo(() => {
@@ -247,6 +341,7 @@ export function AnimationBreakdownPanel({
               query={query}
               isFlashing={isFlashing === card.cardId}
               registerRef={(el) => registerCardRef(card.cardId, el)}
+              onOpenOverrideDialog={openDialog}
             />
           );
         })}
@@ -258,7 +353,7 @@ export function AnimationBreakdownPanel({
 // ----- AnimationCard sub-component ---------------------------------------
 
 interface AnimationCardProps {
-  card: AnimationBreakdown;
+  card: EnrichedCard;
   totalCount: number;
   queryActive: boolean;
   expanded: boolean;
@@ -266,6 +361,8 @@ interface AnimationCardProps {
   query: string;
   isFlashing: boolean;
   registerRef: (el: HTMLElement | null) => void;
+  /** Phase 4 D-77 dialog trigger. */
+  onOpenOverrideDialog: (row: BreakdownRow) => void;
 }
 
 function AnimationCard({
@@ -277,6 +374,7 @@ function AnimationCard({
   query,
   isFlashing,
   registerRef,
+  onOpenOverrideDialog,
 }: AnimationCardProps) {
   const headerId = `bd-header-${card.cardId}`;
   const bodyId = `bd-body-${card.cardId}`;
@@ -329,7 +427,11 @@ function AnimationCard({
               </tbody>
             </table>
           ) : (
-            <BreakdownTable rows={card.rows} query={query} />
+            <BreakdownTable
+              rows={card.rows}
+              query={query}
+              onOpenOverrideDialog={onOpenOverrideDialog}
+            />
           )}
         </div>
       )}
@@ -340,11 +442,13 @@ function AnimationCard({
 // ----- BreakdownTable sub-component --------------------------------------
 
 interface BreakdownTableProps {
-  rows: readonly BreakdownRow[];
+  rows: readonly EnrichedBreakdownRow[];
   query: string;
+  /** Phase 4 D-77 dialog trigger (per-row only per D-90 — no batch here). */
+  onOpenOverrideDialog: (row: BreakdownRow) => void;
 }
 
-function BreakdownTable({ rows, query }: BreakdownTableProps) {
+function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTableProps) {
   return (
     <table className="w-full border-collapse">
       <thead>
@@ -411,26 +515,42 @@ function BreakdownTable({ rows, query }: BreakdownTableProps) {
             <td className="py-2 px-3 font-mono text-sm text-fg text-right">
               {row.originalSizeLabel}
             </td>
-            <td className="py-2 px-3 font-mono text-sm text-fg text-right">
-              {row.scaleLabel}
+            <td
+              className={clsx(
+                'py-2 px-3 font-mono text-sm text-right',
+                row.override !== undefined ? 'text-accent' : 'text-fg',
+              )}
+              onDoubleClick={() => onOpenOverrideDialog(row)}
+              title={
+                row.override !== undefined
+                  ? `Peak ${row.scaleLabel} × ${row.override}% = ${row.effectiveScale.toFixed(3)}×`
+                  : undefined
+              }
+            >
+              {row.effectiveScale.toFixed(3)}×
+              {row.override !== undefined && <span> • {row.override}%</span>}
             </td>
-            <td className="py-2 px-3 font-mono text-sm text-fg text-right">
-              {row.peakSizeLabel}
+            <td className={clsx(
+              'py-2 px-3 font-mono text-sm text-right',
+              row.override !== undefined ? 'text-accent' : 'text-fg',
+            )}>
+              {row.override !== undefined
+                ? `${(row.effectiveWorldW).toFixed(0)}×${(row.effectiveWorldH).toFixed(0)}`
+                : row.peakSizeLabel}
             </td>
             <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
               {row.frameLabel}
             </td>
             <td className="py-2 px-3 font-mono text-sm text-fg">
-              {/* D-69: Override button rendered disabled to reserve Column 7
-                  real estate. Phase 4 wires the dialog; removing `disabled`
-                  plus attaching an onClick is the only mechanical change
-                  Phase 4 needs to make. */}
+              {/* D-69 → D-77: Override Scale button unlocked in Phase 4. Chip
+                  styling kept per 04-CONTEXT Claude's Discretion recommendation;
+                  only the opacity dim and the interaction-blocking attribute
+                  are dropped. */}
               <button
                 type="button"
-                disabled
-                title="Coming in Phase 4"
-                aria-label="Override Scale (disabled until Phase 4)"
-                className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg opacity-50 cursor-not-allowed focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
+                onClick={() => onOpenOverrideDialog(row)}
+                aria-label={'Override scale for ' + row.attachmentName}
+                className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg hover:bg-accent/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Override Scale
               </button>
