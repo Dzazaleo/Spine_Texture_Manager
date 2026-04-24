@@ -295,3 +295,84 @@ describe('export — module hygiene (N2.3, Phase 6 Layer 3 lock)', () => {
     expect(src).toMatch(/export\s+function\s+buildExportPlan/);
   });
 });
+
+/**
+ * Plan 06-03 Task 2 — parity describe block locking the canonical
+ * src/core/export.ts ↔ renderer-side src/renderer/src/lib/export-view.ts
+ * inline-copy invariant (Phase 4 D-75 precedent at
+ * tests/core/overrides.spec.ts:155-194).
+ *
+ * The renderer cannot import src/core/* per the Layer 3 arch grep
+ * (tests/arch.spec.ts:19-34); AppShell.tsx (Plan 06-06) needs to call
+ * buildExportPlan client-side from local `summary` + `overrides` Map per
+ * RESEARCH §Open Question 1 = Option A renderer-side build. The renderer
+ * gets a byte-identical inline copy at src/renderer/src/lib/export-view.ts
+ * — this block asserts the two copies stay locked.
+ */
+const VIEW_SRC = path.resolve('src/renderer/src/lib/export-view.ts');
+
+describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', () => {
+  it('renderer view exports buildExportPlan by name', () => {
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    expect(viewText).toMatch(/export\s+function\s+buildExportPlan/);
+  });
+
+  it('renderer copy has ZERO imports from src/core/* (Layer 3 invariant)', () => {
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    expect(viewText).not.toMatch(/from ['"][^'"]*\/core\/|from ['"]@core/);
+  });
+
+  it('renderer copy uses sibling overrides-view.js for applyOverride (NOT core/overrides.js)', () => {
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    expect(viewText).toMatch(/from ['"]\.\/overrides-view\.js['"]/);
+  });
+
+  it('both files share the same fold-key signature', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /const\s+bySourcePath\s*=\s*new\s+Map/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
+  it('both files share the same Math.round uniform sizing pattern', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /Math\.round\([^)]*sourceW\s*\*/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
+  it('renderer view buildExportPlan produces IDENTICAL ExportPlan to canonical for representative inputs', async () => {
+    // Dynamic-import the renderer copy via its file path so the test executes
+    // in node (no DOM needed; renderer copy has zero DOM deps).
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+
+    // Build a real summary from SIMPLE_TEST then synthesize sourcePath like
+    // the case (a)-(e) tests above (Plan 06-02 D-101 path-only field).
+    const load = loadSkeleton(FIXTURE_BASELINE);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const unused = findUnusedAttachments(load, sampled);
+    const summary = {
+      peaks: peaks.map((r) => ({
+        ...r,
+        sourcePath: '/fake/' + r.attachmentName + '.png',
+      })),
+      unusedAttachments: unused,
+    } as unknown as SkeletonSummary;
+
+    const cases: Array<[string, ReadonlyMap<string, number>]> = [
+      ['no overrides (baseline)', new Map()],
+      ['override 50% TRIANGLE', new Map([['TRIANGLE', 50]])],
+      ['override 200% SQUARE (clamps to 100)', new Map([['SQUARE', 200]])],
+      ['multiple overrides', new Map([['CIRCLE', 75], ['TRIANGLE', 30]])],
+    ];
+    for (const [label, ov] of cases) {
+      const corePlan = buildExportPlan(summary, ov);
+      const viewPlan = buildExportPlanView(summary, ov);
+      expect(viewPlan, label).toEqual(corePlan);
+    }
+  });
+});
