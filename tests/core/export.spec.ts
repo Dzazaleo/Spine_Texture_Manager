@@ -31,8 +31,8 @@ import { analyze } from '../../src/core/analyzer.js';
 import { findUnusedAttachments } from '../../src/core/usage.js';
 // RED import — Plan 06-03 introduces buildExportPlan in src/core/export.ts.
 import { buildExportPlan } from '../../src/core/export.js';
-// RED imports — Plan 06-02 introduces these types in src/shared/types.ts.
-import type { ExportPlan, ExportRow, SkeletonSummary } from '../../src/shared/types.js';
+// Plan 06-02 introduces these types in src/shared/types.ts.
+import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
 
 const FIXTURE_BASELINE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const FIXTURE_GHOST = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST_GHOST.json');
@@ -211,7 +211,12 @@ describe('buildExportPlan — case (f) Math.round half-rounding (D-110)', () => 
     expect(Math.round(127.5)).toBe(128);
     expect(Math.round(127.4)).toBe(127);
     expect(Math.round(0.5)).toBe(1);
-    expect(Math.round(-0.5)).toBe(0); // round-half-toward-positive-infinity for negatives
+    // round-half-toward-positive-infinity for negatives. Math.round(-0.5)
+    // returns -0 in V8 (per ECMA-262); use Object.is-tolerant equality so
+    // -0 and +0 both satisfy "rounded to zero" for the D-110 contract intent.
+    // outW/outH callers Math.round positive products only (sourceW/H >= 0,
+    // effectiveScale > 0), so -0 is unreachable in production paths.
+    expect(Math.abs(Math.round(-0.5))).toBe(0);
   });
 
   it('synthetic peakScale yielding an exact .5 boundary rounds up', () => {
