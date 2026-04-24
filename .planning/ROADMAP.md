@@ -129,6 +129,14 @@ Plans:
 
 **Requirement coverage:** F5.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Core overrides module (src/core/overrides.ts pure-TS clamp + applyOverride math) + Layer 3 renderer-side inline copy (src/renderer/src/lib/overrides-view.ts) + tests/core/overrides.spec.ts (behavior + hygiene + core↔renderer parity). Resolves pattern-mapper flag 1 (Layer 3 core/↛renderer boundary) via option 1 (inline duplicate with grep-verified parity). Wave 1, autonomous.
+- [ ] 04-02-PLAN.md — AppShell extension (overrides Map + dialogState + three callbacks) + new src/renderer/src/modals/OverrideDialog.tsx (hand-rolled ARIA modal with integer input, silent clamp on Apply, Reset/Cancel/Apply buttons, ESC + overlay + focus management) + panel Props-interface extensions (optional overrides + onOpenOverrideDialog). Wave 2, autonomous, depends on 04-01.
+- [ ] 04-03-PLAN.md — Panel wiring: Scale + Peak W×H override badges on both GlobalMaxRenderPanel (with batch mode via selection + effective-scale sort comparator) and AnimationBreakdownPanel (per-row only, unlocked D-69 Override Scale button, kept chip styling). Closes pattern-mapper flags 2 (event propagation) + 3 (sort comparator) + 4 (types.ts discretion option A). Includes primary Phase 4 STRIDE threat model. Wave 3, has human-verify checkpoint, depends on 04-01 + 04-02.
+
+
 ---
 
 ## Phase 5: Unused attachment detection
