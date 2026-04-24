@@ -81,3 +81,34 @@ describe('Main-bundle invariant: main must be CJS (Node 24 ESM loader cannot des
     expect(mainBlock, 'main entryFileNames must end in .cjs').toMatch(/\[name\]\.cjs/);
   });
 });
+
+describe('GlobalMaxRenderPanel batch-scope invariant (04-03 gap-fix A regression guard)', () => {
+  // Locks the attachmentKey → attachmentName conversion at the batch override
+  // invocation site. Human-verify 2026-04-24 surfaced that passing raw
+  // `selected` (attachmentKey strings) to onOpenOverrideDialog silently
+  // collapses batch scope to the clicked row because AppShell's scope check
+  // uses `selectedKeys.has(row.attachmentName)`. The fix introduces a named
+  // intermediate `selectedAttachmentNames`; this spec grep-anchors that
+  // contract so a regression fails CI immediately.
+  const SRC = readFileSync('src/renderer/src/panels/GlobalMaxRenderPanel.tsx', 'utf8');
+
+  it('does not pass the raw attachmentKey selection set to onOpenOverrideDialog', () => {
+    // Forbid passing the `selected` state directly as the selectedKeys prop
+    // for the Row, because that set contains attachmentKey values not
+    // attachmentName values. (The Row's onDoubleClick hands the set to
+    // onOpenOverrideDialog unchanged.)
+    expect(SRC, 'GlobalMaxRenderPanel must NOT pass raw `selected` (attachmentKey set) as selectedKeys').not.toMatch(
+      /selectedKeys=\{selected\}/,
+    );
+  });
+
+  it('uses a named intermediate attachmentName set for the outbound contract', () => {
+    // Lock the conversion helper name so the grep has a stable anchor.
+    expect(SRC, 'GlobalMaxRenderPanel must declare selectedAttachmentNames intermediate').toMatch(
+      /selectedAttachmentNames/,
+    );
+    expect(SRC, 'Row must receive selectedAttachmentNames, not raw selected').toMatch(
+      /selectedKeys=\{selectedAttachmentNames\}/,
+    );
+  });
+});
