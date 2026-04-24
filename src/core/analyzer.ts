@@ -62,7 +62,7 @@ import { boneChainPath } from './bones.js';
  */
 const BONE_PATH_SEPARATOR = ' → ';
 
-function toDisplayRow(p: PeakRecord): DisplayRow {
+function toDisplayRow(p: PeakRecord, sourcePath: string = ''): DisplayRow {
   return {
     // raw fields (sort + selection in the panel; CLI reads these directly)
     attachmentKey: p.attachmentKey,
@@ -86,6 +86,10 @@ function toDisplayRow(p: PeakRecord): DisplayRow {
     scaleLabel: `${p.peakScale.toFixed(3)}×`,
     sourceLabel: p.animationName,
     frameLabel: String(p.frame),
+    // Phase 6 Plan 02 (D-108 + RESEARCH §Pattern 2) — absolute path to source
+    // PNG; empty string when analyzer is invoked without a sourcePaths map
+    // (CLI path, D-102 lock).
+    sourcePath,
   };
 }
 
@@ -132,9 +136,20 @@ function dedupByAttachmentName<T extends DisplayRow>(rows: readonly T[]): T[] {
  * Fold the sampler's peaks map into a sorted DisplayRow[] with preformatted
  * labels. Dedups by attachmentName (one row per unique texture). Pure,
  * deterministic, zero-I/O.
+ *
+ * Phase 6 Plan 02: optional `sourcePaths` argument (Map<regionName, absPath>
+ * from `LoadResult.sourcePaths`) threads the source PNG path into every
+ * DisplayRow.sourcePath. When omitted, sourcePath defaults to '' on every
+ * row — preserves the Phase 5 D-102 byte-for-byte CLI lock (`scripts/cli.ts`
+ * does not read sourcePath).
  */
-export function analyze(peaks: Map<string, PeakRecord>): DisplayRow[] {
-  const allRows = [...peaks.values()].map(toDisplayRow);
+export function analyze(
+  peaks: Map<string, PeakRecord>,
+  sourcePaths?: ReadonlyMap<string, string>,
+): DisplayRow[] {
+  const allRows = [...peaks.values()].map((p) =>
+    toDisplayRow(p, sourcePaths?.get(p.attachmentName) ?? ''),
+  );
   return dedupByAttachmentName(allRows).sort(byCliContract);
 }
 
@@ -153,6 +168,7 @@ function toBreakdownRow(
   p: PeakRecord,
   slot: Slot | undefined,
   isSetup: boolean,
+  sourcePath: string = '',
 ): BreakdownRow {
   const bonePath =
     slot !== undefined
@@ -182,6 +198,8 @@ function toBreakdownRow(
     sourceLabel: p.animationName,
     // D-57: em-dash (U+2014) for setup-pose rows, String(frame) for animation rows.
     frameLabel: isSetup ? '—' : String(p.frame),
+    // Phase 6 Plan 02 — absolute source PNG path (BreakdownRow extends DisplayRow).
+    sourcePath,
     // Phase 3 additions (D-67, F4.3):
     bonePath,
     bonePathLabel: bonePath.join(BONE_PATH_SEPARATOR),
@@ -211,16 +229,21 @@ export function analyzeBreakdown(
   setupPosePeaks: Map<string, PeakRecord>,
   skeletonData: SkeletonData,
   skeletonSlots: readonly Slot[],
+  sourcePaths?: ReadonlyMap<string, string>,
 ): AnimationBreakdown[] {
   const findSlot = (name: string): Slot | undefined =>
     skeletonSlots.find((s) => s.data.name === name);
+  // Phase 6 Plan 02 — resolve a row's sourcePath by attachmentName lookup;
+  // empty string when sourcePaths is undefined (preserves legacy callers).
+  const resolveSourcePath = (rec: PeakRecord): string =>
+    sourcePaths?.get(rec.attachmentName) ?? '';
 
   const cards: AnimationBreakdown[] = [];
 
   // 1. Setup Pose top card (D-60). Every textured attachment gets a row;
   //    dedupe by attachmentName per D-56; sort Scale DESC per D-59.
   const setupRows = [...setupPosePeaks.values()].map((rec) =>
-    toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ true),
+    toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ true, resolveSourcePath(rec)),
   );
   const setupDeduped = dedupByAttachmentName<BreakdownRow>(setupRows);
   setupDeduped.sort((a, b) => b.peakScale - a.peakScale);
@@ -240,7 +263,7 @@ export function analyzeBreakdown(
   const rowsByAnim = new Map<string, BreakdownRow[]>();
   for (const rec of perAnimation.values()) {
     const bucket = rowsByAnim.get(rec.animationName);
-    const row = toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ false);
+    const row = toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ false, resolveSourcePath(rec));
     if (bucket === undefined) rowsByAnim.set(rec.animationName, [row]);
     else bucket.push(row);
   }

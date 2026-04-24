@@ -172,6 +172,20 @@ export function loadSkeleton(
     });
   }
 
+  // Phase 6 Plan 02 — sourcePaths map (D-108 + RESEARCH §Pattern 2).
+  // Resolves each atlas region name to its source PNG path under the
+  // sibling `images/` folder. Path-only — no fs.access (Phase 6 image-worker
+  // pre-flights). Region names may contain '/' (e.g. 'AVATAR/FACE'); the
+  // resulting path keeps the subfolder structure intact for F8.3.
+  // path.resolve(...) wraps path.join(...) so values are absolute regardless
+  // of whether `skeletonPath` was provided as relative or absolute (mirrors
+  // the `path.resolve(skeletonPath)` used for the returned skeletonPath).
+  const imagesDir = path.join(path.dirname(skeletonPath), 'images');
+  const sourcePaths = new Map<string, string>();
+  for (const region of atlas.regions) {
+    sourcePaths.set(region.name, path.resolve(path.join(imagesDir, region.name + '.png')));
+  }
+
   // Editor dopesheet FPS for DISPLAY purposes (CLI Frame column). spine-core
   // only populates `skeletonData.fps` when the JSON has a top-level `fps`
   // field (SkeletonJson.js:73). Spine's editor default is 30 — fall back to
@@ -185,6 +199,7 @@ export function loadSkeleton(
     skeletonData,
     atlas,
     sourceDims,
+    sourcePaths,
     editorFps,
   };
 }

@@ -45,6 +45,21 @@ export interface LoadResult {
    */
   sourceDims: Map<string, SourceDims>;
   /**
+   * Phase 6 Plan 02 (D-108 + RESEARCH §Pattern 2) — Map from atlas region
+   * name → absolute path to the source PNG on disk. Resolved at load time
+   * via `path.resolve(path.join(path.dirname(skeletonPath), 'images', region.name + '.png'))`.
+   *
+   * NO `fs.access` is performed here — files may legitimately not exist
+   * yet (SIMPLE_PROJECT has no images/ folder). Pre-flight in
+   * src/main/image-worker.ts surfaces missing files as 'missing-source'
+   * progress events per D-112.
+   *
+   * Region names with '/' (subfolder paths) produce subfolder source paths
+   * — `images/AVATAR/FACE.png` for region `AVATAR/FACE`. F8.3 directory
+   * structure preservation depends on this.
+   */
+  sourcePaths: Map<string, string>;
+  /**
    * Editor dopesheet FPS (from `skeleton.fps` in the JSON, default 30 —
    * Spine's own editor default when the field is omitted). DISPLAY-ONLY:
    * drives the `frame` column so animators can cross-reference their

@@ -48,6 +48,15 @@ export interface DisplayRow {
   scaleLabel: string;
   sourceLabel: string;
   frameLabel: string;
+  /**
+   * Phase 6 Plan 02 (D-108 + RESEARCH §Pattern 2) — Absolute path to the
+   * source PNG on disk for this attachment's atlas region. Resolved by
+   * `src/core/loader.ts` via the `<skeletonDir>/images/<regionName>.png`
+   * convention. Empty string when the analyzer is invoked without a
+   * sourcePaths map (e.g. scripts/cli.ts — Phase 5 D-102 byte-for-byte
+   * lock; CLI does not need source paths).
+   */
+  sourcePath: string;
 }
 
 /**
