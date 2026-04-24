@@ -2,8 +2,8 @@
 phase: 05-unused-attachment-detection
 plan: 04
 subsystem: validation
-tags: [regression-sweep, cli-lock, validation-signoff, human-verify, phase-5, partial]
-status: partial-at-checkpoint
+tags: [regression-sweep, cli-lock, validation-signoff, human-verify, phase-5]
+status: complete
 
 # Dependency graph
 requires:
@@ -19,7 +19,7 @@ requires:
 provides:
   - ".planning/phases/05-unused-attachment-detection/05-VALIDATION.md populated per-task map + signed-off frontmatter (nyquist_compliant: true, wave_0_complete: true, status: signed-off)."
   - "Automated exit-criteria sweep verdict recorded for /gsd-verify-work 5."
-  - "Pending: checkpoint:human-verify sign-off on SIMPLE_TEST.json + SIMPLE_TEST_GHOST.json drops."
+  - "Human-verify checkpoint: APPROVED on 2026-04-24 by user — all 6 verifications passed (clean rig → empty, GHOST rig → section with GHOST 64×64 row, SearchBar filter behavior, clean return, CLI byte-compare semantic parity, arch 8/8 green)."
 affects: [phase-5 close]
 
 # Tech tracking
@@ -39,19 +39,21 @@ key-decisions:
   - "Treat the CLI `Sampled in N.N ms` timing line as non-deterministic metadata rather than as part of the byte-for-byte assertion. Phase 5 output delta was 23.9 ms -> 23.5 ms (0.4ms wall-clock drift across runs, unrelated to any code change). Every data row and every table header is byte-identical; scripts/cli.ts is byte-unchanged. The semantic D-102 lock (CLI content shape frozen since Phase 2) is satisfied."
   - "Accept the pre-existing scripts/probe-per-anim.ts TS2339 error as deferred (documented in .planning/phases/04-scale-overrides/deferred-items.md). The file is not imported by test/cli/build; it's an ad-hoc probe script that lagged the SamplerOutput shape evolution. Not Phase 5's regression — confirmed pre-existing at HEAD before this plan."
 
-# Metrics (partial — will update post-checkpoint)
-duration_so_far: ~8min
+# Metrics
+duration: ~8min (automated gates) + human-verify window
 started: 2026-04-24T20:08:00Z
 paused_at_checkpoint: 2026-04-24T20:14:00Z
+checkpoint_approved: 2026-04-24
+ended: 2026-04-24
 ---
 
-# Phase 5 Plan 04: Regression Sweep + CLI Byte-Compare + VALIDATION Signoff + Human-Verify (partial, at checkpoint)
+# Phase 5 Plan 04: Regression Sweep + CLI Byte-Compare + VALIDATION Signoff + Human-Verify
 
-**Tasks 1 + 2 complete: automated exit-criteria sweep green, VALIDATION.md populated and flipped to signed-off. Task 3 (checkpoint:human-verify) is pending user sign-off on SIMPLE_TEST + SIMPLE_TEST_GHOST drops.**
+**All 3 tasks complete. Automated exit-criteria sweep green, VALIDATION.md populated and flipped to signed-off, human-verify checkpoint APPROVED by user 2026-04-24.**
 
 ## Status
 
-**Partial SUMMARY — paused at checkpoint.** A continuation agent will complete this file after the user approves (or gap-fixes) Task 3.
+**Complete.** All 6 human-verify checks passed on user sign-off.
 
 ## Task 1 — Automated Exit-Criteria Sweep (COMPLETE, no commit; verification-only)
 
@@ -158,16 +160,25 @@ Grep verification passes:
 
 Preserved unchanged: Test Infrastructure table, Sampling Rate section, Manual-Only Verifications table.
 
-## Task 3 — Human-Verify Checkpoint (PENDING)
+## Task 3 — Human-Verify Checkpoint (COMPLETE — APPROVED 2026-04-24)
 
-**Status: paused here for user sign-off.** See the structured checkpoint message returned to the orchestrator for the six verifications the user must walk through (drop SIMPLE_TEST.json clean check → drop SIMPLE_TEST_GHOST.json section-renders check → visual red-scope audit → SearchBar filter integration across both tables → CLI byte-for-byte sanity → live arch-gate run).
+**User sign-off: APPROVED.** All 6 verifications passed on live SIMPLE_TEST and SIMPLE_TEST_GHOST drops:
 
-A continuation agent will append the checkpoint outcome (approved or gap-fix-then-approved) here once the user responds.
+1. **Clean rig (SIMPLE_TEST.json):** NO unused section rendered; peak table flush under SearchBar. ✅
+2. **Ghost rig (SIMPLE_TEST_GHOST.json):** `⚠ 1 unused attachment` header in `--color-danger` (#e06b55); body row `GHOST | 64×64 | default` with U+00D7 multiplication sign; red scope header-only; `⚠` glyph renders cleanly in JetBrains Mono (no Pitfall 9 swap needed); layout-shift signal visible (D-106). ✅
+3. **SearchBar filter (D-107):** `GHO` → peak table empty, GHOST row visible; `CIRC` → peak shows CIRCLE, unused shows `(no matches)` placeholder (Pitfall 6 chrome-visible policy); clear → both sections restore. ✅
+4. **Clean return:** Dropping SIMPLE_TEST.json again removes the unused section entirely; layout returns to pre-GHOST state. ✅
+5. **CLI byte-for-byte (D-102):** `diff /tmp/cli-phase5-plan02-baseline.txt /tmp/cli-phase5-final.txt` → only timing-line delta; no "unused" anywhere in CLI output. ✅
+6. **Arch gates live run:** `npm run test -- tests/arch.spec.ts` → 8/8 describes green. ✅
 
-## Commit log so far
+**Verdict: Phase 5 F6.1 (detector) + F6.2 (UI) shipped.** No gap-fixes required.
+
+## Commit log
 
 - `70627ef docs(05-04): populate VALIDATION.md per-task map + signed-off frontmatter` — Task 2.
-- `<pending>` docs(05-04): complete Plan 04 summary — this file after human-verify.
+- `ba264db docs(05-04): add partial SUMMARY.md at human-verify checkpoint` — paused for user sign-off.
+- `0a4b4fd chore: merge executor worktree (worktree-agent-a5d87631)` — orchestrator merged Wave 4 worktree after checkpoint approval.
+- `<pending>` docs(05-04): finalize SUMMARY after checkpoint approval — this commit.
 
 ## Deviations from Plan (Tasks 1 + 2)
 
@@ -194,20 +205,24 @@ No regression. Phase 5 total: +12 green tests on top of the 116+1 pre-Phase-5 ba
 - **T-05-04-02 (Tampering / Arch boundary regression):** Task 1 Step 2 confirms 8/8 describes green in `tests/arch.spec.ts`. Task 3 will re-run live before sign-off.
 - **T-05-04-03 (DoS / Build pipeline):** Accepted — `npx electron-vite build` is the existing Phase 1 target; Plan 04 adds no new build concerns.
 
-## Self-Check (partial — will re-run at plan close)
+## Self-Check
 
 Files modified verification:
-- `.planning/phases/05-unused-attachment-detection/05-VALIDATION.md` — FOUND (modified, `status: signed-off` + 11 per-task rows + 9 checked boxes all present)
-- `.planning/phases/05-unused-attachment-detection/05-04-SUMMARY.md` — FOUND (this file, partial)
+- `.planning/phases/05-unused-attachment-detection/05-VALIDATION.md` — FOUND (`status: signed-off`, 11 per-task rows, all checkboxes checked).
+- `.planning/phases/05-unused-attachment-detection/05-04-SUMMARY.md` — FOUND (this file, complete).
 
 Commits verification:
-- `70627ef docs(05-04): populate VALIDATION.md per-task map + signed-off frontmatter` — will verify in `git log --oneline -2` after this file's own commit lands.
+- `70627ef` — Task 2 VALIDATION.md signoff.
+- `ba264db` — partial SUMMARY at checkpoint.
+- `0a4b4fd` — orchestrator merge of worktree branch after approval.
 
-## Self-Check: PARTIAL (pending Task 3)
+Human-verify checkpoint: APPROVED 2026-04-24 by user — all 6 verifications passed as specified.
+
+## Self-Check: PASSED
 
 ---
 
 *Phase: 05-unused-attachment-detection*
 *Plan: 04*
-*Status: partial — paused at checkpoint:human-verify (Task 3)*
-*Paused: 2026-04-24*
+*Status: complete — human-verify approved*
+*Completed: 2026-04-24*
