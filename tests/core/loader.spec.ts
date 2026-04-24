@@ -112,3 +112,32 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
     }
   });
 });
+
+describe('loader: sourcePaths map (Phase 6 Plan 02, F8.3, D-108)', () => {
+  it('SIMPLE_TEST → sourcePaths includes all atlas regions mapped to <skeletonDir>/images/<regionName>.png', () => {
+    const r = loadSkeleton(FIXTURE);
+    // SIMPLE_TEST atlas declares 3 regions (CIRCLE, SQUARE, TRIANGLE).
+    expect(r.sourcePaths.size).toBeGreaterThanOrEqual(3);
+    expect(r.sourcePaths.has('CIRCLE')).toBe(true);
+    expect(r.sourcePaths.has('SQUARE')).toBe(true);
+    expect(r.sourcePaths.has('TRIANGLE')).toBe(true);
+    const circlePath = r.sourcePaths.get('CIRCLE')!;
+    // Path-only: SIMPLE_PROJECT has no images/ folder; we still build the
+    // expected target without fs.access. Accept either POSIX or Windows
+    // separator forms.
+    const matchesPosix = circlePath.endsWith('/images/CIRCLE.png');
+    const matchesWindows = circlePath.endsWith('\\images\\CIRCLE.png');
+    expect(matchesPosix || matchesWindows).toBe(true);
+    expect(path.isAbsolute(circlePath)).toBe(true);
+  });
+
+  it('EXPORT_PROJECT → sourcePaths point to FILES THAT EXIST (Plan 06-01 fixture)', () => {
+    const r = loadSkeleton(path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json'));
+    // EXPORT.atlas declares 4 regions (CIRCLE, SQUARE, SQUARE2, TRIANGLE),
+    // each backed by a real source PNG under fixtures/EXPORT_PROJECT/images/.
+    expect(r.sourcePaths.size).toBe(4);
+    for (const [name, p] of r.sourcePaths) {
+      expect(fs.existsSync(p), `expected ${p} to exist for region ${name}`).toBe(true);
+    }
+  });
+});
