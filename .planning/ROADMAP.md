@@ -179,18 +179,47 @@ Plans:
 
 **Depends on:** Phase 5 green.
 
+**Goal:** Per-attachment image export via sharp Lanczos3 (F8 + N3). Reads peaks + overrides + unused list already computed in Phases 0-5; resizes each source PNG via `sharp` Lanczos3 with PNG compression level 9 + alpha preserved; writes optimized images to a user-chosen output directory while preserving the source `images/` directory layout. Ships `src/core/export.ts` (pure-TS plan builder), `src/main/image-worker.ts` (sharp loop with atomic write + cooperative cancel + skip-on-error), `src/renderer/src/modals/OptimizeDialog.tsx` (hand-rolled ARIA modal cloning Phase 4 D-81), AppShell toolbar button entry, and one-way IPC progress channel. Adds `sharp` as the first native binary dependency. Sampler stays LOCKED. CLI stays byte-for-byte unchanged (D-102).
+
 **Deliverables:**
-- `src/core/export.ts` — build export plan from peaks + overrides.
-- `src/main/image-worker.ts` — sharp Lanczos3 resize per asset.
-- `src/renderer/modals/OptimizeDialog.tsx` — folder picker + progress UI.
-- IPC wiring for progress events.
+- `src/core/export.ts` — pure-TS plan builder (D-108..D-111: per-sourcePath dedup, unused exclusion, Math.round uniform sizing, applyOverride or peakScale fallback).
+- `src/renderer/src/lib/export-view.ts` — Layer 3 inline-copy of buildExportPlan (Phase 4 D-75 precedent; AppShell builds plan client-side).
+- `src/main/image-worker.ts` — sequential sharp Lanczos3 resize per ExportRow (D-114) with pre-flight fs.access (D-112), path-traversal defense, atomic `<outPath>.tmp` → `fs.rename` write (D-121), cooperative cancel between files (D-115), skip-on-error per-file (D-116).
+- `src/main/ipc.ts` — `'export:start'` (request/response), `'export:cancel'` (one-way), `'export:progress'` (one-way `webContents.send`), `'dialog:pick-output-dir'`, `'shell:open-folder'`. Re-entrancy guard + outDir validation (D-122 / F8.4).
+- `src/preload/index.ts` — contextBridge api extended with pickOutputDirectory + startExport + cancelExport + onExportProgress + openOutputFolder; unsubscribe identity preserved (Pitfall 9).
+- `src/renderer/src/modals/OptimizeDialog.tsx` — hand-rolled ARIA modal cloning OverrideDialog scaffold; pre-flight + in-progress + complete state machine; per-file checklist with --color-danger error rows (Phase 5 D-104 token reuse).
+- `src/renderer/src/components/AppShell.tsx` — Optimize Assets toolbar button (D-117, right-aligned next to filename chip, disabled when no peaks or export in flight); two-step click handler (picker → buildExportPlan → mount dialog).
+- `package.json` — sharp ^0.34.5 added to `dependencies` (NOT devDependencies); `electron-builder.yml` asarUnpack extended with BOTH `**/node_modules/sharp/**/*` AND `**/node_modules/@img/**/*` globs (D-123 / N4.2 / Pitfall 1).
+- `fixtures/EXPORT_PROJECT/` — dedicated export fixture (atlas + JSON + 4 source PNGs) for image-worker integration tests.
+- `tests/core/export.spec.ts` — 7 cases (a-g) including parity describe block; hygiene grep block for Layer 3.
+- `tests/main/image-worker.spec.ts` — 6 cases (a-f) against mocked sharp + node:fs/promises.
+- `tests/main/image-worker.integration.spec.ts` — 1 real-bytes end-to-end test against EXPORT_PROJECT fixture.
+- `tests/main/ipc-export.spec.ts` — F8.1 picker behavior + D-115 re-entrancy + D-122 outDir validation tests.
+- `tests/arch.spec.ts` — extended with Layer 3 src/core ↛ sharp/node:fs grep (loader.ts name-exempted).
+- `src/core/loader.ts` + `src/core/types.ts` + `src/core/analyzer.ts` + `src/main/summary.ts` + `src/shared/types.ts` — `sourcePath` plumbing (D-108 dedup key threaded loader → DisplayRow); 6 new IPC interfaces (ExportRow, ExportPlan, ExportError, ExportProgressEvent, ExportSummary, ExportResponse) + Api extension.
 
 **Exit criteria:**
 - Exported `<out>/images/CIRCLE.png` matches target dims exactly.
-- Visual spot-check vs manual Photoshop Lanczos shows no perceptible difference.
-- Original files untouched.
+- Visual spot-check vs manual Photoshop Lanczos shows no perceptible difference (N3.2 — human-verify gate).
+- Original files untouched (F8.4 — verified by D-121 atomic write to outDir + D-122 outDir prefix check).
+- Packaged `.dmg` loads sharp without `Cannot find module` errors at first export attempt (N4.2 + D-123 + Pitfall 1 — human-verify gate).
+- `npm run test` full suite green (116 baseline + new export/image-worker/ipc-export tests all GREEN).
+- `git diff scripts/cli.ts` + `git diff src/core/sampler.ts` both empty (D-102 + CLAUDE.md rule #3 locks).
+- arch.spec.ts both Layer 3 invariants intact: renderer ↛ core AND core ↛ sharp/node:fs (loader.ts exempted).
+- `npx electron-vite build` succeeds; `npm run build` produces .dmg in 140-200 MB range.
 
-**Requirement coverage:** F8, N3.
+**Requirement coverage:** F8.1, F8.2, F8.3, F8.4, F8.5, N3.1, N3.2, N4.2.
+
+**Plans:** 7 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Wave 0 scaffolding: install sharp@^0.34.5 in dependencies; extend electron-builder.yml asarUnpack with BOTH `sharp/**/*` and `@img/**/*` globs (Pitfall 1); create fixtures/EXPORT_PROJECT/ with atlas + JSON + 4 real source PNGs (matching atlas-declared originalWidth/Height); author RED test shells for tests/core/export.spec.ts (cases a-g + hygiene), tests/main/image-worker.spec.ts (cases a-f), tests/main/ipc-export.spec.ts (F8.1 + D-115 + D-122); extend tests/arch.spec.ts with src/core ↛ sharp/node:fs Layer 3 grep (loader.ts name-exempted). Wave 1, autonomous, depends_on [].
+- [ ] 06-02-PLAN.md — Wave 1 data plumbing: extend LoadResult.sourcePaths in src/core/loader.ts (path.join(skeletonDir/images, regionName + '.png') per atlas region); add sourcePath: string field to DisplayRow in src/shared/types.ts (and BreakdownRow inheritance); thread sourcePaths through src/core/analyzer.ts analyze + analyzeBreakdown signatures; wire src/main/summary.ts to pass load.sourcePaths into both calls; add 6 new IPC interfaces (ExportRow, ExportPlan, ExportError, ExportProgressEvent, ExportSummary, ExportResponse) + Api extension with 5 new methods to src/shared/types.ts; lock sourcePath contract in tests/core/{loader,analyzer,summary}.spec.ts. Wave 2, autonomous, depends_on [06-01].
+- [ ] 06-03-PLAN.md — Wave 2 (parallel with 06-04): pure-TS buildExportPlan in src/core/export.ts (D-108 per-sourcePath dedup with max(effectiveScale), D-109 unused exclusion via summary.unusedAttachments, D-110 Math.round uniform on both axes, D-111 applyOverride-or-peakScale resolution); renderer-side byte-identical inline copy at src/renderer/src/lib/export-view.ts (Phase 4 D-75 precedent); drive tests/core/export.spec.ts cases (a)-(g) GREEN + add parity describe block locking the two copies against drift. Wave 3, autonomous, depends_on [06-01, 06-02].
+- [ ] 06-04-PLAN.md — Wave 2 (parallel with 06-03): src/main/image-worker.ts exporting runExport(plan, outDir, onProgress, isCancelled). 7-phase per-row pipeline: pre-flight fs.access (D-112) → path-traversal defense → NaN/zero-dim guard → fs.mkdir parent (recursive) → sharp(srcPath).resize(W, H, { kernel: 'lanczos3', fit: 'fill' }).png({ compressionLevel: 9 }).toFile(<outPath>.tmp) → fs.rename(<tmp>, <outPath>) → emit progress event with absolute outPath. Sequential (D-114), cooperative cancel between files (D-115), skip-on-error continuation (D-116). Drive tests/main/image-worker.spec.ts cases (a)-(f) GREEN against mocked sharp + node:fs/promises; add tests/main/image-worker.integration.spec.ts real-bytes case (CIRCLE.png 64×64 → 32×32). Wave 3, autonomous, depends_on [06-01, 06-02].
+- [ ] 06-05-PLAN.md — Wave 4 IPC + preload glue: src/main/ipc.ts gains handleStartExport + handlePickOutputDirectory extracted handlers (Phase 1 D-10 discipline) + module-level exportInFlight + exportCancelFlag flags + isOutDirInsideSourceImages helper + validateExportPlan trust-boundary input check. Re-entrancy guard returns kind:'already-running' (D-115); outDir-equals-or-child-of-source/images returns kind:'invalid-out-dir' (D-122 / F8.4). registerIpcHandlers wires 4 new channels: 'dialog:pick-output-dir' (invoke), 'export:start' (invoke), 'export:cancel' (one-way send), 'shell:open-folder' (one-way send). src/preload/index.ts extends contextBridge api with 5 new methods preserving sandbox discipline (only 'electron' import); onExportProgress unsubscribe pattern captures wrapped const for listener identity (Pitfall 9). Drives tests/main/ipc-export.spec.ts cases GREEN. Wave 4, autonomous, depends_on [06-02, 06-03, 06-04].
+- [ ] 06-06-PLAN.md — Wave 5 renderer UI: src/renderer/src/modals/OptimizeDialog.tsx hand-rolled ARIA modal cloning OverrideDialog scaffold (D-81 inheritance) with three-state machine: pre-flight (file list + Start/Cancel) → in-progress (linear bar + per-file checklist + Cancel) → complete (summary line + Open output folder + Close). ESC + click-outside close in pre-flight + complete states ONLY (NOT in-progress). Subscribe to api.onExportProgress in useEffect with cleanup via returned unsubscribe (Pitfall 9 + 15). Status icons via clsx with literal class branches (Tailwind v4 Pitfall 8); error rows render --color-danger (Phase 5 D-104 token). src/renderer/src/components/AppShell.tsx extended with persistent "Optimize Assets" toolbar button right-aligned (D-117, ml-auto), disabled when peaks=0 or export in flight; two-step click handler (D-118): pickOutputDirectory(<skeletonDir>/images-optimized/) → buildExportPlan(summary, overrides) from lib/export-view.js → mount OptimizeDialog. Layer 3 invariant: renderer NEVER imports core/* — uses lib/export-view.js (Phase 4 D-75 precedent). Wave 5, autonomous, depends_on [06-03, 06-05].
+- [ ] 06-07-PLAN.md — Wave 6 close-out: automated exit-criteria sweep (full vitest, typecheck, electron-vite build, locked-file diffs scripts/cli.ts + src/core/sampler.ts, npm audit on sharp HIGH+); produce packaged .dmg via npm run build; populate 06-VALIDATION.md per-task map (15 rows); flip frontmatter status:signed-off + nyquist_compliant + wave_0_complete; checkpoint:human-verify on 7 manual gates (Step 1 dev-mode end-to-end drop+optimize on EXPORT_PROJECT; Step 2 D-122 outDir validation rejection; Step 3 cancel UX during real export — large fixture; Step 4 ARIA keyboard sanity; Step 5 visual Lanczos3 N3.2 spot-check vs Photoshop on real fixture; Step 6 packaged .dmg sharp-load N4.2/D-123/Pitfall 1 — RELEASE BLOCKER if FAIL; Step 7 backward compat on SIMPLE_TEST + SIMPLE_TEST_GHOST). Advance STATE.md to Phase 6 COMPLETE; flip ROADMAP plan checkboxes; commit `docs(06): close Phase 6 after human-verify`. Wave 6, has checkpoint, depends_on [06-01, 06-02, 06-03, 06-04, 06-05, 06-06].
 
 ---
 
