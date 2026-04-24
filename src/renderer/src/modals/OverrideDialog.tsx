@@ -27,6 +27,13 @@
  *      body, input, and helper text; font-semibold (600) reserved for the
  *      primary Apply button. Weight 500 is forbidden project-wide.
  *
+ * Phase 4 Plan 03 gap-fix B (human-verify 2026-04-24): two reset buttons
+ * replace the single "Reset to 100%". "Reset to peak" (clear override)
+ * is visible only when anyOverridden; "Reset to source (100%)" (apply-100)
+ * is always visible. The helper text "Max = 100% (source dimensions)" is
+ * now literally true under the new applyOverride semantics. See
+ * 04-03-SUMMARY.md §Deviations for the full rationale.
+ *
  * Layer 3 invariant: this file imports only React + type-only React
  * keyboard-event typing. It never reaches into the pure-TS math tree —
  * the AppShell's onApply handler is the single place where the clamp
@@ -106,15 +113,27 @@ export function OverrideDialog(props: OverrideDialogProps) {
         </label>
         <p className="text-fg-muted text-xs mt-2">Max = 100% (source dimensions)</p>
         <div className="flex gap-2 mt-6 justify-end">
+          {/* Gap-fix B (human-verify 2026-04-24): two reset buttons replace the
+              single Reset. "Reset to peak" clears the override (visible only
+              when anyOverridden — nothing to clear otherwise). "Reset to
+              source (100%)" applies 100 — always visible as a valid target
+              action independent of current state. */}
           {props.anyOverridden && (
             <button
               type="button"
               onClick={props.onClear}
               className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
             >
-              Reset to 100%
+              Reset to peak
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => props.onApply(100)}
+            className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
+          >
+            Reset to source (100%)
+          </button>
           <button
             type="button"
             onClick={props.onCancel}
