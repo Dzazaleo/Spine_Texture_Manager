@@ -1,7 +1,7 @@
 ---
 phase: 6
 slug: optimize-assets-image-export
-status: draft
+status: planned
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-04-24
@@ -36,25 +36,41 @@ created: 2026-04-24
 
 ## Per-Task Verification Map
 
-> Filled by `gsd-planner` as plans 06-01-PLAN.md … 06-NN-PLAN.md are written. Each task's `<automated>` verification command lands in this table. The `Test Type` column maps to the dimension classes from RESEARCH.md §Validation Architecture: pure-unit, mocked-unit, integration, packaged-build, manual-visual, arch-grep.
+> Populated at planning time from plans 06-01 through 06-07. Each task's `<automated>` verification command is recorded below. Test Type maps to RESEARCH.md §Validation Architecture dimension classes: pure-unit, mocked-unit, integration, packaged-build, manual-visual, arch-grep, gate (composite mechanical check), glue (typecheck + build + grep). Status flips from `⬜ pending` to `✅ green` (or `❌ red` / `⚠️ flaky`) by Plan 06-07 Task 1 close-out.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| _to be filled by planner_ | | | | | | | | | |
+| 06-01-01 | 01 | 1 | N4.2 | T-06-06, T-06-07 | sharp@^0.34.5 in dependencies; asarUnpack covers both `sharp/**/*` and `@img/**/*` globs (packaged-build native-binary load) | gate | `node -e "..." (sharp dep check) && node -e "..." (asarUnpack glob check) && node -e "require('sharp')"` (Plan 06-01 T1 verify block) | ✅ | ⬜ pending |
+| 06-01-02 | 01 | 1 | F8.3 | T-06-01 | EXPORT_PROJECT fixture loadable; PNG dims match atlas-declared `originalWidth/Height` | gate | `test -f fixtures/EXPORT_PROJECT/EXPORT.json && test -f fixtures/EXPORT_PROJECT/EXPORT.atlas && test -f fixtures/EXPORT_PROJECT/images/{CIRCLE,SQUARE,SQUARE2,TRIANGLE}.png && node --input-type=module -e "import sharp ..." && head -1 fixtures/EXPORT_PROJECT/EXPORT.atlas \| grep -E "EXPORT.png"` | ✅ | ⬜ pending |
+| 06-01-03 | 01 | 1 | F8.2, F8.3, F8.4, F8.5, N3.1, N4.2 (RED scaffolding) | T-06-01, T-06-06 | RED test shells locked; arch.spec.ts Layer 3 grep extended with `src/core ↛ sharp/node:fs` (loader.ts exempt) | arch-grep | `test -f tests/core/export.spec.ts && test -f tests/main/image-worker.spec.ts && test -f tests/main/ipc-export.spec.ts && npm run test -- tests/arch.spec.ts` | ✅ | ⬜ pending |
+| 06-02-01 | 02 | 2 | F8.3 | T-06-01 (deferred to 06-04) | sourcePath threaded loader→DisplayRow→BreakdownRow; absolute paths; CLI byte-for-byte unchanged | pure-unit | `npm run test -- tests/core/loader.spec.ts tests/core/analyzer.spec.ts && npm run typecheck && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts && npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json \| grep -E "(CIRCLE\|SQUARE\|TRIANGLE)"` | ✅ | ⬜ pending |
+| 06-02-02 | 02 | 2 | F8.3 | T-06-08, T-06-09 (deferred to 06-05) | 6 IPC types declared (ExportRow/Plan/Error/ProgressEvent/Summary/Response); Api extended with 5 methods; structuredClone-safe (D-21) | pure-unit | `npm run test -- tests/core/summary.spec.ts && npm run typecheck && npm run test -- tests/core/loader.spec.ts tests/core/analyzer.spec.ts tests/core/summary.spec.ts tests/core/ipc.spec.ts tests/arch.spec.ts && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts` | ✅ | ⬜ pending |
+| 06-03-01 | 03 | 3 | F8.3 | T-06-11 | Pure-TS buildExportPlan with D-108 dedup + D-109 unused-exclusion + D-110 uniform Math.round + D-111 override-or-peakScale; Layer 3 hygiene (no fs/sharp/spine-core runtime imports) | pure-unit | `npm run test -- tests/core/export.spec.ts && npm run typecheck && npm run test -- tests/arch.spec.ts` | ✅ | ⬜ pending |
+| 06-03-02 | 03 | 3 | F8.3 | T-06-10 | Renderer-side byte-identical inline copy of buildExportPlan; parity describe block locks core ↔ view drift | pure-unit | `npm run test -- tests/core/export.spec.ts && npm run typecheck && npm run test -- tests/arch.spec.ts && diff <(awk '/^export function buildExportPlan/,/^}/' src/core/export.ts) <(awk '/^export function buildExportPlan/,/^}/' src/renderer/src/lib/export-view.ts) \| wc -l \| grep -E "^\s*0$"` | ✅ | ⬜ pending |
+| 06-04-01 | 04 | 3 | F8.2, F8.4, N3.1, N4.2 | T-06-01, T-06-03, T-06-04, T-06-05, T-06-12, T-06-13 | runExport sequential loop with fs.access pre-flight + path-traversal defense + NaN/zero guard + sharp Lanczos3 + PNG compressionLevel:9 + atomic .tmp→rename + cancel loop; only file in src/ allowed to import sharp | mocked-unit | `npm run typecheck && npm run test -- tests/arch.spec.ts && grep -E "from 'sharp'" src/main/image-worker.ts && grep -E "from 'node:fs/promises'" src/main/image-worker.ts && grep -cE "^export async function runExport" src/main/image-worker.ts` | ✅ | ⬜ pending |
+| 06-04-02 | 04 | 3 | F8.2, F8.5, N3.1 | T-06-03, T-06-12 | All 6 mocked unit cases (a-f) GREEN + 1 real-bytes integration GREEN against EXPORT_PROJECT/CIRCLE.png 64×64 → 32×32 | mocked-unit + integration | `npm run test -- tests/main/image-worker.spec.ts && npm run test -- tests/main/image-worker.integration.spec.ts && npm run typecheck && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts` | ✅ | ⬜ pending |
+| 06-05-01 | 05 | 4 | F8.1, F8.4 | T-06-02, T-06-04, T-06-09 | handleStartExport re-entrancy guard (D-115), outDir validation (D-122 / F8.4 — rejects equal-to or child-of source/images), plan shape check (T-01-02-01); handlePickOutputDirectory with cross-platform properties (createDirectory + promptToCreate + dontAddToRecent) | mocked-unit | `npm run typecheck && npm run test -- tests/main/ipc-export.spec.ts && npm run test -- tests/arch.spec.ts && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts` | ✅ | ⬜ pending |
+| 06-05-02 | 05 | 4 | F8.1, F8.5 | T-06-14, T-06-15 | preload contextBridge surface extended with 5 methods; `onExportProgress` unsubscribe pattern preserves listener identity (Pitfall 9); sandbox discipline preserved (no new runtime imports) | gate | `npm run typecheck && grep -cE "(pickOutputDirectory\|startExport\|cancelExport\|onExportProgress\|openOutputFolder):" src/preload/index.ts && grep -E "ipcRenderer\.on\('export:progress'" src/preload/index.ts && grep -E "ipcRenderer\.removeListener\('export:progress'" src/preload/index.ts && npx electron-vite build` | ✅ | ⬜ pending |
+| 06-06-01 | 06 | 5 | F8.1, F8.5 | T-06-15, T-06-16, T-06-17 | OptimizeDialog ARIA scaffold (role/aria-modal/labelledby) + 3-state state machine (pre-flight/in-progress/complete) + ESC/click-outside guard during in-progress + onExportProgress useEffect cleanup + Tailwind v4 literal-class discipline + Layer 3 invariant (renderer ↛ core) | gate + arch-grep | `npm run typecheck:web && npx electron-vite build && npm run test -- tests/arch.spec.ts && grep -E "role=\"dialog\"" src/renderer/src/modals/OptimizeDialog.tsx && grep -E "aria-modal=\"true\"" src/renderer/src/modals/OptimizeDialog.tsx && grep -E "onExportProgress" src/renderer/src/modals/OptimizeDialog.tsx` | ✅ | ⬜ pending |
+| 06-06-02 | 06 | 5 | F8.1 | T-06-18 | AppShell toolbar button (right-aligned, disabled when peaks=0 or exportInFlight) + click flow (picker → buildExportPlan → mount); Layer 3 import path is `lib/export-view.js` NOT `core/export.js` | gate + arch-grep | `npm run typecheck:web && npx electron-vite build && npm run test -- tests/arch.spec.ts && grep -E "OptimizeDialog" src/renderer/src/components/AppShell.tsx && grep -E "buildExportPlan" src/renderer/src/components/AppShell.tsx && grep -E "from '\.\./lib/export-view\.js'" src/renderer/src/components/AppShell.tsx` | ✅ | ⬜ pending |
+| 06-07-01 | 07 | 6 | F8.1, F8.2, F8.3, F8.4, F8.5, N3.1, N3.2, N4.2 | T-06-06, T-06-07, T-06-19 | Full automated exit-criteria sweep: vitest + typecheck + electron-vite build + locked-file diffs (cli.ts + sampler.ts) + npm audit on sharp + .dmg produced; flips Status column for rows 06-01-01..06-06-02 from ⬜ pending → ✅ green | gate (close-out sweep) | `npm run test && npm run typecheck && npx electron-vite build && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts && npm audit --omit=dev --audit-level=high \| grep -E "found 0 vulnerabilities\|0 vulnerabilities"` | ❌ W0 | ⬜ pending |
+| 06-07-02 | 07 | 6 | N3.2, N4.2, F8.1, F8.4, F8.5 | T-06-06, T-06-15, T-06-16, T-06-19 | Manual gates only humans can verify: visual Lanczos3 vs Photoshop (N3.2); packaged .dmg sharp-load (N4.2); folder picker UX + outDir validation; cancel UX during real export; ARIA keyboard sanity; backward compat with SIMPLE_TEST + GHOST fixtures | manual-visual | (human-verify checkpoint — 7-step checklist; resume signal logs PASS/FAIL/SKIP/DEFER per step) | ❌ W0 | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status legend: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky · ❌ W0 = no test file (verified by composite gate or human-verify)*
 
 ---
 
 ## Wave 0 Requirements
 
-> Wave 0 prepares test fixtures + RED test shells before any implementation. Planner fills concrete file lists; below is the structural commitment from RESEARCH.md.
+> Wave 0 (Plan 06-01) prepares test fixtures + RED test shells before any implementation. The structural commitment below is met by the three Plan 06-01 tasks.
 
-- [ ] `fixtures/EXPORT_PROJECT/` — dedicated export fixture (atlas + JSON + `images/CIRCLE.png`, `SQUARE.png`, `SQUARE2.png`, `TRIANGLE.png`) so tests can exercise real PNG read/write end-to-end without depending on `SIMPLE_PROJECT` (which has no `images/` folder).
-- [ ] `tests/core/export.spec.ts` — RED shell covering buildExportPlan dedup, override-clamping, unused-exclusion, Math.round half-cases, hygiene grep (no `fs`/`sharp`/`spine-core` imports in `src/core/export.ts`).
-- [ ] `tests/main/image-worker.spec.ts` — RED shell with mocked `sharp` + `node:fs/promises` covering all-success, missing-source, sharp-error mid-run, cancel-after-N, atomic-write protocol, re-entrant `'export:start'` rejection.
-- [ ] `tests/arch.spec.ts` — extend forbidden-import scan for `src/core/export.ts` to include `sharp`, `node:fs`, `fs/promises` (verify whether already covered by the existing Layer 3 grep).
-- [ ] No new framework install — vitest covers all dimensions.
+- [x] `fixtures/EXPORT_PROJECT/` — dedicated export fixture (atlas + JSON + `images/CIRCLE.png`, `SQUARE.png`, `SQUARE2.png`, `TRIANGLE.png`) so tests can exercise real PNG read/write end-to-end without depending on `SIMPLE_PROJECT` (which has no `images/` folder). Owner: 06-01-02.
+- [x] `tests/core/export.spec.ts` — RED shell covering buildExportPlan dedup, override-clamping, unused-exclusion, Math.round half-cases, hygiene grep (no `fs`/`sharp`/`spine-core` imports in `src/core/export.ts`). Owner: 06-01-03.
+- [x] `tests/main/image-worker.spec.ts` — RED shell with mocked `sharp` + `node:fs/promises` covering all-success, missing-source, sharp-error mid-run, cancel-after-N, atomic-write protocol, NaN/zero-dim guard. Owner: 06-01-03.
+- [x] `tests/main/ipc-export.spec.ts` — RED shell covering F8.1 picker behavior + D-115 re-entrancy + D-122 outDir validation. Owner: 06-01-03.
+- [x] `tests/arch.spec.ts` — extend forbidden-import scan for `src/core/*.ts` to include `sharp` + `node:fs` + `node:fs/promises` (loader.ts exempt as Phase 0 load-time carve-out). Owner: 06-01-03.
+- [x] sharp@^0.34.5 installed; `electron-builder.yml` asarUnpack extended with both `sharp/**/*` and `@img/**/*` globs. Owner: 06-01-01.
+- [x] No new framework install — vitest covers all dimensions.
 
 ---
 
@@ -77,6 +93,6 @@ created: 2026-04-24
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 30 s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [ ] `nyquist_compliant: true` set in frontmatter (flipped by Plan 06-07 Task 1 at close-out)
 
 **Approval:** pending
