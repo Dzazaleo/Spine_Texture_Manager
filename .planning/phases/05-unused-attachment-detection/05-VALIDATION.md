@@ -41,6 +41,7 @@ created: 2026-04-24
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | *TBD by planner* | | | F6.1 / F6.2 | — | N/A | unit | `npm run test -- <spec>` | ❌ W0 | ⬜ pending |
+| T05-01-03b | 05-01 | 1 | F6.1 | — | F6.1 sanity canary: Defined ⊇ Used invariant (sampler-bug canary per 05-RESEARCH.md §Validation Architecture) | unit (RED in W0) | `npm run test -- tests/core/usage.spec.ts -t "invariant: every globalPeaks"` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

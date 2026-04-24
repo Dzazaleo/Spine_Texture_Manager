@@ -703,22 +703,25 @@ No state-of-the-art change. Phase 5 uses the same spine-core 4.2.111 API, same R
 
 Three assumptions total. None block the plan; all are low-to-medium-risk and surfaced for human-verify attention.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Multi-skin test fixture for test cases (d), (e), (f).**
    - What we know: SIMPLE_TEST.json is single-skin; the cross-skin test cases need either (a) a multi-skin JSON fixture or (b) in-memory synthetic skeleton construction.
    - What's unclear: Is the planner OK constructing spine-core classes directly in `tests/core/usage.spec.ts`, or does the project have a preference for fixture-based testing?
    - Recommendation: In-memory synthetic for cases (d/e/f) because they're parameterized (the planner wants to vary dim divergence, visibility pattern, etc. without shipping multiple JSON files). The ghost-def smoke test (case (b)) uses the JSON fixture.
+   - **RESOLVED:** Plan 01 Task 3 implements the recommended mix — JSON fixture fork for the ghost-def smoke test (case b) and in-memory `buildSynthetic` helper for parameterized cross-skin cases (c/d/e/f).
 
 2. **`definedIn` tooltip format for multi-skin dim breakdown (D-98 — Claude's Discretion).**
    - What we know: CONTEXT suggests either `"128×128 in boy; 256×256 in girl"` or multiline. No project precedent for multi-line tooltips (browser `title` attr usually renders single-line).
    - What's unclear: Should the tooltip be HTML-rich (requires Radix-like tooltip) or a plain `title` attribute?
    - Recommendation: Plain `title` attribute, single-line `"128×128 in boy; 256×256 in girl"` — D-28 hand-rolled over deps; adding a tooltip library for one use case isn't worth it.
+   - **RESOLVED:** Deferred — D-98 tags this as Claude's Discretion and Phase 5 in-scope rigs rarely exhibit multi-skin dim divergence. Plan 03 Task 2 markup ships without a tooltip; if a dim-variant row surfaces in human-verify, the plain-`title` recommendation is the fallback to implement as a Phase 9 polish.
 
 3. **When does the `⚠` glyph render wrong in JetBrains Mono?** (Assumption A1.)
    - What we know: The font ships extensive symbol coverage.
    - What's unclear: Rendering subtleties (baseline alignment in a mixed-text line) on macOS vs Windows.
    - Recommendation: Start with Unicode; treat rendering issues as a human-verify finding, not a planning concern.
+   - **RESOLVED:** Plan 04 Task 3 (human-verify checkpoint) catches rendering regressions; inline SVG fallback is an 8-line swap documented in Pitfall 9 if the glyph renders badly.
 
 ## Environment Availability
 
