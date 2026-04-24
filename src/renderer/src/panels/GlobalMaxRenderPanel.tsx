@@ -16,6 +16,21 @@
  * shiftKey modifier from the mouse event. Keyboard-only users get single-
  * toggle (matches VS Code / Finder conventions); range-select is explicitly
  * mouse-driven.
+ *
+ * Phase 4 Plan 03 extension: Scale cell + Peak W×H cell render override-aware
+ * values when `overrides.has(row.attachmentName)` per D-82 / D-83. Scale
+ * `<td>` gets `onDoubleClick` that calls `onOpenOverrideDialog(row, selected)`
+ * per D-77. A new module-top helper `enrichWithEffective` derives
+ * effective-scale / effective-dim fields BEFORE the filter + sort chain; the
+ * existing `compareRows` comparator reads `effectiveScale` in the peakScale
+ * branch so 50%-overridden high-peak rows sort correctly against 100%-kept
+ * lower-peak rows. Layer 3: `applyOverride` is imported from the renderer-side
+ * overrides-view module, never from the pure-TS math tree — the latter would
+ * trip the arch.spec.ts gate. Event-propagation: `onDoubleClick` on the Scale
+ * `<td>` is orthogonal to the Phase 2 checkbox click-chain because Scale and
+ * checkbox are sibling `<td>` cells in the same `<tr>` — events don't share
+ * handler context (verified by the acceptance criterion that shift-double-
+ * clicking the Scale cell does not toggle selection).
  */
 import {
   useState,
@@ -31,6 +46,7 @@ import {
 import clsx from 'clsx';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
+import { applyOverride } from '../lib/overrides-view.js';
 
 type SortCol =
   | 'attachmentName'
@@ -41,6 +57,20 @@ type SortCol =
   | 'animationName'
   | 'frame';
 type SortDir = 'asc' | 'desc';
+
+/**
+ * Phase 4 Plan 03: effective-scale-enriched row. Added fields are strictly
+ * renderer-side — src/shared/types.ts is NOT extended (discretion option A
+ * from pattern-mapper flag 4). effectiveScale/worldW/worldH === the raw
+ * peak values when the row has no override.
+ */
+type EnrichedRow = DisplayRow & {
+  effectiveScale: number;
+  effectiveWorldW: number;
+  effectiveWorldH: number;
+  /** undefined when no override; else the clamped integer percent. */
+  override: number | undefined;
+};
 
 export interface GlobalMaxRenderPanelProps {
   summary: SkeletonSummary;
@@ -66,13 +96,58 @@ export interface GlobalMaxRenderPanelProps {
 
 // ----- Pure helpers (module-top) -----------------------------------------
 
-function filterByName(rows: readonly DisplayRow[], query: string): DisplayRow[] {
+/** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
+ *  allocate a fresh Map on every render. */
+const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
+/** Phase 4 Plan 03: no-op default for the open-dialog callback when the panel
+ *  is rendered standalone (outside AppShell). */
+const NOOP_OPEN_DIALOG: (
+  row: DisplayRow,
+  selectedKeys?: ReadonlySet<string>,
+) => void = () => undefined;
+
+/**
+ * Phase 4 Plan 03: enrich raw DisplayRow[] with render-time effective
+ * fields derived from the overrides map. Non-overridden rows pass
+ * through with effective fields === raw peak fields.
+ */
+function enrichWithEffective(
+  rows: readonly DisplayRow[],
+  overrides: ReadonlyMap<string, number>,
+): EnrichedRow[] {
+  return rows.map((row) => {
+    const override = overrides.get(row.attachmentName);
+    if (override === undefined) {
+      return {
+        ...row,
+        effectiveScale: row.peakScale,
+        effectiveWorldW: row.worldW,
+        effectiveWorldH: row.worldH,
+        override: undefined,
+      };
+    }
+    const { effectiveScale } = applyOverride(row.peakScale, override);
+    return {
+      ...row,
+      effectiveScale,
+      // Multiply by override/100 directly (not effectiveScale/peakScale) to
+      // avoid a divide-by-zero when peakScale is 0. Also matches the clamped
+      // input path since override is the already-clamped value stored by
+      // AppShell.
+      effectiveWorldW: row.worldW * override / 100,
+      effectiveWorldH: row.worldH * override / 100,
+      override,
+    };
+  });
+}
+
+function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[] {
   const q = query.trim().toLowerCase();
   if (q === '') return rows.slice();
   return rows.filter((r) => r.attachmentName.toLowerCase().includes(q));
 }
 
-function compareRows(a: DisplayRow, b: DisplayRow, col: SortCol): number {
+function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
   switch (col) {
     case 'attachmentName':
       return a.attachmentName.localeCompare(b.attachmentName);
@@ -83,15 +158,20 @@ function compareRows(a: DisplayRow, b: DisplayRow, col: SortCol): number {
     case 'sourceW':
       return a.sourceW - b.sourceW;
     case 'worldW':
-      return a.worldW - b.worldW;
+      // D-83: Peak W×H sort reads EFFECTIVE dim so the displayed ordering
+      // matches the visible Peak W×H column.
+      return a.effectiveWorldW - b.effectiveWorldW;
     case 'peakScale':
-      return a.peakScale - b.peakScale;
+      // Phase 4 pattern-mapper flag 3: comparator reads EFFECTIVE scale so
+      // 50%-overridden high-peak rows sort correctly against 100%-kept
+      // lower-peak rows.
+      return a.effectiveScale - b.effectiveScale;
     case 'frame':
       return a.frame - b.frame;
   }
 }
 
-function sortRows(rows: readonly DisplayRow[], col: SortCol, dir: SortDir): DisplayRow[] {
+function sortRows(rows: readonly EnrichedRow[], col: SortCol, dir: SortDir): EnrichedRow[] {
   const sorted = rows.slice().sort((a, b) => compareRows(a, b, col));
   if (dir === 'desc') sorted.reverse();
   return sorted;
@@ -158,7 +238,7 @@ function SortHeader({ col, label, activeCol, dir, onSort, align = 'left' }: Sort
 // ----- Row sub-component (W-01 a11y-safe handler split) ------------------
 
 interface RowProps {
-  row: DisplayRow;
+  row: EnrichedRow;
   query: string;
   checked: boolean;
   onToggle: (key: string) => void;
@@ -166,9 +246,23 @@ interface RowProps {
   suppressNextChangeRef: MutableRefObject<string | null>;
   /** Phase 3 D-72 — see GlobalMaxRenderPanelProps.onJumpToAnimation. */
   onJumpToAnimation?: (animationName: string) => void;
+  /** Phase 4 D-77 + D-86 dialog trigger. */
+  onOpenOverrideDialog: (row: DisplayRow, selectedKeys: ReadonlySet<string>) => void;
+  /** Phase 4 D-86 — live selection set passed through for batch detection in AppShell. */
+  selectedKeys: ReadonlySet<string>;
 }
 
-function Row({ row, query, checked, onToggle, onRangeToggle, suppressNextChangeRef, onJumpToAnimation }: RowProps) {
+function Row({
+  row,
+  query,
+  checked,
+  onToggle,
+  onRangeToggle,
+  suppressNextChangeRef,
+  onJumpToAnimation,
+  onOpenOverrideDialog,
+  selectedKeys,
+}: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
       if (e.shiftKey) {
@@ -218,8 +312,29 @@ function Row({ row, query, checked, onToggle, onRangeToggle, suppressNextChangeR
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.originalSizeLabel}</td>
-      <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.peakSizeLabel}</td>
-      <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.scaleLabel}</td>
+      <td className={clsx(
+        'py-2 px-3 font-mono text-sm text-right',
+        row.override !== undefined ? 'text-accent' : 'text-fg',
+      )}>
+        {row.override !== undefined
+          ? `${(row.effectiveWorldW).toFixed(0)}×${(row.effectiveWorldH).toFixed(0)}`
+          : row.peakSizeLabel}
+      </td>
+      <td
+        className={clsx(
+          'py-2 px-3 font-mono text-sm text-right',
+          row.override !== undefined ? 'text-accent' : 'text-fg',
+        )}
+        onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
+        title={
+          row.override !== undefined
+            ? `Peak ${row.scaleLabel} × ${row.override}% = ${row.effectiveScale.toFixed(3)}×`
+            : undefined
+        }
+      >
+        {row.effectiveScale.toFixed(3)}×
+        {row.override !== undefined && <span> • {row.override}%</span>}
+      </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
         {onJumpToAnimation !== undefined ? (
           <button
@@ -284,7 +399,14 @@ function SelectAllCheckbox({ visibleKeys, selected, onBulk }: SelectAllProps) {
 export function GlobalMaxRenderPanel({
   summary,
   onJumpToAnimation,
+  overrides,
+  onOpenOverrideDialog,
 }: GlobalMaxRenderPanelProps) {
+  // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
+  // (AppShell always passes non-null values).
+  const overridesMap: ReadonlyMap<string, number> = overrides ?? EMPTY_OVERRIDES;
+  const openDialog = onOpenOverrideDialog ?? NOOP_OPEN_DIALOG;
+
   // State: plain useState per D-32 (no Zustand / Jotai / Context).
   const [query, setQuery] = useState('');
   const [sortCol, setSortCol] = useState<SortCol>('peakScale'); // D-29 default
@@ -297,9 +419,16 @@ export function GlobalMaxRenderPanel({
   // single-toggle does not undo the range state.
   const suppressNextChangeRef = useRef<string | null>(null);
 
+  // Phase 4 Plan 03: enrichment runs BEFORE filter + sort so the existing
+  // comparator reads .effectiveScale / .effectiveWorldW without other
+  // restructuring (pattern-mapper flag 3).
+  const enriched = useMemo(
+    () => enrichWithEffective(summary.peaks, overridesMap),
+    [summary.peaks, overridesMap],
+  );
   const filtered = useMemo(
-    () => filterByName(summary.peaks, query),
-    [summary.peaks, query],
+    () => filterByName(enriched, query),
+    [enriched, query],
   );
   const sorted = useMemo(
     () => sortRows(filtered, sortCol, sortDir),
@@ -462,6 +591,8 @@ export function GlobalMaxRenderPanel({
               onRangeToggle={handleRangeToggle}
               suppressNextChangeRef={suppressNextChangeRef}
               onJumpToAnimation={onJumpToAnimation}
+              onOpenOverrideDialog={openDialog}
+              selectedKeys={selected}
             />
           ))}
         </tbody>
