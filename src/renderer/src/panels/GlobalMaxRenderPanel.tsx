@@ -455,6 +455,30 @@ export function GlobalMaxRenderPanel({
   );
   const visibleKeys = useMemo(() => sorted.map((r) => r.attachmentKey), [sorted]);
 
+  // Phase 5 Plan 03 — F6.2 unused-section filter. Inherits the same
+  // substring-lowercase predicate the peak table uses via filterByName
+  // (D-107 inherited SearchBar filter; Pitfall 6 — the section chrome
+  // renders whenever summary.unusedAttachments is non-empty, so the
+  // filter may return 0 rows while chrome stays visible with a
+  // "(no matches)" placeholder in the body).
+  //
+  // Rule-1 bug fix (executor 2026-04-24): SkeletonSummary.unusedAttachments
+  // is declared OPTIONAL in src/shared/types.ts (Plan 02 SUMMARY §key-decisions:
+  // kept optional to preserve source compatibility with pre-Plan-02 consumers),
+  // so a nullish-coalesce to [] is required before .slice/.filter and before
+  // the .length guard in the render block below.
+  const unusedAttachments = summary.unusedAttachments ?? [];
+  const filteredUnused = useMemo(
+    () => {
+      const q = query.trim().toLowerCase();
+      if (q === '') return unusedAttachments.slice();
+      return unusedAttachments.filter(
+        (u) => u.attachmentName.toLowerCase().includes(q),
+      );
+    },
+    [unusedAttachments, query],
+  );
+
   // Gap-fix A (human-verify 2026-04-24): convert the internal attachmentKey
   // selection to the outbound attachmentName contract BEFORE handing the set
   // to onOpenOverrideDialog. AppShell's batch-scope check
@@ -547,6 +571,46 @@ export function GlobalMaxRenderPanel({
           {selected.size} selected / {sorted.length} total
         </span>
       </header>
+      {/* Phase 5 Plan 03 — F6.2 unused attachment section (D-103, D-105, D-107).
+          Chrome visible whenever summary.unusedAttachments is non-empty; body
+          shows "(no matches)" when the search filter excludes every row
+          (Pitfall 6 chrome-visible policy). Red scope is header-only (D-105).
+          Uses the ??-coalesced local `unusedAttachments` because the IPC field
+          is declared optional (see the filteredUnused memo above). */}
+      {unusedAttachments.length > 0 && (
+        <section className="mb-6 border-b border-border pb-4" aria-label="Unused attachments">
+          <header className="flex items-center gap-2 mb-2 text-danger font-mono text-sm font-semibold">
+            <span aria-hidden="true">⚠</span>
+            <span>
+              {filteredUnused.length === 1
+                ? '1 unused attachment'
+                : `${filteredUnused.length} unused attachments`}
+            </span>
+          </header>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-panel">
+                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Attachment</th>
+                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Source Size</th>
+                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Defined In</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUnused.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="text-fg-muted font-mono text-sm text-center py-4">(no matches)</td>
+                </tr>
+              ) : filteredUnused.map((u) => (
+                <tr key={u.attachmentName} className="border-b border-border">
+                  <td className="py-2 px-3 font-mono text-sm text-fg">{u.attachmentName}</td>
+                  <td className="py-2 px-3 font-mono text-sm text-fg-muted">{u.sourceLabel}</td>
+                  <td className="py-2 px-3 font-mono text-sm text-fg-muted">{u.definedInLabel}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-panel">
