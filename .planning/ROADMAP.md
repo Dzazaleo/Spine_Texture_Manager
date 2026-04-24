@@ -6,7 +6,7 @@ Each phase produces an atomic, testable increment. Do not proceed to the next ph
 
 ---
 
-## Phase 0 — Core-math spike (derisk)
+## Phase 0: Core-math spike (derisk)
 
 **Depends on:** `fixtures/SIMPLE_PROJECT/` available.
 
@@ -37,7 +37,7 @@ Plans:
 
 ---
 
-## Phase 1 — Electron + React scaffold with JSON drop-load
+## Phase 1: Electron + React scaffold with JSON drop-load
 
 **Depends on:** Phase 0 green.
 
@@ -63,7 +63,7 @@ Plans:
 
 ---
 
-## Phase 2 — Global Max Render Source panel
+## Phase 2: Global Max Render Source panel
 
 **Depends on:** Phase 1 green.
 
@@ -89,7 +89,7 @@ Plans:
 
 ---
 
-## Phase 3 — Animation Breakdown panel
+## Phase 3: Animation Breakdown panel
 
 **Depends on:** Phase 2 green.
 
@@ -113,7 +113,7 @@ Plans:
 
 ---
 
-## Phase 4 — Scale overrides
+## Phase 4: Scale overrides
 
 **Depends on:** Phase 3 green.
 
@@ -131,7 +131,7 @@ Plans:
 
 ---
 
-## Phase 5 — Unused attachment detection
+## Phase 5: Unused attachment detection
 
 **Depends on:** Phase 4 green.
 
@@ -146,7 +146,7 @@ Plans:
 
 ---
 
-## Phase 6 — Optimize Assets (image export)
+## Phase 6: Optimize Assets (image export)
 
 **Depends on:** Phase 5 green.
 
@@ -165,7 +165,7 @@ Plans:
 
 ---
 
-## Phase 7 — Atlas Preview modal
+## Phase 7: Atlas Preview modal
 
 **Depends on:** Phase 6 green.
 
@@ -181,7 +181,7 @@ Plans:
 
 ---
 
-## Phase 8 — Save/Load project state
+## Phase 8: Save/Load project state
 
 **Depends on:** Phase 7 green.
 
@@ -197,7 +197,7 @@ Plans:
 
 ---
 
-## Phase 9 — Complex-rig hardening + polish
+## Phase 9: Complex-rig hardening + polish
 
 **Depends on:** Phase 8 green and user-supplied complex rig.
 
