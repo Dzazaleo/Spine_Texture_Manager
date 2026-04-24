@@ -100,3 +100,39 @@ describe('buildSummary (D-21, D-22)', () => {
     expect(cloned).toEqual(s.unusedAttachments);
   });
 });
+
+describe('summary: sourcePath threading on DisplayRow + BreakdownRow (Phase 6 Plan 02, F8.3)', () => {
+  it('every peaks[i].sourcePath is a non-empty string ending in .png', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const summary = buildSummary(load, sampled, 0);
+    expect(summary.peaks.length).toBeGreaterThan(0);
+    for (const row of summary.peaks) {
+      expect(row.sourcePath).toMatch(/\.png$/);
+      expect(row.sourcePath.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('every animationBreakdown[*].rows[*].sourcePath is also populated', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const summary = buildSummary(load, sampled, 0);
+    let rowsSeen = 0;
+    for (const card of summary.animationBreakdown) {
+      for (const row of card.rows) {
+        expect(row.sourcePath).toMatch(/\.png$/);
+        rowsSeen++;
+      }
+    }
+    expect(rowsSeen).toBeGreaterThan(0);
+  });
+
+  it('SkeletonSummary structuredClones cleanly (D-21 invariant preserved with new sourcePath field)', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const summary = buildSummary(load, sampled, 0);
+    const cloned = structuredClone(summary);
+    expect(cloned.peaks[0].sourcePath).toBe(summary.peaks[0].sourcePath);
+    expect(cloned).toEqual(summary);
+  });
+});
