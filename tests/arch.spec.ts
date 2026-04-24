@@ -112,3 +112,23 @@ describe('GlobalMaxRenderPanel batch-scope invariant (04-03 gap-fix A regression
     );
   });
 });
+
+describe('Architecture boundary: src/core must not import sharp / node:fs / node:fs/promises (CLAUDE.md Fact #5 + Phase 6 Layer 3 lock)', () => {
+  it('no core file imports sharp or node:fs (sync or promises) — loader.ts exempt as Phase 0 load-time carve-out', () => {
+    const files = globSync('src/core/**/*.ts');
+    const offenders: string[] = [];
+    for (const file of files) {
+      // loader.ts is the Phase 0 load-time fs carve-out (CLAUDE.md fact #4 says
+      // the math phase doesn't decode PNGs; loader.ts is the load phase, not
+      // the math phase — it reads the .json + .atlas text files exactly once
+      // at boot and never re-enters during the sampler hot loop). Phase 6
+      // does not touch loader.ts; this exemption is name-anchored.
+      if (file.endsWith('loader.ts')) continue;
+      const text = readFileSync(file, 'utf8');
+      if (/from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]fs(\/promises)?['"]/.test(text)) {
+        offenders.push(file);
+      }
+    }
+    expect(offenders, `Core files importing sharp/node:fs: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
