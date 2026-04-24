@@ -21,7 +21,8 @@
     "@esotericsoftware/spine-core": "^4.2.0",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
