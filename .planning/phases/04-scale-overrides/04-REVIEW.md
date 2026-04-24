@@ -18,7 +18,12 @@ findings:
   warning: 3
   info: 6
   total: 9
-status: issues_found
+resolved:
+  WR-01: fixed 2026-04-24 (commit after e981400) — AppShell prefill wrapped in clampOverride
+  WR-02: fixed 2026-04-24 — removed redundant autoFocus on Apply button; useEffect owns input focus per D-81
+deferred:
+  - WR-03, IN-01, IN-02, IN-03, IN-04, IN-05, IN-06 — tracked in .planning/todos/pending/2026-04-24-phase-4-code-review-follow-up.md for Phase 5/6 polish pass
+status: partially_resolved
 ---
 
 # Phase 4: Code Review Report
