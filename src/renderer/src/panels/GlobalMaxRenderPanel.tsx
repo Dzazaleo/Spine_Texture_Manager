@@ -19,7 +19,7 @@
  *
  * Phase 4 Plan 03 extension: Scale cell + Peak W×H cell render override-aware
  * values when `overrides.has(row.attachmentName)` per D-82 / D-83. Scale
- * `<td>` gets `onDoubleClick` that calls `onOpenOverrideDialog(row, selected)`
+ * `<td>` gets `onDoubleClick` that calls `onOpenOverrideDialog(row, ...)`
  * per D-77. A new module-top helper `enrichWithEffective` derives
  * effective-scale / effective-dim fields BEFORE the filter + sort chain; the
  * existing `compareRows` comparator reads `effectiveScale` in the peakScale
@@ -31,6 +31,21 @@
  * checkbox are sibling `<td>` cells in the same `<tr>` — events don't share
  * handler context (verified by the acceptance criterion that shift-double-
  * clicking the Scale cell does not toggle selection).
+ *
+ * Phase 4 Plan 03 gap-fixes (human-verify 2026-04-24):
+ *   - Gap A: selection set is converted from attachmentKey identities to
+ *     attachmentName identities at the dialog invocation site (the outbound
+ *     onOpenOverrideDialog contract uses attachmentName; this panel's
+ *     internal React row key remains attachmentKey). Without the
+ *     conversion, AppShell's `selectedKeys.has(row.attachmentName)` check
+ *     always misses and batch scope silently collapses to the clicked row.
+ *     See 04-03-SUMMARY.md §Deviations for the verbatim user quote.
+ *   - Gap B: applyOverride is called with the single-arg signature
+ *     (overridePercent) — effective scale = percent / 100. Non-overridden
+ *     rows still show peakScale; peak is no longer threaded through the
+ *     math.
+ *   - Gap C: default sort changed to (attachmentName, asc) so the animator
+ *     never loses the just-edited row off-screen in a long list.
  */
 import {
   useState,
@@ -126,16 +141,17 @@ function enrichWithEffective(
         override: undefined,
       };
     }
-    const { effectiveScale } = applyOverride(row.peakScale, override);
+    // Gap-fix B (human-verify 2026-04-24): applyOverride now returns
+    // effectiveScale = percent / 100 (percent is target fraction of source).
+    // effectiveWorldW/H use sourceW/H × percent/100 so the Peak W×H column
+    // reflects the target effective texture dims directly — the source
+    // dimensions are the canonical absolute max per the new semantics.
+    const { effectiveScale } = applyOverride(override);
     return {
       ...row,
       effectiveScale,
-      // Multiply by override/100 directly (not effectiveScale/peakScale) to
-      // avoid a divide-by-zero when peakScale is 0. Also matches the clamped
-      // input path since override is the already-clamped value stored by
-      // AppShell.
-      effectiveWorldW: row.worldW * override / 100,
-      effectiveWorldH: row.worldH * override / 100,
+      effectiveWorldW: row.sourceW * override / 100,
+      effectiveWorldH: row.sourceH * override / 100,
       override,
     };
   });
@@ -328,7 +344,7 @@ function Row({
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
           row.override !== undefined
-            ? `Peak ${row.scaleLabel} × ${row.override}% = ${row.effectiveScale.toFixed(3)}×`
+            ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
             : undefined
         }
       >
@@ -409,8 +425,11 @@ export function GlobalMaxRenderPanel({
 
   // State: plain useState per D-32 (no Zustand / Jotai / Context).
   const [query, setQuery] = useState('');
-  const [sortCol, setSortCol] = useState<SortCol>('peakScale'); // D-29 default
-  const [sortDir, setSortDir] = useState<SortDir>('desc'); // D-29 default
+  // Gap-fix C (human-verify 2026-04-24): default sort is (attachmentName, asc)
+  // so the just-edited row stays visible in a long list. Supersedes the
+  // Phase 2 D-29 default (peakScale desc).
+  const [sortCol, setSortCol] = useState<SortCol>('attachmentName');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [lastClicked, setLastClicked] = useState<string | null>(null);
   // W-01 shift-click suppression flag: when the label onClick sees shiftKey and
@@ -435,6 +454,28 @@ export function GlobalMaxRenderPanel({
     [filtered, sortCol, sortDir],
   );
   const visibleKeys = useMemo(() => sorted.map((r) => r.attachmentKey), [sorted]);
+
+  // Gap-fix A (human-verify 2026-04-24): convert the internal attachmentKey
+  // selection to the outbound attachmentName contract BEFORE handing the set
+  // to onOpenOverrideDialog. AppShell's batch-scope check
+  // (selectedKeys.has(row.attachmentName)) requires attachmentName values;
+  // passing raw `selected` (attachmentKey strings) silently collapses batch
+  // scope to the clicked row. Lookup key→name via the enriched row list
+  // (attachmentKey is unique per row so the map yields one name per key).
+  // See 04-03-SUMMARY.md §Deviations for the verbatim user quote.
+  const keyToName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of enriched) m.set(r.attachmentKey, r.attachmentName);
+    return m;
+  }, [enriched]);
+  const selectedAttachmentNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const key of selected) {
+      const name = keyToName.get(key);
+      if (name !== undefined) names.add(name);
+    }
+    return names;
+  }, [selected, keyToName]);
 
   const handleSort = useCallback(
     (col: SortCol) => {
@@ -592,7 +633,7 @@ export function GlobalMaxRenderPanel({
               suppressNextChangeRef={suppressNextChangeRef}
               onJumpToAnimation={onJumpToAnimation}
               onOpenOverrideDialog={openDialog}
-              selectedKeys={selected}
+              selectedKeys={selectedAttachmentNames}
             />
           ))}
         </tbody>
