@@ -168,10 +168,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Wave 0 scaffolding: UnusedAttachment IPC contract in src/shared/types.ts + SIMPLE_TEST_GHOST fixture fork (json + atlas) + RED spec stubs in tests/core/usage.spec.ts + F6.2 assertion added to tests/core/summary.spec.ts. Wave 1, autonomous, depends_on [].
-- [ ] 05-02-PLAN.md — Core detector + wiring: new src/core/usage.ts (pure-TS findUnusedAttachments per F6.1 / D-100) + 3-line projection extension in src/main/summary.ts; drives Plan 01's RED specs to GREEN. Wave 2, autonomous, depends_on [05-01].
-- [ ] 05-03-PLAN.md — UI surface: new --color-danger #e06b55 @theme token in src/renderer/src/index.css (RESEARCH Finding #7) + conditional <section> markup above the peak table in src/renderer/src/panels/GlobalMaxRenderPanel.tsx (F6.2, D-103/D-105/D-107); inherits SearchBar filter; Layer 3 boundary + batch-scope regression guards preserved. Wave 3, autonomous, depends_on [05-01, 05-02].
-- [ ] 05-04-PLAN.md — Close-out: automated exit-criteria sweep (full suite, CLI byte-for-byte, locked-file audit, build) + populate 05-VALIDATION.md per-task map + flip signed-off frontmatter + checkpoint:human-verify on SIMPLE_TEST + SIMPLE_TEST_GHOST drops with red-scope + filter + CLI sanity checks. Wave 4, has checkpoint, depends_on [05-01, 05-02, 05-03].
+- [x] 05-01-PLAN.md — Wave 0 scaffolding: UnusedAttachment IPC contract in src/shared/types.ts + SIMPLE_TEST_GHOST fixture fork (json + atlas) + RED spec stubs in tests/core/usage.spec.ts + F6.2 assertion added to tests/core/summary.spec.ts. Wave 1, autonomous, depends_on [].
+- [x] 05-02-PLAN.md — Core detector + wiring: new src/core/usage.ts (pure-TS findUnusedAttachments per F6.1 / D-100) + 3-line projection extension in src/main/summary.ts; drives Plan 01's RED specs to GREEN. Wave 2, autonomous, depends_on [05-01].
+- [x] 05-03-PLAN.md — UI surface: new --color-danger #e06b55 @theme token in src/renderer/src/index.css (RESEARCH Finding #7) + conditional <section> markup above the peak table in src/renderer/src/panels/GlobalMaxRenderPanel.tsx (F6.2, D-103/D-105/D-107); inherits SearchBar filter; Layer 3 boundary + batch-scope regression guards preserved. Wave 3, autonomous, depends_on [05-01, 05-02].
+- [x] 05-04-PLAN.md — Close-out: automated exit-criteria sweep (full suite, CLI byte-for-byte, locked-file audit, build) + populate 05-VALIDATION.md per-task map + flip signed-off frontmatter + checkpoint:human-verify on SIMPLE_TEST + SIMPLE_TEST_GHOST drops with red-scope + filter + CLI sanity checks. Wave 4, has checkpoint, depends_on [05-01, 05-02, 05-03].
 
 ---
 
