@@ -23,7 +23,8 @@
  * Emitted utilities (used by Plan 01-03 App.tsx + Plan 01-04 DropZone and the prior debug panel):
  *   bg-surface, bg-panel, border-border, text-fg, text-fg-muted,
  *   ring-accent, bg-accent/5, outline-accent, text-accent-muted,
- *   font-sans, font-mono.
+ *   font-sans, font-mono,
+ *   text-danger, bg-danger, border-danger.
  */
 
 @import "tailwindcss";
@@ -54,6 +55,14 @@
   /* Accent — Spine-adjacent orange (D-14) */
   --color-accent:        var(--color-orange-500);
   --color-accent-muted:  var(--color-orange-300);
+
+  /* Warning — terracotta for unused attachment surface (D-104, RESEARCH Finding #7).
+     Literal hex (not a Tailwind palette var ref) because the pick sits outside
+     the default shades. 5.33:1 on --color-panel = WCAG AA normal-text pass;
+     1.17:1 vs --color-accent = distinguishable from the Phase 4 orange.
+     Supersedes D-104 starting-point recommendations #c94a3b / #b84a3a
+     (both fail WCAG AA at 3.77 / 3.40:1). */
+  --color-danger: #e06b55;
 
   /* Typography (D-15) — literal strings; inline is a no-op on these but
      keeping them in the same block for proximity. */
