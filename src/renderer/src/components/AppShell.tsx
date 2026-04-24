@@ -90,8 +90,12 @@ export function AppShell({ summary }: AppShellProps) {
       // when set, else round(peakScale * 100) of the clicked row — shows
       // current effective as the starting point in the new semantics where
       // 100% = source dimensions and no-override = peakScale default.
-      const currentPercent =
-        overrides.get(row.attachmentName) ?? Math.round(row.peakScale * 100);
+      // WR-01 (code review 2026-04-24): clamp the prefill so peakScale > 1.0
+      // (e.g. SIMPLE_TEST's pre-scaled SQUARE2 bone at ~1.78×) doesn't display
+      // a value above the "Max = 100%" helper text.
+      const currentPercent = clampOverride(
+        overrides.get(row.attachmentName) ?? Math.round(row.peakScale * 100),
+      );
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));
       setDialogState({ scope, currentPercent, anyOverridden });
