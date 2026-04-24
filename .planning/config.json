@@ -1,6 +1,8 @@
 {
   "project_name": "Spine Texture Manager",
-  "workflow": "gsd",
+  "workflow": {
+    "_auto_chain_active": false
+  },
   "model_profile": "inherit",
   "tech_stack": {
     "shell": "electron",
