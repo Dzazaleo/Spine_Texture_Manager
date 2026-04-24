@@ -30,8 +30,8 @@
 - F4.4 Per-row "Override Scale" button opens the override dialog.
 
 ### F5 — Scale overrides
-- F5.1 Double-click any peak scale → dialog accepting a percentage (100% = peak itself).
-- F5.2 `< 100%` shrinks, `> 100%` upscales but is clamped at source max (never beyond canonical dimensions).
+- F5.1 Double-click any peak scale → dialog accepting a percentage (100% = source dimensions; see D-91 in .planning/phases/04-scale-overrides/04-CONTEXT.md — user-approved 2026-04-24).
+- F5.2 `< 100%` shrinks; any input above 100% silently clamps to 100% (source dimensions are the absolute maximum — never surpassed). See D-91.
 - F5.3 Overrides visually badged on affected rows across all panels.
 - F5.4 Overrides persist in saved project state.
 
