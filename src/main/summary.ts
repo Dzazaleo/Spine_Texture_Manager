@@ -21,6 +21,7 @@ import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
 import type { SkeletonSummary } from '../shared/types.js';
 import { analyze, analyzeBreakdown } from '../core/analyzer.js';
+import { findUnusedAttachments } from '../core/usage.js';
 
 export function buildSummary(
   load: LoadResult,
@@ -66,6 +67,11 @@ export function buildSummary(
     skeleton.slots,
   );
 
+  // Phase 5 Plan 02 — F6.1 unused-attachment detection. Pure projection per
+  // D-35 / D-101: the core module owns the algorithm; summary.ts just
+  // threads the result into the IPC payload.
+  const unusedAttachments = findUnusedAttachments(load, sampled);
+
   return {
     skeletonPath: load.skeletonPath,
     atlasPath: load.atlasPath,
@@ -85,6 +91,7 @@ export function buildSummary(
     },
     peaks: peaksArray,
     animationBreakdown,
+    unusedAttachments,
     elapsedMs,
   };
 }
