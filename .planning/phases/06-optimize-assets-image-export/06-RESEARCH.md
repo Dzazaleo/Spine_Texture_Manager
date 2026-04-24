@@ -777,37 +777,45 @@ No network I/O in Phase 6. No telemetry. Output is local-disk only.
 
 **Assumption A5 is the highest planning risk.** If Jokerman's convention doesn't hold universally (e.g., if some rigs store source PNGs one directory up or in a different folder name), the export fails on real user rigs even though all automated tests pass. Consider Phase 6 post-MVP discovery pass: load 2-3 additional real-world rigs and verify the `<skeletonDir>/images/<regionName>.png` assumption holds.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All six questions below were resolved during planning (see `06-CONTEXT.md` integration points + `06-PATTERNS.md` analog confirmations + plan-phase orchestrator decisions). Recommendations below are LOCKED — no question remains open. Each has a **RESOLVED:** marker noting the chosen path.
 
 1. **Where should `buildExportPlan` run — renderer or main?**
    - What we know: CONTEXT.md Code Insights §Integration Points leaves this as planner's call. `summary` + `overrides` both live in the renderer; pure-TS `export.ts` is importable from renderer via Layer 3 inline-copy (Phase 4 D-75 precedent: `src/renderer/src/lib/overrides-view.ts`).
    - What's unclear: If plan is built in renderer, we need `src/renderer/src/lib/export-view.ts` (byte-identical copy of `src/core/export.ts`). If plan is built in main, the IPC flow is: renderer sends `summary` snapshot + overrides map serialization → main imports core/export → returns plan. Main path avoids duplicate copy but requires Map→Array serialization of overrides.
    - Recommendation: **Build in renderer** — consistent with Phase 4 precedent; `overrides` Map is already renderer-side; round-trip through IPC for the plan build is wasted serialization work. Add `src/renderer/src/lib/export-view.ts` as a byte-identical copy with parity spec (mirrors `tests/core/overrides.spec.ts` parity block). Plan 06-03 wires the IPC contract: `api.startExport(plan, outDir)` where plan is already built.
+   - **RESOLVED:** Build in renderer. Implemented by Plan 06-03 (`src/core/export.ts` + byte-identical `src/renderer/src/lib/export-view.ts` + parity test).
 
 2. **Should `ExportProgressEvent.outPath` be absolute or relative?**
    - What we know: D-119 specifies `{ index, total, path, outPath, status, error? }`. `path` is source; `outPath` is destination.
    - What's unclear: Relative `<outDir>/images/CIRCLE.png` is shorter for UI display; absolute is unambiguous.
    - Recommendation: **Absolute.** Avoids path-join on renderer side for `shell.showItemInFolder` + simplifies per-row "open containing folder" if added later.
+   - **RESOLVED:** Absolute. `outPath` is the absolute path produced by `path.resolve(outDir, 'images', regionName + '.png')` in the renderer (or main, depending on plan), then preserved through IPC events.
 
 3. **Should ExportRow preserve the full `attachmentNames[]` array (all attachments sharing this source PNG) or collapse to one name?**
    - What we know: D-108 dedup by sourcePath; multiple attachments may share a region (e.g., skin variants).
    - What's unclear: Does the progress UI need to show "Resizing images/FACE.png (used by HEAD_A, HEAD_B)"?
    - Recommendation: **Keep `attachmentNames: string[]`** — shown in pre-flight list as a tooltip or muted secondary line; truncated to first 3 + "N more" if long. Minimal planner-discretion UI; zero IPC cost.
+   - **RESOLVED:** Keep `attachmentNames: string[]` on every ExportRow. Pre-flight UI display is planner discretion (Plan 06-06).
 
 4. **Fixture strategy for `tests/main/image-worker.spec.ts`**.
    - What we know: SIMPLE_TEST has no sibling `images/` folder. temp/Jokerman has real source PNGs but is gitignored.
    - What's unclear: Create `fixtures/EXPORT_PROJECT/` with small source PNGs? Reuse SIMPLE_TEST's atlas-packed PNG as stand-in (sharp doesn't care that it's packed — it's a valid PNG)?
    - Recommendation: **Add `fixtures/EXPORT_PROJECT/`** with 2-3 tiny source PNGs (e.g., 16×16 solid colors), a matching atlas, and a matching skeleton JSON. Small enough to commit (~2 KB total). Avoids mocking sharp entirely for one "real integration" test; rest of image-worker.spec mocks sharp + fs via vitest.
+   - **RESOLVED:** Add `fixtures/EXPORT_PROJECT/`. Implemented by Plan 06-01 Wave 0 (atlas + skeleton JSON + tiny PNGs for CIRCLE/SQUARE/SQUARE2/TRIANGLE).
 
 5. **Should the pre-flight view show the "source PNG size on disk" (fs.stat bytes) as part of the preview?**
    - What we know: Claude's Discretion §Pre-flight file size readout — NOT required; Phase 7 covers size-readout deeply.
    - What's unclear: Would show `"images/CIRCLE.png · 699×699 (78 KB) → 256×256"` vs without-bytes `"images/CIRCLE.png · 699×699 → 256×256"`.
    - Recommendation: **Skip for Phase 6.** Keeps plan-build pure (no fs.stat calls). Defer to Phase 7.
+   - **RESOLVED:** Skip for Phase 6. No `fs.stat` in plan-build. Phase 7 owns size-readout UI.
 
 6. **Should `'export:cancel'` be request/response (`invoke`) or one-way (`send`)?**
    - What we know: CONTEXT.md §Implementation Decisions D-115: "Renderer calls `api.cancelExport()` → main flips an internal cancelFlag."
    - What's unclear: No return value needed, but invoke() provides a confirmation "cancel received".
    - Recommendation: **One-way `send`.** Keep the contract simple — cancel is fire-and-forget; the next progress event the renderer receives will be the final one (or the `ExportSummary` resolve from `startExport`).
+   - **RESOLVED:** One-way `send`. Implemented by Plan 06-05 (`'export:cancel'` IPC handler flips module-scope cancel flag; no return value).
 
 ## Project Constraints (from CLAUDE.md)
 
