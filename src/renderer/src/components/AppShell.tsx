@@ -19,12 +19,28 @@
  *
  * Tailwind v4 literal-class discipline: every className is a string literal
  * (or a clsx conditional with literal branches). No template interpolation.
+ *
+ * Phase 4 Plan 02 extension: owns `overrides: Map<string, number>` (D-74)
+ * plus a nullable `dialogState` (D-77 lifecycle) and three callbacks
+ * (onOpenOverrideDialog, onApplyOverride, onClearOverride). Renders
+ * `<OverrideDialog>` conditionally below `<main>`. The overrides map resets
+ * on every new drop by the same unmount-on-idle-transition mechanism that
+ * resets activeTab (D-50 / D-74 parity). Layer 3: the clamp primitive is
+ * imported from the renderer-side overrides-view module, never from the
+ * pure-TS math tree — the latter would trip the arch.spec.ts gate at
+ * lines 19-34.
  */
 import { useCallback, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
-import type { SkeletonSummary } from '../../../shared/types.js';
+import type {
+  SkeletonSummary,
+  DisplayRow,
+  BreakdownRow,
+} from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
+import { OverrideDialog } from '../modals/OverrideDialog';
+import { clampOverride } from '../lib/overrides-view.js';
 
 type ActiveTab = 'global' | 'animation';
 
@@ -38,6 +54,16 @@ export function AppShell({ summary }: AppShellProps) {
   // D-52: jump-target; null means no pending focus.
   const [focusAnimationName, setFocusAnimationName] = useState<string | null>(null);
 
+  // D-74: plain useState; resets on every mount (new drop remounts AppShell).
+  const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
+
+  // D-77 dialog lifecycle — null means dialog closed.
+  const [dialogState, setDialogState] = useState<{
+    scope: string[];
+    currentPercent: number;
+    anyOverridden: boolean;
+  } | null>(null);
+
   const onJumpToAnimation = useCallback((name: string) => {
     setActiveTab('animation');
     setFocusAnimationName(name);
@@ -45,6 +71,47 @@ export function AppShell({ summary }: AppShellProps) {
 
   const onFocusConsumed = useCallback(() => {
     setFocusAnimationName(null);
+  }, []);
+
+  const onOpenOverrideDialog = useCallback(
+    (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
+      // D-86: batch only when the clicked row is in the selection set AND size > 1.
+      // D-87: "clicked row not in selection" = per-row, ignore selection.
+      const inSelection =
+        selectedKeys !== undefined &&
+        selectedKeys.has(row.attachmentName) &&
+        selectedKeys.size > 1;
+      const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
+      const currentPercent = overrides.get(row.attachmentName) ?? 100;
+      // D-80: Reset button visible when ANY scope row has an existing override.
+      const anyOverridden = scope.some((name) => overrides.has(name));
+      setDialogState({ scope, currentPercent, anyOverridden });
+    },
+    [overrides],
+  );
+
+  const onApplyOverride = useCallback((scope: string[], percent: number) => {
+    // D-79: silent clamp on Apply. Layer 3 arch gate forbids core imports
+    // from renderer; the renderer copy in lib/overrides-view is the
+    // canonical path for renderer-side clamp math.
+    const clamped = clampOverride(percent);
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      // D-88: batch writes the same percent to every scope entry.
+      for (const name of scope) next.set(name, clamped);
+      return next;
+    });
+    setDialogState(null);
+  }, []);
+
+  const onClearOverride = useCallback((scope: string[]) => {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      // D-76: clearing = delete from map; no sentinel. D-88: batch clears all scope.
+      for (const name of scope) next.delete(name);
+      return next;
+    });
+    setDialogState(null);
   }, []);
 
   return (
@@ -75,6 +142,8 @@ export function AppShell({ summary }: AppShellProps) {
           <GlobalMaxRenderPanel
             summary={summary}
             onJumpToAnimation={onJumpToAnimation}
+            overrides={overrides}
+            onOpenOverrideDialog={onOpenOverrideDialog}
           />
         )}
         {activeTab === 'animation' && (
@@ -82,9 +151,22 @@ export function AppShell({ summary }: AppShellProps) {
             summary={summary}
             focusAnimationName={focusAnimationName}
             onFocusConsumed={onFocusConsumed}
+            overrides={overrides}
+            onOpenOverrideDialog={onOpenOverrideDialog}
           />
         )}
       </main>
+      {dialogState !== null && (
+        <OverrideDialog
+          open={true}
+          scope={dialogState.scope}
+          currentPercent={dialogState.currentPercent}
+          anyOverridden={dialogState.anyOverridden}
+          onApply={(percent) => onApplyOverride(dialogState.scope, percent)}
+          onClear={() => onClearOverride(dialogState.scope)}
+          onCancel={() => setDialogState(null)}
+        />
+      )}
     </div>
   );
 }

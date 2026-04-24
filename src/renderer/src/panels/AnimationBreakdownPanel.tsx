@@ -70,6 +70,13 @@ export interface AnimationBreakdownPanelProps {
    *  the matching card, then calls onFocusConsumed() synchronously so AppShell clears focus. */
   focusAnimationName: string | null;
   onFocusConsumed: () => void;
+  /**
+   * Phase 4 Plan 02: override-aware render + dialog trigger. No selection UI
+   * on this panel per D-90 — always per-row. Optional today so this plan's
+   * AppShell changes typecheck; panel body wiring lands in Plan 04-03.
+   */
+  overrides?: ReadonlyMap<string, number>;
+  onOpenOverrideDialog?: (row: BreakdownRow) => void;
 }
 
 // ----- Module-top pure helpers -------------------------------------------

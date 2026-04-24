@@ -52,6 +52,16 @@ export interface GlobalMaxRenderPanelProps {
    * <span> so the panel remains usable outside the top-tab shell.
    */
   onJumpToAnimation?: (animationName: string) => void;
+  /**
+   * Phase 4 Plan 02: override-aware render + dialog trigger. AppShell passes
+   * its overrides map + dialog-open callback; panel body wiring lands in
+   * Plan 04-03. Optional today so this plan's AppShell changes typecheck.
+   */
+  overrides?: ReadonlyMap<string, number>;
+  onOpenOverrideDialog?: (
+    row: DisplayRow,
+    selectedKeys?: ReadonlySet<string>,
+  ) => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
