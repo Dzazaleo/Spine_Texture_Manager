@@ -85,4 +85,18 @@ describe('buildSummary (D-21, D-22)', () => {
     const cloned = structuredClone(s.animationBreakdown);
     expect(cloned).toEqual(s.animationBreakdown);
   });
+
+  it('F6.2: unusedAttachments present as array, empty on SIMPLE_TEST (baseline zero), structuredClone-safe', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    // Field exists and is an array (D-101 IPC contract).
+    expect(Array.isArray(s.unusedAttachments)).toBe(true);
+    // SIMPLE_TEST baseline: every CIRCLE/SQUARE/TRIANGLE renders, PATH
+    // is filtered as non-textured per RESEARCH Pitfall 4 → empty array.
+    expect(s.unusedAttachments).toEqual([]);
+    // D-21 / Pitfall 8: primitive-only fields survive structuredClone round-trip.
+    const cloned = structuredClone(s.unusedAttachments);
+    expect(cloned).toEqual(s.unusedAttachments);
+  });
 });
