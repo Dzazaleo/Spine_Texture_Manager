@@ -57,6 +57,13 @@
  * path here — selection UI only exists on the Global panel. Layer 3:
  * `applyOverride` is imported from the renderer-side overrides-view module,
  * never from the pure-TS math tree.
+ *
+ * Phase 4 Plan 03 gap-fix B (human-verify 2026-04-24): applyOverride is
+ * called with the single-arg signature (overridePercent) — effective
+ * scale = percent / 100. Peak W×H uses sourceW/H × percent/100. Tooltip
+ * format updated to "{X}% of source = {S.SSS}×" (dropped the old "Peak
+ * N× × Y% =" prefix — peak is no longer part of the equation). See
+ * 04-03-SUMMARY.md §Deviations for the rationale.
  */
 import {
   useCallback,
@@ -145,14 +152,17 @@ function enrichCardsWithEffective(
           override: undefined,
         };
       }
-      const { effectiveScale } = applyOverride(row.peakScale, override);
+      // Gap-fix B (human-verify 2026-04-24): applyOverride now returns
+      // effectiveScale = percent / 100 (percent is target fraction of
+      // source). effectiveWorldW/H use sourceW/H × percent/100 so the
+      // Peak W×H column reflects the target effective texture dims —
+      // source dimensions are the canonical absolute max.
+      const { effectiveScale } = applyOverride(override);
       return {
         ...row,
         effectiveScale,
-        // Multiply by override/100 directly (not effectiveScale/peakScale) to
-        // avoid a divide-by-zero when peakScale is 0.
-        effectiveWorldW: row.worldW * override / 100,
-        effectiveWorldH: row.worldH * override / 100,
+        effectiveWorldW: row.sourceW * override / 100,
+        effectiveWorldH: row.sourceH * override / 100,
         override,
       };
     }),
@@ -523,7 +533,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
               onDoubleClick={() => onOpenOverrideDialog(row)}
               title={
                 row.override !== undefined
-                  ? `Peak ${row.scaleLabel} × ${row.override}% = ${row.effectiveScale.toFixed(3)}×`
+                  ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
                   : undefined
               }
             >
