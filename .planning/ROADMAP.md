@@ -143,14 +143,35 @@ Plans:
 
 **Depends on:** Phase 4 green.
 
+**Goal:** Detect attachments registered in `skin.attachments` that never render (active slot with alpha > 0) across any animation × skin combination, including setup-pose passes. Ship `src/core/usage.ts` (pure-TS enumeration + defined∖used diff), extend `SkeletonSummary` with `unusedAttachments: UnusedAttachment[]` on the existing IPC surface, add a new `--color-danger` warm/terracotta `@theme` token, and render a conditional warning-tinted section ABOVE the peak table on `GlobalMaxRenderPanel`. Sampler stays LOCKED (D-100). CLI stays byte-for-byte unchanged (D-102). Animation Breakdown panel untouched.
+
 **Deliverables:**
-- Analyzer flag: for each attachment, was it ever active in any slot in any animation? Default setup-pose visibility counts as "used."
-- UI: dedicated section on the Global panel listing unused attachments with a visual warning.
+- `src/core/usage.ts` — pure-TS unused-attachment detector (F6.1).
+- `src/shared/types.ts` — `UnusedAttachment` interface + `SkeletonSummary.unusedAttachments` extension (D-101).
+- `src/main/summary.ts` — single call site wiring `findUnusedAttachments` into the IPC projection.
+- `src/renderer/src/index.css` — new `--color-danger: #e06b55` `@theme` token (D-104, RESEARCH Finding #7).
+- `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` — conditional `<section>` above the peak table, red-header-only treatment (D-105), inherits SearchBar filter (D-107).
+- `fixtures/SIMPLE_PROJECT/SIMPLE_TEST_GHOST.{json,atlas}` — ghost-def test fixture for the primary F6 case (D-95).
+- `tests/core/usage.spec.ts` + `tests/core/summary.spec.ts` extension — 8+ unit cases covering D-92/D-93/D-95/D-98/D-107.
 
 **Exit criteria:**
-- Add a throwaway attachment to a test skin never referenced by any animation → app flags it.
+- Drop `SIMPLE_TEST.json` → peak table renders as in Phase 4, no unused section (clean rig).
+- Drop `SIMPLE_TEST_GHOST.json` → warm/terracotta-header section appears with one row (`GHOST · 64×64 · default`); peak table still renders below.
+- SearchBar substring filter applies to both the peak table AND the unused section consistently (D-107).
+- Red scope is header-only — row cells render in standard text colors (D-105).
+- `npm run test` full suite green (>= 120 passed + 1 skipped).
+- `git diff scripts/cli.ts` + `git diff src/core/sampler.ts` both empty (D-100 / D-102 locks).
+- `npx electron-vite build` succeeds; emitted CSS carries the new danger token.
 
-**Requirement coverage:** F6.
+**Requirement coverage:** F6.1, F6.2.
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Wave 0 scaffolding: UnusedAttachment IPC contract in src/shared/types.ts + SIMPLE_TEST_GHOST fixture fork (json + atlas) + RED spec stubs in tests/core/usage.spec.ts + F6.2 assertion added to tests/core/summary.spec.ts. Wave 1, autonomous, depends_on [].
+- [ ] 05-02-PLAN.md — Core detector + wiring: new src/core/usage.ts (pure-TS findUnusedAttachments per F6.1 / D-100) + 3-line projection extension in src/main/summary.ts; drives Plan 01's RED specs to GREEN. Wave 2, autonomous, depends_on [05-01].
+- [ ] 05-03-PLAN.md — UI surface: new --color-danger #e06b55 @theme token in src/renderer/src/index.css (RESEARCH Finding #7) + conditional <section> markup above the peak table in src/renderer/src/panels/GlobalMaxRenderPanel.tsx (F6.2, D-103/D-105/D-107); inherits SearchBar filter; Layer 3 boundary + batch-scope regression guards preserved. Wave 3, autonomous, depends_on [05-01, 05-02].
+- [ ] 05-04-PLAN.md — Close-out: automated exit-criteria sweep (full suite, CLI byte-for-byte, locked-file audit, build) + populate 05-VALIDATION.md per-task map + flip signed-off frontmatter + checkpoint:human-verify on SIMPLE_TEST + SIMPLE_TEST_GHOST drops with red-scope + filter + CLI sanity checks. Wave 4, has checkpoint, depends_on [05-01, 05-02, 05-03].
 
 ---
 
