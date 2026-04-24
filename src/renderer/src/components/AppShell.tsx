@@ -77,13 +77,22 @@ export function AppShell({ summary }: AppShellProps) {
     (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
       // D-86: batch only when the clicked row is in the selection set AND size > 1.
       // D-87: "clicked row not in selection" = per-row, ignore selection.
+      // Gap-fix A + B (human-verify 2026-04-24): the selectedKeys contract
+      // now carries attachmentName values (GlobalMaxRenderPanel converts its
+      // internal attachmentKey selection before calling). See
+      // 04-03-SUMMARY.md §Deviations.
       const inSelection =
         selectedKeys !== undefined &&
         selectedKeys.has(row.attachmentName) &&
         selectedKeys.size > 1;
       const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
-      const currentPercent = overrides.get(row.attachmentName) ?? 100;
-      // D-80: Reset button visible when ANY scope row has an existing override.
+      // Gap-fix B (human-verify 2026-04-24): prefill is the existing override
+      // when set, else round(peakScale * 100) of the clicked row — shows
+      // current effective as the starting point in the new semantics where
+      // 100% = source dimensions and no-override = peakScale default.
+      const currentPercent =
+        overrides.get(row.attachmentName) ?? Math.round(row.peakScale * 100);
+      // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));
       setDialogState({ scope, currentPercent, anyOverridden });
     },
