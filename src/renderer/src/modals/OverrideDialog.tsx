@@ -144,7 +144,6 @@ export function OverrideDialog(props: OverrideDialogProps) {
           <button
             type="button"
             onClick={apply}
-            autoFocus={!props.anyOverridden}
             className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
           >
             Apply
