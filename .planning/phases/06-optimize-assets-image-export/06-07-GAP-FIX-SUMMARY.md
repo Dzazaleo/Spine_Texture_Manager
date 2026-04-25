@@ -14,6 +14,8 @@ commits:
   - acdf7c1  feat(06-gap): image-worker extracts from atlas page when per-region PNG missing
   - c8465c6  test(06-gap): atlas-extract integration spec on Jokerman fixture
   - 5b834ef  fix(06-gap): OptimizeDialog keys rowStatuses by index, not outPath
+  - a8fd72d  feat(06-gap6): shared useFocusTrap hook
+  - 8a76b7c  fix(06-gap6): wire useFocusTrap into all 3 ARIA modals
 verification:
   vitest_full: 184 passed | 1 skipped (was 172 baseline; +12 new tests)
   arch_spec: 9/9 GREEN
@@ -893,3 +895,195 @@ Round 5 commits exist (verified via `git log --oneline -5`):
 - FOUND: e70b25e fix(06-gap5): Peak W×H column shows export dims
 - FOUND: 5a44262 docs(06-gap5): document ceil + ceil-thousandth refinement
 - (this commit) docs(06-gap5): append round 5 (math/display reconciliation)
+
+---
+
+## Round 6 — focus management in hand-rolled ARIA modals (2026-04-25)
+
+**Trigger:** Human-verify Step 4 surfaced a focus-management regression
+across the OptimizeDialog (and, by inheritance from the same hand-rolled
+D-81 pattern, ConflictDialog + OverrideDialog). Specifically the user
+reported two distinct symptoms with a shared root cause:
+
+> "Tabbing only works if user clicks in the optimize dialogue footer
+> first and tabbing repeatedly works once: focus goes to cancel button
+> first, next to start, then goes to somewhere else. User needs to
+> click anywhere on Optimize dialogue footer again in order to bring
+> focus again to its buttons (next tab focus cancel again)."
+
+> "Esc closes the dialog IF user didn't tab enough times to make the
+> focus leave the dialogue."
+
+### Root cause
+
+The hand-rolled D-81 ARIA modal pattern auto-focused a single button on
+mount via a useEffect ref call but lacked two additional behaviors:
+
+1. **No Tab/Shift+Tab focus cycle.** When focus reached the LAST
+   tabbable element (e.g. Start in OptimizeDialog pre-flight),
+   pressing Tab moved focus to whatever lived behind the modal — the
+   page underneath, devtools, browser chrome. Same with Shift+Tab off
+   the FIRST element. Once focus had escaped, the user had to click
+   inside the dialog again to recover.
+
+2. **Escape handler wired on the dialog root, not the document.** The
+   `onKeyDown={Escape}` lived on the inner panel div, which means the
+   keydown only fired when focus was INSIDE the dialog subtree. Once
+   focus had drifted out (problem 1), Escape no longer reached the
+   handler — the dialog appeared to "stop responding" to ESC.
+
+This was a known gap in the D-81 pattern. Phase 4's OverrideDialog
+exhibited it from day one; Phase 6's OptimizeDialog + ConflictDialog
+inherited the pattern. Round 6 fixes all three at once since they
+share the bug shape.
+
+### Round 6 commits
+
+- `a8fd72d` feat(06-gap6): shared useFocusTrap hook (Tab cycle + document-level Escape + auto-focus first)
+- `8a76b7c` fix(06-gap6): wire useFocusTrap into all 3 ARIA modals
+- (this commit) docs(06-gap6): append round 6 (focus trap) to gap-fix summary
+
+### Fix
+
+**New shared hook** at `src/renderer/src/hooks/useFocusTrap.ts` with these
+guaranteed invariants:
+
+- On mount (when `enabled === true`), the FIRST focusable descendant of
+  the container is auto-focused so the user can press Tab immediately
+  without clicking inside the dialog first.
+- Tab from the LAST focusable cycles to the FIRST. Shift+Tab from the
+  FIRST cycles to the LAST. If focus has drifted OUTSIDE the container
+  entirely, the next Tab press rescues focus back to the FIRST.
+- The keydown listener is registered on `document` (NOT the container)
+  so the cycle works even if focus has already drifted — the trap is
+  always reachable.
+- The tabbable list is re-queried on every Tab press. The OptimizeDialog
+  footer changes between states (pre-flight has Cancel + Start;
+  in-progress has Cancel only; complete has Open Folder + Close), so a
+  memoized snapshot would go stale.
+- Optional `onEscape` callback fires when Escape is pressed AND
+  `enabled === true`. Hosts can pass `undefined` to opt out — the
+  OptimizeDialog uses this in its `'in-progress'` state per D-115
+  (Escape must NOT close mid-run; user must explicitly Cancel).
+- On unmount or when `enabled` flips false, the listener is removed and
+  focus is restored to the previously-focused element (the toolbar
+  button that opened the dialog), satisfying the standard accessibility
+  contract that closing a modal returns focus to the trigger.
+
+Standard tabbable selector used:
+```typescript
+'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+```
+
+### Per-dialog wiring
+
+- **OptimizeDialog** — `dialogRef` attached to the `role='dialog'`
+  overlay. `useFocusTrap(dialogRef, props.open, { onEscape: state === 'in-progress' ? undefined : onCloseSafely })`.
+  Per-state primary-action focus useEffect retained — useFocusTrap
+  auto-focuses the first tabbable on initial mount; the per-state
+  useEffect overrides on state changes (Cancel in in-progress, Close
+  in complete). Local `keyDown` handler narrowed from `{Escape, Enter}`
+  to `{Enter only}` (Enter is per-context — pre-flight Start shortcut);
+  the hook owns Escape now.
+
+- **ConflictDialog** — `dialogRef` attached to the `role='dialog'`
+  overlay. `useFocusTrap(dialogRef, props.open, { onEscape: props.onCancel })`.
+  The old per-button `cancelBtnRef` + auto-focus useEffect deleted —
+  useFocusTrap auto-focuses the FIRST tabbable which IS the Cancel
+  button (leftmost in the footer), preserving the safe-default contract
+  (user must deliberately Tab to reach the destructive Overwrite-all
+  option). No Enter shortcut — destructive primary action; user must
+  explicitly click/Space.
+
+- **OverrideDialog** — `dialogRef` attached to the `role='dialog'`
+  overlay. `useFocusTrap(dialogRef, props.open, { onEscape: props.onCancel })`.
+  Old auto-focus useEffect simplified to keep only the `.select()`
+  call — useFocusTrap owns `focus()`, the residual one-line effect
+  adds `select()` so the user can immediately retype on open. Local
+  `keyDown` narrowed from `{Enter, Escape}` to `{Enter only}` (Enter
+  triggers Apply per Phase 4 D-81).
+
+### Files modified
+
+- `src/renderer/src/hooks/useFocusTrap.ts` — NEW FILE; shared hook with
+  Tab cycle + document-level Escape + auto-focus first + previous-focus
+  restoration.
+- `src/renderer/src/modals/OptimizeDialog.tsx` — `dialogRef` added; hook
+  wired with state-conditional onEscape; per-state focus useEffect
+  retained; local keyDown narrowed to Enter-only; file-header docblock
+  updated.
+- `src/renderer/src/modals/ConflictDialog.tsx` — `dialogRef` added; hook
+  wired; cancelBtnRef + auto-focus useEffect deleted; per-button ref
+  removed from JSX; file-header docblock updated.
+- `src/renderer/src/modals/OverrideDialog.tsx` — `dialogRef` added; hook
+  wired; auto-focus useEffect simplified to .select()-only; local
+  keyDown narrowed to Enter-only; file-header docblock updated.
+
+### Tests
+
+No automated tests added for the hook itself. The renderer modal test
+harness gap (no Testing Library / happy-dom) was called out in Round 1
+and still stands — adding it would require pulling in a new test
+infrastructure (out of scope for a Round 6 focus-management fix). The
+hook's invariants are documented in the file-header docblock, and
+manual re-test scenarios below cover the user-visible correctness.
+
+### Round 6 Verification
+
+| Check                              | Result |
+| ---------------------------------- | ------ |
+| `npm test`                         | 207 passed | 1 skipped (matches Round 5 baseline; no new tests due to renderer harness gap) |
+| `npm test -- tests/arch.spec.ts`   | 9/9 GREEN (Layer 3 invariant intact; new hook lives entirely under renderer/src/hooks/) |
+| `npx electron-vite build`          | green (renderer 623.37 kB; +1.75 kB for the focus-trap hook) |
+| `npm run typecheck:web`            | clean |
+| `npm run typecheck:node`           | pre-existing `scripts/probe-per-anim.ts` error (out of scope, inherited from Rounds 1–5) |
+
+### Manual Re-Test Scenarios for Round 6 (User)
+
+If all six scenarios pass, the Step 4 focus-management regression is
+verified fixed across all three hand-rolled ARIA modals.
+
+**OptimizeDialog**:
+
+1. Drop a project, click Optimize → pick output dir → OptimizeDialog
+   mounts in pre-flight. **Without clicking anywhere**, press Tab →
+   focus moves to Cancel (first tabbable in the footer); press Tab
+   again → moves to Start; press Tab again → cycles back to Cancel
+   (does NOT escape to the page underneath). Shift+Tab cycles in
+   reverse (Cancel → Start → Cancel → ...).
+2. Press Escape in pre-flight → dialog closes regardless of how many
+   times you Tabbed beforehand.
+3. Click Start → in in-progress state, press Escape → dialog does NOT
+   close (D-115). Cancel button still works as a click target.
+4. After completion (state === 'complete'), Tab cycles between Open
+   Folder + Close; Escape closes.
+
+**ConflictDialog**:
+
+5. Trigger a conflict (e.g. drop `fixtures/Girl/...json`, pick the
+   skeleton folder where `images/` already exists with source PNGs,
+   click Optimize → Start). ConflictDialog mounts → without clicking,
+   press Tab → cycles Cancel / Pick different folder / Overwrite all
+   without escaping. Escape = Cancel (closes both dialogs per Round 3
+   contract).
+
+**OverrideDialog (Phase 4 D-81 origin)**:
+
+6. Open any row's override dialog from the Global panel → input is
+   auto-focused AND its contents auto-selected (so retyping replaces
+   immediately) → Tab cycles between input + Reset to peak (if
+   visible) + Reset to source (100%) + Cancel + Apply without
+   escaping; Shift+Tab reverse cycles. Escape = Cancel.
+
+### Round 6 Self-Check: PASSED
+
+Files created/modified (verified via `git diff --name-only HEAD~2 HEAD`):
+- FOUND: src/renderer/src/hooks/useFocusTrap.ts
+- FOUND: src/renderer/src/modals/ConflictDialog.tsx
+- FOUND: src/renderer/src/modals/OptimizeDialog.tsx
+- FOUND: src/renderer/src/modals/OverrideDialog.tsx
+
+Round 6 commits exist (verified via `git log --oneline -3`):
+- FOUND: a8fd72d feat(06-gap6): shared useFocusTrap hook
+- FOUND: 8a76b7c fix(06-gap6): wire useFocusTrap into all 3 ARIA modals
+- (this commit) docs(06-gap6): append round 6 (focus trap)
