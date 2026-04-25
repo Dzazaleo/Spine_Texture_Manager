@@ -1057,22 +1057,27 @@ app.whenReady().then(() => {
 
 **If this table grows during planning** (e.g., user clarifies pot/square preference), the planner should mark superseded rows and reduce open assumptions before locking the plan.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+**All three open questions below were de-facto resolved during Plans 01-05's actual implementation. RESOLVED markers reference the SUMMARY files where the resolution lands.**
 
 1. **Pot-aligned vs tight-fit bin sizing for the projection.**
    - What we know: maxrects-packer defaults are `smart: true, pot: true, square: true`. Tight-fit (`pot: false, square: false`) makes efficiency more honest but diverges from Spine atlas-pack output.
    - What's unclear: User preference. CONTEXT.md doesn't address.
    - Recommendation: Default to `pot: false, square: false` (Recommendation A in Library Verification). Surface in plan-checker checkpoint for user confirmation.
+   - **RESOLVED (Plan 02, `07-02-SUMMARY.md`):** Recommendation A applied verbatim — MaxRectsPacker hardcoded with `padding: 2, allowRotation: false, smart: true, pot: false, square: false, border: 0`. Tight-fit bin sizing chosen so `efficiency` reads honestly against the per-page cap (D-127 / RESEARCH §Pitfall 7). Verified via `grep -E "pot:\s*false"` + `grep -E "square:\s*false"` against `src/core/atlas-preview.ts` (07-02-SUMMARY.md verification table).
 
 2. **Which `app-image://` URL host segment convention?**
    - What we know: `app-image:///abs/path` (empty host, leading slash) is the most common convention. Some Electron examples use `app-image://[host]/path` where host is a logical namespace.
    - What's unclear: Whether `request.url.pathname` survives `decodeURIComponent` correctly on Windows (drive-letter paths like `C:/...`).
    - Recommendation: macOS-only build per current `package.json:16` (`build: "electron-vite build && electron-builder --mac dmg"`), so paths are `/abs/...`. Defer Windows path handling until Windows target is added (Phase 9). Document this Phase-7 limitation.
+   - **RESOLVED (Plan 03, `07-03-SUMMARY.md`):** Empty-host convention adopted — renderer constructs `app-image://${encodeURI(absolutePath)}` (yields `app-image:///Users/.../region.png` triple-slash form on macOS); main parses via `decodeURIComponent(new URL(request.url).pathname)` and streams via `net.fetch(pathToFileURL(filePath).toString())`. macOS-only target preserved (`package.json` `--mac dmg`). Windows drive-letter handling explicitly deferred to Phase 9 per the original recommendation. NOTE: Plan 06 (gap-fix) re-opens this question if Task 1 diagnostics show the empty-host form misparses on the main side — Branch A in Plan 06 has a `app-image://localhost${...}` fallback ready, but that is a defensive contingency, not a resolution change.
 
 3. **Renderer test framework — gate canvas pixel tests behind a feature flag?**
    - What we know: jsdom does NOT implement HTMLCanvasElement's 2D context (returns `null` from `getContext('2d')`). Hit-test specs (modal opens, dblclick fires onJumpToAttachment) work fine in jsdom. Pixel-level drawImage / efficiency calc / region rendering does NOT.
    - What's unclear: Whether the planner needs canvas-pixel tests at all (the projection math is in `src/core/atlas-preview.ts` and tested in pure-TS — efficiency, page count, region positions are all asserted there).
    - Recommendation: Renderer tests cover (1) modal open/close, (2) toggle re-renders, (3) pager bounds-disable, (4) dblclick fires onJumpToAttachment. These need only DOM events + accessible queries — no canvas pixel assertions. Skip pixel-perfect renderer specs entirely; assert via `tests/core/atlas-preview.spec.ts` golden values + a manual checkpoint:human-verify of "the rectangles look right."
+   - **RESOLVED (Plan 04, `07-04-SUMMARY.md`):** Recommendation accepted — DOM-only renderer-spec posture. `tests/renderer/atlas-preview-modal.spec.tsx` runs under `// @vitest-environment jsdom` with `@testing-library/react` (16.x); 11 it() blocks across 6 describe blocks assert on `getByRole` / `getByText` / fireEvent.click + doubleClick handler-call counts. `if (!ctx) return` guard inside the canvas useEffect lets the modal mount under jsdom (which returns `null` from `getContext('2d')`). Pixel correctness is locked into `tests/core/atlas-preview.spec.ts` golden values; visual correctness is a human-verify checkpoint (originally Plan 05; re-run in Plan 06 Task 6 after Gap fixes). Two infra surprises captured: vitest needed `esbuild: { jsx: 'automatic' }` to align with tsconfig.web.json's `react-jsx`; `canvas.getBoundingClientRect()` mocked to `2048×2048` in dblclick specs because jsdom defaults return zero-pixel rects (Plan 04 deviation log).
 
 ## Environment Availability
 
