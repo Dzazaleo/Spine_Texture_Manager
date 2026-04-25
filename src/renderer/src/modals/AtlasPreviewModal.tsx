@@ -184,7 +184,7 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
             onNext={goNext}
             efficiency={currentPage?.efficiency ?? 0}
           />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-hidden">
             <AtlasCanvas
               page={currentPage}
               hoveredAttachmentName={hoveredAttachmentName}
@@ -384,8 +384,9 @@ function AtlasCanvas({
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
     canvas.width = Math.max(1, page.width) * dpr;
     canvas.height = Math.max(1, page.height) * dpr;
-    canvas.style.width = `${page.width}px`;
-    canvas.style.height = `${page.height}px`;
+    // CSS display-size set by the wrapper container + className (D-139 amendment;
+    // backing-store stays at page.width × dpr × page.height × dpr for drawImage
+    // fidelity).
     const ctx = canvas.getContext('2d');
     if (!ctx) return; // jsdom returns null — test env safety
     ctx.scale(dpr, dpr);
@@ -497,15 +498,27 @@ function AtlasCanvas({
 
   if (!page) return <div className="text-fg-muted text-xs">No projection.</div>;
 
+  // D-139 (Plan 06 amendment): canvas display-size auto-fits modal content area
+  // while preserving 1:1 aspect ratio for square pages. Backing-store stays at
+  // page.width × dpr × page.height × dpr (set in the useEffect above) for
+  // drawImage fidelity. Wrapper uses Tailwind v4 literal-class discipline
+  // (RESEARCH §Pitfall 3) — `aspect-[1/1]` is a literal arbitrary-value class.
   return (
-    <canvas
-      ref={canvasRef}
-      role="img"
-      aria-label={`Packed atlas page ${page.pageIndex + 1}, ${page.regions.length} regions, ${page.efficiency.toFixed(1)}% efficiency`}
-      className="max-w-full h-auto border border-border"
-      onMouseMove={onMouseMove}
-      onMouseLeave={() => setHoveredAttachmentName(null)}
-      onDoubleClick={onDoubleClick}
-    />
+    <div className="w-full h-full flex items-center justify-center">
+      <div
+        className="aspect-[1/1] w-full max-w-full max-h-full"
+        style={{ maxWidth: `${page.width}px`, maxHeight: `${page.height}px` }}
+      >
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={`Packed atlas page ${page.pageIndex + 1}, ${page.regions.length} regions, ${page.efficiency.toFixed(1)}% efficiency`}
+          className="block w-full h-full border border-border"
+          onMouseMove={onMouseMove}
+          onMouseLeave={() => setHoveredAttachmentName(null)}
+          onDoubleClick={onDoubleClick}
+        />
+      </div>
+    </div>
   );
 }
