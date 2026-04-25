@@ -115,7 +115,7 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
       missingPathsRef.current.add(absolutePath);
       setImageCacheVersion((v) => v + 1);
     };
-    img.src = `app-image://${encodeURI(absolutePath)}`;
+    img.src = `app-image://localhost${encodeURI(absolutePath)}`;
     console.log('[atlas-preview-debug] loadImage src=', img.src, 'absolutePath=', absolutePath);
     imageCacheRef.current.set(absolutePath, img);
     return img;
