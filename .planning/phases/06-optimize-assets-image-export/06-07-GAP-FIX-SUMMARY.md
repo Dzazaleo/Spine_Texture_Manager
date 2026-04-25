@@ -736,3 +736,160 @@ Round 4 commits exist (verified via `git log --oneline -2`):
 - FOUND: cbf210c fix(06-gap4): F_OK existence is the only collision gate
 - FOUND: 7b09b3d test(06-gap4): update overwrite tests for F_OK gate
 - (this commit) docs(06-gap4): append round 4 (F_OK collision gate)
+
+---
+
+## Round 5 — math/display reconciliation (2026-04-25)
+
+**Trigger:** Human-verify follow-up surfaced a 1-pixel under-allocation
+on JOKER/FACE: panel reported peak `289×348` (world-AABB), optimize
+dialog reported `293×347`, exported file came out 293×347. Three
+problems combined into one user-visible inconsistency:
+
+1. **Displayed peakScale (`0.361×`) is rounded for UI but export math
+   used full-precision (0.36128).** A user reading the panel and
+   trying to reproduce in Photoshop with 36.1% would get a different
+   result.
+2. **`Math.round` could round DOWN if fractional part < .5, producing
+   output dims SMALLER than the per-axis peak demand.** JOKER/FACE:
+   `962 × 0.36071 = 346.99` → `Math.round` = 347, but the per-axis
+   peak demanded ≥ 347.99 px.
+3. **Panel "Peak W×H" column showed world-AABB (worldW × worldH)** —
+   a different measurement than the export dims that can violate
+   aspect ratio (rotation can swap axes, mesh deformation shifts
+   the AABB).
+
+### Round 5 commits
+
+- `5044f05` fix(06-gap5): export math uses Math.ceil + ceil-thousandth scale (never under-allocate per-axis peak)
+- `72fac33` fix(06-gap5): scaleLabel uses ceil-thousandth (display matches export math)
+- `e70b25e` fix(06-gap5): Peak W×H column shows export dims (matches optimize dialog); world-AABB moves to hover tooltip
+- `5a44262` docs(06-gap5): document ceil + ceil-thousandth refinement to D-110 (memory + CONTEXT)
+- (this commit) docs(06-gap5): append round 5 (math/display reconciliation) to gap-fix summary
+
+### Combined fix
+
+Single coordinated change across math + display + panel:
+
+**Math (`src/core/export.ts` + byte-identical `src/renderer/src/lib/export-view.ts`):**
+- Added `safeScale(s) = Math.ceil(s * 1000) / 1000` helper exported
+  from both files. Applied AFTER override/peakScale resolution AND
+  BEFORE the ≤ 1.0 clamp in `buildExportPlan`.
+- Replaced `Math.round(sourceW × effScale)` with
+  `Math.ceil(sourceW × effScale)` (and same for sourceH). Output
+  dim is now never below the per-axis peak demand.
+- Aspect ratio preserved: same effScale on both axes; ceil applied
+  per-axis. Sub-pixel deviation only — Lanczos3 unaffected.
+
+**Display (`src/core/analyzer.ts`):**
+- Added internal `ceilThousandth(s)` helper.
+- Both `toDisplayRow` and `toBreakdownRow` scaleLabel paths use
+  `${ceilThousandth(p.peakScale).toFixed(3)}×` — display matches
+  the export math byte-for-byte.
+
+**Panel (`src/renderer/src/panels/GlobalMaxRenderPanel.tsx` +
+`AnimationBreakdownPanel.tsx`):**
+- Extracted `computeExportDims(sourceW, sourceH, peakScale, override)`
+  helper into `src/renderer/src/lib/export-view.ts` as the SINGLE
+  source of truth for "what dims will this row export at" — used by
+  both panels' enrich helpers AND consumable by future OptimizeDialog
+  refactors.
+- Renamed legacy `effectiveWorldW/H` fields to `effExportW/H` so the
+  semantic shift (export dims vs world-AABB) is explicit at every
+  read site.
+- "Peak W×H" cell renders `${row.effExportW}×${row.effExportH}`
+  (export dims, integer). World-AABB moves to a `title=` hover
+  tooltip ("World AABB at peak: WxH") so power users can still spot
+  rotation/mesh-deformation behavior diagnostically.
+- Sort comparator's `worldW` case now reads `effExportW` so column
+  ordering matches the visible cell value.
+
+### Files modified
+
+- `src/core/export.ts` — `safeScale` helper + `Math.ceil` per-axis +
+  Round 5 file-header docblock + JSDoc on `buildExportPlan`
+- `src/renderer/src/lib/export-view.ts` — byte-identical `safeScale` +
+  `Math.ceil` body changes + new `computeExportDims` renderer-side helper
+- `src/core/analyzer.ts` — `ceilThousandth` helper + scaleLabel update
+  in both `toDisplayRow` and `toBreakdownRow`
+- `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` — import switch from
+  `applyOverride` to `computeExportDims`; `EnrichedRow` field rename;
+  `enrichWithEffective` rewrite; comparator update; cell rendering update
+- `src/renderer/src/panels/AnimationBreakdownPanel.tsx` — same shape of
+  changes (import switch, `EnrichedBreakdownRow` field rename,
+  `enrichCardsWithEffective` rewrite, cell rendering update)
+- `tests/core/export.spec.ts` — case (a)/(b)/(d)/(f) updated to assert
+  `Math.ceil` semantics; new "Round 5 ceil + ceil-thousandth" describe
+  block (3 new test cases including the JOKER/FACE 0.36071 + 0.36128
+  boundary cases + property test for the ceil-thousandth lower bound);
+  parity test signature updated to `Math.ceil` + new `safeScale` grep
+- `tests/core/analyzer.spec.ts` — D-35 label test updated to assert
+  ceil-thousandth scaleLabel; 2 new boundary tests (0.36071 → "0.361×",
+  0.3601 → "0.361×" — the latter distinguishes ceil-thousandth from
+  plain `toFixed`)
+- `.planning/phases/06-optimize-assets-image-export/06-CONTEXT.md` —
+  D-110 amendment documenting Round 5
+- `~/.claude/projects/.../memory/project_phase6_default_scaling.md` —
+  user-locked memory updated with Round 5 amendment (out-of-tree;
+  recorded in commit message for traceability)
+
+### Test deltas
+
+- `tests/core/export.spec.ts`: 4 new test cases (JOKER/FACE 0.36071,
+  JOKER/FACE 0.36128 boundary, ceil-thousandth lower-bound property,
+  `safeScale` parity grep) on top of the existing case-update edits.
+- `tests/core/analyzer.spec.ts`: 2 new test cases (0.36071 → "0.361×",
+  0.3601 → "0.361×" boundary that distinguishes ceil from `toFixed`).
+
+### Round 5 Verification
+
+| Check                              | Result |
+| ---------------------------------- | ------ |
+| `npm test`                         | 207 passed | 1 skipped (was 201 baseline; +6 new) |
+| `npm test -- tests/arch.spec.ts`   | 9/9 GREEN (Layer 3 invariant intact) |
+| `npx electron-vite build`          | green (renderer 621.62 kB) |
+| `npm run typecheck:web`            | clean |
+| `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` | exit 0; CLI output unchanged (CLI uses raw `peakScale.toFixed(3)` directly from analyzer raw fields, NOT the new `scaleLabel` — so CLI byte-equivalence preserved) |
+
+### Manual Re-Test Scenarios for Round 5 (User)
+
+1. Drop `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json`. Find JOKER/FACE
+   row in the Global panel. Expect:
+   - "Peak W×H" column shows export dims (e.g. `293×348` — the ceil'd
+     export dims, NOT `289×348` world-AABB).
+   - Hover the cell → tooltip "World AABB at peak: 289×348".
+   - "Scale" column shows `0.361×` (ceil-thousandth of the actual
+     peakScale, NOT the bankers'-rounded value).
+2. Click Optimize Assets, pick output dir. Expect:
+   - Pre-flight dialog shows JOKER/FACE → `811×962 → 293×348`
+     (matches the panel byte-for-byte).
+3. Click Start. After completion, open the exported PNG. Expect:
+   - File dimensions exactly `293×348`.
+   - **Note:** if the user types 36.1% in Photoshop on the source PNG,
+     Photoshop computes `round(811 × 0.361) = round(292.771) = 293`
+     and `round(962 × 0.361) = round(347.282) = 347`. The app uses
+     ceil so it produces 293×348 — 1px taller than what Photoshop
+     produces from the displayed scale. This is the deliberate
+     "never under-allocate per-axis peak" trade-off.
+4. Backward compat: drop `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` →
+   verify CIRCLE/SQUARE/TRIANGLE rows show sensible Peak W×H + Scale
+   columns (Layer 3 boundary intact, panel matches optimize dialog).
+
+### Round 5 Self-Check: PASSED
+
+Files modified (verified via `git diff --name-only HEAD~4 HEAD`):
+- FOUND: src/core/export.ts
+- FOUND: src/renderer/src/lib/export-view.ts
+- FOUND: tests/core/export.spec.ts
+- FOUND: src/core/analyzer.ts
+- FOUND: tests/core/analyzer.spec.ts
+- FOUND: src/renderer/src/panels/GlobalMaxRenderPanel.tsx
+- FOUND: src/renderer/src/panels/AnimationBreakdownPanel.tsx
+- FOUND: .planning/phases/06-optimize-assets-image-export/06-CONTEXT.md
+
+Round 5 commits exist (verified via `git log --oneline -5`):
+- FOUND: 5044f05 fix(06-gap5): export math uses Math.ceil + ceil-thousandth scale
+- FOUND: 72fac33 fix(06-gap5): scaleLabel uses ceil-thousandth
+- FOUND: e70b25e fix(06-gap5): Peak W×H column shows export dims
+- FOUND: 5a44262 docs(06-gap5): document ceil + ceil-thousandth refinement
+- (this commit) docs(06-gap5): append round 5 (math/display reconciliation)
