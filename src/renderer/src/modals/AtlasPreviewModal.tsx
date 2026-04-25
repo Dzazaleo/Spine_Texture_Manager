@@ -452,6 +452,7 @@ function AtlasCanvas({
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.font = '12px sans-serif';
         ctx.fillText(region.attachmentName, region.x + 4, region.y + 14);
+        ctx.fillText(`${Math.round(region.w)} × ${Math.round(region.h)}`, region.x + 4, region.y + 28);
       }
     }
   }, [page, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
