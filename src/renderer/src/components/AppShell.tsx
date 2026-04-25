@@ -186,7 +186,14 @@ export function AppShell({ summary }: AppShellProps) {
   // dialog usable as a "review before committing" surface even when
   // collisions exist.
   const pickOutputDir = useCallback(async (): Promise<string | null> => {
-    const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '');
+    // Phase 6 REVIEW L-01 (2026-04-25) — fall back to '.' (process cwd
+    // resolution at the OS picker) when the skeleton path has no parent
+    // segment. Edge case: a skeleton at filesystem root like '/skel.json'
+    // would otherwise produce defaultOutDir = '/images-optimized' and
+    // suggest writing to system root. Realistically nobody drops a skeleton
+    // there, but the regex-strip approach has no defense and a one-token
+    // fallback removes the suggestion entirely.
+    const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
     const defaultOutDir = skeletonDir + '/images-optimized';
     return window.api.pickOutputDirectory(defaultOutDir);
   }, [summary.skeletonPath]);

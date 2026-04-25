@@ -72,36 +72,15 @@ let exportInFlight = false;
 let exportCancelFlag = false;
 
 /**
- * Path-prefix check for D-122 / F8.4 — outDir must NOT be the source
- * images directory itself or a child of it. Cross-platform via path.relative
- * + path.resolve. Empty `rel` means equal; '..' prefix means outside.
- *
- * Not exported — internal helper.
- *
- * Gap-Fix Round 3 (2026-04-25): no longer called from handleStartExport.
- * The folder-position-only rejection from Round 2 was over-cautious — the
- * new contract rejects ONLY when outDir IS the source-images dir itself
- * (handled inline as a path.resolve equality check) OR when an actual
- * file would be overwritten (probeExportConflicts). The helper is kept
- * here for potential future use (e.g. if a follow-up phase adds a more
- * structural folder-policy check) but is intentionally unreferenced today.
- *
- * The `eslint-disable-next-line` style comments below are unnecessary —
- * this project has no ESLint and TypeScript's noUnusedLocals is set
- * file-wide; the explicit `void`-call below keeps the symbol live for
- * the typechecker without affecting runtime behaviour.
+ * Phase 6 REVIEW L-04 (2026-04-25) — the previous Round 2 helper
+ * `isOutDirInsideSourceImages` (folder-position-only rejection) was
+ * superseded by the Round 3+4 inline equality check + the F_OK probe in
+ * `probeExportConflicts`. The dead helper + its `void`-call workaround
+ * have been removed. If a future phase needs a structural folder-policy
+ * check it can re-introduce the helper from git history; carrying it
+ * live as `void`-suppressed dead code added maintenance burden and
+ * risked confusing readers about the active contract.
  */
-function isOutDirInsideSourceImages(outDir: string, sourceImagesDir: string): boolean {
-  const resolvedOut = path.resolve(outDir);
-  const resolvedSrc = path.resolve(sourceImagesDir);
-  if (resolvedOut === resolvedSrc) return true;
-  const rel = path.relative(resolvedSrc, resolvedOut);
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
-}
-// Round 3: keep the helper symbol live for the typechecker (noUnusedLocals)
-// without re-introducing the round-2 over-cautious behaviour. The reference
-// is a no-op at runtime — the `void` operator discards the function value.
-void isOutDirInsideSourceImages;
 
 /**
  * Cheap shape validation for an ExportPlan crossing the trust boundary.
