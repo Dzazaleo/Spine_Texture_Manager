@@ -301,6 +301,81 @@ describe('runExport — case (f) no internal re-entrancy guard (D-115)', () => {
  * "Overwrite all" branch sets startExport(overwrite=true) which the IPC
  * layer forwards). Two tests below lock both branches.
  */
+/**
+ * Phase 6 REVIEW M-03 (2026-04-25) — D-115 cancel honesty.
+ *
+ * Locks the contract that `summary.cancelled` reflects ACTUAL loop bail
+ * (the cooperative pre-iteration `if (isCancelled()) break;` fired) and
+ * NOT a post-hoc isCancelled() probe at return time. Rationale: a user
+ * who clicks Cancel AFTER the last row already succeeded but BEFORE the
+ * function returns is racing the promise; every row completed; nothing
+ * was skipped. The summary's caption ("N succeeded, 0 failed in Xs —
+ * cancelled") would otherwise be misleading.
+ */
+describe('runExport — REVIEW M-03 cancel-flag race (D-115 contract)', () => {
+  it('cancel flag flips AFTER the last row succeeded → summary.cancelled === false (no false-positive)', async () => {
+    // Two rows; both succeed. The isCancelled mock returns false for the
+    // pre-iteration checks (rows 0 and 1) but flips to true after the
+    // loop has already exited — simulating a user click that arrives
+    // after the last row's atomic rename completed but before runExport
+    // returns. Pre-fix the return-time isCancelled() probe captured the
+    // late flip and reported `cancelled: true`; post-fix the loop-
+    // internal bailedOnCancel flag stays false.
+    let preIterCalls = 0;
+    let cancelled = false;
+    const isCancelled = (): boolean => {
+      // The pre-iteration check fires once per row (2 calls for 2 rows).
+      // After both rows have been started, simulate the late Cancel by
+      // flipping the flag — this is the race the M-03 fix targets.
+      const result = cancelled;
+      preIterCalls += 1;
+      if (preIterCalls === 2) {
+        // Last pre-iteration check returned false; AFTER the loop body
+        // for row 1 finishes there is one more isCancelled() probe at
+        // return time pre-fix, so we flip after the second pre-iteration
+        // observation.
+        cancelled = true;
+      }
+      return result;
+    };
+
+    const events: ExportProgressEvent[] = [];
+    const plan = buildPlan(2);
+    const summary = await runExport(plan, tmpDir, (e) => events.push(e), isCancelled);
+
+    // Both rows completed.
+    expect(events.length).toBe(2);
+    expect(events.every((e) => e.status === 'success')).toBe(true);
+    expect(summary.successes).toBe(2);
+    expect(summary.errors.length).toBe(0);
+    // Critical assertion: the late Cancel did NOT poison the summary.
+    expect(summary.cancelled).toBe(false);
+  });
+
+  it('cancel flag set BEFORE row 2 pre-iteration check → summary.cancelled === true (true cancel preserved)', async () => {
+    // Counter-test: the cooperative cancel path itself must still set
+    // summary.cancelled = true. isCancelled returns true on the SECOND
+    // iteration's pre-check (row 0 completes, row 1 is skipped).
+    let preIterCalls = 0;
+    const isCancelled = (): boolean => {
+      preIterCalls += 1;
+      // First pre-iter check (row 0): false; second (row 1): true.
+      return preIterCalls > 1;
+    };
+
+    const events: ExportProgressEvent[] = [];
+    const plan = buildPlan(2);
+    const summary = await runExport(plan, tmpDir, (e) => events.push(e), isCancelled);
+
+    // Only row 0 emitted an event; row 1 was skipped by the cancel.
+    expect(events.length).toBe(1);
+    expect(events[0].status).toBe('success');
+    expect(summary.successes).toBe(1);
+    // The genuine cancel path: summary.cancelled MUST be true.
+    expect(summary.cancelled).toBe(true);
+  });
+});
+
 describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fix Round 2)', () => {
   it('per-row collision: row whose resolved output exists on disk gets overwrite-source error; other rows continue', async () => {
     // Round 4 (2026-04-25): the per-row gate is F_OK (existence on disk).

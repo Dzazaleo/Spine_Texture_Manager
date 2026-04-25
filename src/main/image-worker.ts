@@ -81,11 +81,26 @@ export async function runExport(
   let successes = 0;
   const total = plan.rows.length;
   const resolvedOutDir = pathResolve(outDir);
+  // Phase 6 REVIEW M-03 (2026-04-25) — track whether the loop ACTUALLY
+  // broke out of cancellation rather than completing naturally. The
+  // previous `cancelled: isCancelled()` at return time conflated "user
+  // clicked Cancel mid-run and we skipped rows" (true cancel — D-115)
+  // with "user clicked Cancel after the last row already succeeded but
+  // before the function returned" (race — every row completed; nothing
+  // was skipped). The latter incorrectly poisoned the summary's caption
+  // ("N succeeded, 0 failed in Xs — cancelled") even though no work was
+  // skipped. Set this flag ONLY when the cooperative pre-iteration
+  // check below fires — that is the unambiguous "we stopped because of
+  // cancel" signal.
+  let bailedOnCancel = false;
 
   for (let i = 0; i < plan.rows.length; i++) {
     // D-115: cooperative cancel between files. In-flight cannot be aborted
     // mid-libvips; this check at the top of every iteration is the contract.
-    if (isCancelled()) break;
+    if (isCancelled()) {
+      bailedOnCancel = true;
+      break;
+    }
 
     const row = plan.rows[i];
     const sourcePath = row.sourcePath;
@@ -299,6 +314,12 @@ export async function runExport(
     errors,
     outputDir: resolvedOutDir,
     durationMs,
-    cancelled: isCancelled(),
+    // Phase 6 REVIEW M-03 (2026-04-25) — return the loop-internal
+    // bailedOnCancel flag, NOT a fresh isCancelled() probe. A Cancel
+    // click that arrives AFTER the last row already succeeded but BEFORE
+    // the function returns must NOT poison the summary as cancelled —
+    // every row completed and no work was skipped (D-115 contract:
+    // cooperative cancel BETWEEN files; not a post-hoc retroactive flag).
+    cancelled: bailedOnCancel,
   };
 }
