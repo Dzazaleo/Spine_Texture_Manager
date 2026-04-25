@@ -99,7 +99,6 @@ app.whenReady().then(() => {
     // Path is the URL pathname; explicitly decode for robustness against
     // double-encoding when the renderer applies encodeURI on absolute paths.
     const filePath = decodeURIComponent(url.pathname);
-    console.log('[atlas-preview-debug] protocol.handle', { requestUrl: request.url, pathname: url.pathname, filePath });
     try {
       const data = await readFile(filePath);
       const ext = filePath.toLowerCase().split('.').pop() ?? '';
@@ -108,8 +107,7 @@ app.whenReady().then(() => {
         ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
         'application/octet-stream';
       return new Response(data, { headers: { 'content-type': contentType } });
-    } catch (err) {
-      console.log('[atlas-preview-debug] protocol.handle error', { filePath, err: String(err) });
+    } catch {
       return new Response(null, { status: 404 });
     }
   });

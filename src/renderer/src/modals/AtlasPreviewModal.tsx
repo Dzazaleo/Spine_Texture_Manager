@@ -104,19 +104,16 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
     if (existing) return existing;
     const img = new Image();
     img.onload = () => {
-      console.log('[atlas-preview-debug] onload', { absolutePath, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, complete: img.complete });
       // Combined check (Pitfall 5): some browsers swallow onerror under CSP block;
       // naturalWidth === 0 catches that case + decode failures.
       if (img.naturalWidth === 0) missingPathsRef.current.add(absolutePath);
       setImageCacheVersion((v) => v + 1);
     };
-    img.onerror = (event) => {
-      console.log('[atlas-preview-debug] onerror', { absolutePath, src: img.src, event });
+    img.onerror = () => {
       missingPathsRef.current.add(absolutePath);
       setImageCacheVersion((v) => v + 1);
     };
     img.src = `app-image://localhost${encodeURI(absolutePath)}`;
-    console.log('[atlas-preview-debug] loadImage src=', img.src, 'absolutePath=', absolutePath);
     imageCacheRef.current.set(absolutePath, img);
     return img;
   }, []);
@@ -394,13 +391,6 @@ function AtlasCanvas({
 
     for (const region of page.regions) {
       const sourceUrl = region.atlasSource?.pagePath ?? region.sourcePath;
-      console.log('[atlas-preview-debug] drawRegion', {
-        attachmentName: region.attachmentName,
-        sourceUrl,
-        hasAtlasSource: !!region.atlasSource,
-        atlasSource: region.atlasSource,
-        regionXYWH: { x: region.x, y: region.y, w: region.w, h: region.h },
-      });
       const isMissing = missingPaths.has(sourceUrl);
       const img = sourceUrl ? loadImage(sourceUrl) : null;
       if (img && img.complete && img.naturalWidth > 0 && !isMissing) {
