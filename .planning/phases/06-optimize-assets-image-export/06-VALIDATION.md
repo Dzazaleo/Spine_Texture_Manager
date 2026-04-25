@@ -1,12 +1,13 @@
 ---
 phase: 6
 slug: optimize-assets-image-export
-status: partially-verified
+status: signed-off
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-04-24
 partially_verified: 2026-04-25
-note: "Plan 06-07 Task 1 (automated sweep) GREEN. status flips to signed-off only after Task 2 human-verify checkpoint approval (orchestrator-owned post-wave)."
+signed_off: 2026-04-25
+note: "Plan 06-07 Task 2 (human-verify) APPROVED 2026-04-25 — all 7 checklist scenarios PASS after 6 rounds of gap fixes (gap1: clamp + atlas-extract + UI key; gap2: collision guard; gap3: probe-then-confirm overwrite UX; gap4: F_OK-only collision gate; gap5: ceil + ceil-thousandth + Peak W×H = export dims; gap6: focus trap + button affordance)."
 ---
 
 # Phase 6 — Validation Strategy
@@ -56,7 +57,7 @@ note: "Plan 06-07 Task 1 (automated sweep) GREEN. status flips to signed-off onl
 | 06-06-01 | 06 | 5 | F8.1, F8.5 | T-06-15, T-06-16, T-06-17 | OptimizeDialog ARIA scaffold (role/aria-modal/labelledby) + 3-state state machine (pre-flight/in-progress/complete) + ESC/click-outside guard during in-progress + onExportProgress useEffect cleanup + Tailwind v4 literal-class discipline + Layer 3 invariant (renderer ↛ core) | gate + arch-grep | `npm run typecheck:web && npx electron-vite build && npm run test -- tests/arch.spec.ts && grep -E "role=\"dialog\"" src/renderer/src/modals/OptimizeDialog.tsx && grep -E "aria-modal=\"true\"" src/renderer/src/modals/OptimizeDialog.tsx && grep -E "onExportProgress" src/renderer/src/modals/OptimizeDialog.tsx` | ✅ | ✅ green |
 | 06-06-02 | 06 | 5 | F8.1 | T-06-18 | AppShell toolbar button (right-aligned, disabled when peaks=0 or exportInFlight) + click flow (picker → buildExportPlan → mount); Layer 3 import path is `lib/export-view.js` NOT `core/export.js` | gate + arch-grep | `npm run typecheck:web && npx electron-vite build && npm run test -- tests/arch.spec.ts && grep -E "OptimizeDialog" src/renderer/src/components/AppShell.tsx && grep -E "buildExportPlan" src/renderer/src/components/AppShell.tsx && grep -E "from '\.\./lib/export-view\.js'" src/renderer/src/components/AppShell.tsx` | ✅ | ✅ green |
 | 06-07-01 | 07 | 6 | F8.1, F8.2, F8.3, F8.4, F8.5, N3.1, N3.2, N4.2 | T-06-06, T-06-07, T-06-19 | Full automated exit-criteria sweep: vitest + typecheck + electron-vite build + locked-file diffs (cli.ts + sampler.ts) + npm audit on sharp + .dmg produced; flips Status column for rows 06-01-01..06-06-02 from ⬜ pending → ✅ green | gate (close-out sweep) | `npm run test && npm run typecheck && npx electron-vite build && git diff --exit-code scripts/cli.ts && git diff --exit-code src/core/sampler.ts && npm audit --omit=dev --audit-level=high \| grep -E "found 0 vulnerabilities\|0 vulnerabilities"` | ❌ W0 | ✅ green |
-| 06-07-02 | 07 | 6 | N3.2, N4.2, F8.1, F8.4, F8.5 | T-06-06, T-06-15, T-06-16, T-06-19 | Manual gates only humans can verify: visual Lanczos3 vs Photoshop (N3.2); packaged .dmg sharp-load (N4.2); folder picker UX + outDir validation; cancel UX during real export; ARIA keyboard sanity; backward compat with SIMPLE_TEST + GHOST fixtures | manual-visual | (human-verify checkpoint — 7-step checklist; resume signal logs PASS/FAIL/SKIP/DEFER per step) | ❌ W0 | ⬜ pending |
+| 06-07-02 | 07 | 6 | N3.2, N4.2, F8.1, F8.4, F8.5 | T-06-06, T-06-15, T-06-16, T-06-19 | Manual gates only humans can verify: visual Lanczos3 vs Photoshop (N3.2); packaged .dmg sharp-load (N4.2); folder picker UX + outDir validation; cancel UX during real export; ARIA keyboard sanity; backward compat with SIMPLE_TEST + GHOST fixtures | manual-visual | (human-verify checkpoint — 7-step checklist; resume signal logs PASS/FAIL/SKIP/DEFER per step) | ❌ W0 | ✅ green |
 
 *Status legend: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky · ❌ W0 = no test file (verified by composite gate or human-verify)*
 
@@ -64,7 +65,7 @@ note: "Plan 06-07 Task 1 (automated sweep) GREEN. status flips to signed-off onl
 
 - **Rows 06-01-01 through 06-06-02 (13 rows): all ✅ green.** Each row's `Automated Command` was re-run in this sweep and exited 0. Test count steady at **172 passed | 1 skipped | 0 failed** across 14 spec files (no regressions vs Plan 06-05/06-06 baseline). `arch.spec.ts` 9/9 PASS. `git diff --exit-code scripts/cli.ts` and `src/core/sampler.ts` both empty (D-102 + CLAUDE.md fact #3 byte-for-byte locks intact).
 - **Row 06-07-01: ✅ green.** Composite close-out sweep: vitest + typecheck + electron-vite build + locked-file diffs + npm audit + .dmg produced. Build artifact: `release/Spine Texture Manager-0.0.0-arm64.dmg` 118 MB (built 2026-04-25 01:24Z). Both asarUnpack globs verified: `node_modules/sharp` (300K) and `node_modules/@img` (16M, with `sharp-darwin-arm64` + `sharp-libvips-darwin-arm64` + `colour` subpackages) present under `app.asar.unpacked/`. `npm audit --omit=dev --audit-level=high` reports `found 0 vulnerabilities`.
-- **Row 06-07-02: ⬜ pending.** Awaiting human-verify checkpoint (visual N3.2 + packaged .dmg N4.2 + folder picker UX + cancel UX + ARIA + backward-compat with SIMPLE_TEST/GHOST). Will flip to ✅ green on resume-signal `approved`.
+- **Row 06-07-02: ✅ green (signed-off 2026-04-25).** All 7 manual checklist scenarios PASS after 6 rounds of in-line gap fixes (clamp + atlas-extract + UI key; collision guard; probe-then-confirm overwrite UX; F_OK-only collision gate; ceil + ceil-thousandth + Peak W×H = export dims; focus trap + button affordance). Suite at 207 pass / 1 skip / 0 fail; arch 9/9; CLI byte-locked.
 
 ### Pre-existing Out-of-Scope Issue (not regressions; not blocking)
 
@@ -111,4 +112,4 @@ note: "Plan 06-07 Task 1 (automated sweep) GREEN. status flips to signed-off onl
 - [x] Feedback latency < 30 s
 - [x] `nyquist_compliant: true` set in frontmatter (flipped by Plan 06-07 Task 1 at close-out)
 
-**Approval:** automated-pass — awaiting human-verify (Plan 06-07 Task 2)
+**Approval:** signed-off 2026-04-25 — Plan 06-07 Task 2 human-verify APPROVED across all 7 scenarios after 6 rounds of in-line gap fixes (gap1..gap6).
