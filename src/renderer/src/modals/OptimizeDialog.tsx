@@ -59,13 +59,20 @@ export interface OptimizeDialogProps {
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
   const [state, setState] = useState<DialogState>('pre-flight');
-  const [rowStatuses, setRowStatuses] = useState<Map<string, RowStatus>>(() => {
-    const m = new Map<string, RowStatus>();
-    for (const row of props.plan.rows) m.set(row.outPath, 'idle');
+  // Gap-Fix #3 (2026-04-25 human-verify Step 1): key rowStatuses + rowErrors
+  // by row INDEX (number), NOT outPath. Previously the write site at line 87
+  // stored event.outPath (ABSOLUTE resolved path emitted by image-worker)
+  // while the read site at line 329 looked up row.outPath (RELATIVE
+  // 'images/AVATAR/BODY.png') — keys never matched, so all rows stayed ○
+  // idle even when errors arrived. Index is unambiguous, doesn't depend on
+  // path normalization, and is already on every progress event (event.index).
+  const [rowStatuses, setRowStatuses] = useState<Map<number, RowStatus>>(() => {
+    const m = new Map<number, RowStatus>();
+    for (let i = 0; i < props.plan.rows.length; i++) m.set(i, 'idle');
     return m;
   });
-  const [rowErrors, setRowErrors] = useState<Map<string, string>>(new Map());
-  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
+  const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map());
+  const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState<{ current: number; lastPath: string }>({
     current: 0,
     lastPath: '',
@@ -82,9 +89,13 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   useEffect(() => {
     if (state !== 'in-progress') return;
     const unsubscribe = window.api.onExportProgress((event: ExportProgressEvent) => {
+      // Gap-Fix #3: keyed by event.index (number), NOT event.outPath. The
+      // image-worker emits ABSOLUTE outPath; the row table reads from
+      // row.outPath which is RELATIVE — keys never matched. Index is
+      // unambiguous and already on every progress event.
       setRowStatuses((prev) => {
         const next = new Map(prev);
-        next.set(event.outPath, event.status);
+        next.set(event.index, event.status);
         return next;
       });
       setProgress({ current: event.index + 1, lastPath: event.path });
@@ -92,7 +103,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
         const errMsg = event.error.message;
         setRowErrors((prev) => {
           const next = new Map(prev);
-          next.set(event.outPath, errMsg);
+          next.set(event.index, errMsg);
           return next;
         });
       }
@@ -198,11 +209,11 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
             rowStatuses={rowStatuses}
             rowErrors={rowErrors}
             expandedErrors={expandedErrors}
-            onToggleExpand={(outPath) => {
+            onToggleExpand={(rowIndex) => {
               setExpandedErrors((prev) => {
                 const next = new Set(prev);
-                if (next.has(outPath)) next.delete(outPath);
-                else next.add(outPath);
+                if (next.has(rowIndex)) next.delete(rowIndex);
+                else next.add(rowIndex);
                 return next;
               });
             }}
@@ -301,10 +312,13 @@ function PreFlightBody({ plan }: { plan: ExportPlan }) {
 
 function InProgressBody(props: {
   plan: ExportPlan;
-  rowStatuses: ReadonlyMap<string, RowStatus>;
-  rowErrors: ReadonlyMap<string, string>;
-  expandedErrors: ReadonlySet<string>;
-  onToggleExpand: (outPath: string) => void;
+  // Gap-Fix #3: keyed by row INDEX (number), NOT outPath. The image-worker
+  // emits ABSOLUTE outPath; row.outPath is RELATIVE; using outPath as the
+  // key meant rows never updated. Index is unambiguous.
+  rowStatuses: ReadonlyMap<number, RowStatus>;
+  rowErrors: ReadonlyMap<number, string>;
+  expandedErrors: ReadonlySet<number>;
+  onToggleExpand: (rowIndex: number) => void;
   progressCurrent: number;
   total: number;
   summary: ExportSummary | null;
@@ -325,10 +339,10 @@ function InProgressBody(props: {
         </div>
       </div>
       <ul className="flex-1 overflow-auto text-xs">
-        {props.plan.rows.map((row) => {
-          const status = (props.rowStatuses.get(row.outPath) ?? 'idle') as RowStatus;
-          const errMsg = props.rowErrors.get(row.outPath);
-          const expanded = props.expandedErrors.has(row.outPath);
+        {props.plan.rows.map((row, rowIndex) => {
+          const status = (props.rowStatuses.get(rowIndex) ?? 'idle') as RowStatus;
+          const errMsg = props.rowErrors.get(rowIndex);
+          const expanded = props.expandedErrors.has(rowIndex);
           return (
             <li
               key={row.outPath}
@@ -337,7 +351,7 @@ function InProgressBody(props: {
               <button
                 type="button"
                 onClick={() => {
-                  if (status === 'error' && errMsg) props.onToggleExpand(row.outPath);
+                  if (status === 'error' && errMsg) props.onToggleExpand(rowIndex);
                 }}
                 className="w-full text-left flex items-center gap-2"
                 disabled={status !== 'error'}
