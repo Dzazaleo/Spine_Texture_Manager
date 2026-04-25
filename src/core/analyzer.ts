@@ -38,10 +38,17 @@
  * dedup so ordering is stable; the CLI now prints one row per unique
  * attachment name (was: one row per sampler key; changed per gap-fix B).
  *
- * Label spec (D-35, D-45, D-46):
+ * Label spec (D-35, D-45, D-46; Round 5 amendment to scaleLabel 2026-04-25):
  *   originalSizeLabel = `${sourceW}×${sourceH}`
  *   peakSizeLabel     = `${worldW.toFixed(0)}×${worldH.toFixed(0)}`
- *   scaleLabel        = `${peakScale.toFixed(3)}×`
+ *   scaleLabel        = `${(Math.ceil(peakScale * 1000) / 1000).toFixed(3)}×`
+ *                       — Round 5 ceil-thousandth: matches the export math
+ *                       (src/core/export.ts safeScale + src/renderer/src/lib/
+ *                       export-view.ts safeScale). The displayed value is a
+ *                       guaranteed lower bound for what the export uses, so a
+ *                       user reading the panel and applying e.g. 36.1% in
+ *                       Photoshop never produces a smaller image than the app
+ *                       exports.
  *   sourceLabel       = animationName (already the static-pose label or
  *                       animation name as emitted by the sampler)
  *   frameLabel        = String(frame)
@@ -61,6 +68,21 @@ import { boneChainPath } from './bones.js';
  * routine joins on.
  */
 const BONE_PATH_SEPARATOR = ' → ';
+
+/**
+ * Round 5 (2026-04-25) — Ceil the scale value UP to the nearest thousandth
+ * so the displayed `0.361×` matches the export math (src/core/export.ts
+ * safeScale + renderer copy). Display becomes a guaranteed lower bound for
+ * what the export uses: a user reading the panel and applying e.g. 36.1% in
+ * Photoshop never produces a smaller image than the app exports.
+ *
+ * Pure helper. Identical math to src/core/export.ts safeScale — duplicated
+ * here (rather than imported) because analyzer.ts predates export.ts in the
+ * Phase 6 dependency graph and we keep core modules narrowly imported.
+ */
+function ceilThousandth(s: number): number {
+  return Math.ceil(s * 1000) / 1000;
+}
 
 function toDisplayRow(
   p: PeakRecord,
@@ -84,10 +106,11 @@ function toDisplayRow(
     sourceW: p.sourceW,
     sourceH: p.sourceH,
     isSetupPosePeak: p.isSetupPosePeak,
-    // preformatted labels (D-35, D-45, D-46) — single point of truth
+    // preformatted labels (D-35, D-45, D-46) — single point of truth.
+    // Round 5: scaleLabel uses ceil-thousandth so display matches export math.
     originalSizeLabel: `${p.sourceW}×${p.sourceH}`,
     peakSizeLabel: `${p.worldW.toFixed(0)}×${p.worldH.toFixed(0)}`,
-    scaleLabel: `${p.peakScale.toFixed(3)}×`,
+    scaleLabel: `${ceilThousandth(p.peakScale).toFixed(3)}×`,
     sourceLabel: p.animationName,
     frameLabel: String(p.frame),
     // Phase 6 Plan 02 (D-108 + RESEARCH §Pattern 2) — absolute path to source
@@ -206,9 +229,10 @@ function toBreakdownRow(
     sourceH: p.sourceH,
     isSetupPosePeak: p.isSetupPosePeak,
     // Preformatted Phase 2 labels (D-35, D-45, D-46).
+    // Round 5: scaleLabel uses ceil-thousandth so display matches export math.
     originalSizeLabel: `${p.sourceW}×${p.sourceH}`,
     peakSizeLabel: `${p.worldW.toFixed(0)}×${p.worldH.toFixed(0)}`,
-    scaleLabel: `${p.peakScale.toFixed(3)}×`,
+    scaleLabel: `${ceilThousandth(p.peakScale).toFixed(3)}×`,
     sourceLabel: p.animationName,
     // D-57: em-dash (U+2014) for setup-pose rows, String(frame) for animation rows.
     frameLabel: isSetup ? '—' : String(p.frame),

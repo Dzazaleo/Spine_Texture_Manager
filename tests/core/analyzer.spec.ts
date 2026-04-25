@@ -33,7 +33,7 @@ describe('analyze (D-33, D-34, D-35)', () => {
     expect(rows).toEqual(resorted);
   });
 
-  it('D-35: preformatted labels match spec strings', () => {
+  it('D-35 (Round 5 amendment): preformatted labels match spec strings; scaleLabel uses ceil-thousandth', () => {
     const load = loadSkeleton(FIXTURE);
     const { globalPeaks: peaks } = sampleSkeleton(load);
     const rows = analyze(peaks);
@@ -41,10 +41,64 @@ describe('analyze (D-33, D-34, D-35)', () => {
     for (const r of rows) {
       expect(r.originalSizeLabel).toBe(`${r.sourceW}×${r.sourceH}`);
       expect(r.peakSizeLabel).toBe(`${r.worldW.toFixed(0)}×${r.worldH.toFixed(0)}`);
-      expect(r.scaleLabel).toBe(`${r.peakScale.toFixed(3)}×`);
+      // Round 5: scaleLabel = ceil-thousandth so display matches export math.
+      const expectedScale = Math.ceil(r.peakScale * 1000) / 1000;
+      expect(r.scaleLabel).toBe(`${expectedScale.toFixed(3)}×`);
       expect(r.frameLabel).toBe(String(r.frame));
       expect(r.sourceLabel).toBe(r.animationName);
     }
+  });
+
+  it('Round 5: scaleLabel for synthetic peakScale 0.36071 renders as "0.361×" (ceil-thousandth, NOT toFixed-round)', () => {
+    // toFixed(3) on 0.36071 yields "0.361" (round-half-to-even rounds .5 down)
+    // — happens to coincide with ceil-thousandth here, but the SEMANTICS differ:
+    // ceil-thousandth is a guaranteed lower bound, toFixed is bankers' round.
+    // The contract is that we use the ceil semantics; locked here so a
+    // future refactor to plain toFixed doesn't silently regress.
+    const rec: PeakRecord = {
+      attachmentKey: 'default/HEAD/FACE',
+      skinName: 'default',
+      slotName: 'HEAD',
+      attachmentName: 'FACE',
+      animationName: 'JOKER',
+      time: 1.0,
+      frame: 60,
+      peakScaleX: 0.36071,
+      peakScaleY: 0.36071,
+      peakScale: 0.36071,
+      worldW: 292.5,
+      worldH: 347.0,
+      sourceW: 811,
+      sourceH: 962,
+      isSetupPosePeak: false,
+    };
+    const rows = analyze(new Map([[rec.attachmentKey, rec]]));
+    expect(rows[0].scaleLabel).toBe('0.361×');
+  });
+
+  it('Round 5: scaleLabel for synthetic peakScale 0.3601 renders as "0.361×" (ceil rounds UP, NOT toFixed-down to 0.360)', () => {
+    // toFixed(3) on 0.3601 yields "0.360" (closer-to-zero by truncation).
+    // ceil-thousandth promotes 0.3601 to 0.361 — guaranteed lower bound.
+    // This is the boundary that distinguishes the two contracts.
+    const rec: PeakRecord = {
+      attachmentKey: 'default/HEAD/FACE',
+      skinName: 'default',
+      slotName: 'HEAD',
+      attachmentName: 'FACE',
+      animationName: 'JOKER',
+      time: 1.0,
+      frame: 60,
+      peakScaleX: 0.3601,
+      peakScaleY: 0.3601,
+      peakScale: 0.3601,
+      worldW: 292.0,
+      worldH: 346.5,
+      sourceW: 811,
+      sourceH: 962,
+      isSetupPosePeak: false,
+    };
+    const rows = analyze(new Map([[rec.attachmentKey, rec]]));
+    expect(rows[0].scaleLabel).toBe('0.361×');
   });
 
   it('D-22: output survives structuredClone unchanged', () => {
