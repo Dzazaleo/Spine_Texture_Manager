@@ -36,6 +36,12 @@
  *   - mkdir / rename throw                     → 'write-error'
  *   - path-traversal reject                    → 'write-error'
  *   - NaN/zero-dim reject                      → 'write-error'
+ *   - source-vs-output collision               → 'overwrite-source'
+ *     (Gap-Fix Round 2 — defense-in-depth; the IPC layer ALSO pre-flights
+ *     the same condition and rejects the entire plan up front. This per-row
+ *     check inside runExport guards against any future caller that bypasses
+ *     the IPC layer; on hit, the row is skipped per D-116 continuation
+ *     while other rows still process.)
  *
  * Layer 3 inverse: this file imports sharp + node:fs/promises +
  * node:path. tests/arch.spec.ts (Plan 06-01) Layer 3 grep allows
@@ -77,6 +83,46 @@ export async function runExport(
     const row = plan.rows[i];
     const sourcePath = row.sourcePath;
     const resolvedOut = pathResolve(outDir, row.outPath);
+
+    // 0. Gap-Fix Round 2 (2026-04-25) — defense-in-depth same-path guard.
+    //    The IPC layer (src/main/ipc.ts handleStartExport) ALREADY rejects
+    //    plans whose resolved output collides with any row's source PNG or
+    //    atlas page (kind: 'overwrite-source'). This per-row check inside
+    //    runExport is belt-and-suspenders — runExport is also invoked
+    //    directly from tests and could in principle be invoked from a
+    //    future code path that bypasses the IPC pre-flight. Refusing to
+    //    overwrite source files is a correctness invariant we want guarded
+    //    at BOTH layers, even at the cost of a redundant string compare
+    //    per row (O(1), well below the sharp/libvips cost that follows).
+    //
+    //    On collision we emit a per-row 'overwrite-source' error and skip
+    //    to the next row (D-116 skip-on-error continuation), rather than
+    //    failing the entire run — other rows may still write safely if
+    //    only one row's outPath happens to collide.
+    const resolvedSrc = pathResolve(sourcePath);
+    if (resolvedSrc === resolvedOut) {
+      const error: ExportError = {
+        kind: 'overwrite-source',
+        path: resolvedOut,
+        message: `Refusing to overwrite source: ${sourcePath}`,
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+    if (row.atlasSource) {
+      const resolvedAtlasPage = pathResolve(row.atlasSource.pagePath);
+      if (resolvedAtlasPage === resolvedOut) {
+        const error: ExportError = {
+          kind: 'overwrite-source',
+          path: resolvedOut,
+          message: `Refusing to overwrite atlas page: ${row.atlasSource.pagePath}`,
+        };
+        errors.push(error);
+        onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+        continue;
+      }
+    }
 
     // 1. Pre-flight per D-112. Decide which sharp pipeline to use:
     //    - per-region PNG exists  → use sourcePath (existing path)

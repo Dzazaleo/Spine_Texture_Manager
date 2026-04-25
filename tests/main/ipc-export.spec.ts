@@ -246,3 +246,164 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
     }
   });
 });
+
+/**
+ * Gap-Fix Round 2 (2026-04-25) — Bug #4 regression-lock.
+ *
+ * Reproduction (user-confirmed): user picked the SKELETON folder as outDir
+ * (not the images folder) — source PNGs lived in `<skeletonDir>/images/`, so
+ * each row's resolved write `<outDir>/images/<region>.png` landed ON its
+ * source PNG. The OLD `isOutDirInsideSourceImages` guard saw outDir as
+ * OUTSIDE source-images and approved; the worker overwrote source files in
+ * place. The new pre-flight per-row collision check rejects with
+ * 'overwrite-source' BEFORE setting exportInFlight.
+ */
+describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round 2)', () => {
+  it('rejects with overwrite-source when outDir is parent-of-source-images (the user-confirmed repro case)', async () => {
+    // Source PNGs at /skel/images/CIRCLE.png; outDir is the parent /skel.
+    // Row's outPath is `images/CIRCLE.png` (loader sets outPath relative
+    // so a parent-of-images outDir resolves directly onto the source).
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      {
+        sender: { send: vi.fn() },
+      } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/skel',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Critical: must be 'overwrite-source', NOT 'invalid-out-dir' —
+      // 'invalid-out-dir' fires only when outDir is INSIDE source-images;
+      // this is the inverse case (outDir is the PARENT of source-images).
+      expect(result.error.kind).toBe('overwrite-source');
+      expect(result.error.message).toMatch(/overwrite source PNG/);
+    }
+  });
+
+  it('rejects with overwrite-source when ANY row would collide (catches sibling-folder collision case)', async () => {
+    // Multiple rows; one is safe, one collides. The first collision wins.
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/SAFE.png',
+          outPath: 'other/SAFE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['SAFE'],
+        },
+        {
+          sourcePath: '/proj/images/BAD.png',
+          outPath: 'images/BAD.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['BAD'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 2 },
+    };
+    const result = await handleStartExport(
+      {
+        sender: { send: vi.fn() },
+      } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/proj',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('overwrite-source');
+      expect(result.error.message).toContain('BAD.png');
+    }
+  });
+
+  it('rejects with overwrite-source when atlas page would be overwritten', async () => {
+    // Atlas-packed project: per-region PNG path is missing on disk; the
+    // row carries atlasSource pointing at the atlas page PNG instead.
+    // outDir + outPath collides with the atlas page → reject.
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/AVATAR/L_EYE.png',
+          outPath: 'JOKERMAN_SPINE.png',
+          sourceW: 171,
+          sourceH: 171,
+          outW: 100,
+          outH: 100,
+          effectiveScale: 0.58,
+          attachmentNames: ['AVATAR/L_EYE'],
+          atlasSource: {
+            pagePath: '/proj/JOKERMAN_SPINE.png',
+            x: 1032,
+            y: 3235,
+            w: 171,
+            h: 171,
+            rotated: false,
+          },
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      {
+        sender: { send: vi.fn() },
+      } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/proj',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('overwrite-source');
+      expect(result.error.message).toMatch(/atlas page/);
+    }
+  });
+
+  it('does NOT false-reject a genuinely safe outDir (happy path stays GREEN)', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      {
+        sender: { send: vi.fn() },
+      } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/tmp/foo',
+    );
+    expect(result.ok).toBe(true);
+  });
+});

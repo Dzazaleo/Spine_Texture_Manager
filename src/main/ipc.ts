@@ -223,7 +223,7 @@ export async function handleStartExport(
   }
   const validPlan = plan as ExportPlan;
 
-  // D-122 + F8.4: outDir must not be source/images or a child of it.
+  // D-122 + F8.4 (Layer A): outDir must not be source/images or a child of it.
   // Source images dir is derived from row[0].sourcePath which the loader
   // sets as <skeletonDir>/images/<regionName>.png — so a /images/ slice
   // yields the source images folder for the topmost region. For nested
@@ -233,6 +233,11 @@ export async function handleStartExport(
   // Empty plans skip this check (no source path to derive from); they
   // proceed straight to runExport which loops zero times and returns
   // an empty summary.
+  //
+  // Friendlier early-exit message for the "user picked the source images
+  // folder itself" case. The per-row collision check below (Layer B)
+  // would also catch this, but the message is less direct than naming
+  // the source images folder explicitly.
   if (validPlan.rows.length > 0) {
     const firstSrc = validPlan.rows[0].sourcePath;
     const normalised = firstSrc.replace(/\\/g, '/');
@@ -247,6 +252,47 @@ export async function handleStartExport(
         error: {
           kind: 'invalid-out-dir',
           message: 'Output directory must not be the source images folder or a child of it.',
+        },
+      };
+    }
+  }
+
+  // Gap-Fix Round 2 (2026-04-25) — Layer B per-row collision detection.
+  // The Layer A guard above only catches the case where outDir IS or is
+  // INSIDE the source images folder. It structurally CANNOT catch the
+  // inverse: outDir is the PARENT of `images/` (e.g. user picks the
+  // skeleton folder), where each row's resolved write path
+  // `<outDir>/images/<region>.png` lands ON the source PNG in
+  // `<skeletonDir>/images/<region>.png` and silently destroys it.
+  //
+  // For each row we resolve outDir + outPath and compare to:
+  //   (1) the row's source PNG path (per-region PNG case)
+  //   (2) the row's atlas page path (atlas-packed projects case)
+  // Either equality is fatal — fail-fast BEFORE setting exportInFlight
+  // so a guard rejection does not poison the slot for follow-up calls.
+  // This runs in O(rows) once at pre-flight; cost is negligible vs the
+  // sharp/libvips work that follows.
+  for (const row of validPlan.rows) {
+    const resolvedOut = path.resolve(outDir, row.outPath);
+    if (path.resolve(row.sourcePath) === resolvedOut) {
+      return {
+        ok: false,
+        error: {
+          kind: 'overwrite-source',
+          message:
+            `Output would overwrite source PNG: ${row.sourcePath}. ` +
+            `Pick an output directory that does NOT contain the project's source images folder.`,
+        },
+      };
+    }
+    if (row.atlasSource && path.resolve(row.atlasSource.pagePath) === resolvedOut) {
+      return {
+        ok: false,
+        error: {
+          kind: 'overwrite-source',
+          message:
+            `Output would overwrite atlas page: ${row.atlasSource.pagePath}. ` +
+            `Pick an output directory that does NOT contain the project's atlas pages.`,
         },
       };
     }

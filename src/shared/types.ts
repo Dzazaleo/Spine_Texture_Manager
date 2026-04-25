@@ -243,9 +243,18 @@ export interface ExportPlan {
  *     !== 0). First-pass refuses to attempt the rotated extract; user
  *     must re-export from Spine with rotation disabled or wait for a
  *     follow-up phase to add rotation handling.
+ *   - 'overwrite-source': Gap-Fix Round 2 (2026-04-25) — refusing to
+ *     overwrite a source PNG or atlas page. Surfaced both at the IPC
+ *     pre-flight layer (fail-fast before claiming the in-flight slot) AND
+ *     by the image-worker per-row defense-in-depth check, which catches
+ *     the same condition if any future code path bypasses the IPC guard.
+ *     Reproduction case: user picks the SKELETON folder as outDir while
+ *     source PNGs live in `<skeletonDir>/images/`; the row's resolved
+ *     output equals its source path. Without the guard this would
+ *     silently destroy source images in place.
  */
 export interface ExportError {
-  kind: 'missing-source' | 'sharp-error' | 'write-error' | 'rotated-region-unsupported';
+  kind: 'missing-source' | 'sharp-error' | 'write-error' | 'rotated-region-unsupported' | 'overwrite-source';
   path: string;
   message: string;
 }
@@ -284,10 +293,18 @@ export interface ExportSummary {
  * mirrors LoadResponse pattern (D-10). 'already-running' rejected by
  * the re-entrancy guard (D-115); 'invalid-out-dir' by the F8.4 / D-122
  * defense (outDir cannot equal source/images or be a child of it).
+ *
+ * Gap-Fix Round 2 (2026-04-25) — 'overwrite-source' added: pre-flight
+ * per-row collision detection rejects an export whose resolved output
+ * path would land ON any row's source PNG or atlas page. Catches the
+ * "user picked the parent of source-images folder" case that the
+ * 'invalid-out-dir' guard structurally cannot detect (the parent of
+ * `images/` is OUTSIDE `images/`, so the prefix check passes — but
+ * the per-row write `<outDir>/images/<region>.png` lands ON the source).
  */
 export type ExportResponse =
   | { ok: true; summary: ExportSummary }
-  | { ok: false; error: { kind: 'already-running' | 'invalid-out-dir' | 'Unknown'; message: string } };
+  | { ok: false; error: { kind: 'already-running' | 'invalid-out-dir' | 'overwrite-source' | 'Unknown'; message: string } };
 
 /**
  * The IPC return payload from `'skeleton:load'` — the full summary needed

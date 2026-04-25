@@ -255,3 +255,75 @@ describe('runExport — case (f) no internal re-entrancy guard (D-115)', () => {
     expect(s2.successes).toBeGreaterThanOrEqual(0);
   });
 });
+
+/**
+ * Gap-Fix Round 2 (2026-04-25) — Bug #4 defense-in-depth lock.
+ *
+ * Locks the in-worker per-row collision check. The IPC layer
+ * (handleStartExport) ALSO pre-flights the same condition and rejects the
+ * entire plan up front — but runExport is invoked directly by tests and
+ * could in principle be called by future code that bypasses the IPC
+ * layer. This test exercises runExport directly with one row whose
+ * resolved outPath equals its sourcePath; that row must emit
+ * 'overwrite-source' while OTHER rows in the same plan still process
+ * (D-116 skip-on-error continuation).
+ */
+describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fix Round 2)', () => {
+  it('per-row collision: row whose outPath resolves to its sourcePath gets overwrite-source error; other rows continue', async () => {
+    // Build a 3-row plan where row 1 collides — its sourcePath is a
+    // file UNDER tmpDir (so resolve(outDir, outPath) === resolve(sourcePath))
+    // — while rows 0 and 2 have sourcePaths well outside tmpDir so they
+    // are guaranteed safe. Mocked sharp + fs/promises means no real PNGs
+    // are read or written; we only assert the per-row error classification.
+    const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/elsewhere/SAFE0.png',
+          outPath: 'images/SAFE0.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['SAFE0'],
+        },
+        {
+          sourcePath: collidingFile,
+          outPath: 'images/COLLIDE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['COLLIDE'],
+        },
+        {
+          sourcePath: '/elsewhere/SAFE2.png',
+          outPath: 'images/SAFE2.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['SAFE2'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 3 },
+    };
+    const events: ExportProgressEvent[] = [];
+    const summary = await runExport(plan, tmpDir, (e) => events.push(e), () => false);
+
+    // All 3 rows emit one event each — the collision DOES NOT bail the loop.
+    expect(events.length).toBe(3);
+    // Row 1 (the collision) is the ONLY error.
+    expect(events[0].status).toBe('success');
+    expect(events[1].status).toBe('error');
+    expect(events[1].error?.kind).toBe('overwrite-source');
+    expect(events[2].status).toBe('success');
+    expect(summary.successes).toBe(2);
+    expect(summary.errors.length).toBe(1);
+    expect(summary.errors[0].kind).toBe('overwrite-source');
+  });
+});
