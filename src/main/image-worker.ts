@@ -91,53 +91,33 @@ export async function runExport(
     const sourcePath = row.sourcePath;
     const resolvedOut = pathResolve(outDir, row.outPath);
 
-    // 0. Gap-Fix Round 2 (2026-04-25) — defense-in-depth same-path guard.
-    //    The IPC layer (src/main/ipc.ts handleStartExport) ALREADY rejects
-    //    plans whose resolved output collides with any row's source PNG or
-    //    atlas page (kind: 'overwrite-source'). This per-row check inside
-    //    runExport is belt-and-suspenders — runExport is also invoked
-    //    directly from tests and could in principle be invoked from a
-    //    future code path that bypasses the IPC pre-flight. Refusing to
-    //    overwrite source files is a correctness invariant we want guarded
-    //    at BOTH layers, even at the cost of a redundant string compare
-    //    per row (O(1), well below the sharp/libvips cost that follows).
+    // 0. Gap-Fix Round 4 (2026-04-25) — defense-in-depth overwrite guard.
+    //    Collision = "the resolved output path currently exists on disk".
+    //    The earlier round-2/3 synchronous string-match check against
+    //    sourcePath / atlasSource.pagePath false-positived: the loader
+    //    constructs sourcePath as <skeletonDir>/images/<regionName>.png even
+    //    for atlas-only projects, so any outDir landing on the same path
+    //    string triggered the alarm even when the file was already deleted.
+    //    Existence on disk (F_OK) is the only correct gate.
     //
-    //    Gap-Fix Round 3 (2026-04-25) — gated on `allowOverwrite`. When
-    //    the renderer's ConflictDialog "Overwrite all" branch invoked
-    //    startExport with overwrite=true, the IPC layer forwards
-    //    allowOverwrite=true here and we skip the per-row check. The
-    //    user has explicitly accepted the consequences. Default false
-    //    preserves the round-2 protection for direct test invocations
-    //    and any future caller that bypasses the renderer flow.
-    //
-    //    On collision we emit a per-row 'overwrite-source' error and skip
-    //    to the next row (D-116 skip-on-error continuation), rather than
-    //    failing the entire run — other rows may still write safely if
-    //    only one row's outPath happens to collide.
+    //    Gated on `allowOverwrite`: when the renderer's ConflictDialog
+    //    "Overwrite all" branch invoked startExport with overwrite=true,
+    //    the IPC layer forwards allowOverwrite=true here and we skip the
+    //    check entirely. Default false preserves the safe behaviour for
+    //    direct test invocations and any caller bypassing the IPC pre-flight.
     if (!allowOverwrite) {
-      const resolvedSrc = pathResolve(sourcePath);
-      if (resolvedSrc === resolvedOut) {
+      const exists = await access(resolvedOut, fsConstants.F_OK)
+        .then(() => true)
+        .catch(() => false);
+      if (exists) {
         const error: ExportError = {
           kind: 'overwrite-source',
           path: resolvedOut,
-          message: `Refusing to overwrite source: ${sourcePath}`,
+          message: `Refusing to overwrite existing file: ${resolvedOut}`,
         };
         errors.push(error);
         onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
         continue;
-      }
-      if (row.atlasSource) {
-        const resolvedAtlasPage = pathResolve(row.atlasSource.pagePath);
-        if (resolvedAtlasPage === resolvedOut) {
-          const error: ExportError = {
-            kind: 'overwrite-source',
-            path: resolvedOut,
-            message: `Refusing to overwrite atlas page: ${row.atlasSource.pagePath}`,
-          };
-          errors.push(error);
-          onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
-          continue;
-        }
       }
     }
 

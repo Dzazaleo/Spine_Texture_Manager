@@ -161,30 +161,24 @@ async function probeExportConflicts(
   plan: ExportPlan,
   outDir: string,
 ): Promise<string[]> {
-  const conflictSet = new Set<string>();
-
-  // Per-row checks. Source-match comparisons are synchronous; the
-  // exists-on-disk probe is async but we kick all rows off in parallel.
+  // Gap-Fix Round 4 (2026-04-25) — collision == "would clobber a file that
+  // currently exists". Existence on disk (F_OK) is the only correct gate.
+  // The earlier round-3 synchronous string-match checks against row.sourcePath
+  // and row.atlasSource.pagePath false-positived: the loader still constructs
+  // sourcePath as <skeletonDir>/images/<regionName>.png even for atlas-only
+  // projects (the atlas-extract fallback runs at write time), so any outDir
+  // landing on the same string triggered the alarm even after the user had
+  // manually deleted the images folder.
   const existencePromises = plan.rows.map(async (row) => {
     const resolvedOut = path.resolve(outDir, row.outPath);
-    if (path.resolve(row.sourcePath) === resolvedOut) {
-      conflictSet.add(resolvedOut);
-    }
-    if (row.atlasSource && path.resolve(row.atlasSource.pagePath) === resolvedOut) {
-      conflictSet.add(resolvedOut);
-    }
-    // F_OK existence check (NOT R_OK — we care that SOMETHING is there,
-    // even an unreadable file we'd clobber). fs.access throws on miss;
-    // catch + return false.
     const exists = await access(resolvedOut, fsConstants.F_OK)
       .then(() => true)
       .catch(() => false);
-    if (exists) {
-      conflictSet.add(resolvedOut);
-    }
+    return exists ? resolvedOut : null;
   });
-
-  await Promise.all(existencePromises);
+  const results = await Promise.all(existencePromises);
+  const conflictSet = new Set<string>();
+  for (const r of results) if (r !== null) conflictSet.add(r);
   return Array.from(conflictSet).sort();
 }
 
