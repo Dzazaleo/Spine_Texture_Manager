@@ -1,26 +1,26 @@
 /**
- * Phase 6 Plan 03 — RED specs for the pure-TS export-plan builder.
+ * Phase 6 Plan 03 — specs for the pure-TS export-plan builder.
  *
  * Cases per .planning/phases/06-optimize-assets-image-export/06-CONTEXT.md
- * <decisions> "Tests" lines 33-37:
+ * <decisions> "Tests" lines 33-37 (updated by Round 5 ceil/ceil-thousandth):
  *   (a) SIMPLE_TEST → 3 ExportRows (post-Plan-02-03 dedup-by-attachmentName:
  *       CIRCLE / SQUARE / TRIANGLE) with effective scale = peakScale, dims =
- *       Math.round(sourceW × peakScale). [D-108, D-110, D-111]
- *   (b) Override 50% on TRIANGLE → out dims = Math.round(sourceW × 0.5). [D-111]
+ *       Math.ceil(sourceW × effectiveScale). [D-108, D-110 Round 5, D-111]
+ *   (b) Override 50% on TRIANGLE → out dims = Math.ceil(sourceW × 0.5).
+ *       [D-111, D-110 Round 5]
  *   (c) Override 200% on SQUARE → applyOverride clamps to 100% → out dims =
  *       sourceW × 1.0 = source. [D-111, Phase 4 D-91]
  *   (d) Two attachments share the same atlas region with different peaks →
- *       ExportRow.outW = Math.round(sourceW × max(peaks)). [D-108]
+ *       ExportRow.outW = Math.ceil(sourceW × max(peaks)). [D-108, D-110 Round 5]
  *   (e) Ghost fixture → ExportPlan.rows excludes GHOST; ExportPlan.excludedUnused
  *       includes 'GHOST'. [D-109]
- *   (f) Math.round(127.5) === 128 fixture case. [D-110]
+ *   (f) Math.ceil sizing semantics fixture cases. [D-110 Round 5]
  *   (g) Hygiene grep — no fs/sharp/spine-core runtime imports in
  *       src/core/export.ts. [CLAUDE.md #5, Layer 3]
  *
- * Wave 0 status: RED — buildExportPlan and the new ExportRow/ExportPlan
- * types do not yet exist. Plan 06-02 introduces the types; Plan 06-03
- * introduces the function. This file lands first so 06-03 can drive it
- * GREEN as a TDD-style RED→GREEN gate.
+ * Round 5 (2026-04-25) added a "Round 5 ceil + ceil-thousandth" describe
+ * block locking the JOKER/FACE 0.36071 / 0.36128 boundary cases + the
+ * ceil-thousandth lower-bound property (see in-file describe block).
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';

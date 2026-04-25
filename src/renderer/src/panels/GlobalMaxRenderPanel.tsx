@@ -448,9 +448,9 @@ export function GlobalMaxRenderPanel({
   // single-toggle does not undo the range state.
   const suppressNextChangeRef = useRef<string | null>(null);
 
-  // Phase 4 Plan 03: enrichment runs BEFORE filter + sort so the existing
-  // comparator reads .effectiveScale / .effectiveWorldW without other
-  // restructuring (pattern-mapper flag 3).
+  // Phase 4 Plan 03 + Round 5: enrichment runs BEFORE filter + sort so the
+  // comparator reads .effectiveScale / .effExportW (Round 5: export dims,
+  // not world-AABB) without other restructuring (pattern-mapper flag 3).
   const enriched = useMemo(
     () => enrichWithEffective(summary.peaks, overridesMap),
     [summary.peaks, overridesMap],
