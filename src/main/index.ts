@@ -99,7 +99,9 @@ app.whenReady().then(() => {
     // Path is the URL pathname; explicitly decode for robustness against
     // double-encoding when the renderer applies encodeURI on absolute paths.
     const filePath = decodeURIComponent(url.pathname);
-    return net.fetch(pathToFileURL(filePath).toString());
+    const fileUrl = pathToFileURL(filePath).toString();
+    console.log('[atlas-preview-debug] protocol.handle', { requestUrl: request.url, pathname: url.pathname, filePath, fileUrl });
+    return net.fetch(fileUrl);
   });
 
   registerIpcHandlers();
