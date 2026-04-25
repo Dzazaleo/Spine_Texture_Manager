@@ -259,14 +259,15 @@ Plans:
 
 **Requirement coverage:** F7.1, F7.2 (REINTERPRETED per D-127).
 
-**Plans:** 5 plans
+**Plans:** 6 plans (5 original + 1 gap-fix from 2026-04-25 HUMAN-UAT)
 
 Plans:
-- [ ] 07-01-PLAN.md — Wave 0 dependencies + types + RED stub specs (maxrects-packer + jsdom + @testing-library/react + @testing-library/jest-dom + @testing-library/user-event; vitest.config widening; src/shared/types.ts AtlasPreviewInput / PackedRegion / AtlasPage / AtlasPreviewProjection; tests/core/atlas-preview.spec.ts + tests/renderer/atlas-preview-modal.spec.tsx RED stubs). Wave 1, autonomous, depends_on [].
-- [ ] 07-02-PLAN.md — Layer-3 core projection + renderer inline copy + parity (src/core/atlas-preview.ts; src/renderer/src/lib/atlas-preview-view.ts; tests/core/atlas-preview.spec.ts case (a)..(h) + hygiene grep + parity grep blocks driven RED → GREEN). Wave 2, autonomous, depends_on [07-01].
-- [ ] 07-03-PLAN.md — Renderer protocol + CSP (src/main/index.ts protocol.handle('app-image', ...) + registerSchemesAsPrivileged; src/renderer/index.html CSP img-src widening to include app-image:). Wave 2, autonomous, depends_on [07-01].
-- [ ] 07-04-PLAN.md — Modal component + canvas + hover/dblclick + missing-source (src/renderer/src/modals/AtlasPreviewModal.tsx with LeftRail/AtlasCanvas/InfoCard sub-components inline; tests/renderer/atlas-preview-modal.spec.tsx jsdom specs driven RED → GREEN; optional --color-success token in src/renderer/src/index.css). Wave 3, autonomous, depends_on [07-01, 07-02, 07-03].
-- [ ] 07-05-PLAN.md — AppShell wiring + GlobalMaxRenderPanel jump-target consumer port + human-verify (src/renderer/src/components/AppShell.tsx toolbar button + 3 state slots + 3 callbacks + modal mount + Global panel prop forwarding; src/renderer/src/panels/GlobalMaxRenderPanel.tsx port of AnimationBreakdownPanel:299-325 jump-target effect; checkpoint:human-verify on 10 manual gates including the canonical "20% glow override" workflow). Wave 4, has checkpoint, depends_on [07-02, 07-03, 07-04].
+- [x] 07-01-PLAN.md — Wave 0 dependencies + types + RED stub specs (maxrects-packer + jsdom + @testing-library/react + @testing-library/jest-dom + @testing-library/user-event; vitest.config widening; src/shared/types.ts AtlasPreviewInput / PackedRegion / AtlasPage / AtlasPreviewProjection; tests/core/atlas-preview.spec.ts + tests/renderer/atlas-preview-modal.spec.tsx RED stubs). Wave 1, autonomous, depends_on [].
+- [x] 07-02-PLAN.md — Layer-3 core projection + renderer inline copy + parity (src/core/atlas-preview.ts; src/renderer/src/lib/atlas-preview-view.ts; tests/core/atlas-preview.spec.ts case (a)..(h) + hygiene grep + parity grep blocks driven RED → GREEN). Wave 2, autonomous, depends_on [07-01].
+- [x] 07-03-PLAN.md — Renderer protocol + CSP (src/main/index.ts protocol.handle('app-image', ...) + registerSchemesAsPrivileged; src/renderer/index.html CSP img-src widening to include app-image:). Wave 2, autonomous, depends_on [07-01].
+- [x] 07-04-PLAN.md — Modal component + canvas + hover/dblclick + missing-source (src/renderer/src/modals/AtlasPreviewModal.tsx with LeftRail/AtlasCanvas/InfoCard sub-components inline; tests/renderer/atlas-preview-modal.spec.tsx jsdom specs driven RED → GREEN; optional --color-success token in src/renderer/src/index.css). Wave 3, autonomous, depends_on [07-01, 07-02, 07-03].
+- [x] 07-05-PLAN.md — AppShell wiring + GlobalMaxRenderPanel jump-target consumer port + human-verify (src/renderer/src/components/AppShell.tsx toolbar button + 3 state slots + 3 callbacks + modal mount + Global panel prop forwarding; src/renderer/src/panels/GlobalMaxRenderPanel.tsx port of AnimationBreakdownPanel:299-325 jump-target effect; checkpoint:human-verify on 10 manual gates including the canonical "20% glow override" workflow). Wave 4, has checkpoint, depends_on [07-02, 07-03, 07-04].
+- [x] 07-06-PLAN.md — Gap-closure plan from 2026-04-25 HUMAN-UAT (Gaps 1-4): diagnostic instrumentation + Gap 1 canvas pixel rendering fix + Gap 2/4 auto-fit canvas (D-139 amendment) + Gap 3 hover dimensions line + diagnostic cleanup + UAT re-run signoff. Wave 5, has checkpoint, depends_on [07-04, 07-05]. **COMPLETE 2026-04-25.**
 
 ---
 

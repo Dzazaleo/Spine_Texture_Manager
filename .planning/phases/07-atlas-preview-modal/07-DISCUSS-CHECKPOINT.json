@@ -1,0 +1,24 @@
+{
+  "phase": "7",
+  "phase_name": "Atlas Preview modal",
+  "timestamp": "2026-04-25T00:00:00Z",
+  "areas_completed": ["Before/after data sources", "Visualization + packer params"],
+  "areas_remaining": ["File-size estimation method", "Entry point + dialog flow"],
+  "decisions": {
+    "Before/after data sources": [
+      {"question": "What feeds the BEFORE atlas view?", "answer": "Re-pack source PNGs at original dims", "options_presented": ["Re-pack source PNGs at original dims", "Read existing .atlas page dims", "Both side-by-side when both exist"]},
+      {"question": "What dims drive each region in the BEFORE re-pack baseline?", "answer": "Source dims (sourceW × sourceH per region)", "options_presented": ["Source dims (sourceW × sourceH per region)", "Source dims minus unused exclusion", "Both metrics shown"]},
+      {"question": "For atlas-packed projects (Jokerman), what enters the BEFORE pack?", "answer": "Region dims from atlasSource (w × h)", "options_presented": ["Region dims from atlasSource (w × h)", "Existing page dims (no re-pack for BEFORE)", "Skip atlas-packed projects entirely"]},
+      {"question": "What dims drive each region in the AFTER pack?", "answer": "ExportRow.outW × outH (post-Phase-6 optimization)", "options_presented": ["ExportRow.outW × outH (post-Phase-6 optimization)", "Recompute from peakScale (ignore overrides)"]},
+      {"question": "BEFORE/AFTER mode + resolution toggle clarification", "answer": "BEFORE/AFTER is a switch (Original / Optimized labels). Add a 2048 / 4096 resolution switch. Pager (< N / total >) for multi-page. Single page in main view. Per-page efficiency % shown. Total page count headline.", "options_presented": ["freeform clarification with screenshot reference"]}
+    ],
+    "Visualization + packer params": [
+      {"question": "How is each packed atlas page rendered visually?", "answer": "2D Canvas with packed region rectangles. Default: outline only (no colored fill, no labels). Hover: colored fill + label overlay. Region content = actual texture pixels drawn at packed coords (not solid colors).", "options_presented": ["2D canvas with colored region rectangles + name labels", "HTML/CSS divs over a sized container", "Table/list only"]},
+      {"question": "Multi-page projection layout (from screenshot)", "answer": "Pager pattern: < N / total > stepper in left rail. One page rendered at a time in main view. TOTAL ATLASES card shows headline count. EFFICIENCY (PAGE N) card shows per-page fill %.", "options_presented": ["Vertical stack: one canvas per page, scroll", "Horizontal pager: thumbnails + main view", "Grid: small page thumbnails laid out", "screenshot-driven pager pattern"]},
+      {"question": "How does the renderer get region image pixels?", "answer": "Claude's discretion → renderer loads source PNGs directly via file:// + canvas drawImage (atlas-packed: load page PNG once, drawImage srcRect crop per region).", "options_presented": ["Renderer loads source PNGs directly via file:// + <img>", "Main process returns base64 data URLs per region", "Main returns raw RGBA buffers via sharp.raw()"]},
+      {"question": "Packer params exposed in UI?", "answer": "Fixed: 2px padding, no rotation, smart heuristic. Footer disclaimer mirrors screenshot.", "options_presented": ["Fixed: 2px padding, no rotation, smart heuristic", "Expose padding only", "Expose padding + rotation toggle"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": []
+}

@@ -1,10 +1,11 @@
 ---
 phase: 7
 slug: atlas-preview-modal
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: signed-off
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-25
+signed_off: 2026-04-25
 ---
 
 # Phase 7 — Validation Strategy
