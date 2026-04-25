@@ -223,7 +223,16 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     // complete. During in-progress they are NO-OPS — user must explicitly Cancel.
     if (state === 'in-progress') return;
     props.onClose();
-  }, [state, props]);
+    // Phase 6 REVIEW M-02 (2026-04-25) — narrow deps from `[state, props]`
+    // to `[state, props.onClose]`. The whole `props` object is a fresh
+    // reference on every parent render, which previously recreated
+    // onCloseSafely each tick; useFocusTrap (which lists `onEscape` in
+    // its dependency array) would then tear down + re-run its effect on
+    // every parent render, racing against the per-state focus useEffect
+    // above and undoing the auto-focus contract documented in
+    // useFocusTrap.ts:184-188. Only `state` (closure-captured) and
+    // `props.onClose` (the only prop the body reads) need to be tracked.
+  }, [state, props.onClose]);
 
   const onOpenOutputFolder = useCallback(() => {
     window.api.openOutputFolder(props.outDir);
