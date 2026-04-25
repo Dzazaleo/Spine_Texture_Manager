@@ -23,9 +23,9 @@
  * Layer-3 boundary test (`tests/arch.spec.ts`) greps this file for platform
  * anti-patterns; keep the grep happy.
  */
-import { app, BrowserWindow, protocol, net } from 'electron';
+import { app, BrowserWindow, protocol } from 'electron';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { registerIpcHandlers } from './ipc.js';
 
 // Phase 7 D-133 amendment (per RESEARCH §Pitfall 1): register the
@@ -94,14 +94,24 @@ app.whenReady().then(() => {
   // app-image:// URL for was previously validated by loadSkeleton + Phase 5
   // findUnusedAttachments. Defense-in-depth path-prefix allow-list is a
   // future polish (RESEARCH §Security Domain V5 row).
-  protocol.handle('app-image', (request) => {
+  protocol.handle('app-image', async (request) => {
     const url = new URL(request.url);
     // Path is the URL pathname; explicitly decode for robustness against
     // double-encoding when the renderer applies encodeURI on absolute paths.
     const filePath = decodeURIComponent(url.pathname);
-    const fileUrl = pathToFileURL(filePath).toString();
-    console.log('[atlas-preview-debug] protocol.handle', { requestUrl: request.url, pathname: url.pathname, filePath, fileUrl });
-    return net.fetch(fileUrl);
+    console.log('[atlas-preview-debug] protocol.handle', { requestUrl: request.url, pathname: url.pathname, filePath });
+    try {
+      const data = await readFile(filePath);
+      const ext = filePath.toLowerCase().split('.').pop() ?? '';
+      const contentType =
+        ext === 'png' ? 'image/png' :
+        ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+        'application/octet-stream';
+      return new Response(data, { headers: { 'content-type': contentType } });
+    } catch (err) {
+      console.log('[atlas-preview-debug] protocol.handle error', { filePath, err: String(err) });
+      return new Response(null, { status: 404 });
+    }
   });
 
   registerIpcHandlers();
