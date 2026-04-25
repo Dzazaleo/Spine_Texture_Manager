@@ -114,6 +114,16 @@ export interface GlobalMaxRenderPanelProps {
     row: DisplayRow,
     selectedKeys?: ReadonlySet<string>,
   ) => void;
+  /**
+   * Phase 7 D-130: Atlas Preview dblclick → AppShell sets this; panel scrolls
+   * the matching row into view + flashes it for 900ms, then calls
+   * onFocusConsumed() synchronously so AppShell clears the focus state on
+   * the same tick (RESEARCH Pitfall 5 — re-mount leak prevention; carry-over
+   * from Phase 3 D-66). Optional today so other callers of this panel
+   * (standalone tests, future surfaces) typecheck without these props.
+   */
+  focusAttachmentName?: string | null;
+  onFocusConsumed?: () => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
@@ -270,6 +280,10 @@ interface RowProps {
   onOpenOverrideDialog: (row: DisplayRow, selectedKeys: ReadonlySet<string>) => void;
   /** Phase 4 D-86 — live selection set passed through for batch detection in AppShell. */
   selectedKeys: ReadonlySet<string>;
+  /** Phase 7 D-130: true while this row is the jump-target flash subject (900ms). */
+  isFlashing: boolean;
+  /** Phase 7 D-130: ref-registration callback so the panel can scroll this row into view. */
+  registerRef: (el: HTMLElement | null) => void;
 }
 
 function Row({
@@ -282,6 +296,8 @@ function Row({
   onJumpToAnimation,
   onOpenOverrideDialog,
   selectedKeys,
+  isFlashing,
+  registerRef,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -313,7 +329,16 @@ function Row({
   );
 
   return (
-    <tr className={clsx('border-b border-border hover:bg-accent/5', checked && 'bg-accent/5')}>
+    <tr
+      ref={(el) => registerRef(el)}
+      className={clsx(
+        'border-b border-border hover:bg-accent/5',
+        checked && 'bg-accent/5',
+        // Phase 7 D-130: flash highlight — same Tailwind ring pattern as
+        // AnimationBreakdownPanel.tsx line 407.
+        isFlashing && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
+      )}
+    >
       <td className="py-2 px-3">
         {/* Wrapping label: onClick captures shiftKey for range selection (mouse-only).
             The nested <input> onChange fires on plain click AND on Space/Enter keyboard
@@ -427,6 +452,8 @@ export function GlobalMaxRenderPanel({
   onJumpToAnimation,
   overrides,
   onOpenOverrideDialog,
+  focusAttachmentName,
+  onFocusConsumed,
 }: GlobalMaxRenderPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
@@ -447,6 +474,37 @@ export function GlobalMaxRenderPanel({
   // native onChange on that input reads the flag and returns early so the
   // single-toggle does not undo the range state.
   const suppressNextChangeRef = useRef<string | null>(null);
+
+  // Phase 7 D-130 — keyed by row.attachmentName (NOT attachmentKey or cardId
+  // — the modal hits via attachmentName, since that's the identity AtlasPage
+  // regions carry from buildAtlasPreview).
+  const rowRefs = useRef(new Map<string, HTMLElement>());
+  const registerRowRef = useCallback((name: string, el: HTMLElement | null) => {
+    if (el === null) rowRefs.current.delete(name);
+    else rowRefs.current.set(name, el);
+  }, []);
+
+  const [isFlashing, setIsFlashing] = useState<string | null>(null);
+
+  // Phase 7 D-130 jump-effect: scroll + flash; SYNCHRONOUSLY fire the
+  // consume callback so the focus can never leak across re-mounts
+  // (RESEARCH §Pitfall 5 — Phase 3 D-66 carry-over). Cloned 1:1 from
+  // AnimationBreakdownPanel.tsx:299-325 with these adaptations:
+  //   - Key by attachmentName directly (no setup-pose / anim: prefix derivation).
+  //   - Scroll block: 'center' (table rows are shorter than animation cards;
+  //     'start' would clip cells with overflowing content like the override
+  //     percentage badge or long bone-path tooltip).
+  useEffect(() => {
+    if (!focusAttachmentName) return;
+    setIsFlashing(focusAttachmentName);
+    const el = rowRefs.current.get(focusAttachmentName);
+    if (el !== undefined) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    onFocusConsumed?.();   // SYNCHRONOUS — no setTimeout/RAF (Pitfall 5)
+    const timer = setTimeout(() => setIsFlashing(null), 900);
+    return () => clearTimeout(timer);
+  }, [focusAttachmentName, onFocusConsumed]);
 
   // Phase 4 Plan 03 + Round 5: enrichment runs BEFORE filter + sort so the
   // comparator reads .effectiveScale / .effExportW (Round 5: export dims,
@@ -708,6 +766,9 @@ export function GlobalMaxRenderPanel({
               onJumpToAnimation={onJumpToAnimation}
               onOpenOverrideDialog={openDialog}
               selectedKeys={selectedAttachmentNames}
+              /* Phase 7 D-130 NEW: */
+              isFlashing={isFlashing === row.attachmentName}
+              registerRef={(el) => registerRowRef(row.attachmentName, el)}
             />
           ))}
         </tbody>
