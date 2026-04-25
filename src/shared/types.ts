@@ -57,6 +57,39 @@ export interface DisplayRow {
    * lock; CLI does not need source paths).
    */
   sourcePath: string;
+  /**
+   * Phase 6 Gap-Fix #2 (2026-04-25 human-verify Step 1) — Atlas-page
+   * extraction metadata for atlas-packed projects (e.g. Jokerman) where
+   * per-region source PNGs do NOT exist on disk; instead each region's
+   * pixels live INSIDE an atlas page PNG at coordinates from the .atlas
+   * `bounds:` line.
+   *
+   * Populated by src/core/loader.ts from each TextureAtlasRegion:
+   *   - pagePath: absolute path to the atlas page PNG
+   *     (`<skeletonDir>/<page.name>`)
+   *   - x, y: top-left coords inside the page
+   *   - w, h: SOURCE dims (originalWidth/originalHeight; for rotated
+   *     regions the packed-bounds W/H are swapped vs source so we use
+   *     orig dims here and let consumers branch on `rotated`)
+   *   - rotated: true when region.degrees !== 0 (typically 90°). The
+   *     image-worker emits `'rotated-region-unsupported'` for rotated
+   *     regions rather than silently producing 90°-wrong output.
+   *
+   * Optional — undefined when the analyzer is invoked without an
+   * atlasSources map (CLI path, D-102 lock). The image-worker prefers
+   * sourcePath if it exists on disk; only falls back to atlasSource
+   * when the per-region PNG is missing (atlas-only fixtures).
+   *
+   * All fields primitive — structuredClone-safe per file-top D-21 lock.
+   */
+  atlasSource?: {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  };
 }
 
 /**

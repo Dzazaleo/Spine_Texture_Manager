@@ -62,7 +62,11 @@ import { boneChainPath } from './bones.js';
  */
 const BONE_PATH_SEPARATOR = ' → ';
 
-function toDisplayRow(p: PeakRecord, sourcePath: string = ''): DisplayRow {
+function toDisplayRow(
+  p: PeakRecord,
+  sourcePath: string = '',
+  atlasSource?: DisplayRow['atlasSource'],
+): DisplayRow {
   return {
     // raw fields (sort + selection in the panel; CLI reads these directly)
     attachmentKey: p.attachmentKey,
@@ -90,6 +94,10 @@ function toDisplayRow(p: PeakRecord, sourcePath: string = ''): DisplayRow {
     // PNG; empty string when analyzer is invoked without a sourcePaths map
     // (CLI path, D-102 lock).
     sourcePath,
+    // Phase 6 Gap-Fix #2 (2026-04-25) — atlas-page extraction metadata.
+    // undefined when analyzer is invoked without an atlasSources map (CLI
+    // path) OR when no atlas region matches the attachmentName.
+    ...(atlasSource ? { atlasSource } : {}),
   };
 }
 
@@ -146,9 +154,14 @@ function dedupByAttachmentName<T extends DisplayRow>(rows: readonly T[]): T[] {
 export function analyze(
   peaks: Map<string, PeakRecord>,
   sourcePaths?: ReadonlyMap<string, string>,
+  atlasSources?: ReadonlyMap<string, NonNullable<DisplayRow['atlasSource']>>,
 ): DisplayRow[] {
   const allRows = [...peaks.values()].map((p) =>
-    toDisplayRow(p, sourcePaths?.get(p.attachmentName) ?? ''),
+    toDisplayRow(
+      p,
+      sourcePaths?.get(p.attachmentName) ?? '',
+      atlasSources?.get(p.attachmentName),
+    ),
   );
   return dedupByAttachmentName(allRows).sort(byCliContract);
 }
@@ -169,6 +182,7 @@ function toBreakdownRow(
   slot: Slot | undefined,
   isSetup: boolean,
   sourcePath: string = '',
+  atlasSource?: DisplayRow['atlasSource'],
 ): BreakdownRow {
   const bonePath =
     slot !== undefined
@@ -200,6 +214,8 @@ function toBreakdownRow(
     frameLabel: isSetup ? '—' : String(p.frame),
     // Phase 6 Plan 02 — absolute source PNG path (BreakdownRow extends DisplayRow).
     sourcePath,
+    // Phase 6 Gap-Fix #2 (2026-04-25) — atlas-page extraction metadata.
+    ...(atlasSource ? { atlasSource } : {}),
     // Phase 3 additions (D-67, F4.3):
     bonePath,
     bonePathLabel: bonePath.join(BONE_PATH_SEPARATOR),
@@ -230,6 +246,7 @@ export function analyzeBreakdown(
   skeletonData: SkeletonData,
   skeletonSlots: readonly Slot[],
   sourcePaths?: ReadonlyMap<string, string>,
+  atlasSources?: ReadonlyMap<string, NonNullable<DisplayRow['atlasSource']>>,
 ): AnimationBreakdown[] {
   const findSlot = (name: string): Slot | undefined =>
     skeletonSlots.find((s) => s.data.name === name);
@@ -237,13 +254,25 @@ export function analyzeBreakdown(
   // empty string when sourcePaths is undefined (preserves legacy callers).
   const resolveSourcePath = (rec: PeakRecord): string =>
     sourcePaths?.get(rec.attachmentName) ?? '';
+  // Phase 6 Gap-Fix #2 — resolve atlasSource by attachmentName lookup;
+  // undefined when atlasSources is omitted (CLI path) or no match.
+  const resolveAtlasSource = (
+    rec: PeakRecord,
+  ): DisplayRow['atlasSource'] | undefined =>
+    atlasSources?.get(rec.attachmentName);
 
   const cards: AnimationBreakdown[] = [];
 
   // 1. Setup Pose top card (D-60). Every textured attachment gets a row;
   //    dedupe by attachmentName per D-56; sort Scale DESC per D-59.
   const setupRows = [...setupPosePeaks.values()].map((rec) =>
-    toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ true, resolveSourcePath(rec)),
+    toBreakdownRow(
+      rec,
+      findSlot(rec.slotName),
+      /*isSetup*/ true,
+      resolveSourcePath(rec),
+      resolveAtlasSource(rec),
+    ),
   );
   const setupDeduped = dedupByAttachmentName<BreakdownRow>(setupRows);
   setupDeduped.sort((a, b) => b.peakScale - a.peakScale);
@@ -263,7 +292,13 @@ export function analyzeBreakdown(
   const rowsByAnim = new Map<string, BreakdownRow[]>();
   for (const rec of perAnimation.values()) {
     const bucket = rowsByAnim.get(rec.animationName);
-    const row = toBreakdownRow(rec, findSlot(rec.slotName), /*isSetup*/ false, resolveSourcePath(rec));
+    const row = toBreakdownRow(
+      rec,
+      findSlot(rec.slotName),
+      /*isSetup*/ false,
+      resolveSourcePath(rec),
+      resolveAtlasSource(rec),
+    );
     if (bucket === undefined) rowsByAnim.set(rec.animationName, [row]);
     else bucket.push(row);
   }

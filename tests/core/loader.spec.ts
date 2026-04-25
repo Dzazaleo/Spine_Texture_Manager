@@ -141,3 +141,69 @@ describe('loader: sourcePaths map (Phase 6 Plan 02, F8.3, D-108)', () => {
     }
   });
 });
+
+describe('loader: atlasSources map (Phase 6 Gap-Fix #2 — atlas-packed projects)', () => {
+  it('SIMPLE_TEST → atlasSources populated for all 3 regions with pagePath/x/y/w/h/rotated', () => {
+    const r = loadSkeleton(FIXTURE);
+    expect(r.atlasSources.size).toBe(3);
+    expect(r.atlasSources.has('CIRCLE')).toBe(true);
+    expect(r.atlasSources.has('SQUARE')).toBe(true);
+    expect(r.atlasSources.has('TRIANGLE')).toBe(true);
+
+    const circle = r.atlasSources.get('CIRCLE')!;
+    // pagePath is absolute and resolves next to the .atlas file (NOT
+    // under images/ — atlas pages sit beside the .atlas).
+    expect(path.isAbsolute(circle.pagePath)).toBe(true);
+    expect(circle.pagePath.endsWith('.png')).toBe(true);
+    // x/y/w/h are numeric.
+    expect(typeof circle.x).toBe('number');
+    expect(typeof circle.y).toBe('number');
+    expect(circle.w).toBeGreaterThan(0);
+    expect(circle.h).toBeGreaterThan(0);
+    // SIMPLE_TEST has no rotated regions.
+    expect(circle.rotated).toBe(false);
+  });
+
+  it('Jokerman atlas-packed fixture → atlasSources resolves L_EYE to JOKERMAN_SPINE.png at 1032,3235 (171×171, not rotated)', () => {
+    const jokermanJson = path.resolve('fixtures/Jokerman/JOKERMAN_SPINE.json');
+    if (!fs.existsSync(jokermanJson)) {
+      // Skip if the optional Jokerman fixture is not present in this checkout.
+      return;
+    }
+    const r = loadSkeleton(jokermanJson);
+    expect(r.atlasSources.has('AVATAR/L_EYE')).toBe(true);
+    const lEye = r.atlasSources.get('AVATAR/L_EYE')!;
+    // From JOKERMAN_SPINE.atlas: bounds:1032,3235,171,171 on JOKERMAN_SPINE.png
+    expect(lEye.pagePath.endsWith('JOKERMAN_SPINE.png')).toBe(true);
+    expect(lEye.x).toBe(1032);
+    expect(lEye.y).toBe(3235);
+    expect(lEye.w).toBe(171);
+    expect(lEye.h).toBe(171);
+    expect(lEye.rotated).toBe(false);
+    // BODY is on JOKERMAN_SPINE_2.png at 2,2,3719×1903.
+    const body = r.atlasSources.get('AVATAR/BODY')!;
+    expect(body).toBeDefined();
+    expect(body.pagePath.endsWith('JOKERMAN_SPINE_2.png')).toBe(true);
+    expect(body.x).toBe(2);
+    expect(body.y).toBe(2);
+    expect(body.rotated).toBe(false);
+  });
+
+  it('atlasSources rotated flag — SIMPLE_TEST + EXPORT_PROJECT + Jokerman all have ZERO rotated regions (first-pass scope)', () => {
+    // Locks the no-rotation precondition for the Gap-Fix #2 first-pass.
+    // If a future fixture introduces a rotated region, this test FAILS to
+    // force the contributor to add explicit handling.
+    const fixtures = [
+      FIXTURE,
+      path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json'),
+    ];
+    const jokerman = path.resolve('fixtures/Jokerman/JOKERMAN_SPINE.json');
+    if (fs.existsSync(jokerman)) fixtures.push(jokerman);
+    for (const f of fixtures) {
+      const r = loadSkeleton(f);
+      for (const [name, src] of r.atlasSources) {
+        expect(src.rotated, `${path.basename(f)} region ${name} is rotated — first-pass Gap-Fix #2 does not support this`).toBe(false);
+      }
+    }
+  });
+});

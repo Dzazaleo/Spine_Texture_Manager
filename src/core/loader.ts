@@ -186,6 +186,41 @@ export function loadSkeleton(
     sourcePaths.set(region.name, path.resolve(path.join(imagesDir, region.name + '.png')));
   }
 
+  // Phase 6 Gap-Fix #2 (2026-04-25) — atlasSources map for atlas-packed
+  // projects (e.g. fixtures/Jokerman/). Resolved relative to the atlas
+  // file's own directory because atlas page PNGs sit beside the .atlas
+  // file on disk, NOT under the sibling images/ folder. For SIMPLE_TEST
+  // and EXPORT_PROJECT (atlas + per-region PNGs in images/) this map is
+  // populated but the image-worker prefers sourcePaths first.
+  //
+  // For rotated regions (region.degrees !== 0): the packed bounds W/H
+  // are swapped vs the source orig dims (libgdx packer convention). We
+  // store originalWidth/originalHeight (the SOURCE dims) here so the
+  // image-worker can size its extract correctly — but since the FIRST
+  // pass of Gap-Fix #2 emits a 'rotated-region-unsupported' error rather
+  // than attempting the rotated-extract, the precise dims don't matter
+  // for rotated rows; we still record them for diagnostic clarity.
+  const atlasDir = path.dirname(atlasPath);
+  const atlasSources = new Map<string, {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  }>();
+  for (const region of atlas.regions) {
+    const rotated = region.degrees !== 0;
+    atlasSources.set(region.name, {
+      pagePath: path.resolve(path.join(atlasDir, region.page.name)),
+      x: region.x,
+      y: region.y,
+      w: region.originalWidth,
+      h: region.originalHeight,
+      rotated,
+    });
+  }
+
   // Editor dopesheet FPS for DISPLAY purposes (CLI Frame column). spine-core
   // only populates `skeletonData.fps` when the JSON has a top-level `fps`
   // field (SkeletonJson.js:73). Spine's editor default is 30 — fall back to
@@ -200,6 +235,7 @@ export function loadSkeleton(
     atlas,
     sourceDims,
     sourcePaths,
+    atlasSources,
     editorFps,
   };
 }
