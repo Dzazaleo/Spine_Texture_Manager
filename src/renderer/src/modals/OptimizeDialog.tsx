@@ -15,7 +15,10 @@
  *
  * ARIA scaffold cloned verbatim from OverrideDialog.tsx (Phase 4 D-81):
  * role='dialog' + aria-modal='true' + aria-labelledby + outer overlay
- * onClick=close + inner stopPropagation + onKeyDown for ESC.
+ * onClick=close + inner stopPropagation + onKeyDown for Enter (pre-flight
+ * Start shortcut). Round 6 hoisted Tab cycle + Escape into the shared
+ * useFocusTrap hook so focus never escapes the dialog and Escape works
+ * regardless of where focus has drifted.
  *
  * State-conditional close behavior: ESC + click-outside close in
  * pre-flight or complete. During in-progress they are NO-OPS — user
@@ -44,6 +47,7 @@ import type {
   ExportResponse,
   ExportSummary,
 } from '../../../shared/types.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 type DialogState = 'pre-flight' | 'in-progress' | 'complete';
 type RowStatus = 'idle' | 'in-progress' | 'success' | 'error';
@@ -100,6 +104,9 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   const startBtnRef = useRef<HTMLButtonElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  // Gap-Fix Round 6 (2026-04-25): the dialog root ref is consumed by
+  // useFocusTrap to scope the Tab cycle + document-level Escape listener.
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to progress events while in-progress. Cleanup unsubscribes
   // exactly the listener registered (Pitfall 9 — the preload's wrapped-const
@@ -129,8 +136,13 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     return unsubscribe;
   }, [state]);
 
-  // Auto-focus the primary action of the current state — keyboard users get
-  // immediate Enter-to-act behavior without a manual click.
+  // Gap-Fix Round 6 (2026-04-25): per-state primary-action focus targeting.
+  // useFocusTrap auto-focuses the FIRST tabbable on initial mount; this
+  // useEffect overrides that to land on the per-state primary action
+  // (Start in pre-flight, Cancel in in-progress, Close in complete) so
+  // keyboard users get immediate Enter-to-act behavior. The trap continues
+  // to enforce the Tab cycle independently — the two never fight because
+  // the trap only re-runs on enabled flips, not on per-state focus moves.
   useEffect(() => {
     if (!props.open) return;
     if (state === 'pre-flight') startBtnRef.current?.focus();
@@ -217,8 +229,21 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     window.api.openOutputFolder(props.outDir);
   }, [props.outDir]);
 
+  // Gap-Fix Round 6 (2026-04-25): document-level Escape handler via the
+  // shared focus-trap hook. Pass undefined when state === 'in-progress'
+  // so the hook's Escape branch becomes a no-op (D-115 — user must
+  // explicitly click Cancel mid-run; ESC must not abort silently). The
+  // pre-flight + complete states pass onCloseSafely so ESC works
+  // regardless of where focus currently sits in the document.
+  useFocusTrap(dialogRef, props.open, {
+    onEscape: state === 'in-progress' ? undefined : onCloseSafely,
+  });
+
+  // Enter shortcut for the pre-flight Start action stays as a local
+  // keydown on the panel (Enter is per-context, not a global shortcut).
+  // Round 6 narrowed this from {Escape, Enter} to {Enter only}; the
+  // useFocusTrap hook owns Escape now.
   const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') onCloseSafely();
     if (e.key === 'Enter' && state === 'pre-flight') onStart();
   };
 
@@ -234,6 +259,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="optimize-title"

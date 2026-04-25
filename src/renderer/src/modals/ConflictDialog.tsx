@@ -18,9 +18,14 @@
  *   - role='dialog' + aria-modal='true' + aria-labelledby
  *   - outer overlay onClick={onCancel} (ESC equivalent — safer default)
  *   - inner panel stopPropagation so clicks inside don't bubble to overlay
- *   - keyDown ESC = onCancel
- *   - auto-focus the FIRST button (Cancel — safer default; user must
- *     deliberately Tab to the destructive Overwrite all option)
+ *
+ * Round 6 (2026-04-25): focus management hoisted into the shared
+ * useFocusTrap hook. ESC = onCancel via the hook's document-level
+ * keydown listener (works regardless of where focus has drifted), Tab
+ * cycles within the container (FIRST tabbable = Cancel = safe default),
+ * Shift+Tab reverse cycles. The auto-focus useEffect that previously
+ * targeted cancelBtnRef is gone — useFocusTrap auto-focuses the first
+ * tabbable on mount which IS Cancel.
  *
  * Footer button order (left-to-right): Cancel | Pick different folder |
  * Overwrite all. The destructive action sits RIGHTMOST per platform
@@ -45,7 +50,8 @@
  * main-process module — the arch.spec.ts renderer-boundary grep auto-scans
  * this file on every test run.
  */
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface ConflictDialogProps {
   open: boolean;
@@ -74,15 +80,22 @@ export interface ConflictDialogProps {
 }
 
 export function ConflictDialog(props: ConflictDialogProps) {
-  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  // Gap-Fix Round 6 (2026-04-25): the per-button cancelBtnRef + auto-
+  // focus useEffect are gone. useFocusTrap below auto-focuses the FIRST
+  // tabbable on mount which IS the Cancel button (it's the leftmost in
+  // the footer). Same safe-default behavior, less code.
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (props.open) {
-      // D-81: auto-focus the first (safest) button — user must Tab to
-      // reach the destructive Overwrite-all option.
-      cancelBtnRef.current?.focus();
-    }
-  }, [props.open]);
+  // Gap-Fix Round 6 (2026-04-25): document-level Escape + Tab cycle via
+  // shared hook. ESC = Cancel (existing safe-default behavior). The hook
+  // also auto-focuses the first tabbable on mount = Cancel button, which
+  // matches the prior D-81 contract (user must deliberately Tab to reach
+  // the destructive Overwrite-all option).
+  //
+  // No Enter shortcut on this dialog because the primary action is
+  // destructive — Enter must NOT default to overwrite; the user must
+  // explicitly Tab + Space/Enter on the Overwrite all button.
+  useFocusTrap(dialogRef, props.open, { onEscape: props.onCancel });
 
   if (!props.open) return null;
 
@@ -92,15 +105,9 @@ export function ConflictDialog(props: ConflictDialogProps) {
       ? '1 file will be overwritten'
       : `${count} files will be overwritten`;
 
-  // D-81: ESC = Cancel; no Enter shortcut on this dialog because the
-  // primary action is destructive — we DO NOT want Enter to overwrite
-  // by default. The user must explicitly Tab over and click/Space.
-  const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') props.onCancel();
-  };
-
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="conflict-title"
@@ -110,7 +117,6 @@ export function ConflictDialog(props: ConflictDialogProps) {
       <div
         className="bg-panel border border-border rounded-md p-6 min-w-[480px] max-w-[800px] flex flex-col font-mono"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={keyDown}
       >
         <h2 id="conflict-title" className="text-sm text-fg mb-4">
           {title}
@@ -132,7 +138,6 @@ export function ConflictDialog(props: ConflictDialogProps) {
         </p>
         <div className="flex gap-2 justify-end">
           <button
-            ref={cancelBtnRef}
             type="button"
             onClick={props.onCancel}
             className="border border-border rounded-md px-3 py-1 text-xs"

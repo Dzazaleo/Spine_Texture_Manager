@@ -15,10 +15,14 @@
  *      clamp per D-79. The dialog itself does no clamping — it forwards
  *      Number(inputValue) raw so the clamp math has a single owner.
  *   3. ESC closes (discards); Enter inside the dialog applies; overlay
- *      click closes (discards). Focus-trap provided by the browser's
- *      default tab-order cycling inside the modal container plus an
- *      auto-focus + auto-select on open — hand-rolled, well under the
- *      60-line threshold that would justify pulling in a focus-scope lib.
+ *      click closes (discards). Phase 6 Gap-Fix Round 6 (2026-04-25)
+ *      hoisted the focus trap + Escape handling into the shared
+ *      useFocusTrap hook so focus never escapes the dialog (Tab cycles)
+ *      and Escape works regardless of where focus has drifted. Auto-
+ *      select on open retained as a thin useEffect because the hook
+ *      owns focus() but not select() — the input is the FIRST tabbable
+ *      so the hook focuses it; the useEffect immediately selects the
+ *      contents so the user can retype.
  *   4. Tailwind v4 literal-class discipline (Pitfall 8): every className
  *      is a string literal. No template interpolation, no concatenation;
  *      conditional rendering handled via early-return null when !props.open
@@ -41,6 +45,7 @@
  * auto-scans this file on every test run.
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface OverrideDialogProps {
   open: boolean;
@@ -55,14 +60,23 @@ export interface OverrideDialogProps {
 export function OverrideDialog(props: OverrideDialogProps) {
   const [inputValue, setInputValue] = useState(String(props.currentPercent));
   const inputRef = useRef<HTMLInputElement>(null);
+  // Gap-Fix Round 6 (2026-04-25): the dialog root ref is consumed by
+  // useFocusTrap to scope the Tab cycle + document-level Escape listener.
+  const dialogRef = useRef<HTMLDivElement>(null);
 
+  // Gap-Fix Round 6 (2026-04-25): document-level Escape + Tab cycle via
+  // shared hook. ESC = onCancel works regardless of where focus has
+  // drifted in the document. The hook also auto-focuses the first
+  // tabbable on mount = the input, which is the desired D-81 behavior.
+  useFocusTrap(dialogRef, props.open, { onEscape: props.onCancel });
+
+  // The select() call is split out from focus() because useFocusTrap
+  // owns the focus step. The input is the FIRST tabbable so the hook
+  // already focuses it; this useEffect runs after the hook's focus
+  // call lands and immediately selects the contents so the user can
+  // retype without a manual click+select. (Phase 4 D-81 retains.)
   useEffect(() => {
-    if (props.open) {
-      // D-81: auto-focus + auto-select the input on open so the user can
-      // immediately retype without a manual click + select step.
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
+    if (props.open) inputRef.current?.select();
   }, [props.open]);
 
   if (!props.open) return null;
@@ -74,16 +88,18 @@ export function OverrideDialog(props: OverrideDialogProps) {
 
   const apply = () => props.onApply(Number(inputValue));
 
-  // D-81: Enter triggers Apply; ESC triggers Cancel. Handler lives on the
-  // inner panel div (not on the input) so Tab focus cycling stays intact —
-  // stopPropagation inside the input's onKeyDown would break the focus trap.
+  // Enter triggers Apply (per-context shortcut, intentional). ESC moved
+  // into useFocusTrap above so it works regardless of focus position.
+  // Handler lives on the inner panel div (not on the input) so Tab
+  // focus cycling stays intact — stopPropagation inside the input's
+  // onKeyDown would break the trap.
   const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') apply();
-    if (e.key === 'Escape') props.onCancel();
   };
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="override-title"
