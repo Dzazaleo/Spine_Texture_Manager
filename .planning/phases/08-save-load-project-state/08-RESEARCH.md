@@ -975,37 +975,48 @@ The existing `sampleSkeleton({ samplingHz })` plumbing is already in place `[VER
 
 **If this table is empty:** N/A — there are 10 assumptions. The discuss-phase already locked the architectural decisions; what remains is verification of edge-case behaviors via human-verify and golden tests. None of A1–A10 contradicts a locked decision; each is an implementation detail that warrants a test or a UAT gate.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All six questions resolved 2026-04-26 during the planner-revision pass against
+> Plans 01-05. Each question's recommendation has been locked into the plan set;
+> any planner re-read of this file should treat the **RESOLVED** lines as the
+> binding answer. Original wording preserved for traceability.
 
 1. **Should the renderer or main process compute the stale-override key list?**
    - What we know: D-150 says "After re-sampling, compute `staleKeys = ...`. Drop them from the active map." Doesn't specify which process.
    - What's unclear: If main computes, the OpenResponse envelope carries `staleOverrideKeys: string[]`. If renderer computes, the OpenResponse carries the full `restoredOverrides` and the renderer diff'd against `summary.peaks`.
    - Recommendation: **Renderer** computes. It already has `summary.peaks` and the restored map; the diff is a one-liner. Main stays minimal-glue. Lock in MaterializedProject shape: `restoredOverrides: Record<string, number>` (no separate staleKeys field).
+   - **RESOLVED: main-side.** Plan 03 owns the diff (`handleProjectOpenFromPath` step 9 — `presentNames = new Set(summary.peaks.map(...))`, intersect, drop). The IPC envelope carries `MaterializedProject.staleOverrideKeys: string[]` so the renderer can render the banner WITHOUT re-walking the override map. Reverses the original recommendation in favor of less renderer work + a smaller IPC contract surface (renderer only reads + displays, never recomputes). Plan 02 `MaterializedProject` type carries `staleOverrideKeys: string[]`; Plan 03 fills it; Plan 04 reads it.
 
 2. **Should `currentProjectPath` reset to null on a NEW SKELETON drop, or persist?**
    - What we know: CONTEXT.md "Claude's Discretion" says "Recommend: reset to null. The project file is rig-bound conceptually; loading a different rig produces a different project." But left to planner discretion.
    - What's unclear: User's mental model — does Save-As "fork" the project under the new rig, or is the project tied to the rig?
    - Recommendation: Reset to null. Save under the new rig produces a new untitled project. (The user can save with the old name and `<skeletonDir>` from the new rig if they want, via Save As.)
+   - **RESOLVED: yes, reset `currentProjectPath` to null on new-skeleton-drop.** Matches the recommendation. Project files are rig-bound conceptually; dropping a different `.json` produces a new untitled session. AppShell remounts on every drop (Phase 1 reset-on-drop discipline) so this falls out naturally — Plan 04's AppShell mounts with `currentProjectPath = null` by default; only `.stmproj` drops or `Open` invocations populate it via `initialProject` props.
 
 3. **Should the SaveQuitDialog's Save button block on the saveProject promise, or close immediately and rely on a synchronous "save-in-flight" indicator?**
    - What we know: D-143 says "`Save` (calls saveProject then proceeds)". Implies promise-await.
    - What's unclear: If saveProject takes >100ms (slow disk), the dialog is "stuck" with no indicator.
    - Recommendation: Disable the Save button + show "Saving…" text while the promise resolves. saveProject is small (<100KB JSON write); on a healthy machine it's <50ms. Acceptable.
+   - **RESOLVED: block on the saveProject promise + show "Saving…" state on the Save button.** Encoded in Plan 04 Task 1 (`SaveQuitDialog.tsx`) via the `saving?: boolean` prop — when true, all 3 buttons are disabled and the Save button label flips to "Saving…". Plan 04 Task 2a sets `saveInFlight = true` for the duration of the `saveProject` promise; passes `saving={saveInFlight}` into the modal mount.
 
 4. **What's the exact CSS class string for the new-skeleton-drop dirty-guard banner — accent or danger?**
    - What we know: The banner is the SaveQuitDialog (modal, not banner). The "stale-override skipped" notice IS a banner — and CONTEXT.md says "above the panels", "dismissible", "N saved overrides skipped".
    - What's unclear: Does the banner use `--color-danger` (terracotta — Phase 5 D-104) or `--color-accent-muted` (orange-300, Phase 1)?
    - Recommendation: `--color-fg-muted` text on `--color-panel` background with a `border-l-2 border-accent` bar (informational, not alarming). Stale-override drop is not an error; it's a "FYI". `--color-danger` would over-alarm.
+   - **RESOLVED: muted-fg text on panel background with an accent left-border bar.** Encoded literally in Plan 04 Task 2b stale-override banner block: `bg-panel`, `text-fg-muted`, with a 4px-tall `bg-accent` left-bar (`<span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />`). Informational, not alarming. `--color-danger` reserved for actual error paths (e.g., the SkeletonNotFoundOnLoadError inline error block keeps the existing error-banner styling).
 
 5. **Does Phase 8 need a UAT for "Save → close app via Cmd+Q without ever quitting via the dialog → re-open same file"?**
    - What we know: ROADMAP exit criterion is the round-trip "set overrides → Save → close app → Load → overrides restored".
    - What's unclear: Whether "close app" is `before-quit`-with-dirty-guard or just `Cmd+Q` (and the test ensures dirty-state is false because Save already cleared it).
    - Recommendation: After Save, isDirty is false → `before-quit` skips the dialog → app quits cleanly → re-open works. UAT covers both: (a) Save then quit (no dialog appears, app exits), (b) make changes then quit (dialog appears, click Save and Quit, file gets the changes).
+   - **RESOLVED: yes, included in Plan 05 manual UAT.** Plan 05 Gate 1 covers the clean-Save→Cmd+Q→re-open path (full ROADMAP exit criterion, steps 6-13). Plan 05 Gate 4 covers the dirty-Cmd+Q + 3-button-dialog path (Sub-gates 4a/4b/4c). Both are blocking gates — phase cannot close without both passing.
 
 6. **Should the planner add a Layer-3-extension grep for `src/core/project-file.ts` not importing `electron`?**
    - What we know: existing `tests/arch.spec.ts:128` blocks `node:fs` and `sharp` for all `src/core/**/*.ts`. Does NOT block `electron`.
    - What's unclear: Phase 8 wants `src/core/project-file.ts` to be Electron-free (so the validator could theoretically run in Node-only contexts like a future CLI inspector). The CONTEXT.md says "no `fs`, no Electron, no DOM". The existing grep covers fs but not electron.
    - Recommendation: ADD a one-line grep block — `expect(/from ['"]electron['"]/.test(text)).toBe(false)` for all `src/core/**/*.ts`. Cheap, catches a real concern, fits the existing arch.spec.ts pattern.
+   - **RESOLVED: yes, added in Plan 01 Task 4 Part B.** A standalone describe block at the bottom of `tests/arch.spec.ts` explicitly targets `src/core/project-file.ts` by name with electron + fs + sharp grep guards. Uses graceful-skip pattern (try/catch on readFileSync) so the block stays green during Wave 1 before Plan 02 lands the file. T-08-LAYER threat reference embedded in the describe block.
 
 ## Environment Availability
 
