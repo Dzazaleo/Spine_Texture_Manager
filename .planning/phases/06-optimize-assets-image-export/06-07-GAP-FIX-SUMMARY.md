@@ -199,3 +199,140 @@ Commits exist (verified via `git log --oneline -7`):
 - FOUND: acdf7c1 feat(06-gap): image-worker extracts from atlas page
 - FOUND: c8465c6 test(06-gap): atlas-extract integration spec
 - FOUND: 5b834ef fix(06-gap): OptimizeDialog keys rowStatuses by index
+
+---
+
+## Round 2 — Step 2 collision-guard fixes (2026-04-25)
+
+**Trigger:** Human-verify Step 2 surfaced two further regressions while
+re-testing the export flow against the Girl/Jokerman style projects.
+
+**Round 2 commits:**
+- `d8b53c8` fix(06-gap2): per-row source-vs-output collision guard prevents overwriting source PNGs/atlas pages
+- `ebe57cf` fix(06-gap2): clearer AtlasNotFoundError message — explain why atlas is required
+
+### Bug #4 — Source-vs-output collision guard misses parent-of-images outDir
+
+**Reproduction (user-confirmed):** drop a project whose source PNGs live at
+`<skeletonDir>/images/<region>.png` (e.g. `fixtures/Girl/`), click Optimize,
+pick the SKELETON folder (NOT the images folder) as outDir, click Start.
+The export writes `<outDir>/images/<regionName>.png` directly OVER the
+source files in `<skeletonDir>/images/`. Source images destroyed in place;
+no safety prompt.
+
+**Root cause:** the existing `isOutDirInsideSourceImages` check in
+`src/main/ipc.ts handleStartExport` only catches the case where `outDir ==
+sourceImagesDir` OR `outDir is INSIDE sourceImagesDir`. It does NOT catch
+the inverse: `outDir + '/images/' would land ON sourceImagesDir`. When the
+user picks the parent of source-images, the guard sees outDir as OUTSIDE
+source-images and approves; the worker then writes to
+`<outDir>/images/...` which IS the source-images folder.
+
+**Fix — defense in depth at TWO layers (per-row collision detection):**
+
+**Layer A (IPC pre-flight in `src/main/ipc.ts`):** for each row in
+`validPlan.rows`, compare `path.resolve(outDir, row.outPath)` against:
+1. `path.resolve(row.sourcePath)` — per-region PNG case
+2. `path.resolve(row.atlasSource.pagePath)` — atlas-packed projects case
+
+Either equality fails fast with `kind: 'overwrite-source'` BEFORE setting
+`exportInFlight`, so a guard rejection does not poison the flag for
+follow-up calls. The original `isOutDirInsideSourceImages` check stays as
+a friendlier early-exit message for the "user picked the images folder
+itself" case (clearer error than per-row when the user names the source
+folder explicitly).
+
+**Layer B (image-worker per-row in `src/main/image-worker.ts`):** the same
+comparison runs at the top of the per-row loop, BEFORE `fs.access`. On
+hit, emit a per-row `'overwrite-source'` error and `continue` to the next
+row (D-116 skip-on-error continuation). Belt-and-suspenders against any
+future caller that bypasses the IPC layer (`runExport` is invoked
+directly from tests).
+
+**Type updates:**
+- `ExportError['kind']` union: `+ 'overwrite-source'`
+- `ExportResponse` error kind union: `+ 'overwrite-source'`
+- `OptimizeDialog` renders any `ExportError` by reading `.message` only —
+  no kind-specific switch elsewhere drops unknown kinds; the new kind
+  surfaces cleanly in the existing error display.
+
+**Tests added (5 new):**
+- `tests/main/ipc-export.spec.ts`:
+  - parent-of-source-images outDir → reject with `'overwrite-source'` (NOT `'invalid-out-dir'` — locks the discriminator so a future regression can't silently downgrade)
+  - multi-row plan with one safe + one colliding row → reject with `'overwrite-source'` and message naming the colliding file
+  - atlas-page collision → reject with `'overwrite-source'` and message mentioning "atlas page"
+  - genuinely safe outDir (`/tmp/foo`) → no false-reject (happy path stays GREEN)
+- `tests/main/image-worker.spec.ts`:
+  - direct `runExport` with 3 rows where row 1 collides → row 1 gets `'overwrite-source'`, rows 0 and 2 still process normally (D-116 honored)
+
+**Files modified:**
+- `src/main/ipc.ts` — Layer A per-row pre-flight collision check + JSDoc
+- `src/main/image-worker.ts` — Layer B in-loop defense-in-depth check + file-header docblock update
+- `src/shared/types.ts` — `'overwrite-source'` added to both `ExportError['kind']` and `ExportResponse` error kind unions, with explanatory JSDoc
+- `tests/main/ipc-export.spec.ts` — 4 new test cases under a Bug #4 describe block
+- `tests/main/image-worker.spec.ts` — 1 new test case under a Bug #4 describe block
+
+### Bug #5 (partial fix) — Improve atlas-not-found error message
+
+**Surfaced by:** human-verify Step 2 dragging in a bare `.json` (no
+sibling `.atlas`). The existing message read:
+```
+No atlas file found beside skeleton JSON.
+  Skeleton: <path>
+  Expected atlas at: <path>.atlas
+```
+Technically correct but did not tell the user WHY they need an atlas or
+that this is a Spine convention.
+
+**Fix:** expanded the human message in `src/core/errors.ts`
+`AtlasNotFoundError`:
+```
+Spine projects require an .atlas file beside the .json (carries region
+metadata that the skeleton JSON alone does not have). Re-export from
+the Spine editor with the atlas included.
+  Skeleton: <path>
+  Expected atlas at: <path>.atlas
+```
+
+The class, `.name` field, and typed `searchedPath` / `skeletonPath`
+properties are unchanged — only the human message expanded. All existing
+tests asserting on `instanceof AtlasNotFoundError` / `err.name` /
+`err.searchedPath` / `err.skeletonPath` continue to pass byte-for-byte.
+
+**Tests added (1 new):**
+- `tests/core/loader.spec.ts`:
+  - `Gap-Fix Round 2 Bug #5: AtlasNotFoundError message explains WHY the atlas is required (re-export hint)` — locks the substantive cues (`/Spine projects require an \.atlas file/`, `/Re-export from the Spine editor/`) without overconstraining wording
+
+**Files modified:**
+- `src/core/errors.ts` — `AtlasNotFoundError` constructor message expanded with WHY + remediation hint; class signature unchanged
+- `tests/core/loader.spec.ts` — 1 new test case asserting the substantive cues
+
+**Out of scope:** a tracked follow-up for true atlas-less mode (Phase 6.1)
+is being scoped separately by the user — Round 2 only improves the error
+UX, not the underlying capability.
+
+### Round 2 Verification
+
+| Check                              | Result |
+| ---------------------------------- | ------ |
+| `npm test`                         | 190 passed | 1 skipped (was 184 baseline; +6 new tests) |
+| `npm test -- tests/arch.spec.ts`   | 9/9 GREEN |
+| `npx electron-vite build`          | green |
+| `npm run typecheck:web`            | clean |
+| `npm run typecheck:node`           | pre-existing `scripts/probe-per-anim.ts` error (out of scope, inherited from Round 1) |
+| `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` | exit 0; output unchanged (timing-line variance only) |
+
+### Round 2 Self-Check: PASSED
+
+Files modified (verified via `git diff --name-only HEAD~2 HEAD`):
+- FOUND: src/core/errors.ts
+- FOUND: src/main/image-worker.ts
+- FOUND: src/main/ipc.ts
+- FOUND: src/shared/types.ts
+- FOUND: tests/core/loader.spec.ts
+- FOUND: tests/main/image-worker.spec.ts
+- FOUND: tests/main/ipc-export.spec.ts
+
+Round 2 commits exist (verified via `git log --oneline -3`):
+- FOUND: d8b53c8 fix(06-gap2): per-row source-vs-output collision guard
+- FOUND: ebe57cf fix(06-gap2): clearer AtlasNotFoundError message
