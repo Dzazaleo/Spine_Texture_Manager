@@ -196,24 +196,46 @@ describe('buildAtlasPreview — case (e) Atlas-packed BEFORE uses atlasSource.w/
 });
 
 describe('buildAtlasPreview — case (f) Multi-page at small cap (D-128)', () => {
-  it('SIMPLE_TEST at maxPageDim=128 → pages.length > 1; deterministic split', () => {
+  it('SIMPLE_TEST at maxPageDim=1100 → pages.length > 1; deterministic split', () => {
     const summary = loadSummary(FIXTURE_BASELINE);
-    // 128 is intentionally NOT in the 2048|4096 union — the runtime accepts
+    // 1100 is intentionally NOT in the 2048|4096 union — the runtime accepts
     // any number; the type union just restricts the modal's toggle UI. Cast
     // for the test only so we can drive the multi-page branch with the
-    // existing 3-region fixture. Aligns with D-128 promise that multi-page
-    // splits happen deterministically when total area > maxPageDim².
-    const opts = { mode: 'original' as const, maxPageDim: 128 } as unknown as {
+    // existing 3-region fixture (CIRCLE 699×699, SQUARE 1000×1000,
+    // TRIANGLE 833×759 — every region fits inside 1100, but their summed area
+    // (2.12 M px) exceeds 1100² = 1.21 M, so the packer splits across pages).
+    // Aligns with D-128 promise that multi-page splits happen deterministically
+    // when total area > maxPageDim². 128 (the prior choice) is no longer valid
+    // since the D-139-follow-up oversize filter excludes any region whose dim
+    // exceeds maxPageDim — at 128 the entire fixture would be filtered out.
+    const opts = { mode: 'original' as const, maxPageDim: 1100 } as unknown as {
       mode: 'original';
       maxPageDim: 2048 | 4096;
     };
     const projection1 = buildAtlasPreview(summary, new Map(), opts);
     const projection2 = buildAtlasPreview(summary, new Map(), opts);
     expect(projection1.pages.length).toBeGreaterThan(1);
+    // No oversize at this cap (largest region is SQUARE 1000×1000 ≤ 1100).
+    expect(projection1.oversize).toEqual([]);
     // Determinism: two runs over the same summary produce byte-identical
     // packer output because inputs are sorted before packer.add (matches
     // src/core/export.ts:223 sort discipline).
     expect(projection1).toEqual(projection2);
+  });
+
+  it('SIMPLE_TEST at maxPageDim=128 → all regions oversize; pages.length === 1 (degenerate)', () => {
+    const summary = loadSummary(FIXTURE_BASELINE);
+    // D-139 follow-up: every SIMPLE_TEST region (699×699, 1000×1000, 833×759)
+    // exceeds 128 → all flagged oversize, none enter the packer, the D-136
+    // degenerate-empty-page fallback emits a single empty page.
+    const opts = { mode: 'original' as const, maxPageDim: 128 } as unknown as {
+      mode: 'original';
+      maxPageDim: 2048 | 4096;
+    };
+    const projection = buildAtlasPreview(summary, new Map(), opts);
+    expect(projection.pages.length).toBe(1);
+    expect(projection.pages[0]?.regions).toEqual([]);
+    expect(projection.oversize.sort()).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
   });
 });
 

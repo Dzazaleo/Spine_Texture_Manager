@@ -63,7 +63,22 @@ export function buildAtlasPreview(
   }
 
   // 2. Derive AtlasPreviewInput[] per mode.
-  const inputs: AtlasPreviewInput[] = deriveInputs(summary, overrides, opts.mode, excluded);
+  const allInputs: AtlasPreviewInput[] = deriveInputs(summary, overrides, opts.mode, excluded);
+
+  // 2a. D-139 follow-up: filter inputs whose packed dims exceed maxPageDim on
+  // either axis. The packer would otherwise expand the bin past the cap to fit
+  // them — masking a real export failure and producing a misleading preview.
+  // Collected attachmentNames bubble up to the renderer as a warning banner.
+  const oversize: string[] = [];
+  const inputs: AtlasPreviewInput[] = [];
+  for (const inp of allInputs) {
+    if (inp.packW > opts.maxPageDim || inp.packH > opts.maxPageDim) {
+      oversize.push(inp.attachmentName);
+    } else {
+      inputs.push(inp);
+    }
+  }
+  oversize.sort();
 
   // 3. Determinism: sort by sourcePath then attachmentName so two runs over the
   //    same summary produce byte-identical packer output (matches src/core/export.ts:223).
@@ -130,6 +145,7 @@ export function buildAtlasPreview(
     maxPageDim: opts.maxPageDim,
     pages,
     totalPages: pages.length,
+    oversize,
   };
 }
 

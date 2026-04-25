@@ -181,16 +181,28 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
             onNext={goNext}
             efficiency={currentPage?.efficiency ?? 0}
           />
-          <main className="flex-1 overflow-hidden">
-            <AtlasCanvas
-              page={currentPage}
-              hoveredAttachmentName={hoveredAttachmentName}
-              setHoveredAttachmentName={setHoveredAttachmentName}
-              loadImage={loadImage}
-              missingPaths={missingPathsRef.current}
-              imageCacheVersion={imageCacheVersion}
-              onJumpToAttachment={props.onJumpToAttachment}
-            />
+          <main className="flex-1 overflow-hidden flex flex-col gap-2">
+            {projection.oversize.length > 0 && (
+              <div
+                role="alert"
+                className="text-xs px-3 py-2 border rounded-md"
+                style={{ borderColor: 'var(--color-danger, #e06b55)', color: 'var(--color-danger, #e06b55)' }}
+              >
+                {`${projection.oversize.length} attachment${projection.oversize.length === 1 ? '' : 's'} exceed the ${maxPageDim}px atlas and ${projection.oversize.length === 1 ? 'is' : 'are'} excluded from this preview: ${projection.oversize.join(', ')}`}
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <AtlasCanvas
+                page={currentPage}
+                frameDim={maxPageDim}
+                hoveredAttachmentName={hoveredAttachmentName}
+                setHoveredAttachmentName={setHoveredAttachmentName}
+                loadImage={loadImage}
+                missingPaths={missingPathsRef.current}
+                imageCacheVersion={imageCacheVersion}
+                onJumpToAttachment={props.onJumpToAttachment}
+              />
+            </div>
           </main>
         </div>
 
@@ -356,6 +368,7 @@ function InfoCard({ label, value, sub }: InfoCardProps) {
  */
 interface AtlasCanvasProps {
   page: AtlasPage | undefined;
+  frameDim: 2048 | 4096;
   hoveredAttachmentName: string | null;
   setHoveredAttachmentName: (name: string | null) => void;
   loadImage: (absolutePath: string) => HTMLImageElement;
@@ -366,6 +379,7 @@ interface AtlasCanvasProps {
 
 function AtlasCanvas({
   page,
+  frameDim,
   hoveredAttachmentName,
   setHoveredAttachmentName,
   loadImage,
@@ -379,15 +393,17 @@ function AtlasCanvas({
     const canvas = canvasRef.current;
     if (!canvas || !page) return;
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-    canvas.width = Math.max(1, page.width) * dpr;
-    canvas.height = Math.max(1, page.height) * dpr;
-    // CSS display-size set by the wrapper container + className (D-139 amendment;
-    // backing-store stays at page.width × dpr × page.height × dpr for drawImage
-    // fidelity).
+    // D-139 amendment (Plan 06 follow-up): canvas backing-store and display-frame
+    // stay at the user-selected maxPageDim × maxPageDim so the canvas frame is a
+    // fixed reference across pages and overrides — empty space stays visible
+    // ("you can see how much capacity is unused"). Regions are drawn at their
+    // packed (x, y, w, h) coords inside this fixed frame.
+    canvas.width = frameDim * dpr;
+    canvas.height = frameDim * dpr;
     const ctx = canvas.getContext('2d');
     if (!ctx) return; // jsdom returns null — test env safety
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, page.width, page.height);
+    ctx.clearRect(0, 0, frameDim, frameDim);
 
     for (const region of page.regions) {
       const sourceUrl = region.atlasSource?.pagePath ?? region.sourcePath;
@@ -445,7 +461,7 @@ function AtlasCanvas({
         ctx.fillText(`${Math.round(region.w)} × ${Math.round(region.h)}`, region.x + 4, region.y + 28);
       }
     }
-  }, [page, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
+  }, [page, frameDim, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
 
   const hitTest = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>): PackedRegion | null => {
@@ -454,8 +470,8 @@ function AtlasCanvas({
       const rect = canvas.getBoundingClientRect();
       const cssX = e.clientX - rect.left;
       const cssY = e.clientY - rect.top;
-      const x = (cssX / Math.max(rect.width, 1)) * page.width;
-      const y = (cssY / Math.max(rect.height, 1)) * page.height;
+      const x = (cssX / Math.max(rect.width, 1)) * frameDim;
+      const y = (cssY / Math.max(rect.height, 1)) * frameDim;
       for (const region of page.regions) {
         if (
           x >= region.x &&
@@ -468,7 +484,7 @@ function AtlasCanvas({
       }
       return null;
     },
-    [page],
+    [page, frameDim],
   );
 
   const onMouseMove = useCallback(
@@ -489,23 +505,17 @@ function AtlasCanvas({
 
   if (!page) return <div className="text-fg-muted text-xs">No projection.</div>;
 
-  // D-139 (Plan 06 amendment): canvas display-size auto-fits modal content area
-  // while preserving the page's actual aspect ratio. The packer's tight-fit
-  // (D-132 pot:false, square:false) produces non-square bins when overrides
-  // change region dims; locking aspect to 1:1 would re-stretch regions into
-  // ovals (Gate 8 regression). Backing-store stays at page.width × dpr ×
-  // page.height × dpr (set in the useEffect above) for drawImage fidelity.
+  // D-139 (Plan 06 amendment): canvas frame is the fixed maxPageDim × maxPageDim
+  // square — empty space stays visible so the user sees how much page capacity
+  // is unused. Pages do NOT shrink to packed-content bounds. This eliminates
+  // the "page jump" between pager clicks and override changes (each page would
+  // otherwise have a different bin size from the tight-fit packer at D-132).
+  // Backing-store: frameDim × dpr × frameDim × dpr (set in the useEffect above).
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div
-        className="max-w-full max-h-full"
-        style={{
-          aspectRatio: `${page.width} / ${Math.max(1, page.height)}`,
-          maxWidth: `${page.width}px`,
-          maxHeight: `${page.height}px`,
-          width: '100%',
-          height: '100%',
-        }}
+        className="aspect-[1/1] w-full max-w-full max-h-full"
+        style={{ maxWidth: `${frameDim}px`, maxHeight: `${frameDim}px` }}
       >
         <canvas
           ref={canvasRef}

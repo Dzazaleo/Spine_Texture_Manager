@@ -432,6 +432,14 @@ export interface AtlasPreviewProjection {
   maxPageDim: 2048 | 4096;
   pages: AtlasPage[];
   totalPages: number;
+  /**
+   * Attachments whose packed dims exceed `maxPageDim` on either axis. These are
+   * filtered out of the packer (D-139 follow-up: an oversize region would
+   * otherwise force the packer to expand the bin and let the renderer's
+   * fixed-frame canvas crop or distort it). Renderer surfaces these as a
+   * warning banner. Empty array when all attachments fit.
+   */
+  oversize: string[];
 }
 
 /**
