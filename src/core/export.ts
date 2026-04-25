@@ -30,6 +30,25 @@
  *   export breaks Spine UV sampling AND upscaling fabricates pixels libvips
  *   never had — both are forbidden here.
  *
+ * Gap-Fix Round 5 (2026-04-25) — CEIL + CEIL-THOUSANDTH (D-110 amendment):
+ *   Two refinements to the sizing math, both motivated by a 1-pixel
+ *   under-allocation surfaced when JOKER/FACE peakScale = 0.36071 produced
+ *   a 347-pixel-tall output (Math.round(962 × 0.36071) = 347) while the
+ *   per-axis peak demanded ≥ 347.99 pixels:
+ *     1. effectiveScale is rounded UP to the nearest thousandth via
+ *        `Math.ceil(s * 1000) / 1000`. The displayed `0.361×` becomes a
+ *        guaranteed lower bound — a user reading the panel and applying
+ *        36.1% in Photoshop never produces a smaller image than the app
+ *        exports. Applied AFTER override/peakScale resolution and BEFORE
+ *        the ≤ 1.0 clamp (so the clamp still binds after rounding up).
+ *     2. Output dims use `Math.ceil(sourceDim × effectiveScale)` instead
+ *        of `Math.round(...)`. Math.round can drop a pixel when the
+ *        fractional product is < .5 (962 × 0.36071 = 346.99 → round = 347),
+ *        leaving the export below the per-axis peak demand. Math.ceil
+ *        guarantees output dim ≥ per-axis peak demand on both axes.
+ *   D-110 invariant unchanged: same effectiveScale on both axes preserves
+ *   aspect ratio. Sub-pixel deviation only — Lanczos3 unaffected.
+ *
  * Layer 3 hygiene: NO imports of node:fs, node:path, sharp, electron, or
  * @esotericsoftware/spine-core (runtime). Type-only imports from
  * '../shared/types.js' and a runtime import of './overrides.js' are the
@@ -66,9 +85,12 @@ export interface BuildExportPlanOptions {
  *   policy: anisotropic export breaks Spine UV sampling AND extrapolating
  *   pixels libvips never had degrades quality vs simply shipping the source.
  *
- * D-110 uniform sizing: outW = Math.round(sourceW × effectiveScale),
- * outH = Math.round(sourceH × effectiveScale), with the SAME effectiveScale
- * on both axes.
+ * D-110 uniform sizing (Round 5 refinement):
+ *   effectiveScale is rounded UP to the nearest thousandth (so the displayed
+ *   `0.361×` is a guaranteed lower bound), then output dims are computed as
+ *   `Math.ceil(sourceDim × effectiveScale)` (so the export is never below the
+ *   per-axis peak demand). Same effectiveScale on both axes — aspect ratio
+ *   preserved within sub-pixel tolerance.
  *
  * D-108 dedup: one ExportRow per unique sourcePath; the kept effectiveScale
  * is max(post-clamp) across all attachments referencing that source.
@@ -95,6 +117,21 @@ function relativeOutPath(sourcePath: string): string {
   const idx = normalized.lastIndexOf('/images/');
   const regionPart = idx >= 0 ? normalized.slice(idx + '/images/'.length) : normalized.slice(normalized.lastIndexOf('/') + 1);
   return 'images/' + regionPart;
+}
+
+/**
+ * Gap-Fix Round 5 (2026-04-25) — round effectiveScale UP to the nearest
+ * thousandth. The displayed `0.361×` (in the panel Scale column, via
+ * src/core/analyzer.ts) becomes a guaranteed lower bound: a user reading
+ * the panel and applying 36.1% in Photoshop never produces a smaller image
+ * than the app exports. Single source of truth so both the math (here) and
+ * the display (analyzer.ts scaleLabel) round identically.
+ *
+ * Pure helper — no side effects, no dependencies. Mirrored byte-identically
+ * in src/renderer/src/lib/export-view.ts to preserve the parity contract.
+ */
+export function safeScale(s: number): number {
+  return Math.ceil(s * 1000) / 1000;
 }
 
 export function buildExportPlan(
@@ -127,14 +164,16 @@ export function buildExportPlan(
       overridePct !== undefined
         ? applyOverride(overridePct).effectiveScale
         : row.peakScale;
-    // Gap-Fix #1 (2026-04-25): clamp to ≤ 1.0 BEFORE the dedup keep-max
-    // comparison so two attachments sharing one source PNG with peaks
-    // 0.8 and 5.0 both fold to 1.0 (the ceiling) rather than the dedup
-    // accidentally promoting one to the source ceiling and leaving the
-    // other reading the unclamped 5.0 value.
+    // Gap-Fix Round 5 (2026-04-25): round UP to nearest thousandth FIRST so
+    // the displayed `0.361×` is a guaranteed lower bound the export math
+    // also uses. THEN apply the Gap-Fix #1 (2026-04-25) clamp to ≤ 1.0
+    // BEFORE the dedup keep-max comparison so two attachments sharing one
+    // source PNG with peaks 0.8 and 5.0 both fold to 1.0 (the ceiling)
+    // rather than the dedup accidentally promoting one to the source
+    // ceiling and leaving the other reading the unclamped 5.0 value.
     // User-locked Phase 6 export sizing memory: source dims are the
     // ceiling, never extrapolate.
-    const effScale = Math.min(rawEffScale, 1);
+    const effScale = Math.min(safeScale(rawEffScale), 1);
     const prev = bySourcePath.get(row.sourcePath);
     if (prev === undefined) {
       bySourcePath.set(row.sourcePath, {
@@ -153,15 +192,20 @@ export function buildExportPlan(
     }
   }
 
-  // 3. Emit ExportRows. D-110: same effectiveScale on both axes; Math.round
-  //    = round-half-away-from-zero (JS spec).
+  // 3. Emit ExportRows. D-110: same effectiveScale on both axes.
+  // Gap-Fix Round 5 (2026-04-25): Math.ceil instead of Math.round so the
+  //    output dim is never below the per-axis peak demand. Math.round drops
+  //    a pixel when sourceDim × effScale < .5 (e.g. 962 × 0.36071 = 346.99
+  //    → round = 347, but the per-axis peak demanded ≥ 347.99). Aspect
+  //    ratio is preserved within sub-pixel tolerance (uniform effScale
+  //    across both axes; ceil applied per-axis).
   // Gap-Fix #2: thread atlasSource through from the winning DisplayRow so
   //    the image-worker can fall back to atlas-page extraction when the
   //    per-region PNG doesn't exist on disk.
   const rows: ExportRow[] = [];
   for (const acc of bySourcePath.values()) {
-    const outW = Math.round(acc.row.sourceW * acc.effScale);
-    const outH = Math.round(acc.row.sourceH * acc.effScale);
+    const outW = Math.ceil(acc.row.sourceW * acc.effScale);
+    const outH = Math.ceil(acc.row.sourceH * acc.effScale);
     rows.push({
       sourcePath: acc.row.sourcePath,
       outPath: relativeOutPath(acc.row.sourcePath),

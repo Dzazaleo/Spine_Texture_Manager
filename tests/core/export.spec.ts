@@ -40,7 +40,7 @@ const FIXTURE_EXPORT = path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json');
 const EXPORT_SRC = path.resolve('src/core/export.ts');
 
 describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
-  it('SIMPLE_TEST → 3 ExportRows with effective scale = peakScale, dims = Math.round(sourceW × peakScale)', () => {
+  it('SIMPLE_TEST → 3 ExportRows with effective scale = peakScale, dims = Math.ceil(sourceW × effScale) (Round 5 ceil)', () => {
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
@@ -58,8 +58,11 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
     // (CIRCLE, SQUARE, TRIANGLE — the two SQUARE-named attachments fold into one).
     expect(plan.rows.length).toBe(3);
     for (const row of plan.rows) {
-      const expectedW = Math.round(row.sourceW * row.effectiveScale);
-      const expectedH = Math.round(row.sourceH * row.effectiveScale);
+      // Round 5: outW = Math.ceil(sourceW × effScale) so output dim is never
+      // below the per-axis peak demand. effectiveScale is also ceil-thousandth
+      // (display lower-bound) but that is internal to the builder.
+      const expectedW = Math.ceil(row.sourceW * row.effectiveScale);
+      const expectedH = Math.ceil(row.sourceH * row.effectiveScale);
       expect(row.outW).toBe(expectedW);
       expect(row.outH).toBe(expectedH);
     }
@@ -67,7 +70,7 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
 });
 
 describe('buildExportPlan — case (b) override 50% on TRIANGLE (D-111)', () => {
-  it('override 50% → out dims = Math.round(sourceW × 0.5)', () => {
+  it('override 50% → out dims = Math.ceil(sourceW × 0.5) (Round 5 ceil)', () => {
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
@@ -83,9 +86,10 @@ describe('buildExportPlan — case (b) override 50% on TRIANGLE (D-111)', () => 
     const triRow = plan.rows.find((r) => r.attachmentNames.includes('TRIANGLE'));
     expect(triRow).toBeDefined();
     if (triRow) {
+      // 0.5 × 1000 = 500 → ceil = 500 → /1000 = 0.5; clamp ≤ 1 unchanged.
       expect(triRow.effectiveScale).toBeCloseTo(0.5, 6);
-      expect(triRow.outW).toBe(Math.round(triRow.sourceW * 0.5));
-      expect(triRow.outH).toBe(Math.round(triRow.sourceH * 0.5));
+      expect(triRow.outW).toBe(Math.ceil(triRow.sourceW * 0.5));
+      expect(triRow.outH).toBe(Math.ceil(triRow.sourceH * 0.5));
     }
   });
 });
@@ -292,10 +296,11 @@ describe('buildExportPlan — case (d) two attachments share atlas region with d
     // D-108: one ExportRow per unique sourcePath
     expect(plan.rows.length).toBe(1);
     const row = plan.rows[0];
-    // Max of (0.5, 0.9) = 0.9
+    // Max of (0.5, 0.9) = 0.9 (ceil-thousandth of 0.9 is 0.9 exact).
     expect(row.effectiveScale).toBeCloseTo(0.9, 6);
-    expect(row.outW).toBe(Math.round(128 * 0.9));
-    expect(row.outH).toBe(Math.round(128 * 0.9));
+    // Round 5: outW = Math.ceil(128 × 0.9) = ceil(115.2) = 116 (was 115 with round).
+    expect(row.outW).toBe(Math.ceil(128 * 0.9));
+    expect(row.outH).toBe(Math.ceil(128 * 0.9));
     // Both attachment names preserved for traceability
     expect(row.attachmentNames).toContain('FACE_A');
     expect(row.attachmentNames).toContain('FACE_B');
@@ -394,24 +399,19 @@ describe('buildExportPlan — case (e) ghost fixture (D-109)', () => {
   });
 });
 
-describe('buildExportPlan — case (f) Math.round half-rounding (D-110)', () => {
-  it('Math.round(127.5) === 128 (round-half-away-from-zero JS spec)', () => {
-    // Lock the JS Math.round contract Phase 6 depends on. This test passes
-    // even before buildExportPlan exists — but stays in this file to keep
-    // the contract co-located with the spec block that documents it.
-    expect(Math.round(127.5)).toBe(128);
-    expect(Math.round(127.4)).toBe(127);
-    expect(Math.round(0.5)).toBe(1);
-    // round-half-toward-positive-infinity for negatives. Math.round(-0.5)
-    // returns -0 in V8 (per ECMA-262); use Object.is-tolerant equality so
-    // -0 and +0 both satisfy "rounded to zero" for the D-110 contract intent.
-    // outW/outH callers Math.round positive products only (sourceW/H >= 0,
-    // effectiveScale > 0), so -0 is unreachable in production paths.
-    expect(Math.abs(Math.round(-0.5))).toBe(0);
+describe('buildExportPlan — case (f) Math.ceil sizing semantics (D-110, Round 5)', () => {
+  it('Math.ceil(127.5) === 128, Math.ceil(127.001) === 128, Math.ceil(127) === 127 (JS spec)', () => {
+    // Lock the JS Math.ceil contract Round 5 depends on. The export math
+    // uses Math.ceil so any positive fractional product rounds UP — output
+    // dim is never below the per-axis peak demand.
+    expect(Math.ceil(127.5)).toBe(128);
+    expect(Math.ceil(127.001)).toBe(128);
+    expect(Math.ceil(127)).toBe(127);
+    expect(Math.ceil(0.5)).toBe(1);
+    expect(Math.ceil(0.001)).toBe(1);
   });
 
-  it('synthetic peakScale yielding an exact .5 boundary rounds up', () => {
-    // 255 × 0.5 = 127.5 → 128
+  it('synthetic peakScale yielding an exact .5 boundary ceils to 128 (255 × 0.5 = 127.5 → 128)', () => {
     const summary = {
       peaks: [
         {
@@ -437,6 +437,96 @@ describe('buildExportPlan — case (f) Math.round half-rounding (D-110)', () => 
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     expect(plan.rows[0].outW).toBe(128);
     expect(plan.rows[0].outH).toBe(128);
+  });
+});
+
+describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)', () => {
+  it('JOKER/FACE-style: source 811×962, peakScale 0.36071 → outW ≥ 293 AND outH ≥ 348 (ceil prevents per-axis under-allocation)', () => {
+    // Reproduces the user-discovered 1-pixel under-allocation: under the
+    // old Math.round contract, 962 × 0.36071 = 346.99 rounded to 347 — but
+    // the per-axis peak demand was ≥ 347.99 px. Round 5 ceil-thousandth on
+    // effScale (0.36071 → 0.361) plus Math.ceil per-axis guarantees:
+    //   effScale = ceil(0.36071 × 1000) / 1000 = 361 / 1000 = 0.361
+    //   outW = ceil(811 × 0.361) = ceil(292.771) = 293
+    //   outH = ceil(962 × 0.361) = ceil(347.282) = 348
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/HEAD/FACE',
+          attachmentName: 'FACE',
+          skinName: 'default',
+          slotName: 'HEAD',
+          animationName: 'JOKER',
+          time: 1.0,
+          frame: 60,
+          peakScale: 0.36071,
+          peakScaleX: 0.36071,
+          peakScaleY: 0.36071,
+          worldW: 292.5,
+          worldH: 347.0,
+          sourceW: 811,
+          sourceH: 962,
+          sourcePath: '/fake/FACE.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows.length).toBe(1);
+    const row = plan.rows[0];
+    // effScale rounded UP to nearest thousandth — display value matches.
+    expect(row.effectiveScale).toBeCloseTo(0.361, 6);
+    // Per-axis peak guaranteed: never below the demand even on under-.5
+    // fractional products.
+    expect(row.outW).toBe(293);
+    expect(row.outH).toBe(348);
+    expect(row.outW).toBeGreaterThanOrEqual(293);
+    expect(row.outH).toBeGreaterThanOrEqual(348);
+  });
+
+  it('JOKER/FACE follow-up: source 811×962, peakScale 0.36128 → effScale 0.362, outW = ceil(811 × 0.362) = 294, outH = ceil(962 × 0.362) = 349', () => {
+    // Verifies the 0.36128 boundary case — ceil-thousandth promotes 0.36128
+    // to 0.362 (since 361.28 ceils to 362), driving outW one pixel up.
+    // Aspect ratio preserved within sub-pixel tolerance.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/HEAD/FACE',
+          attachmentName: 'FACE',
+          skinName: 'default',
+          slotName: 'HEAD',
+          animationName: 'JOKER',
+          time: 1.0,
+          frame: 60,
+          peakScale: 0.36128,
+          peakScaleX: 0.36128,
+          peakScaleY: 0.36128,
+          worldW: 293.0,
+          worldH: 347.5,
+          sourceW: 811,
+          sourceH: 962,
+          sourcePath: '/fake/FACE.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const row = plan.rows[0];
+    expect(row.effectiveScale).toBeCloseTo(0.362, 6);
+    expect(row.outW).toBe(294); // ceil(811 × 0.362) = ceil(293.582) = 294
+    expect(row.outH).toBe(349); // ceil(962 × 0.362) = ceil(348.244) = 349
+  });
+
+  it('ceil-thousandth lower-bound: displayed scale always ≥ raw peakScale', () => {
+    // Property test: for any peakScale in (0, 1], the ceil-thousandth value
+    // must satisfy ceiled ≥ raw (with sub-thousandth tolerance for rounding).
+    const samples = [0.001, 0.123, 0.36071, 0.36128, 0.5, 0.7777, 0.9999];
+    for (const raw of samples) {
+      const ceiled = Math.ceil(raw * 1000) / 1000;
+      expect(ceiled).toBeGreaterThanOrEqual(raw);
+      // Within one thousandth of the raw value (ceil tolerance).
+      expect(ceiled - raw).toBeLessThan(0.001);
+    }
   });
 });
 
@@ -526,10 +616,18 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
-  it('both files share the same Math.round uniform sizing pattern', () => {
+  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
-    const sig = /Math\.round\([^)]*sourceW\s*\*/;
+    const sig = /Math\.ceil\([^)]*sourceW\s*\*/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
+  it('both files export the safeScale helper (ceil-thousandth single source of truth, Round 5)', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /export\s+function\s+safeScale/;
     expect(coreText).toMatch(sig);
     expect(viewText).toMatch(sig);
   });
