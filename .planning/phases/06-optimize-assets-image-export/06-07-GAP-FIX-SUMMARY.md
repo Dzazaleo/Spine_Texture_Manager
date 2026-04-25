@@ -594,3 +594,145 @@ Round 3 commits exist (verified via `git log --oneline -3`):
 - FOUND: 77296b2 feat(06-gap3): split export IPC into probe + start
 - FOUND: 892b5a1 feat(06-gap3): ConflictDialog modal + AppShell probe-then-confirm overwrite flow
 - (this commit) docs(06-gap3): append round 3 (overwrite UX)
+
+---
+
+## Round 4 — F_OK is the only collision gate (2026-04-25)
+
+**Trigger:** the user dropped the Girl atlas-only project, manually
+deleted the `images/` subfolder beside the skeleton, picked the
+skeleton folder as outDir, and the ConflictDialog STILL opened listing
+~75 collisions. No file existed on disk to be overwritten — the modal
+was a false positive.
+
+**Root cause:** the Round 2/3 collision-detection pipeline ran THREE
+synchronous checks per row before the F_OK probe:
+1. `path.resolve(row.sourcePath) === resolvedOut`
+2. `path.resolve(row.atlasSource.pagePath) === resolvedOut`
+3. `await fs.access(resolvedOut, F_OK)`
+
+Checks #1 and #2 fired even when the file didn't actually exist on
+disk. The loader unconditionally constructs `sourcePath` as
+`<skeletonDir>/images/<regionName>.png` for atlas-only projects (the
+atlas-extract fallback path that the worker resolves only at write
+time). Any outDir whose `outDir + outPath` resolved to that same string
+triggered the alarm regardless of whether the file was actually there.
+
+**Fix — F_OK is the only correct gate:** collision means "would
+clobber a file that currently exists on disk". Existence is the only
+correct signal. Both layers simplified:
+
+- `src/main/ipc.ts probeExportConflicts` — checks #1 and #2 deleted.
+  Per row: a single `await fs.access(resolvedOut, F_OK)` returns the
+  resolved path (or null). All probes still kicked off in parallel
+  via `Promise.all`. Side-effect-free, no `exportInFlight` mutation.
+- `src/main/image-worker.ts runExport` — same simplification at the
+  per-row defense-in-depth gate. The `allowOverwrite=true` bypass
+  remains (Round 3 contract: renderer "Overwrite all" branch). Error
+  message updated from "Refusing to overwrite source: ..." to
+  "Refusing to overwrite existing file: ..." — the strictly accurate
+  description now that the gate is existence-only.
+
+**Round 4 commits:**
+- `cbf210c` fix(06-gap4): F_OK existence is the only collision gate; remove string-match false-positives
+- `7b09b3d` test(06-gap4): update overwrite tests for F_OK gate; add regression for empty parent-of-images
+- (this commit) docs(06-gap4): append round 4 (F_OK collision gate) to gap-fix summary
+
+### Tests
+
+**Updated (Round 3 → Round 4) in `tests/main/ipc-export.spec.ts`:**
+- `rejects with overwrite-source when outDir is parent-of-source-images`
+  — now mocks fs.access to RESOLVE so the F_OK probe surfaces the
+  conflict.
+- `rejects with overwrite-source when ANY row would collide` — uses
+  `mockImplementation` to resolve only for the BAD row's resolved out
+  and reject for the SAFE row, locking the multi-row partial-collision
+  contract.
+- `rejects with overwrite-source when atlas page would be overwritten`
+  — same mockResolvedValue. Atlas-page collision is now indistinguishable
+  from any other resolved-output existence collision (the F_OK probe
+  doesn't care whether the file is the atlas page, a per-region PNG,
+  or a totally unrelated file under the same name).
+- `probeExportConflicts returns the list of conflicting paths` —
+  mockResolvedValue so the probe returns one entry.
+- `handleStartExport with overwrite=false AND conflicts → rejects` —
+  mockResolvedValue so the defense-in-depth probe surfaces a conflict.
+
+**Updated (Round 3 → Round 4) in `tests/main/image-worker.spec.ts`:**
+- Default `vi.mock('node:fs/promises')` mock for `access` switched to
+  mode-based dispatch: `F_OK` (mode 0) probes reject by default
+  (no pre-existing files); `R_OK` (mode 4) probes resolve (sources
+  readable). Same dispatch mirrored in `restoreDefaultMocks()`.
+  Keeps cases (a)-(f) untouched while letting round-2/3 tests opt-in
+  to a surfaced collision.
+- Case (b) `missing-source` mock extended to also reject F_OK (else
+  the F_OK gate fires before the R_OK throw it's testing).
+- Round-2 per-row collision test renamed to "row whose resolved
+  output exists on disk" and refactored to drive the gate via F_OK
+  resolve on the colliding resolved-out (not via sourcePath string
+  match — that mechanism is gone).
+- Round-3 `allowOverwrite=false` default-protection test refactored
+  similarly (F_OK resolves for the resolved out → collision surfaces).
+
+**New (1) in `tests/main/ipc-export.spec.ts`:**
+- `Round 4: conflicts are F_OK-gated, not string-match (parent-of-images
+  outDir is OK when images/ subfolder is empty)` — drops a plan whose
+  row's `sourcePath` string would have matched the resolved out under
+  the OLD round-3 contract, mocks `fs.access` to reject (ENOENT) so the
+  F_OK probe finds nothing, asserts `probeExportConflicts` returns `[]`.
+  This is the regression-lock for the Girl atlas-only bug.
+
+### Files modified
+
+- `src/main/ipc.ts` — `probeExportConflicts` simplified (3 checks → 1
+  F_OK probe per row); narrative comment updated.
+- `src/main/image-worker.ts` — per-row F_OK gate replaces the round-2/3
+  string-match checks; comment updated; error message updated.
+- `tests/main/ipc-export.spec.ts` — 5 round-2/3 tests updated to
+  drive collisions via F_OK mock; 1 new Round 4 regression test added.
+- `tests/main/image-worker.spec.ts` — default `access` mock + helper
+  switched to mode-based dispatch; case (b), round-2 per-row collision,
+  and round-3 default-protection tests updated for the F_OK contract.
+- `.planning/phases/06-optimize-assets-image-export/06-07-GAP-FIX-SUMMARY.md`
+  — Round 4 section appended (this section).
+
+### Round 4 Verification
+
+| Check                              | Result |
+| ---------------------------------- | ------ |
+| `npm test`                         | 201 passed | 1 skipped (was 200 baseline; +1 new Round 4 regression test) |
+| `npm test -- tests/arch.spec.ts`   | 9/9 GREEN |
+| `npx electron-vite build`          | green (renderer 621.41 kB, unchanged from Round 3) |
+| `npm run typecheck:web`            | clean |
+| `npm run typecheck:node`           | pre-existing `scripts/probe-per-anim.ts` error (out of scope, inherited from Rounds 1–3) |
+| `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` | exit 0; output unchanged (timing-line variance only) |
+
+### Manual Re-Test Scenarios for Step 2 — Round 4 (User)
+
+If both scenarios pass, the Girl atlas-only bug is verified fixed.
+
+1. Drop `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` (or any
+   atlas-only project), MANUALLY delete the `images/` subfolder beside
+   the skeleton, click Optimize, pick the skeleton folder as outDir,
+   click Start. Expect:
+   - NO ConflictDialog opens (the F_OK probe finds no existing files).
+   - OptimizeDialog flips straight to in-progress.
+   - Export proceeds; fresh `images/` subfolder created with optimized PNGs.
+2. Drop the same project but DO NOT delete `images/`. Click Optimize,
+   pick the skeleton folder, click Start. Expect:
+   - ConflictDialog opens listing the existing files in `images/`.
+   - Cancel / Pick different folder / Overwrite all all functional
+     per Round 3 contract.
+
+### Round 4 Self-Check: PASSED
+
+Files modified (verified via `git diff --name-only HEAD~2 HEAD`):
+- FOUND: src/main/image-worker.ts
+- FOUND: src/main/ipc.ts
+- FOUND: tests/main/image-worker.spec.ts
+- FOUND: tests/main/ipc-export.spec.ts
+
+Round 4 commits exist (verified via `git log --oneline -2`):
+- FOUND: cbf210c fix(06-gap4): F_OK existence is the only collision gate
+- FOUND: 7b09b3d test(06-gap4): update overwrite tests for F_OK gate
+- (this commit) docs(06-gap4): append round 4 (F_OK collision gate)
