@@ -42,11 +42,23 @@ vi.mock('sharp', () => {
   return { default: sharp };
 });
 
+// Round 4 (2026-04-25): image-worker now also calls access(resolvedOut, F_OK)
+// as the per-row defense-in-depth overwrite gate. The default mock must
+// differentiate F_OK probes (existence checks against resolved OUTPUT paths
+// — the no-pre-existing-file baseline → reject) from R_OK probes (readability
+// checks against SOURCE paths — sources exist → resolve). Mode-based dispatch
+// keeps the case (a)-(f) tests untouched while letting the round-2/3 tests
+// override `access` selectively when they need a collision to surface.
 vi.mock('node:fs/promises', () => ({
-  access: vi.fn().mockResolvedValue(undefined),
+  access: vi.fn().mockImplementation(async (_path: unknown, mode?: number) => {
+    if (mode === 0 /* F_OK */) {
+      throw new Error('ENOENT');
+    }
+    return undefined;
+  }),
   mkdir: vi.fn().mockResolvedValue(undefined),
   rename: vi.fn().mockResolvedValue(undefined),
-  constants: { R_OK: 4 },
+  constants: { R_OK: 4, F_OK: 0 },
 }));
 
 function buildPlan(rows: number): ExportPlan {
@@ -82,7 +94,17 @@ function buildPlan(rows: number): ExportPlan {
  */
 async function restoreDefaultMocks(): Promise<void> {
   const fsPromises = await import('node:fs/promises');
-  vi.mocked(fsPromises.access).mockReset().mockResolvedValue(undefined);
+  // Round 4 (2026-04-25): mode-based dispatch — F_OK probes (existence
+  // against resolved OUTPUT paths) reject by default so no pre-existing
+  // file collision surfaces; R_OK probes (readability against SOURCE
+  // paths) resolve so sources are readable. Tests that need a collision
+  // to surface can mockResolvedValueOnce / override after this restore.
+  vi.mocked(fsPromises.access).mockReset().mockImplementation(async (_p, mode) => {
+    if (mode === 0 /* F_OK */) {
+      throw new Error('ENOENT');
+    }
+    return undefined;
+  });
   vi.mocked(fsPromises.mkdir).mockReset().mockResolvedValue(undefined);
   vi.mocked(fsPromises.rename).mockReset().mockResolvedValue(undefined);
   const sharpModule = await import('sharp');
@@ -124,8 +146,13 @@ describe('runExport — case (b) one missing source (D-112, D-116)', () => {
   it('emits missing-source event for the missing file; others succeed; total events = N', async () => {
     const fsPromises = await import('node:fs/promises');
     const accessMock = vi.mocked(fsPromises.access);
-    // Throw on the 2nd file's access check, succeed for the others.
-    accessMock.mockImplementation(async (p) => {
+    // Throw on the 2nd file's source access check (R_OK), succeed for the
+    // other sources. Round 4: F_OK probes (output existence) always reject
+    // so the overwrite-source gate doesn't fire here.
+    accessMock.mockImplementation(async (p, mode) => {
+      if (mode === 0 /* F_OK */) {
+        throw new Error('ENOENT');
+      }
       if (typeof p === 'string' && p.endsWith('img1.png')) {
         throw new Error('ENOENT: no such file');
       }
@@ -275,13 +302,24 @@ describe('runExport — case (f) no internal re-entrancy guard (D-115)', () => {
  * layer forwards). Two tests below lock both branches.
  */
 describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fix Round 2)', () => {
-  it('per-row collision: row whose outPath resolves to its sourcePath gets overwrite-source error; other rows continue', async () => {
-    // Build a 3-row plan where row 1 collides — its sourcePath is a
-    // file UNDER tmpDir (so resolve(outDir, outPath) === resolve(sourcePath))
-    // — while rows 0 and 2 have sourcePaths well outside tmpDir so they
-    // are guaranteed safe. Mocked sharp + fs/promises means no real PNGs
-    // are read or written; we only assert the per-row error classification.
-    const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
+  it('per-row collision: row whose resolved output exists on disk gets overwrite-source error; other rows continue', async () => {
+    // Round 4 (2026-04-25): the per-row gate is F_OK (existence on disk).
+    // Pretend ONE row's resolved output (images/COLLIDE.png under tmpDir)
+    // exists on disk; the other two rows' resolved outputs do not. The
+    // colliding row gets 'overwrite-source'; the others process normally
+    // (D-116 skip-on-error continuation).
+    const collidingResolvedOut = path.join(tmpDir, 'images', 'COLLIDE.png');
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockImplementation(async (p, mode) => {
+      if (mode === 0 /* F_OK */) {
+        if (typeof p === 'string' && path.resolve(p) === path.resolve(collidingResolvedOut)) {
+          return undefined; // file exists
+        }
+        throw new Error('ENOENT');
+      }
+      return undefined; // R_OK source-readability — sources are readable
+    });
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -295,7 +333,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
           attachmentNames: ['SAFE0'],
         },
         {
-          sourcePath: collidingFile,
+          sourcePath: collidingResolvedOut,
           outPath: 'images/COLLIDE.png',
           sourceW: 64,
           sourceH: 64,
@@ -397,7 +435,19 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
     // unparameterised call in the first test above; this test pins the
     // explicit-false branch so a future signature change can't silently
     // flip the default to true.
+    //
+    // Round 4 (2026-04-25): the gate is F_OK existence on the resolved
+    // output. Make the F_OK probe RESOLVE for any output under tmpDir so
+    // the collision surfaces.
     const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockImplementation(async (_p, mode) => {
+      if (mode === 0 /* F_OK */) {
+        return undefined; // file exists
+      }
+      return undefined; // R_OK
+    });
+
     const plan: ExportPlan = {
       rows: [
         {

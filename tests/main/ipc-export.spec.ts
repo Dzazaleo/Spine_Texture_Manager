@@ -299,6 +299,13 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     // Source PNGs at /skel/images/CIRCLE.png; outDir is the parent /skel.
     // Row's outPath is `images/CIRCLE.png` (loader sets outPath relative
     // so a parent-of-images outDir resolves directly onto the source).
+    //
+    // Round 4 (2026-04-25): collisions are now F_OK-gated, not string-match.
+    // Pretend the resolved output path exists on disk so the probe surfaces
+    // the conflict (the previous string-match check is gone).
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -338,7 +345,18 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
   });
 
   it('rejects with overwrite-source when ANY row would collide (catches sibling-folder collision case)', async () => {
-    // Multiple rows; one is safe, one collides.
+    // Multiple rows; one is safe (no file at resolved out), one collides
+    // (file exists at resolved out). Round 4 (2026-04-25): only the BAD
+    // row's resolved output (/proj/images/BAD.png) is on disk; the SAFE
+    // row's resolved output (/proj/other/SAFE.png) is not.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockImplementation(async (p) => {
+      if (typeof p === 'string' && p.endsWith('BAD.png')) {
+        return undefined as unknown as void;
+      }
+      throw new Error('ENOENT');
+    });
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -386,7 +404,15 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
   it('rejects with overwrite-source when atlas page would be overwritten', async () => {
     // Atlas-packed project: per-region PNG path is missing on disk; the
     // row carries atlasSource pointing at the atlas page PNG instead.
-    // outDir + outPath collides with the atlas page → reject.
+    // outDir + outPath resolves to /proj/JOKERMAN_SPINE.png — which is
+    // the atlas page itself.
+    //
+    // Round 4 (2026-04-25): collisions are now F_OK-gated, not string-match.
+    // Pretend the resolved output (the atlas page on disk) exists so the
+    // probe surfaces the conflict.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -423,7 +449,8 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
       expect(result.error.kind).toBe('overwrite-source');
       if (result.error.kind === 'overwrite-source') {
         expect(result.error.conflicts).toBeDefined();
-        // The conflicts list must include the atlas page path.
+        // The conflicts list must include the resolved output path
+        // (which happens to BE the atlas page in this test setup).
         expect(result.error.conflicts!.some((p) => p.endsWith('JOKERMAN_SPINE.png'))).toBe(true);
       }
     }
@@ -471,6 +498,11 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
  */
 describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix Round 3)', () => {
   it('probeExportConflicts returns the list of conflicting paths without side effects', async () => {
+    // Round 4 (2026-04-25): conflicts are F_OK-gated. Pretend the resolved
+    // output path exists on disk so the probe returns it as a conflict.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -566,6 +598,11 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
   });
 
   it('handleStartExport with overwrite=false AND conflicts → rejects with overwrite-source (defense-in-depth)', async () => {
+    // Round 4 (2026-04-25): conflicts are F_OK-gated. Pretend the resolved
+    // output exists on disk so the defense-in-depth probe surfaces it.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
+
     const plan: ExportPlan = {
       rows: [
         {
@@ -707,6 +744,44 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe('invalid-out-dir');
+    }
+  });
+
+  it('Round 4: conflicts are F_OK-gated, not string-match (parent-of-images outDir is OK when images/ subfolder is empty)', async () => {
+    // Regression-lock for the Girl atlas-only project bug: even when
+    // row.sourcePath strings match resolved outputs verbatim, no actual
+    // file existing on disk means no collision. Pre-Round-4 the
+    // synchronous string-match check would have rejected here; post-Round-4
+    // the F_OK probe finds nothing (mock rejects with ENOENT), so
+    // probeExportConflicts returns an empty list.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockRejectedValue(new Error('ENOENT'));
+
+    const plan: ExportPlan = {
+      rows: [
+        {
+          // sourcePath string would match resolvedOut (/skel/images/CIRCLE.png)
+          // under the OLD round-3 contract — we rely on F_OK-only now.
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    // outDir = /skel = parent of source-images. PRE-Round-4 the string
+    // match would have rejected this; POST-Round-4 the F_OK probe finds
+    // nothing on disk, so probeExportConflicts returns empty.
+    const probe = await handleProbeExportConflicts(plan, '/skel');
+    expect(probe.ok).toBe(true);
+    if (probe.ok) {
+      expect(probe.conflicts).toEqual([]);
     }
   });
 });
