@@ -20,6 +20,7 @@ temp/
 # Licensed/third-party rigs used locally for validation only — not redistributable
 fixtures/Jokerman/
 fixtures/Girl/
+fixtures/images/
 
 # OS cruft
 .DS_Store
@@ -34,3 +35,7 @@ fixtures/SIMPLE_PROJECT/.cli-*.txt
 
 # Debug probe scripts — ad-hoc sampler/analyzer investigations, not part of the app
 scripts/probe-*.ts
+scripts/diagnose-*.ts
+
+# Claude Code local config + agent worktrees (per-machine, not for remote)
+.claude/

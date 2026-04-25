@@ -1,0 +1,29 @@
+{
+  "phase": "2",
+  "phase_name": "global-max-render-source-panel",
+  "timestamp": "2026-04-23T13:10:00.000Z",
+  "areas_completed": ["Table, sort & selection", "Analyzer module shape", "Search / filter behavior"],
+  "areas_remaining": ["Panel chrome & column UX"],
+  "decisions": {
+    "Table, sort & selection": [
+      {"question": "Table implementation?", "answer": "Hand-rolled <table> + useState-driven sort comparator"},
+      {"question": "Default sort?", "answer": "Scale descending (biggest-scale-first — actionable)"},
+      {"question": "F3.3 checkbox scope?", "answer": "Full UI wiring (checkboxes + select-all header + shift-click range + 'N selected' count), no batch action in Phase 2"},
+      {"question": "State management (revisits D-20)?", "answer": "Plain useState (keep D-20 discipline); revisit Phase 4+ if overrides span panels"}
+    ],
+    "Analyzer module shape": [
+      {"question": "Location + input?", "answer": "src/core/analyzer.ts (pure-TS core), takes raw PeakRecord[] from sampler"},
+      {"question": "Output shape?", "answer": "Enriched DisplayRow with preformatted labels (originalSizeLabel, peakSizeLabel, scaleLabel, sourceLabel) PLUS raw numbers for sorting"},
+      {"question": "Forward-layer for future phases?", "answer": "Nothing beyond F3 — no stubs for Phase 4/5/6 fields"},
+      {"question": "Relationship to src/main/summary.ts?", "answer": "summary.ts delegates to analyzer; analyzer owns fold+sort+format. SkeletonSummary.peaks[] type changes PeakRecordSerializable→DisplayRow. DebugPanel removed (D-16: 'replaced by GlobalMaxRenderPanel')."}
+    ],
+    "Search / filter behavior": [
+      {"question": "Match semantics?", "answer": "Case-insensitive substring (.toLowerCase().includes())"},
+      {"question": "Fields searched?", "answer": "Attachment name only — strict F3.2 interpretation"},
+      {"question": "Debounce?", "answer": "None — filter on keystroke; retrofit if Phase 9 profiling shows jank"},
+      {"question": "UX bits?", "answer": "All four: clear (✕) button, <mark> match highlight with bg-accent/20 text-accent, 'No attachments match \"<query>\"' empty-state row, ESC clears focus + query"}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": []
+}
