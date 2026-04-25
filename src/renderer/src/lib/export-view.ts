@@ -149,6 +149,9 @@ export function buildExportPlan(
 
   // 3. Emit ExportRows. D-110: same effectiveScale on both axes; Math.round
   //    = round-half-away-from-zero (JS spec).
+  // Gap-Fix #2: thread atlasSource through from the winning DisplayRow so
+  //    the image-worker can fall back to atlas-page extraction when the
+  //    per-region PNG doesn't exist on disk.
   const rows: ExportRow[] = [];
   for (const acc of bySourcePath.values()) {
     const outW = Math.round(acc.row.sourceW * acc.effScale);
@@ -162,6 +165,7 @@ export function buildExportPlan(
       outH,
       effectiveScale: acc.effScale,
       attachmentNames: acc.attachmentNames.slice(),
+      ...(acc.row.atlasSource ? { atlasSource: acc.row.atlasSource } : {}),
     });
   }
 

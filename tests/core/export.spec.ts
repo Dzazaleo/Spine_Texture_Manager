@@ -302,6 +302,78 @@ describe('buildExportPlan — case (d) two attachments share atlas region with d
   });
 });
 
+describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through', () => {
+  it('ExportRow.atlasSource is populated when DisplayRow has atlasSource set', () => {
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/AVATAR_FACE',
+          attachmentName: 'AVATAR/FACE',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.5,
+          peakScaleX: 0.5,
+          peakScaleY: 0.5,
+          worldW: 873,
+          worldH: 959,
+          sourceW: 1746,
+          sourceH: 1918,
+          sourcePath: '/fake/AVATAR/FACE.png',
+          atlasSource: {
+            pagePath: '/fake/JOKERMAN_SPINE.png',
+            x: 778,
+            y: 2,
+            w: 1746,
+            h: 1918,
+            rotated: false,
+          },
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows.length).toBe(1);
+    expect(plan.rows[0].atlasSource).toEqual({
+      pagePath: '/fake/JOKERMAN_SPINE.png',
+      x: 778,
+      y: 2,
+      w: 1746,
+      h: 1918,
+      rotated: false,
+    });
+  });
+
+  it('ExportRow.atlasSource is undefined when DisplayRow has no atlasSource', () => {
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/PER_REGION_PNG',
+          attachmentName: 'PER_REGION_PNG',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.5,
+          peakScaleX: 0.5,
+          peakScaleY: 0.5,
+          worldW: 50,
+          worldH: 50,
+          sourceW: 100,
+          sourceH: 100,
+          sourcePath: '/fake/PER_REGION_PNG.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows[0].atlasSource).toBeUndefined();
+  });
+});
+
 describe('buildExportPlan — case (e) ghost fixture (D-109)', () => {
   it('summary.unusedAttachments listing GHOST → ExportPlan.rows excludes GHOST; ExportPlan.excludedUnused includes "GHOST"', () => {
     const load = loadSkeleton(FIXTURE_GHOST);

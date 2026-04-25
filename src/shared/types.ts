@@ -195,6 +195,29 @@ export interface ExportRow {
   outH: number;
   effectiveScale: number;
   attachmentNames: string[];
+  /**
+   * Phase 6 Gap-Fix #2 (2026-04-25 human-verify Step 1) — atlas-page
+   * extraction metadata for atlas-packed projects. Threaded through
+   * from the winning DisplayRow.atlasSource. Optional — undefined for
+   * projects with per-region PNGs on disk (loader populates atlasSources
+   * for all regions, but the field only matters when sourcePath misses
+   * pre-flight in src/main/image-worker.ts).
+   *
+   * The image-worker prefers sourcePath if it exists on disk; only
+   * falls back to atlasSource when the per-region PNG is missing
+   * (atlas-only projects). Rotated regions emit
+   * 'rotated-region-unsupported' rather than silent corruption.
+   *
+   * All fields primitive — structuredClone-safe per file-top D-21 lock.
+   */
+  atlasSource?: {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  };
 }
 
 /**
@@ -211,12 +234,18 @@ export interface ExportPlan {
 /**
  * Phase 6 Plan 02 — Per-file error surfaced via the export:progress channel
  * and aggregated in ExportSummary.errors. kind is the discriminator:
- *   - 'missing-source': fs.access pre-flight failed (D-112).
+ *   - 'missing-source': fs.access pre-flight failed AND no atlasSource
+ *     fallback was available (D-112).
  *   - 'sharp-error':    sharp/libvips threw during resize/encode.
  *   - 'write-error':    fs.rename failed OR path-traversal defense rejected.
+ *   - 'rotated-region-unsupported': Gap-Fix #2 (2026-04-25) — atlas-only
+ *     fallback was triggered but the region is rotated (region.degrees
+ *     !== 0). First-pass refuses to attempt the rotated extract; user
+ *     must re-export from Spine with rotation disabled or wait for a
+ *     follow-up phase to add rotation handling.
  */
 export interface ExportError {
-  kind: 'missing-source' | 'sharp-error' | 'write-error';
+  kind: 'missing-source' | 'sharp-error' | 'write-error' | 'rotated-region-unsupported';
   path: string;
   message: string;
 }
