@@ -80,7 +80,7 @@ import type {
   BreakdownRow,
 } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
-import { applyOverride } from '../lib/overrides-view.js';
+import { computeExportDims } from '../lib/export-view.js';
 
 export interface AnimationBreakdownPanelProps {
   summary: SkeletonSummary;
@@ -98,15 +98,20 @@ export interface AnimationBreakdownPanelProps {
 }
 
 /**
- * Phase 4 Plan 03: effective-scale-enriched breakdown row. Added fields are
- * strictly renderer-side — src/shared/types.ts is NOT extended (discretion
- * option A). effectiveScale/worldW/worldH === the raw peak values when the
- * row has no override.
+ * Phase 4 Plan 03 + Round 5 (2026-04-25): effective-scale-enriched breakdown
+ * row. Added fields are strictly renderer-side — src/shared/types.ts is NOT
+ * extended (discretion option A).
+ *
+ * Round 5: effExportW/effExportH replace effectiveWorldW/H — they hold the
+ * EXPORT dims (Math.ceil(sourceDim × ceil-thousandth-effScale, clamped ≤
+ * source)) so the per-card "Peak W×H" column matches the optimize dialog
+ * and the GlobalMaxRenderPanel's same column. World-AABB stays available
+ * via the raw worldW/H DisplayRow fields for the cell's hover tooltip.
  */
 type EnrichedBreakdownRow = BreakdownRow & {
   effectiveScale: number;
-  effectiveWorldW: number;
-  effectiveWorldH: number;
+  effExportW: number;
+  effExportH: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -131,9 +136,11 @@ const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
 const NOOP_OPEN_DIALOG: (row: BreakdownRow) => void = () => undefined;
 
 /**
- * Phase 4 Plan 03: enrich each card's rows with render-time effective
- * fields derived from the overrides map. Non-overridden rows pass
- * through with effective fields === raw peak fields.
+ * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich each card's rows with
+ * render-time effective fields. Now uses computeExportDims (single source
+ * of truth shared with OptimizeDialog) so the per-card "Peak W×H" column
+ * shows EXPORT dims — Math.ceil(sourceDim × ceil-thousandth-effScale,
+ * clamped ≤ source). World-AABB stays accessible via the cell hover tooltip.
  */
 function enrichCardsWithEffective(
   cards: readonly AnimationBreakdown[],
@@ -143,26 +150,17 @@ function enrichCardsWithEffective(
     ...card,
     rows: card.rows.map((row) => {
       const override = overrides.get(row.attachmentName);
-      if (override === undefined) {
-        return {
-          ...row,
-          effectiveScale: row.peakScale,
-          effectiveWorldW: row.worldW,
-          effectiveWorldH: row.worldH,
-          override: undefined,
-        };
-      }
-      // Gap-fix B (human-verify 2026-04-24): applyOverride now returns
-      // effectiveScale = percent / 100 (percent is target fraction of
-      // source). effectiveWorldW/H use sourceW/H × percent/100 so the
-      // Peak W×H column reflects the target effective texture dims —
-      // source dimensions are the canonical absolute max.
-      const { effectiveScale } = applyOverride(override);
+      const { effScale, outW, outH } = computeExportDims(
+        row.sourceW,
+        row.sourceH,
+        row.peakScale,
+        override,
+      );
       return {
         ...row,
-        effectiveScale,
-        effectiveWorldW: row.sourceW * override / 100,
-        effectiveWorldH: row.sourceH * override / 100,
+        effectiveScale: effScale,
+        effExportW: outW,
+        effExportH: outH,
         override,
       };
     }),
@@ -540,13 +538,20 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
               {row.effectiveScale.toFixed(3)}×
               {row.override !== undefined && <span> • {row.override}%</span>}
             </td>
-            <td className={clsx(
-              'py-2 px-3 font-mono text-sm text-right',
-              row.override !== undefined ? 'text-accent' : 'text-fg',
-            )}>
-              {row.override !== undefined
-                ? `${(row.effectiveWorldW).toFixed(0)}×${(row.effectiveWorldH).toFixed(0)}`
-                : row.peakSizeLabel}
+            {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims
+                that buildExportPlan + the optimize dialog use, NOT the
+                world-AABB. Hover tooltip surfaces the world-AABB for
+                power users (rotation / mesh-deformation diagnostic).
+                Override path: same export dims, just driven by the
+                override percent through computeExportDims. */}
+            <td
+              className={clsx(
+                'py-2 px-3 font-mono text-sm text-right',
+                row.override !== undefined ? 'text-accent' : 'text-fg',
+              )}
+              title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
+            >
+              {`${row.effExportW}×${row.effExportH}`}
             </td>
             <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
               {row.frameLabel}

@@ -115,6 +115,51 @@ export function safeScale(s: number): number {
   return Math.ceil(s * 1000) / 1000;
 }
 
+/**
+ * Gap-Fix Round 5 (2026-04-25) — single source of truth for "what dims will
+ * this row export at" used by BOTH the panel "Peak W×H" column AND the
+ * OptimizeDialog pre-flight list. Folds the override resolution + downscale
+ * clamp + ceil-thousandth + per-axis ceil into one pure helper so the panel
+ * never drifts from the optimize dialog.
+ *
+ * Inputs:
+ *   - sourceW/sourceH: from DisplayRow (atlas-orig dims)
+ *   - peakScale:       from DisplayRow (sampler-computed)
+ *   - override:        integer percent if user set one, else undefined
+ *
+ * Output:
+ *   - effScale: clamped ≤ 1.0, ceil-thousandth (matches scaleLabel display
+ *     and matches buildExportPlan's internal effScale field exactly)
+ *   - outW, outH: Math.ceil(sourceDim × effScale) (matches the export math)
+ *
+ * Pure — no React, no DOM. Renderer-side helper (src/renderer/src/lib/);
+ * the canonical core copy of this logic lives inside buildExportPlan in
+ * both src/core/export.ts and the renderer view copy above.
+ */
+export function computeExportDims(
+  sourceW: number,
+  sourceH: number,
+  peakScale: number,
+  override: number | undefined,
+): { effScale: number; outW: number; outH: number } {
+  // Match buildExportPlan's effScale derivation exactly:
+  // 1. raw effScale = override-as-fraction OR peakScale fallback
+  // 2. ceil-thousandth (display lower-bound)
+  // 3. clamp to ≤ 1.0 (downscale-only invariant)
+  // applyOverride is imported from ./overrides-view.js (Phase 4 D-91 —
+  // clamps integer percent to [1, 100] before dividing by 100).
+  const rawEffScale =
+    override !== undefined
+      ? applyOverride(override).effectiveScale
+      : peakScale;
+  const effScale = Math.min(safeScale(rawEffScale), 1);
+  // Math.ceil per-axis matches the export-builder; preserves aspect within
+  // sub-pixel tolerance.
+  const outW = Math.ceil(sourceW * effScale);
+  const outH = Math.ceil(sourceH * effScale);
+  return { effScale, outW, outH };
+}
+
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,

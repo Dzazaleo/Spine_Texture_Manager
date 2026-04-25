@@ -61,7 +61,7 @@ import {
 import clsx from 'clsx';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
-import { applyOverride } from '../lib/overrides-view.js';
+import { computeExportDims } from '../lib/export-view.js';
 
 type SortCol =
   | 'attachmentName'
@@ -76,13 +76,20 @@ type SortDir = 'asc' | 'desc';
 /**
  * Phase 4 Plan 03: effective-scale-enriched row. Added fields are strictly
  * renderer-side — src/shared/types.ts is NOT extended (discretion option A
- * from pattern-mapper flag 4). effectiveScale/worldW/worldH === the raw
- * peak values when the row has no override.
+ * from pattern-mapper flag 4).
+ *
+ * Round 5 (2026-04-25): the effective-dim fields now hold the EXPORT dims
+ * (Math.ceil(sourceDim × ceil-thousandth-effScale), clamped ≤ source) — NOT
+ * the world-AABB. This makes the panel's "Peak W×H" column match the
+ * optimize dialog and the on-disk exported PNG dims byte-for-byte.
+ *
+ * effExportW/effExportH replace the legacy effectiveWorldW/H names so the
+ * semantic shift is explicit at every read site.
  */
 type EnrichedRow = DisplayRow & {
   effectiveScale: number;
-  effectiveWorldW: number;
-  effectiveWorldH: number;
+  effExportW: number;
+  effExportH: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -122,9 +129,14 @@ const NOOP_OPEN_DIALOG: (
 ) => void = () => undefined;
 
 /**
- * Phase 4 Plan 03: enrich raw DisplayRow[] with render-time effective
- * fields derived from the overrides map. Non-overridden rows pass
- * through with effective fields === raw peak fields.
+ * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw DisplayRow[] with
+ * render-time effective fields. Now uses the renderer-side computeExportDims
+ * helper (single source of truth shared with OptimizeDialog), so the panel's
+ * "Peak W×H" column shows the EXPORT dims — Math.ceil(sourceDim ×
+ * ceil-thousandth-effScale, clamped ≤ source) — instead of the world-AABB.
+ *
+ * The world-AABB (worldW/worldH from the sampler) is preserved on the raw
+ * DisplayRow fields and surfaced via the cell's hover tooltip for power users.
  */
 function enrichWithEffective(
   rows: readonly DisplayRow[],
@@ -132,26 +144,17 @@ function enrichWithEffective(
 ): EnrichedRow[] {
   return rows.map((row) => {
     const override = overrides.get(row.attachmentName);
-    if (override === undefined) {
-      return {
-        ...row,
-        effectiveScale: row.peakScale,
-        effectiveWorldW: row.worldW,
-        effectiveWorldH: row.worldH,
-        override: undefined,
-      };
-    }
-    // Gap-fix B (human-verify 2026-04-24): applyOverride now returns
-    // effectiveScale = percent / 100 (percent is target fraction of source).
-    // effectiveWorldW/H use sourceW/H × percent/100 so the Peak W×H column
-    // reflects the target effective texture dims directly — the source
-    // dimensions are the canonical absolute max per the new semantics.
-    const { effectiveScale } = applyOverride(override);
+    const { effScale, outW, outH } = computeExportDims(
+      row.sourceW,
+      row.sourceH,
+      row.peakScale,
+      override,
+    );
     return {
       ...row,
-      effectiveScale,
-      effectiveWorldW: row.sourceW * override / 100,
-      effectiveWorldH: row.sourceH * override / 100,
+      effectiveScale: effScale,
+      effExportW: outW,
+      effExportH: outH,
       override,
     };
   });
@@ -174,9 +177,10 @@ function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
     case 'sourceW':
       return a.sourceW - b.sourceW;
     case 'worldW':
-      // D-83: Peak W×H sort reads EFFECTIVE dim so the displayed ordering
-      // matches the visible Peak W×H column.
-      return a.effectiveWorldW - b.effectiveWorldW;
+      // D-83 (Round 5 2026-04-25): Peak W×H sort reads the EXPORT dim
+      // (effExportW) so the displayed ordering matches the visible Peak
+      // W×H column — which now shows export dims, not the world-AABB.
+      return a.effExportW - b.effExportW;
     case 'peakScale':
       // Phase 4 pattern-mapper flag 3: comparator reads EFFECTIVE scale so
       // 50%-overridden high-peak rows sort correctly against 100%-kept
@@ -328,13 +332,19 @@ function Row({
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.originalSizeLabel}</td>
-      <td className={clsx(
-        'py-2 px-3 font-mono text-sm text-right',
-        row.override !== undefined ? 'text-accent' : 'text-fg',
-      )}>
-        {row.override !== undefined
-          ? `${(row.effectiveWorldW).toFixed(0)}×${(row.effectiveWorldH).toFixed(0)}`
-          : row.peakSizeLabel}
+      {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims that
+          buildExportPlan + the optimize dialog use, NOT the world-AABB.
+          Hover tooltip surfaces the world-AABB for power users (rotation /
+          mesh-deformation diagnostic). Override path: same export dims,
+          just driven by the override percent through computeExportDims. */}
+      <td
+        className={clsx(
+          'py-2 px-3 font-mono text-sm text-right',
+          row.override !== undefined ? 'text-accent' : 'text-fg',
+        )}
+        title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
+      >
+        {`${row.effExportW}×${row.effExportH}`}
       </td>
       <td
         className={clsx(
