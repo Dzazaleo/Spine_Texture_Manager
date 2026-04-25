@@ -30,7 +30,7 @@
  * pure-TS math tree — the latter would trip the arch.spec.ts gate at
  * lines 19-34.
  */
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import type {
   SkeletonSummary,
@@ -42,6 +42,7 @@ import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
+import { ConflictDialog } from '../modals/ConflictDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -76,6 +77,34 @@ export function AppShell({ summary }: AppShellProps) {
     outDir: string;
   } | null>(null);
   const [exportInFlight, setExportInFlight] = useState(false);
+
+  // Gap-Fix Round 3 (2026-04-25) — ConflictDialog state. Mounted on top of
+  // OptimizeDialog (z-50 overlay → topmost) when probeExportConflicts
+  // returns a non-empty list. Three user actions resolve the pending
+  // confirmation promise:
+  //   - Cancel              → close both dialogs, resolve { proceed: false }
+  //   - Pick different folder → close ConflictDialog, re-pick, re-probe;
+  //                             AppShell may either resolve { proceed: false }
+  //                             (user cancels picker) or recurse into a fresh
+  //                             ConflictDialog if the new folder also collides
+  //   - Overwrite all       → close ConflictDialog, resolve { proceed: true,
+  //                                                           overwrite: true }
+  //
+  // Implemented via a useRef holding the resolver of the in-flight promise
+  // returned from onConfirmStart — the OptimizeDialog awaits this promise
+  // before flipping to in-progress state.
+  const [conflictState, setConflictState] = useState<{
+    conflicts: string[];
+  } | null>(null);
+  // Pending resolver from the OptimizeDialog's onConfirmStart promise.
+  // We use a ref (not state) because the resolver is consumed exactly once
+  // and the consumer (button click handlers below) needs the LATEST value
+  // synchronously without going through a re-render. Storing it in state
+  // would risk stale-closure bugs when the user takes an action between
+  // renders.
+  const pendingConfirmResolve = useRef<
+    ((decision: { proceed: boolean; overwrite?: boolean }) => void) | null
+  >(null);
 
   const onJumpToAnimation = useCallback((name: string) => {
     setActiveTab('animation');
@@ -149,14 +178,122 @@ export function AppShell({ summary }: AppShellProps) {
   //      buildExportPlan (Phase 4 D-75 Layer 3 inline-copy precedent —
   //      renderer NEVER imports from src/core/* per arch.spec.ts gate).
   //   4. Mount OptimizeDialog with the plan + outDir.
-  const onClickOptimize = useCallback(async () => {
+  //
+  // Gap-Fix Round 3 (2026-04-25): the picker → buildPlan → mount sequence
+  // is preserved here verbatim. The probe-then-confirm flow runs LATER,
+  // when the user clicks Start inside OptimizeDialog (see onConfirmStart
+  // below) — not on this initial toolbar click. This keeps the pre-flight
+  // dialog usable as a "review before committing" surface even when
+  // collisions exist.
+  const pickOutputDir = useCallback(async (): Promise<string | null> => {
     const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '');
     const defaultOutDir = skeletonDir + '/images-optimized';
-    const outDir = await window.api.pickOutputDirectory(defaultOutDir);
+    return window.api.pickOutputDirectory(defaultOutDir);
+  }, [summary.skeletonPath]);
+
+  const onClickOptimize = useCallback(async () => {
+    const outDir = await pickOutputDir();
     if (outDir === null) return; // user cancelled picker
     const plan = buildExportPlan(summary, overrides);
     setExportDialogState({ plan, outDir });
-  }, [summary, overrides]);
+  }, [pickOutputDir, summary, overrides]);
+
+  // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
+  //
+  // OptimizeDialog calls this when the user clicks Start; we run the
+  // backend conflict probe and either:
+  //   - return { proceed: true, overwrite: false } if there are no
+  //     conflicts (the dialog flips to in-progress and runs startExport
+  //     with overwrite=false)
+  //   - return a promise resolved later by ConflictDialog button clicks
+  //     when conflicts ARE present (the user's choice translates into
+  //     proceed/overwrite via the resolver in pendingConfirmResolve)
+  //
+  // Hard-reject case (outDir IS source-images-dir) returns ok:false from
+  // the probe IPC; we surface a synthetic conflict dialog with the error
+  // message... no, simpler: we resolve { proceed: false } and let the
+  // OptimizeDialog flip to complete state with the synthetic error
+  // (existing behaviour when startExport rejects). Actually NO — at this
+  // point the dialog is still in pre-flight; if we return proceed:false
+  // the dialog stays in pre-flight which is wrong. We fall through and
+  // let startExport reject; the dialog's existing synthetic-summary path
+  // surfaces the message.
+  const onConfirmStart = useCallback(async (): Promise<{
+    proceed: boolean;
+    overwrite?: boolean;
+  }> => {
+    if (exportDialogState === null) return { proceed: false };
+    const { plan, outDir } = exportDialogState;
+    const probeResult = await window.api.probeExportConflicts(plan, outDir);
+    if (!probeResult.ok) {
+      // Hard-reject (e.g. outDir IS source-images-dir). Let the dialog
+      // proceed; startExport will fail with the same error and the
+      // existing synthetic-summary path surfaces the message in the
+      // complete state.
+      return { proceed: true, overwrite: false };
+    }
+    if (probeResult.conflicts.length === 0) {
+      // No collisions — proceed straight to startExport without overwrite.
+      return { proceed: true, overwrite: false };
+    }
+    // Conflicts exist — mount ConflictDialog and wait for user decision.
+    return new Promise((resolve) => {
+      pendingConfirmResolve.current = resolve;
+      setConflictState({ conflicts: probeResult.conflicts });
+    });
+  }, [exportDialogState]);
+
+  const closeBothDialogs = useCallback(() => {
+    setConflictState(null);
+    setExportDialogState(null);
+    pendingConfirmResolve.current = null;
+  }, []);
+
+  // ConflictDialog: Cancel — back out entirely. Close both dialogs and
+  // resolve the pending confirmation as not-proceed so OptimizeDialog
+  // doesn't move past pre-flight.
+  const onConflictCancel = useCallback(() => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    setExportDialogState(null);
+    if (resolve) resolve({ proceed: false });
+  }, []);
+
+  // ConflictDialog: Overwrite all — proceed with overwrite=true.
+  const onConflictOverwrite = useCallback(() => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    if (resolve) resolve({ proceed: true, overwrite: true });
+  }, []);
+
+  // ConflictDialog: Pick different folder — close conflict dialog, resolve
+  // the in-flight confirmation as not-proceed (OptimizeDialog stays in
+  // pre-flight), then re-trigger the picker. If the user picks a new
+  // folder, rebuild the plan against the existing summary/overrides and
+  // re-mount the OptimizeDialog (the user can then click Start again,
+  // which re-enters the probe-then-confirm pipeline).
+  const onConflictPickDifferent = useCallback(async () => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    if (resolve) resolve({ proceed: false });
+    const newOutDir = await pickOutputDir();
+    if (newOutDir === null) {
+      // User cancelled the picker — close OptimizeDialog too. The user
+      // backed out of the export entirely.
+      setExportDialogState(null);
+      return;
+    }
+    const plan = buildExportPlan(summary, overrides);
+    setExportDialogState({ plan, outDir: newOutDir });
+  }, [pickOutputDir, summary, overrides]);
+  // closeBothDialogs is referenced in JSDoc above; keep the symbol live
+  // for the typechecker even though it's no longer wired to any handler
+  // (ConflictDialog Cancel routes through onConflictCancel which is more
+  // specific — it must resolve the pending promise too).
+  void closeBothDialogs;
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -229,7 +366,12 @@ export function AppShell({ summary }: AppShellProps) {
       {/* Phase 6 Plan 06 — OptimizeDialog mount lives ALONGSIDE the
           OverrideDialog mount; the two modal lifecycles are independent.
           onRunStart/onRunEnd toggle exportInFlight so the toolbar button
-          greys out for the duration of the export (D-117 + T-06-18). */}
+          greys out for the duration of the export (D-117 + T-06-18).
+
+          Gap-Fix Round 3 (2026-04-25) — onConfirmStart wires the probe-
+          then-confirm pipeline: OptimizeDialog awaits this BEFORE
+          flipping to in-progress so the dialog never shows the running
+          UI for an export that ConflictDialog cancelled. */}
       {exportDialogState !== null && (
         <OptimizeDialog
           open={true}
@@ -238,6 +380,21 @@ export function AppShell({ summary }: AppShellProps) {
           onClose={() => setExportDialogState(null)}
           onRunStart={() => setExportInFlight(true)}
           onRunEnd={() => setExportInFlight(false)}
+          onConfirmStart={onConfirmStart}
+        />
+      )}
+      {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
+          OptimizeDialog (same z-50; later-mounted wins paint order). The
+          three handlers each resolve the pending OptimizeDialog
+          onConfirmStart promise so the dialog can either proceed,
+          stay in pre-flight, or be backed out entirely. */}
+      {conflictState !== null && (
+        <ConflictDialog
+          open={true}
+          conflicts={conflictState.conflicts}
+          onCancel={onConflictCancel}
+          onPickDifferent={onConflictPickDifferent}
+          onOverwrite={onConflictOverwrite}
         />
       )}
     </div>

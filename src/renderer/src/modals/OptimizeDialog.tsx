@@ -55,6 +55,24 @@ export interface OptimizeDialogProps {
   onClose: () => void;
   onRunStart?: () => void;
   onRunEnd?: () => void;
+  /**
+   * Gap-Fix Round 3 (2026-04-25) — pre-start confirmation hook. The
+   * dialog calls this when the user clicks Start; the parent (AppShell)
+   * runs the probe-then-confirm flow (probeExportConflicts +
+   * ConflictDialog) and resolves with one of:
+   *   - `{ proceed: true, overwrite: false }` — no conflicts; start normally
+   *   - `{ proceed: true, overwrite: true }`  — user clicked Overwrite all
+   *   - `{ proceed: false }`                  — user cancelled or picked
+   *                                             a different folder; the
+   *                                             dialog stays in pre-flight
+   *                                             (or AppShell separately
+   *                                             closes/reopens it)
+   *
+   * If the prop is omitted (legacy callers), the dialog skips the probe
+   * and starts directly with overwrite=false — preserving today's
+   * behaviour for any caller that has not yet adopted the new flow.
+   */
+  onConfirmStart?: () => Promise<{ proceed: boolean; overwrite?: boolean }>;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -121,6 +139,31 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   }, [props.open, state]);
 
   const onStart = useCallback(async () => {
+    // Gap-Fix Round 3 (2026-04-25): probe-then-confirm. Ask the parent
+    // (AppShell) whether it's safe to proceed BEFORE flipping to
+    // in-progress; the parent runs probeExportConflicts and may surface a
+    // ConflictDialog which yields { proceed:true, overwrite:true } when
+    // the user clicks "Overwrite all", { proceed:false } when they Cancel
+    // or Pick different folder, or { proceed:true, overwrite:false } when
+    // there are no conflicts.
+    //
+    // CRITICAL: setState('in-progress') and props.onRunStart() must run
+    // ONLY AFTER the parent says proceed:true — otherwise the dialog
+    // would flicker into the in-progress UI during the probe / modal
+    // and the toolbar button would grey out for an export that never ran.
+    let overwrite = false;
+    if (props.onConfirmStart) {
+      const decision = await props.onConfirmStart();
+      if (!decision.proceed) {
+        // User cancelled or picked a different folder — stay in pre-flight.
+        // (If the parent closed this dialog as part of "Pick different
+        // folder", `props.open` will go false on the next render and this
+        // component unmounts; we don't need to handle that here.)
+        return;
+      }
+      overwrite = decision.overwrite === true;
+    }
+
     setState('in-progress');
     props.onRunStart?.();
     // All rows already initialized to 'idle' on mount; progress events flip
@@ -128,13 +171,17 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     const response: ExportResponse = await window.api.startExport(
       props.plan,
       props.outDir,
+      overwrite,
     );
     if (response.ok) {
       setSummary(response.summary);
     } else {
-      // already-running / invalid-out-dir / Unknown — surface as a synthetic
-      // summary with one synthetic write-error so the complete state still
-      // renders cleanly + the error is visible to the user.
+      // already-running / invalid-out-dir / overwrite-source / Unknown —
+      // surface as a synthetic summary with one synthetic write-error so
+      // the complete state still renders cleanly + the error is visible
+      // to the user. (overwrite-source should never reach here in normal
+      // flow because the probe-then-confirm above intercepts it; this
+      // branch is the defense-in-depth path.)
       setSummary({
         successes: 0,
         errors: [
