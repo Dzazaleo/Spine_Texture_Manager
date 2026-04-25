@@ -336,3 +336,261 @@ Files modified (verified via `git diff --name-only HEAD~2 HEAD`):
 Round 2 commits exist (verified via `git log --oneline -3`):
 - FOUND: d8b53c8 fix(06-gap2): per-row source-vs-output collision guard
 - FOUND: ebe57cf fix(06-gap2): clearer AtlasNotFoundError message
+
+---
+
+## Round 3 — Step 2 overwrite UX (2026-04-25)
+
+**Trigger:** the Round 2 collision guard, while functionally safe,
+proved over-cautious in the Step 2 re-test. Picking the SKELETON folder
+as outDir was rejected on folder-position alone even when no `images/`
+subfolder yet existed — a common organizational pattern (animator
+exports to `<projectFolder>/images-optimized/` or to the skeleton folder
+itself with the expectation that the tool creates `images/` fresh). The
+user clarified the real invariant we want to protect: **never silently
+overwrite an existing file**, regardless of its relationship to the
+source-images folder.
+
+**Round 3 commits:**
+- `77296b2` feat(06-gap3): split export IPC into probe + start; add overwrite flag; relax folder-position guard
+- `892b5a1` feat(06-gap3): ConflictDialog modal + AppShell probe-then-confirm overwrite flow
+- (this commit) docs(06-gap3): append round 3 (overwrite UX) to gap-fix summary
+
+### Old contract (Round 2) — REMOVED
+
+`handleStartExport` rejected ANY plan whose outDir was equal to OR a
+child of OR the parent of the source-images directory, on
+folder-position alone. The per-row collision check inside
+`runExport` ALWAYS fired regardless of user intent.
+
+### New contract (Round 3)
+
+`handleStartExport` rejects on folder-position alone in ONE case only:
+**outDir IS the source-images folder itself**. Every output would
+collide; not a useful confirmation prompt — the user must pick a
+different folder regardless. Even with `overwrite=true`, this case
+cannot be rescued.
+
+For every other case (parent of `images/`, sibling, anywhere
+genuinely safe), the renderer drives a probe-then-confirm flow:
+
+1. User clicks Optimize toolbar button → AppShell picks output dir →
+   builds the plan → mounts OptimizeDialog (no probe yet — the dialog
+   is still a "review before committing" surface).
+2. User clicks Start inside OptimizeDialog → OptimizeDialog calls the
+   new `onConfirmStart` prop (AppShell hook).
+3. AppShell calls `api.probeExportConflicts(plan, outDir)`. If empty
+   list, resolves `{ proceed: true, overwrite: false }` immediately.
+4. If conflicts exist, AppShell mounts ConflictDialog with the precise
+   list of paths. The user sees the exact files at risk and chooses:
+   - **Cancel** → close both dialogs, no export
+   - **Pick different folder** → re-pick + rebuild plan + re-evaluate
+   - **Overwrite all** → resolve `{ proceed: true, overwrite: true }`
+5. OptimizeDialog only flips to in-progress AFTER `onConfirmStart`
+   resolves with `proceed: true`. `startExport(plan, outDir, overwrite)`
+   forwards the flag.
+
+### Backend wire format
+
+**New IPC channel:** `'export:probe-conflicts'`
+- Renderer → main: `{ plan, outDir }`
+- Main → renderer: `{ ok: true, conflicts: string[] }` OR
+  `{ ok: false, error: { kind: 'invalid-out-dir' | 'Unknown', message } }`
+- The `'invalid-out-dir'` branch fires only for the hard-reject case
+  (outDir IS source-images-dir).
+- `conflicts` is the deduped, sorted list of absolute paths that would
+  be overwritten. Three sources covered:
+  1. Resolved output equals row.sourcePath (per-region PNG case)
+  2. Resolved output equals row.atlasSource.pagePath (atlas-packed)
+  3. Resolved output exists on disk via `fs.access(F_OK)` (any
+     pre-existing PNG, even if unrelated — we don't silently destroy
+     user files just because they happen to live where we'd write)
+- Existence probes run in parallel via `Promise.all`. No
+  `exportInFlight` mutation; safe to call repeatedly.
+
+**Updated `'export:start'` channel:** gains an `overwrite` 3rd arg.
+- When omitted/false, main re-runs the probe as defense-in-depth and
+  rejects with `'overwrite-source'` carrying the precise `conflicts`
+  list. The renderer's probe-then-confirm flow ensures we never reach
+  this branch in normal operation; this is the safety net for any
+  caller that bypasses the renderer.
+- When true, main bypasses the per-row collision check AND forwards
+  `allowOverwrite=true` to `runExport` (which has its own
+  defense-in-depth check, also gated on the flag).
+- The hard-reject case (outDir IS source-images-dir) cannot be
+  rescued by `overwrite=true`.
+
+**Type updates:**
+- `Api.probeExportConflicts(plan, outDir)` added.
+- `Api.startExport` signature: optional 3rd arg `overwrite?: boolean`.
+- `ExportResponse` `'overwrite-source'` branch gains `conflicts?: string[]`.
+- New `ProbeConflictsResponse` discriminated union.
+- `ExportError['kind']` 'overwrite-source' JSDoc updated to reference
+  the Round 3 gating model.
+
+### New ConflictDialog component
+
+`src/renderer/src/modals/ConflictDialog.tsx` — hand-rolled ARIA modal
+(D-81 pattern, same as OverrideDialog and OptimizeDialog):
+- `role='dialog'` + `aria-modal='true'` + `aria-labelledby`
+- ESC closes (Cancel); overlay click closes (Cancel)
+- Auto-focuses the safest button (Cancel) — user must Tab to reach
+  the destructive Overwrite-all option
+- No Enter shortcut on the dialog (intentional: Enter must NOT
+  default to overwrite; the user must explicitly click)
+- Conflict list scrollable (max-h-[12rem] overflow-auto), each path
+  rendered truncate-with-ellipsis with `title=path` so the full path
+  surfaces on hover
+- Footer order: **Cancel | Pick different folder | Overwrite all**.
+  Destructive action sits RIGHTMOST per platform convention; same
+  orange-accent treatment as OptimizeDialog's Start button so it's
+  visually identifiable as primary-but-dangerous.
+
+### AppShell wiring
+
+- `pickOutputDir()` helper extracted for reuse by ConflictDialog's
+  Pick-different-folder handler.
+- `conflictState` useState + `pendingConfirmResolve` useRef track the
+  in-flight ConflictDialog and the OptimizeDialog promise it resolves.
+  The resolver lives in a ref (not state) because it's consumed
+  exactly once and the consumer (button click handlers) needs the
+  latest value synchronously without going through a re-render —
+  storing it in state would risk stale-closure bugs.
+- `onConfirmStart` implements the probe-then-confirm pipeline.
+- Three click handlers (`onConflictCancel`, `onConflictOverwrite`,
+  `onConflictPickDifferent`) each resolve the pending promise with
+  the user's decision and close the appropriate dialogs.
+
+### Tests
+
+**Updated (Round 2 → Round 3):**
+- `tests/main/ipc-export.spec.ts`: round-2 collision tests now read
+  the new `conflicts: string[]` payload format instead of the old
+  per-row "Output would overwrite source PNG" message format. The
+  "child-of-source-images-dir" rejection test was UPDATED to assert
+  the new contract (now permitted because no actual collision exists
+  in the unit-test mock environment); the discriminator is preserved
+  ('overwrite-source' for actual collisions, 'invalid-out-dir' for
+  the hard-reject case).
+
+**New (8 in ipc-export.spec.ts + 2 in image-worker.spec.ts = 10 total):**
+- probeExportConflicts returns conflicting paths without side effects
+- probeExportConflicts returns empty list when no conflicts exist
+- probeExportConflicts surfaces a pre-existing PNG at the resolved
+  output (any-collision case via `fs.access(F_OK)`)
+- handleStartExport with `overwrite=false` AND conflicts → rejects
+  with 'overwrite-source' (defense-in-depth)
+- handleStartExport with `overwrite=true` AND conflicts → proceeds
+- handleStartExport rejects when outDir IS source-images-dir even
+  with `overwrite=true` (hard-reject)
+- Round 3: parent-of-images outDir with NO existing images/ subfolder
+  is ALLOWED (no false-reject; the round-2 over-cautious behavior
+  is gone)
+- handleProbeExportConflicts hard-rejects when outDir IS
+  source-images-dir (no proceed-with-overwrite escape hatch)
+- runExport with `allowOverwrite=true` bypasses the per-row collision
+  check (proceeds without overwrite-source)
+- runExport with `allowOverwrite=false` (default) preserves the
+  Round 2 collision protection
+
+**No new automated test for ConflictDialog itself** — the renderer
+modal test harness gap (no Testing Library / happy-dom) called out
+in Round 1+2 stays unaddressed. Manual re-test scenarios cover this.
+
+### Files modified
+
+- `src/main/ipc.ts` — new `probeExportConflicts` pure helper +
+  `handleProbeExportConflicts` IPC entry; `handleStartExport` gains
+  `overwrite` param (default false); per-row collision check moved
+  into `probeExportConflicts`; defense-in-depth probe re-run inside
+  `handleStartExport` when `overwrite=false`; `isOutDirInsideSourceImages`
+  helper retained but unreferenced (kept live via `void` operator
+  for noUnusedLocals); `'export:probe-conflicts'` channel wired in
+  `registerIpcHandlers`; `'export:start'` forwards `overwrite` arg.
+- `src/main/image-worker.ts` — `runExport` gains `allowOverwrite`
+  param (default false) gating the per-row collision check;
+  preserves Round 2 behaviour on direct invocation.
+- `src/preload/index.ts` — `probeExportConflicts` contextBridge
+  method added; `startExport` forwards `overwrite` arg.
+- `src/shared/types.ts` — `ExportResponse` 'overwrite-source' branch
+  gains `conflicts?: string[]`; new `ProbeConflictsResponse` type;
+  `Api` gains `probeExportConflicts`; `startExport` gains optional
+  `overwrite` arg.
+- `src/renderer/src/modals/ConflictDialog.tsx` — NEW FILE; hand-rolled
+  ARIA modal for the overwrite-confirmation flow.
+- `src/renderer/src/modals/OptimizeDialog.tsx` — new optional
+  `onConfirmStart` prop; `onStart` awaits the parent's confirmation
+  before flipping to in-progress; `startExport` call forwards the
+  resolved overwrite flag.
+- `src/renderer/src/components/AppShell.tsx` — `pickOutputDir()`
+  helper extracted; `conflictState` + `pendingConfirmResolve` ref
+  added; `onConfirmStart` + 3 ConflictDialog click handlers
+  implemented; ConflictDialog mount stacked alongside OptimizeDialog.
+- `tests/main/ipc-export.spec.ts` — 8 new tests + 1 round-2 test
+  updated; round-2 collision tests updated to read new conflicts
+  payload; `vi.mock('node:fs/promises')` added with default ENOENT
+  for `access` and `mockReset` in `beforeEach` to prevent leak.
+- `tests/main/image-worker.spec.ts` — 2 new tests for the
+  `allowOverwrite` parameter (true bypass + false default).
+- `.planning/phases/06-optimize-assets-image-export/06-07-GAP-FIX-SUMMARY.md`
+  — Round 3 section appended (this section).
+
+### Round 3 Verification
+
+| Check                              | Result |
+| ---------------------------------- | ------ |
+| `npm test`                         | 200 passed | 1 skipped (was 190 baseline; +10 new tests) |
+| `npm test -- tests/arch.spec.ts`   | 9/9 GREEN |
+| `npx electron-vite build`          | green (renderer 621.41 kB; +5.77 kB for ConflictDialog + AppShell additions) |
+| `npm run typecheck:web`            | clean |
+| `npm run typecheck:node`           | pre-existing `scripts/probe-per-anim.ts` error (out of scope, inherited from Rounds 1+2) |
+| `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` | exit 0; output unchanged (timing-line variance only) |
+
+### Manual Re-Test Scenarios for Step 2 (User)
+
+If all six scenarios pass, mark `06-07-VALIDATION.md` Step 2 as PASSED.
+
+1. Drop `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json`, click Optimize,
+   pick `fixtures/Girl/` (skeleton folder, where `images/` ALREADY
+   exists with source PNGs). Expect:
+   - OptimizeDialog opens in pre-flight (no probe yet).
+   - Click Start → ConflictDialog opens listing the ~75 collision paths
+     (each source PNG at risk).
+   - All three buttons functional and visibly distinct.
+2. Same setup but click Cancel in ConflictDialog → both dialogs close,
+   no export performed, source PNGs untouched.
+3. Same setup but click Pick different folder → ConflictDialog closes,
+   OS picker re-opens. Pick `/tmp/safe` → no ConflictDialog (safe
+   folder), straight to OptimizeDialog re-mount → Start → normal flow.
+4. Same setup but click Overwrite all → ConflictDialog closes,
+   OptimizeDialog flips to in-progress, export proceeds; source images
+   in `fixtures/Girl/images/` get overwritten by optimized versions.
+   (Have a backup before running this test.)
+5. Drop the same JSON, pick `/tmp/freshdir/` (no images/ subfolder
+   exists yet) → no ConflictDialog → OptimizeDialog opens straight
+   into pre-flight → Start → normal flow. Confirms the Round 3 relaxed
+   contract: parent-of-images outDir is permitted when no actual
+   collision exists.
+6. Drop the same JSON, pick `fixtures/Girl/images/` (the
+   source-images-dir ITSELF) → hard reject with the friendlier
+   `'invalid-out-dir'` error message ("Output directory IS the source
+   images folder…"). NO ConflictDialog opens (every output would
+   collide; not a useful confirmation prompt).
+
+### Round 3 Self-Check: PASSED
+
+Files modified (verified via `git diff --name-only HEAD~2 HEAD`):
+- FOUND: src/main/image-worker.ts
+- FOUND: src/main/ipc.ts
+- FOUND: src/preload/index.ts
+- FOUND: src/renderer/src/components/AppShell.tsx
+- FOUND: src/renderer/src/modals/ConflictDialog.tsx
+- FOUND: src/renderer/src/modals/OptimizeDialog.tsx
+- FOUND: src/shared/types.ts
+- FOUND: tests/main/image-worker.spec.ts
+- FOUND: tests/main/ipc-export.spec.ts
+
+Round 3 commits exist (verified via `git log --oneline -3`):
+- FOUND: 77296b2 feat(06-gap3): split export IPC into probe + start
+- FOUND: 892b5a1 feat(06-gap3): ConflictDialog modal + AppShell probe-then-confirm overwrite flow
+- (this commit) docs(06-gap3): append round 3 (overwrite UX)
