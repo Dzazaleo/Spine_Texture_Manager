@@ -349,6 +349,92 @@ export type ProbeConflictsResponse =
   | { ok: false; error: { kind: 'invalid-out-dir' | 'Unknown'; message: string } };
 
 /**
+ * Phase 7 — Atlas Preview projection types (D-124..D-132 + D-137).
+ *
+ * AtlasPreviewInput: per-region input fed to the maxrects-packer. Folds
+ *   sourceW/H + outW/H so a single derive function emits one input list
+ *   per mode (D-124 / D-125). atlasSource (optional) carries the page-PNG
+ *   srcRect coords for atlas-packed projects (D-126 + RESEARCH amendment
+ *   to D-133 — pixels load via app-image:// not file://).
+ *
+ * PackedRegion: post-pack rect with hit-test coords + drawing metadata
+ *   (sourcePath / atlasSource for the renderer's drawImage call).
+ *   sourceMissing: optional flag set lazily by the renderer when
+ *   <img>.onerror fires (D-137).
+ *
+ * AtlasPage: one bin from the packer, with derived per-page metrics.
+ *   efficiency = sum(rect.w × rect.h) / (bin.width × bin.height) × 100
+ *   (D-128 — F7.2 reframed per D-127 as page-count delta + per-page efficiency,
+ *   no bytes shown).
+ *
+ * AtlasPreviewProjection: the top-level snapshot — one per (mode × maxPageDim)
+ *   combination. totalPages is pages.length (denormalized for the modal's
+ *   stepper card display).
+ *
+ * All fields primitive / arrays of primitives / nested plain objects —
+ * structuredClone-safe per the file-top D-21 lock. atlasSource shape mirrors
+ * DisplayRow.atlasSource (lines 85-92) and ExportRow.atlasSource (lines 213-220)
+ * for consistency — DO NOT extract a named type (precedent is duplication).
+ */
+export interface AtlasPreviewInput {
+  attachmentName: string;
+  sourceW: number;
+  sourceH: number;
+  outW: number;
+  outH: number;
+  /** Width fed to the packer (= sourceW for 'original' mode, outW for 'optimized'). */
+  packW: number;
+  /** Height fed to the packer (= sourceH for 'original' mode, outH for 'optimized'). */
+  packH: number;
+  sourcePath: string;
+  atlasSource?: {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  };
+}
+
+export interface PackedRegion {
+  attachmentName: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  sourcePath: string;
+  atlasSource?: {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  };
+  /** Lazily set by the renderer when <img>.onerror fires (D-137). */
+  sourceMissing?: boolean;
+}
+
+export interface AtlasPage {
+  pageIndex: number;
+  width: number;
+  height: number;
+  regions: PackedRegion[];
+  usedPixels: number;
+  totalPixels: number;
+  /** sum(rect.w × rect.h) / (bin.width × bin.height) × 100 (0..100). */
+  efficiency: number;
+}
+
+export interface AtlasPreviewProjection {
+  mode: 'original' | 'optimized';
+  maxPageDim: 2048 | 4096;
+  pages: AtlasPage[];
+  totalPages: number;
+}
+
+/**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
  * to render the panel header + table without recomputing anything.
  */
