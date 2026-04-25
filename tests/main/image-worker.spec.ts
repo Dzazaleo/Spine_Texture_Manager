@@ -267,6 +267,12 @@ describe('runExport — case (f) no internal re-entrancy guard (D-115)', () => {
  * resolved outPath equals its sourcePath; that row must emit
  * 'overwrite-source' while OTHER rows in the same plan still process
  * (D-116 skip-on-error continuation).
+ *
+ * Round 3 (2026-04-25) — the per-row check is now GATED on the
+ * `allowOverwrite` parameter. Default (false) preserves the round-2
+ * behaviour; allowOverwrite=true bypasses the check (renderer's
+ * "Overwrite all" branch sets startExport(overwrite=true) which the IPC
+ * layer forwards). Two tests below lock both branches.
  */
 describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fix Round 2)', () => {
   it('per-row collision: row whose outPath resolves to its sourcePath gets overwrite-source error; other rows continue', async () => {
@@ -325,5 +331,100 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
     expect(summary.successes).toBe(2);
     expect(summary.errors.length).toBe(1);
     expect(summary.errors[0].kind).toBe('overwrite-source');
+  });
+
+  it('Round 3: allowOverwrite=true bypasses the per-row collision check (proceeds without overwrite-source)', async () => {
+    // Same colliding row as the test above — but with allowOverwrite=true
+    // the per-row check is skipped and the row proceeds through the sharp
+    // pipeline (mocked to succeed). All 3 rows succeed; no errors.
+    const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/elsewhere/SAFE0.png',
+          outPath: 'images/SAFE0.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['SAFE0'],
+        },
+        {
+          sourcePath: collidingFile,
+          outPath: 'images/COLLIDE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['COLLIDE'],
+        },
+        {
+          sourcePath: '/elsewhere/SAFE2.png',
+          outPath: 'images/SAFE2.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['SAFE2'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 3 },
+    };
+    const events: ExportProgressEvent[] = [];
+    const summary = await runExport(
+      plan,
+      tmpDir,
+      (e) => events.push(e),
+      () => false,
+      true, // allowOverwrite = true
+    );
+
+    expect(events.length).toBe(3);
+    // Round 3 with allowOverwrite=true: NO overwrite-source error fires.
+    for (const e of events) {
+      expect(e.status).toBe('success');
+    }
+    expect(summary.successes).toBe(3);
+    expect(summary.errors.length).toBe(0);
+  });
+
+  it('Round 3: allowOverwrite=false (default) preserves the round-2 collision protection', async () => {
+    // Explicit-false invocation locks the default behaviour — same as the
+    // unparameterised call in the first test above; this test pins the
+    // explicit-false branch so a future signature change can't silently
+    // flip the default to true.
+    const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: collidingFile,
+          outPath: 'images/COLLIDE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['COLLIDE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const events: ExportProgressEvent[] = [];
+    const summary = await runExport(
+      plan,
+      tmpDir,
+      (e) => events.push(e),
+      () => false,
+      false, // allowOverwrite = false (explicit)
+    );
+    expect(events.length).toBe(1);
+    expect(events[0].status).toBe('error');
+    expect(events[0].error?.kind).toBe('overwrite-source');
+    expect(summary.errors.length).toBe(1);
   });
 });

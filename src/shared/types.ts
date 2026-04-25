@@ -252,6 +252,15 @@ export interface ExportPlan {
  *     source PNGs live in `<skeletonDir>/images/`; the row's resolved
  *     output equals its source path. Without the guard this would
  *     silently destroy source images in place.
+ *
+ *     Gap-Fix Round 3 (2026-04-25): the per-row check at both layers is
+ *     now GATED on the renderer-driven `overwrite` flag. The renderer
+ *     probes via api.probeExportConflicts and, if conflicts are present,
+ *     mounts a ConflictDialog whose "Overwrite all" branch calls
+ *     startExport(overwrite=true). Layer A (ipc) and Layer B (worker)
+ *     both bypass the collision check when overwrite=true; otherwise
+ *     they still emit 'overwrite-source' (defense-in-depth for any
+ *     caller that bypasses the renderer flow).
  */
 export interface ExportError {
   kind: 'missing-source' | 'sharp-error' | 'write-error' | 'rotated-region-unsupported' | 'overwrite-source';
@@ -301,10 +310,43 @@ export interface ExportSummary {
  * 'invalid-out-dir' guard structurally cannot detect (the parent of
  * `images/` is OUTSIDE `images/`, so the prefix check passes — but
  * the per-row write `<outDir>/images/<region>.png` lands ON the source).
+ *
+ * Gap-Fix Round 3 (2026-04-25) — `conflicts?` added to the
+ * 'overwrite-source' branch. The renderer now drives a probe-then-confirm
+ * UX (api.probeExportConflicts → ConflictDialog → startExport(overwrite=true)).
+ * Defense-in-depth: handleStartExport with `overwrite=false` re-runs the
+ * probe and returns the same conflicts list so any caller that bypasses
+ * the renderer flow still sees the precise list, not just a count.
  */
 export type ExportResponse =
   | { ok: true; summary: ExportSummary }
-  | { ok: false; error: { kind: 'already-running' | 'invalid-out-dir' | 'overwrite-source' | 'Unknown'; message: string } };
+  | {
+      ok: false;
+      error:
+        | { kind: 'already-running' | 'invalid-out-dir' | 'Unknown'; message: string }
+        | { kind: 'overwrite-source'; message: string; conflicts?: string[] };
+    };
+
+/**
+ * Phase 6 Gap-Fix Round 3 (2026-04-25) — Result of the pre-start probe
+ * RPC `'export:probe-conflicts'`. The renderer calls this BEFORE
+ * startExport so it can mount a ConflictDialog listing the exact files
+ * that would be overwritten and offer Cancel / Pick-different-folder /
+ * Overwrite-all. `conflicts` is the deduped, sorted list of absolute
+ * paths that already exist at the resolved output (per-region source,
+ * atlas page, or any pre-existing PNG sitting at the resolved output).
+ *
+ * Empty list === safe to start without a confirmation modal.
+ *
+ * The `ok: false` branch covers shape-validation failures (bad plan,
+ * non-string outDir) and the hard-reject case `outDir IS the
+ * source-images folder itself` — that case is NEVER offered as a
+ * confirmation prompt because every output would collide; the user
+ * has to pick a different folder regardless.
+ */
+export type ProbeConflictsResponse =
+  | { ok: true; conflicts: string[] }
+  | { ok: false; error: { kind: 'invalid-out-dir' | 'Unknown'; message: string } };
 
 /**
  * The IPC return payload from `'skeleton:load'` — the full summary needed
@@ -385,8 +427,34 @@ export interface Api {
    * when the export completes, is cancelled, or is rejected (re-entrant /
    * invalid-out-dir). Per-file progress arrives on the separate
    * onExportProgress subscription channel.
+   *
+   * Gap-Fix Round 3 (2026-04-25) — `overwrite` flag: when omitted or
+   * false (the safe default), main re-runs the conflict probe as a
+   * defense-in-depth check and rejects with `'overwrite-source'` if
+   * any files would be overwritten. When the renderer has already
+   * shown the ConflictDialog and the user clicked "Overwrite all", it
+   * passes `overwrite=true` and main bypasses the per-row collision
+   * check (the worker also gates its defense-in-depth check on this).
+   * The hard-reject case (outDir IS source-images-dir) cannot be
+   * rescued by `overwrite=true`.
    */
-  startExport: (plan: ExportPlan, outDir: string) => Promise<ExportResponse>;
+  startExport: (
+    plan: ExportPlan,
+    outDir: string,
+    overwrite?: boolean,
+  ) => Promise<ExportResponse>;
+  /**
+   * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
+   * The renderer calls this BEFORE startExport so it can mount a
+   * ConflictDialog listing exact files that would be overwritten,
+   * offering Cancel / Pick-different-folder / Overwrite-all. Empty
+   * conflicts list === safe to start without a confirmation modal.
+   * No re-entrancy guard mutation; safe to call repeatedly.
+   */
+  probeExportConflicts: (
+    plan: ExportPlan,
+    outDir: string,
+  ) => Promise<ProbeConflictsResponse>;
   /**
    * Phase 6 Plan 05 — One-way cancel signal. Fire-and-forget. The next
    * progress event the renderer receives will be the final one and

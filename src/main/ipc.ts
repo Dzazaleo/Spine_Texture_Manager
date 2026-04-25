@@ -38,6 +38,7 @@
  */
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import * as path from 'node:path';
+import { access, constants as fsConstants } from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
 import { SpineLoaderError } from '../core/errors.js';
@@ -47,6 +48,7 @@ import type {
   ExportPlan,
   ExportResponse,
   LoadResponse,
+  ProbeConflictsResponse,
   SerializableError,
 } from '../shared/types.js';
 
@@ -74,7 +76,20 @@ let exportCancelFlag = false;
  * images directory itself or a child of it. Cross-platform via path.relative
  * + path.resolve. Empty `rel` means equal; '..' prefix means outside.
  *
- * Not exported — internal helper for handleStartExport.
+ * Not exported — internal helper.
+ *
+ * Gap-Fix Round 3 (2026-04-25): no longer called from handleStartExport.
+ * The folder-position-only rejection from Round 2 was over-cautious — the
+ * new contract rejects ONLY when outDir IS the source-images dir itself
+ * (handled inline as a path.resolve equality check) OR when an actual
+ * file would be overwritten (probeExportConflicts). The helper is kept
+ * here for potential future use (e.g. if a follow-up phase adds a more
+ * structural folder-policy check) but is intentionally unreferenced today.
+ *
+ * The `eslint-disable-next-line` style comments below are unnecessary —
+ * this project has no ESLint and TypeScript's noUnusedLocals is set
+ * file-wide; the explicit `void`-call below keeps the symbol live for
+ * the typechecker without affecting runtime behaviour.
  */
 function isOutDirInsideSourceImages(outDir: string, sourceImagesDir: string): boolean {
   const resolvedOut = path.resolve(outDir);
@@ -83,6 +98,10 @@ function isOutDirInsideSourceImages(outDir: string, sourceImagesDir: string): bo
   const rel = path.relative(resolvedSrc, resolvedOut);
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
+// Round 3: keep the helper symbol live for the typechecker (noUnusedLocals)
+// without re-introducing the round-2 over-cautious behaviour. The reference
+// is a no-op at runtime — the `void` operator discards the function value.
+void isOutDirInsideSourceImages;
 
 /**
  * Cheap shape validation for an ExportPlan crossing the trust boundary.
@@ -111,6 +130,115 @@ function validateExportPlan(plan: unknown): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Phase 6 Gap-Fix Round 3 (2026-04-25) — Detects file collisions BEFORE
+ * starting an export. Used by the new 'export:probe-conflicts' IPC channel
+ * (renderer mounts ConflictDialog with the result) AND by handleStartExport
+ * itself as a defense-in-depth check when called with overwrite=false.
+ *
+ * Returns the deduped, sorted list of absolute paths that would be
+ * overwritten by this export. Three collision sources covered:
+ *   1. resolved output equals row.sourcePath (per-region PNG case)
+ *   2. resolved output equals row.atlasSource.pagePath (atlas-packed)
+ *   3. resolved output exists on disk via fs.access(F_OK) (any
+ *      pre-existing PNG, even if unrelated — we don't silently destroy
+ *      user files just because they happen to live where we'd write)
+ *
+ * Existence probes run in parallel via Promise.all — total cost is one
+ * stat-equivalent syscall per row, well below the sharp/libvips work
+ * downstream. The resulting list is unique (a single path can collide
+ * via both source-match and exists-on-disk; we deduplicate via Set) and
+ * sorted (deterministic UI ordering, easier user comparison).
+ *
+ * Pure (no global state mutation). Safe to call concurrently.
+ *
+ * Not exported — internal helper for handleProbeExportConflicts and
+ * handleStartExport.
+ */
+async function probeExportConflicts(
+  plan: ExportPlan,
+  outDir: string,
+): Promise<string[]> {
+  const conflictSet = new Set<string>();
+
+  // Per-row checks. Source-match comparisons are synchronous; the
+  // exists-on-disk probe is async but we kick all rows off in parallel.
+  const existencePromises = plan.rows.map(async (row) => {
+    const resolvedOut = path.resolve(outDir, row.outPath);
+    if (path.resolve(row.sourcePath) === resolvedOut) {
+      conflictSet.add(resolvedOut);
+    }
+    if (row.atlasSource && path.resolve(row.atlasSource.pagePath) === resolvedOut) {
+      conflictSet.add(resolvedOut);
+    }
+    // F_OK existence check (NOT R_OK — we care that SOMETHING is there,
+    // even an unreadable file we'd clobber). fs.access throws on miss;
+    // catch + return false.
+    const exists = await access(resolvedOut, fsConstants.F_OK)
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      conflictSet.add(resolvedOut);
+    }
+  });
+
+  await Promise.all(existencePromises);
+  return Array.from(conflictSet).sort();
+}
+
+/**
+ * Phase 6 Gap-Fix Round 3 (2026-04-25) — IPC entry point for the
+ * 'export:probe-conflicts' channel. Wraps probeExportConflicts with
+ * the same shape validation handleStartExport uses (cheap T-01-02-01
+ * trust-boundary check) plus the 'outDir IS source-images-dir' hard
+ * reject — that case is NEVER offered as a confirmation prompt
+ * because every output would collide; the user has to pick a
+ * different folder regardless.
+ *
+ * No exportInFlight mutation; safe to call repeatedly without
+ * blocking subsequent startExport.
+ */
+export async function handleProbeExportConflicts(
+  plan: unknown,
+  outDir: unknown,
+): Promise<ProbeConflictsResponse> {
+  if (typeof outDir !== 'string' || outDir.length === 0) {
+    return { ok: false, error: { kind: 'Unknown', message: 'outDir must be a non-empty string' } };
+  }
+  const planErr = validateExportPlan(plan);
+  if (planErr !== null) {
+    return { ok: false, error: { kind: 'Unknown', message: `Invalid plan: ${planErr}` } };
+  }
+  const validPlan = plan as ExportPlan;
+
+  // Hard-reject: outDir IS the source-images dir itself. Every output
+  // would collide; not a useful prompt — keep the friendlier message.
+  // Mirrors the same check in handleStartExport (locked at both layers
+  // so the renderer never has to special-case the response shape).
+  if (validPlan.rows.length > 0) {
+    const firstSrc = validPlan.rows[0].sourcePath;
+    const normalised = firstSrc.replace(/\\/g, '/');
+    const idx = normalised.indexOf('/images/');
+    if (idx >= 0) {
+      const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
+      if (path.resolve(outDir) === path.resolve(sourceImagesDir)) {
+        return {
+          ok: false,
+          error: {
+            kind: 'invalid-out-dir',
+            message:
+              'Output directory IS the source images folder. ' +
+              'Every output would overwrite a source — pick a different folder.',
+          },
+        };
+      }
+    }
+  }
+
+  const conflicts = await probeExportConflicts(validPlan, outDir);
+  return { ok: true, conflicts };
 }
 
 export async function handleSkeletonLoad(jsonPath: unknown): Promise<LoadResponse> {
@@ -188,7 +316,7 @@ export async function handlePickOutputDirectory(defaultPath?: string): Promise<s
  *
  * Wraps src/main/image-worker.ts runExport with:
  *   - re-entrancy guard via exportInFlight flag (rejects 'already-running').
- *   - outDir validation (rejects equal-to or child-of source/images).
+ *   - outDir validation (the hard-reject case: outDir IS source-images-dir).
  *   - shape validation of plan (T-01-02-01 trust-boundary input check).
  *   - one-way progress emission via evt.sender.send('export:progress', ...).
  *   - cancel-flag closure for the runExport isCancelled callback.
@@ -199,13 +327,26 @@ export async function handlePickOutputDirectory(defaultPath?: string): Promise<s
  *   1. Re-entrancy first (cheapest; protects everything below).
  *   2. outDir / plan shape validation BEFORE setting exportInFlight (so
  *      validation rejections do not poison the flag for follow-up calls).
- *   3. outDir-not-source-images check BEFORE setting exportInFlight too.
- *   4. Only after all input validation passes do we claim the slot.
+ *   3. outDir-IS-source-images-dir hard-reject BEFORE setting exportInFlight.
+ *   4. Defense-in-depth probe (skipped when overwrite=true).
+ *   5. Only after all input validation passes do we claim the slot.
+ *
+ * Gap-Fix Round 3 (2026-04-25): the round-2 folder-position-only rejection
+ * was over-cautious — picking the SKELETON folder (parent of images/) is
+ * a common organizational pattern and is fine when no `images/` subfolder
+ * yet exists. The new contract: hard-reject ONLY when outDir IS the
+ * source-images dir itself; otherwise rely on the renderer's
+ * probe-then-confirm flow (api.probeExportConflicts → ConflictDialog →
+ * startExport(overwrite=true)). The probe is also re-run here as
+ * defense-in-depth when overwrite=false, so any caller bypassing the
+ * renderer flow still gets the precise conflict list rather than silent
+ * source-file destruction.
  */
 export async function handleStartExport(
   evt: Electron.IpcMainInvokeEvent | { sender: { send: (channel: string, ...args: unknown[]) => void } },
   plan: unknown,
   outDir: unknown,
+  overwrite: boolean = false,
 ): Promise<ExportResponse> {
   // D-115: re-entrancy guard — checked FIRST so a second invocation while
   // a first is pending sees the flag set and bails immediately.
@@ -223,78 +364,37 @@ export async function handleStartExport(
   }
   const validPlan = plan as ExportPlan;
 
-  // D-122 + F8.4 (Layer A): outDir must not be source/images or a child of it.
-  // Source images dir is derived from row[0].sourcePath which the loader
-  // sets as <skeletonDir>/images/<regionName>.png — so a /images/ slice
-  // yields the source images folder for the topmost region. For nested
+  // Gap-Fix Round 3 (2026-04-25) — hard-reject ONLY when outDir IS the
+  // source-images dir itself. Every other folder-position case is now
+  // permitted; per-row file collisions are surfaced via
+  // probeExportConflicts + the renderer's overwrite modal. This hard-reject
+  // case CANNOT be rescued by overwrite=true (every output would collide;
+  // not a useful confirmation prompt — the user must pick a different
+  // folder regardless).
+  //
+  // Source images dir is derived from row[0].sourcePath via the
+  // loader convention `<skeletonDir>/images/<regionName>.png`. For nested
   // regions (e.g. 'AVATAR/FACE'), use the FIRST '/images/' segment so
   // nested subfolders don't fool the prefix check.
   //
-  // Empty plans skip this check (no source path to derive from); they
-  // proceed straight to runExport which loops zero times and returns
-  // an empty summary.
-  //
-  // Friendlier early-exit message for the "user picked the source images
-  // folder itself" case. The per-row collision check below (Layer B)
-  // would also catch this, but the message is less direct than naming
-  // the source images folder explicitly.
+  // Empty plans skip this check (no source path to derive from).
   if (validPlan.rows.length > 0) {
     const firstSrc = validPlan.rows[0].sourcePath;
     const normalised = firstSrc.replace(/\\/g, '/');
     const idx = normalised.indexOf('/images/');
-    const sourceImagesDir = idx >= 0
-      ? normalised.slice(0, idx + '/images'.length)
-      : path.dirname(firstSrc);
-
-    if (isOutDirInsideSourceImages(outDir, sourceImagesDir)) {
-      return {
-        ok: false,
-        error: {
-          kind: 'invalid-out-dir',
-          message: 'Output directory must not be the source images folder or a child of it.',
-        },
-      };
-    }
-  }
-
-  // Gap-Fix Round 2 (2026-04-25) — Layer B per-row collision detection.
-  // The Layer A guard above only catches the case where outDir IS or is
-  // INSIDE the source images folder. It structurally CANNOT catch the
-  // inverse: outDir is the PARENT of `images/` (e.g. user picks the
-  // skeleton folder), where each row's resolved write path
-  // `<outDir>/images/<region>.png` lands ON the source PNG in
-  // `<skeletonDir>/images/<region>.png` and silently destroys it.
-  //
-  // For each row we resolve outDir + outPath and compare to:
-  //   (1) the row's source PNG path (per-region PNG case)
-  //   (2) the row's atlas page path (atlas-packed projects case)
-  // Either equality is fatal — fail-fast BEFORE setting exportInFlight
-  // so a guard rejection does not poison the slot for follow-up calls.
-  // This runs in O(rows) once at pre-flight; cost is negligible vs the
-  // sharp/libvips work that follows.
-  for (const row of validPlan.rows) {
-    const resolvedOut = path.resolve(outDir, row.outPath);
-    if (path.resolve(row.sourcePath) === resolvedOut) {
-      return {
-        ok: false,
-        error: {
-          kind: 'overwrite-source',
-          message:
-            `Output would overwrite source PNG: ${row.sourcePath}. ` +
-            `Pick an output directory that does NOT contain the project's source images folder.`,
-        },
-      };
-    }
-    if (row.atlasSource && path.resolve(row.atlasSource.pagePath) === resolvedOut) {
-      return {
-        ok: false,
-        error: {
-          kind: 'overwrite-source',
-          message:
-            `Output would overwrite atlas page: ${row.atlasSource.pagePath}. ` +
-            `Pick an output directory that does NOT contain the project's atlas pages.`,
-        },
-      };
+    if (idx >= 0) {
+      const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
+      if (path.resolve(outDir) === path.resolve(sourceImagesDir)) {
+        return {
+          ok: false,
+          error: {
+            kind: 'invalid-out-dir',
+            message:
+              'Output directory IS the source images folder. ' +
+              'Every output would overwrite a source — pick a different folder.',
+          },
+        };
+      }
     }
   }
 
@@ -304,9 +404,44 @@ export async function handleStartExport(
   // before the first one's promise resolves) sees the flag set and
   // bails with 'already-running'. The empty-plan path also goes through
   // here so re-entrancy is uniformly enforced regardless of plan size.
+  //
+  // Gap-Fix Round 3 (2026-04-25): the slot claim moved BEFORE the
+  // defense-in-depth probe (which awaits Promise.all) — without this,
+  // the first await yielded the event loop before the flag was set and
+  // the re-entrancy guard test failed. Probe-rejection still clears the
+  // flag via the finally block below, so a follow-up call after a probe
+  // rejection is not silently pre-poisoned.
   exportInFlight = true;
   exportCancelFlag = false;
   try {
+    // Gap-Fix Round 3 (2026-04-25) — defense-in-depth conflict probe.
+    // When overwrite=false (the safe default), re-run the same probe the
+    // renderer used pre-start; if any conflicts are present, reject with
+    // 'overwrite-source' carrying the precise list. The renderer's
+    // probe-then-confirm flow ensures we never reach this branch in normal
+    // operation (the renderer would have shown ConflictDialog and either
+    // cancelled or sent overwrite=true) — this is the safety net for any
+    // caller that bypasses the renderer flow (e.g. future automation,
+    // a misbehaving renderer, or any test invocation).
+    //
+    // When overwrite=true, the user has explicitly confirmed via
+    // ConflictDialog "Overwrite all"; bypass the per-row collision check
+    // entirely and trust the worker's allowOverwrite=true gate to skip
+    // its own defense-in-depth check too.
+    if (!overwrite) {
+      const conflicts = await probeExportConflicts(validPlan, outDir);
+      if (conflicts.length > 0) {
+        return {
+          ok: false,
+          error: {
+            kind: 'overwrite-source',
+            message: `${conflicts.length} file(s) would be overwritten. Probe before starting.`,
+            conflicts,
+          },
+        };
+      }
+    }
+
     const summary = await runExport(
       validPlan,
       outDir,
@@ -317,6 +452,7 @@ export async function handleStartExport(
         try { evt.sender.send('export:progress', e); } catch { /* webContents gone */ }
       },
       () => exportCancelFlag,
+      overwrite,
     );
     return { ok: true, summary };
   } catch (err) {
@@ -336,7 +472,20 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('dialog:pick-output-dir', async (_evt, defaultPath) =>
     handlePickOutputDirectory(typeof defaultPath === 'string' ? defaultPath : undefined),
   );
-  ipcMain.handle('export:start', async (evt, plan, outDir) => handleStartExport(evt, plan, outDir));
+  // Gap-Fix Round 3 (2026-04-25) — 'export:probe-conflicts' channel: the
+  // renderer probes BEFORE startExport so it can mount ConflictDialog with
+  // the precise list of files that would be overwritten and offer
+  // Cancel / Pick-different-folder / Overwrite-all. No exportInFlight
+  // mutation; safe to call repeatedly.
+  ipcMain.handle('export:probe-conflicts', async (_evt, plan, outDir) =>
+    handleProbeExportConflicts(plan, outDir),
+  );
+  // Gap-Fix Round 3 (2026-04-25) — 'export:start' gains `overwrite` as a
+  // 3rd argument. Strict `=== true` check: any non-true value (undefined,
+  // null, 0, false) keeps the safe default and re-runs the probe.
+  ipcMain.handle('export:start', async (evt, plan, outDir, overwrite) =>
+    handleStartExport(evt, plan, outDir, overwrite === true),
+  );
   ipcMain.on('export:cancel', () => {
     // D-115: cooperative cancel. Flag is read on every iteration of the
     // runExport loop between files. In-flight cannot be aborted mid-libvips.

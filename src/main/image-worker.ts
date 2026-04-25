@@ -1,8 +1,8 @@
 /**
  * Phase 6 Plan 04 — Main-process export worker (F8.2 + F8.4 + F8.5 + N3.1).
  *
- * runExport(plan, outDir, onProgress, isCancelled) walks ExportPlan.rows
- * sequentially, performing per-row:
+ * runExport(plan, outDir, onProgress, isCancelled, allowOverwrite=false)
+ * walks ExportPlan.rows sequentially, performing per-row:
  *   1. fs.access(R_OK) pre-flight per D-112. If the per-region source
  *      PNG is missing AND row.atlasSource is populated (Gap-Fix #2,
  *      atlas-packed projects like Jokerman), fall back to atlas-page
@@ -68,6 +68,13 @@ export async function runExport(
   outDir: string,
   onProgress: (e: ExportProgressEvent) => void,
   isCancelled: () => boolean,
+  // Gap-Fix Round 3 (2026-04-25) — When true, the per-row source-vs-output
+  // defense-in-depth check below is bypassed. The renderer drives this
+  // intentionally after the user clicks "Overwrite all" in ConflictDialog;
+  // the IPC layer (handleStartExport) forwards the same flag. Defaults to
+  // false so direct test invocations and any future caller that bypasses
+  // the IPC layer still get the round-2 source-protection behaviour.
+  allowOverwrite: boolean = false,
 ): Promise<ExportSummary> {
   const t0 = performance.now();
   const errors: ExportError[] = [];
@@ -95,32 +102,42 @@ export async function runExport(
     //    at BOTH layers, even at the cost of a redundant string compare
     //    per row (O(1), well below the sharp/libvips cost that follows).
     //
+    //    Gap-Fix Round 3 (2026-04-25) — gated on `allowOverwrite`. When
+    //    the renderer's ConflictDialog "Overwrite all" branch invoked
+    //    startExport with overwrite=true, the IPC layer forwards
+    //    allowOverwrite=true here and we skip the per-row check. The
+    //    user has explicitly accepted the consequences. Default false
+    //    preserves the round-2 protection for direct test invocations
+    //    and any future caller that bypasses the renderer flow.
+    //
     //    On collision we emit a per-row 'overwrite-source' error and skip
     //    to the next row (D-116 skip-on-error continuation), rather than
     //    failing the entire run — other rows may still write safely if
     //    only one row's outPath happens to collide.
-    const resolvedSrc = pathResolve(sourcePath);
-    if (resolvedSrc === resolvedOut) {
-      const error: ExportError = {
-        kind: 'overwrite-source',
-        path: resolvedOut,
-        message: `Refusing to overwrite source: ${sourcePath}`,
-      };
-      errors.push(error);
-      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
-      continue;
-    }
-    if (row.atlasSource) {
-      const resolvedAtlasPage = pathResolve(row.atlasSource.pagePath);
-      if (resolvedAtlasPage === resolvedOut) {
+    if (!allowOverwrite) {
+      const resolvedSrc = pathResolve(sourcePath);
+      if (resolvedSrc === resolvedOut) {
         const error: ExportError = {
           kind: 'overwrite-source',
           path: resolvedOut,
-          message: `Refusing to overwrite atlas page: ${row.atlasSource.pagePath}`,
+          message: `Refusing to overwrite source: ${sourcePath}`,
         };
         errors.push(error);
         onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
         continue;
+      }
+      if (row.atlasSource) {
+        const resolvedAtlasPage = pathResolve(row.atlasSource.pagePath);
+        if (resolvedAtlasPage === resolvedOut) {
+          const error: ExportError = {
+            kind: 'overwrite-source',
+            path: resolvedOut,
+            message: `Refusing to overwrite atlas page: ${row.atlasSource.pagePath}`,
+          };
+          errors.push(error);
+          onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+          continue;
+        }
       }
     }
 

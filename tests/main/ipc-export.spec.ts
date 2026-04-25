@@ -21,6 +21,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   handleStartExport,
   handlePickOutputDirectory,
+  handleProbeExportConflicts,
 } from '../../src/main/ipc.js';
 import type { ExportPlan } from '../../src/shared/types.js';
 
@@ -42,12 +43,31 @@ vi.mock('../../src/main/image-worker.js', () => ({
   }),
 }));
 
+// Gap-Fix Round 3 (2026-04-25) — mock node:fs/promises.access so the
+// Round 3 defense-in-depth probe doesn't hit the real filesystem from
+// these unit tests. Default: every probed path is "missing" (rejects)
+// so by default no pre-existing-file conflicts surface; tests that need
+// an existence-collision opt in by overriding the mock.
+vi.mock('node:fs/promises', () => ({
+  access: vi.fn().mockRejectedValue(new Error('ENOENT')),
+  constants: { F_OK: 0, R_OK: 4 },
+}));
+
 function buildEmptyPlan(): ExportPlan {
   return { rows: [], excludedUnused: [], totals: { count: 0 } };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  // Gap-Fix Round 3 (2026-04-25): re-establish the default fs.access
+  // ENOENT behaviour after vi.clearAllMocks() — clearAllMocks wipes
+  // call history but vi.mocked.foo.mockResolvedValueOnce(...) impls
+  // from prior tests would otherwise leak (one-off impls live until
+  // consumed; if a prior test's impl was NOT consumed, the next test
+  // would see it). mockReset wipes both call history AND impls so the
+  // default factory impl from the vi.mock() block above is what runs.
+  const fsPromises = await import('node:fs/promises');
+  vi.mocked(fsPromises.access).mockReset().mockRejectedValue(new Error('ENOENT'));
 });
 
 describe('handlePickOutputDirectory — F8.1 + D-122', () => {
@@ -160,7 +180,14 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
     }
   });
 
-  it('rejects when outDir is a child of source images dir (F8.4)', async () => {
+  // Gap-Fix Round 3 (2026-04-25) — UPDATED contract: outDir as a child of
+  // source-images-dir is no longer rejected on folder-position alone; only
+  // an actual file collision triggers a rejection. With outDir =
+  // /skel/images/sub and outPath = images/CIRCLE.png, the resolved write
+  // /skel/images/sub/images/CIRCLE.png does NOT collide with the source
+  // /skel/images/CIRCLE.png — and our mocked fs.access defaults to ENOENT
+  // for the existence probe — so the export is permitted.
+  it('Round 3: child-of-source-images-dir is now ALLOWED (folder-position-only guard relaxed)', async () => {
     const plan: ExportPlan = {
       rows: [
         {
@@ -184,10 +211,8 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
       plan,
       '/skel/images/sub',
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe('invalid-out-dir');
-    }
+    // Round 3: should NOT reject for folder-position alone.
+    expect(result.ok).toBe(true);
   });
 
   it('returns { ok:true, summary } on happy path', async () => {
@@ -255,10 +280,21 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
  * each row's resolved write `<outDir>/images/<region>.png` landed ON its
  * source PNG. The OLD `isOutDirInsideSourceImages` guard saw outDir as
  * OUTSIDE source-images and approved; the worker overwrote source files in
- * place. The new pre-flight per-row collision check rejects with
- * 'overwrite-source' BEFORE setting exportInFlight.
+ * place.
+ *
+ * Round 2 introduced a per-row collision check that rejected with
+ * 'overwrite-source' UNCONDITIONALLY.
+ *
+ * Round 3 (2026-04-25) — the per-row check is now GATED on the renderer-
+ * driven `overwrite` flag. Without overwrite, the result is still
+ * 'overwrite-source' (now carrying a `conflicts: string[]` payload from
+ * the new probe pipeline). With overwrite=true (renderer "Overwrite all"),
+ * the check is bypassed and the export proceeds. The message format
+ * changed from per-row ("Output would overwrite source PNG: ...") to
+ * aggregate ("N file(s) would be overwritten. Probe before starting.");
+ * conflicts list contains the per-file paths.
  */
-describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round 2)', () => {
+describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round 2 → Round 3)', () => {
   it('rejects with overwrite-source when outDir is parent-of-source-images (the user-confirmed repro case)', async () => {
     // Source PNGs at /skel/images/CIRCLE.png; outDir is the parent /skel.
     // Row's outPath is `images/CIRCLE.png` (loader sets outPath relative
@@ -289,15 +325,20 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     expect(result.ok).toBe(false);
     if (!result.ok) {
       // Critical: must be 'overwrite-source', NOT 'invalid-out-dir' —
-      // 'invalid-out-dir' fires only when outDir is INSIDE source-images;
+      // 'invalid-out-dir' fires only when outDir IS source-images;
       // this is the inverse case (outDir is the PARENT of source-images).
       expect(result.error.kind).toBe('overwrite-source');
-      expect(result.error.message).toMatch(/overwrite source PNG/);
+      // Round 3: the conflicts list is the precise payload.
+      if (result.error.kind === 'overwrite-source') {
+        expect(result.error.conflicts).toBeDefined();
+        expect(result.error.conflicts!.length).toBeGreaterThan(0);
+        expect(result.error.conflicts![0]).toContain('CIRCLE.png');
+      }
     }
   });
 
   it('rejects with overwrite-source when ANY row would collide (catches sibling-folder collision case)', async () => {
-    // Multiple rows; one is safe, one collides. The first collision wins.
+    // Multiple rows; one is safe, one collides.
     const plan: ExportPlan = {
       rows: [
         {
@@ -334,7 +375,11 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe('overwrite-source');
-      expect(result.error.message).toContain('BAD.png');
+      if (result.error.kind === 'overwrite-source') {
+        expect(result.error.conflicts).toBeDefined();
+        // The conflicts list must include the colliding BAD.png path.
+        expect(result.error.conflicts!.some((p) => p.endsWith('BAD.png'))).toBe(true);
+      }
     }
   });
 
@@ -376,7 +421,11 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe('overwrite-source');
-      expect(result.error.message).toMatch(/atlas page/);
+      if (result.error.kind === 'overwrite-source') {
+        expect(result.error.conflicts).toBeDefined();
+        // The conflicts list must include the atlas page path.
+        expect(result.error.conflicts!.some((p) => p.endsWith('JOKERMAN_SPINE.png'))).toBe(true);
+      }
     }
   });
 
@@ -405,5 +454,259 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
       '/tmp/foo',
     );
     expect(result.ok).toBe(true);
+  });
+});
+
+/**
+ * Gap-Fix Round 3 (2026-04-25) — probe-then-confirm contract.
+ *
+ * - probeExportConflicts pure detection (no side effects, no in-flight
+ *   mutation, no Electron dependency in the call path).
+ * - handleStartExport(overwrite=true) bypasses the per-row collision check
+ *   AND the defense-in-depth probe — but the hard-reject case
+ *   (outDir IS source-images-dir) cannot be rescued by overwrite=true.
+ * - handleStartExport(overwrite=false) re-runs the probe and rejects
+ *   with the precise `conflicts` payload (defense-in-depth for any
+ *   caller that bypasses the renderer flow).
+ */
+describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix Round 3)', () => {
+  it('probeExportConflicts returns the list of conflicting paths without side effects', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleProbeExportConflicts(plan, '/skel');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.conflicts.length).toBe(1);
+      expect(result.conflicts[0]).toContain('CIRCLE.png');
+    }
+
+    // Side-effect check: a follow-up startExport must not be 'already-running'
+    // (probe must not have set the in-flight flag).
+    const followup = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+    );
+    if (!followup.ok) {
+      expect(followup.error.kind).not.toBe('already-running');
+    }
+  });
+
+  it('probeExportConflicts returns empty list when no conflicts exist', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    // outDir = /tmp/foo: source is at /proj/images/CIRCLE.png, resolved
+    // out is /tmp/foo/images/CIRCLE.png — no source-match. Mocked
+    // fs.access defaults to ENOENT for the existence probe → empty list.
+    const result = await handleProbeExportConflicts(plan, '/tmp/foo');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.conflicts).toEqual([]);
+    }
+  });
+
+  it('probeExportConflicts surfaces a pre-existing PNG at the resolved output (any-collision)', async () => {
+    // Even when source-vs-output does NOT collide, an existing file at
+    // the resolved output path is still a collision the user must
+    // confirm — the renderer should not silently destroy unrelated
+    // files. Mocked fs.access resolves (file exists) for THIS test.
+    const fsPromises = await import('node:fs/promises');
+    vi.mocked(fsPromises.access).mockResolvedValueOnce(undefined as unknown as void);
+
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleProbeExportConflicts(plan, '/tmp/foo');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.conflicts.length).toBe(1);
+      expect(result.conflicts[0]).toContain('CIRCLE.png');
+    }
+  });
+
+  it('handleStartExport with overwrite=false AND conflicts → rejects with overwrite-source (defense-in-depth)', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/skel',
+      false,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('overwrite-source');
+      if (result.error.kind === 'overwrite-source') {
+        expect(result.error.conflicts).toBeDefined();
+        expect(result.error.conflicts!.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('handleStartExport with overwrite=true AND conflicts → proceeds (per-row check bypassed)', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/skel',
+      true,
+    );
+    // overwrite=true bypasses the per-row collision check; runExport is
+    // mocked to resolve with an empty summary so the result is OK.
+    expect(result.ok).toBe(true);
+  });
+
+  it('handleStartExport rejects when outDir IS source-images-dir even with overwrite=true (hard-reject)', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/skel/images',
+      true,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('invalid-out-dir');
+    }
+  });
+
+  it('Round 3: parent-of-images outDir with NO existing /images/ subfolder is ALLOWED (no false-reject)', async () => {
+    // Setup: outDir = /tmp/parent. No source/output collision (the row's
+    // source is at /elsewhere/CIRCLE.png; the resolved output is
+    // /tmp/parent/images/CIRCLE.png). Mocked fs.access defaults to
+    // ENOENT for the existence probe (the /tmp/parent/images/ subfolder
+    // does not yet exist). Round-2 would have rejected for folder-position
+    // alone; Round 3 must permit this case.
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/elsewhere/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/tmp/parent',
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('handleProbeExportConflicts hard-rejects when outDir IS source-images-dir', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/skel/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+    const result = await handleProbeExportConflicts(plan, '/skel/images');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('invalid-out-dir');
+    }
   });
 });

@@ -84,9 +84,26 @@ const api: Api = {
    * Resolves with ExportResponse envelope when the export completes,
    * is cancelled, or is rejected (re-entrant / invalid-out-dir).
    * Per-file progress arrives on the separate onExportProgress channel.
+   *
+   * Gap-Fix Round 3 (2026-04-25) — `overwrite` flag forwarded as a 3rd
+   * argument. When omitted or false, main re-runs the conflict probe as
+   * defense-in-depth and rejects with `'overwrite-source'` if any files
+   * would be overwritten. After ConflictDialog "Overwrite all", AppShell
+   * passes overwrite=true and main bypasses the per-row collision check.
    */
-  startExport: (plan, outDir) =>
-    ipcRenderer.invoke('export:start', plan, outDir),
+  startExport: (plan, outDir, overwrite) =>
+    ipcRenderer.invoke('export:start', plan, outDir, overwrite === true),
+
+  /**
+   * Gap-Fix Round 3 (2026-04-25) — pre-start conflict probe. The renderer
+   * (AppShell) calls this BEFORE startExport so it can mount a
+   * ConflictDialog listing the exact files that would be overwritten and
+   * offer Cancel / Pick-different-folder / Overwrite-all. Empty conflicts
+   * list === safe to start without a confirmation modal. No re-entrancy
+   * mutation in main — safe to call repeatedly.
+   */
+  probeExportConflicts: (plan, outDir) =>
+    ipcRenderer.invoke('export:probe-conflicts', plan, outDir),
 
   /**
    * D-115: one-way cancel signal. Fire-and-forget. The next progress
