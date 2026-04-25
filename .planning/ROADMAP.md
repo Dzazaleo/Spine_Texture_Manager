@@ -227,15 +227,46 @@ Plans:
 
 **Depends on:** Phase 6 green.
 
+**Goal:** Ship a hand-rolled ARIA modal that visualizes what the rig's atlas WOULD look like under two scenarios (Original / Optimized) at two resolution caps (2048 / 4096), using `maxrects-packer` for packing projection and 2D-canvas `drawImage` for actual region pixel rendering. F7.2's "estimated file-size delta" is REINTERPRETED per CONTEXT D-127 to dims + page count + per-page efficiency only — no bytes shown anywhere. Adds the canonical "20% glow override" UX gesture: dblclick a region rect → modal closes → app jumps to the matching row in Global Max Render Source panel + flashes (Phase 3 D-72 jump-target system extended to GlobalMaxRenderPanel for the first time). Sampler stays LOCKED. CLI stays byte-for-byte unchanged (Phase 5 D-102).
+
 **Deliverables:**
-- `src/renderer/modals/AtlasPreviewModal.tsx` — before/after atlas using `maxrects-packer`.
-- Dimension + estimated size readout.
+- `src/core/atlas-preview.ts` — pure-TS pack projection (D-124..D-132) + Layer 3 grep guard.
+- `src/renderer/src/lib/atlas-preview-view.ts` — byte-identical Layer 3 inline copy (Phase 4 D-75 / Phase 6 D-108 precedent).
+- `src/renderer/src/modals/AtlasPreviewModal.tsx` — hand-rolled ARIA modal cloning OverrideDialog/OptimizeDialog scaffold (D-81); left-rail controls + main-view canvas with hover/dblclick.
+- `src/renderer/src/components/AppShell.tsx` — toolbar button + state + modal mount + extension of jump-target dispatch to recognize Atlas Preview as a source.
+- `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` — port of `focusAttachmentName` / `onFocusConsumed` consumer pattern from `AnimationBreakdownPanel.tsx:299-325` (RESEARCH §Pitfall 2 amendment to CONTEXT line 222).
+- `src/main/index.ts` — `protocol.handle('app-image', ...)` registration (RESEARCH §Pitfall 1 amendment to CONTEXT D-133 — raw `file://` is blocked by current CSP).
+- `src/renderer/index.html` — CSP `img-src` widened by exactly one scheme (`app-image:`).
+- `src/shared/types.ts` — `AtlasPreviewInput`, `PackedRegion`, `AtlasPage`, `AtlasPreviewProjection` (structuredClone-safe per Phase 1 D-21).
+- `package.json` — adds `maxrects-packer ^2.7.3` (runtime) + `@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`, `jsdom` (devDeps).
+- `vitest.config.ts` — extend `include` to scan `tests/**/*.spec.tsx`.
+- `tests/core/atlas-preview.spec.ts` — 8 case blocks (a..h) + hygiene grep + Layer 3 parity grep.
+- `tests/renderer/atlas-preview-modal.spec.tsx` — first-of-its-kind renderer spec (jsdom env); covers default view, toggle re-render, pager bounds, dblclick, missing-source.
 
 **Exit criteria:**
-- Preview shows meaningful reduction on the simple rig.
-- Projected packed atlas dims roughly match sum of peak+override dims plus packer padding.
+- Modal opens on AppShell button click; default view = Optimized @ 2048, page 1 (D-135).
+- VIEW MODE + ATLAS RESOLUTION + ATLAS PAGE pager all re-compute the projection via useMemo.
+- TOTAL ATLASES + EFFICIENCY (PAGE N) cards display dims + page count + per-page efficiency only — NO bytes anywhere (D-127 / F7.2 reinterpretation).
+- Canvas renders actual region pixel content via `drawImage` 9-arg form (per-region PNG: full image; atlas-packed: srcRect crop from page atlas).
+- Hover-reveal: warm-stone-accent low-opacity fill + label overlay; default outline-only (D-129).
+- Dblclick on region rect → modal closes + activeTab='global' + matching row scrolls into view + flashes for 900ms (D-130 + canonical "20% glow override" workflow).
+- Snapshot-at-open semantics: re-opening the modal after editing an override visibly shrinks the affected region's rect (D-131).
+- Layer 3 grep at `tests/arch.spec.ts` auto-scans `src/core/atlas-preview.ts` and passes (no fs/sharp/electron/DOM imports).
+- Inline-copy parity grep at `tests/core/atlas-preview.spec.ts` locks `src/core/atlas-preview.ts` ↔ `src/renderer/src/lib/atlas-preview-view.ts` byte-identity.
+- Phase 6 export math is unchanged (no regression in `tests/core/export.spec.ts`).
+- CLI byte-for-byte unchanged (D-102; `git diff scripts/cli.ts` empty).
+- `npm run test` full suite green; `npx electron-vite build` green.
 
-**Requirement coverage:** F7.
+**Requirement coverage:** F7.1, F7.2 (REINTERPRETED per D-127).
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Wave 0 dependencies + types + RED stub specs (maxrects-packer + jsdom + @testing-library/react + @testing-library/jest-dom + @testing-library/user-event; vitest.config widening; src/shared/types.ts AtlasPreviewInput / PackedRegion / AtlasPage / AtlasPreviewProjection; tests/core/atlas-preview.spec.ts + tests/renderer/atlas-preview-modal.spec.tsx RED stubs). Wave 1, autonomous, depends_on [].
+- [ ] 07-02-PLAN.md — Layer-3 core projection + renderer inline copy + parity (src/core/atlas-preview.ts; src/renderer/src/lib/atlas-preview-view.ts; tests/core/atlas-preview.spec.ts case (a)..(h) + hygiene grep + parity grep blocks driven RED → GREEN). Wave 2, autonomous, depends_on [07-01].
+- [ ] 07-03-PLAN.md — Renderer protocol + CSP (src/main/index.ts protocol.handle('app-image', ...) + registerSchemesAsPrivileged; src/renderer/index.html CSP img-src widening to include app-image:). Wave 2, autonomous, depends_on [07-01].
+- [ ] 07-04-PLAN.md — Modal component + canvas + hover/dblclick + missing-source (src/renderer/src/modals/AtlasPreviewModal.tsx with LeftRail/AtlasCanvas/InfoCard sub-components inline; tests/renderer/atlas-preview-modal.spec.tsx jsdom specs driven RED → GREEN; optional --color-success token in src/renderer/src/index.css). Wave 3, autonomous, depends_on [07-01, 07-02, 07-03].
+- [ ] 07-05-PLAN.md — AppShell wiring + GlobalMaxRenderPanel jump-target consumer port + human-verify (src/renderer/src/components/AppShell.tsx toolbar button + 3 state slots + 3 callbacks + modal mount + Global panel prop forwarding; src/renderer/src/panels/GlobalMaxRenderPanel.tsx port of AnimationBreakdownPanel:299-325 jump-target effect; checkpoint:human-verify on 10 manual gates including the canonical "20% glow override" workflow). Wave 4, has checkpoint, depends_on [07-02, 07-03, 07-04].
 
 ---
 
