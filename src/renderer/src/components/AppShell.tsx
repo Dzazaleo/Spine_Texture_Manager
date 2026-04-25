@@ -43,6 +43,7 @@ import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
+import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -57,6 +58,14 @@ export function AppShell({ summary }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('global');
   // D-52: jump-target; null means no pending focus.
   const [focusAnimationName, setFocusAnimationName] = useState<string | null>(null);
+
+  // Phase 7 D-130 — NEW: attachment jump-target plumbing (parallel to
+  // focusAnimationName, different consumer panel — GlobalMaxRenderPanel).
+  const [focusAttachmentName, setFocusAttachmentName] = useState<string | null>(null);
+
+  // Phase 7 D-134 — NEW: Atlas Preview modal lifecycle. Plain boolean, no
+  // snapshot state — the modal reads summary + overrides directly (D-131).
+  const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
@@ -113,6 +122,25 @@ export function AppShell({ summary }: AppShellProps) {
 
   const onFocusConsumed = useCallback(() => {
     setFocusAnimationName(null);
+  }, []);
+
+  // Phase 7 D-130 — NEW: Atlas Preview canvas dblclick → close modal +
+  // switch to Global tab + dispatch focus to GlobalMaxRenderPanel. Three
+  // state writes; narrow useCallback deps (only setters; React guarantees
+  // setState identity is stable — empty deps array is correct).
+  const onJumpToAttachment = useCallback((name: string) => {
+    setActiveTab('global');
+    setFocusAttachmentName(name);
+    setAtlasPreviewOpen(false);
+  }, []);
+
+  const onFocusAttachmentConsumed = useCallback(() => {
+    setFocusAttachmentName(null);
+  }, []);
+
+  // Phase 7 D-134 — NEW: toolbar button click handler.
+  const onClickAtlasPreview = useCallback(() => {
+    setAtlasPreviewOpen(true);
   }, []);
 
   const onOpenOverrideDialog = useCallback(
@@ -329,7 +357,20 @@ export function AppShell({ summary }: AppShellProps) {
             while an export is in flight (T-06-18 — second click is a no-op
             until the dialog's onRunEnd fires). Reuses warm-stone tokens
             from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
+              immediately LEFT of Optimize Assets (right-aligned cluster).
+              Disabled when no peaks (summary not loaded yet or empty rig).
+              Reuses warm-stone tokens; class string matches Optimize Assets
+              for Tailwind v4 literal-class scanner discipline (Pitfall 3). */}
+          <button
+            type="button"
+            onClick={onClickAtlasPreview}
+            disabled={summary.peaks.length === 0}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Atlas Preview
+          </button>
           <button
             type="button"
             onClick={onClickOptimize}
@@ -347,6 +388,10 @@ export function AppShell({ summary }: AppShellProps) {
             onJumpToAnimation={onJumpToAnimation}
             overrides={overrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
+            /* Phase 7 D-130 NEW props — mirror AnimationBreakdownPanel's
+               focusAnimationName/onFocusConsumed pair. */
+            focusAttachmentName={focusAttachmentName}
+            onFocusConsumed={onFocusAttachmentConsumed}
           />
         )}
         {activeTab === 'animation' && (
@@ -402,6 +447,21 @@ export function AppShell({ summary }: AppShellProps) {
           onCancel={onConflictCancel}
           onPickDifferent={onConflictPickDifferent}
           onOverwrite={onConflictOverwrite}
+        />
+      )}
+      {/* Phase 7 D-134 — Atlas Preview modal. Conditionally mounted (matches
+          OverrideDialog/OptimizeDialog/ConflictDialog shape). Reads summary
+          + overrides directly per D-131 snapshot-at-open semantics: the
+          modal's internal useMemo captures the values on every mode/page
+          toggle, and AppShell's overrides Map is the single source of
+          truth — re-opening after an override edit re-snapshots. */}
+      {atlasPreviewOpen && (
+        <AtlasPreviewModal
+          open={true}
+          summary={summary}
+          overrides={overrides}
+          onJumpToAttachment={onJumpToAttachment}
+          onClose={() => setAtlasPreviewOpen(false)}
         />
       )}
     </div>
