@@ -127,6 +127,125 @@ describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Ph
   });
 });
 
+describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant — effectiveScale clamped to ≤ 1.0', () => {
+  it('peakScale 1.5 with no override → effectiveScale = 1.0; outW = sourceW (NOT 1.5×)', () => {
+    // Locks the user-locked Phase 6 export sizing memory: source dims are the
+    // ceiling, never extrapolate. Even when the sampler reports a peakScale > 1
+    // (an attachment dramatically zoomed in animation), the exported output
+    // is never larger than the source PNG.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/ZOOMED',
+          attachmentName: 'ZOOMED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'zoom_in',
+          time: 0.5,
+          frame: 30,
+          peakScale: 1.5,
+          peakScaleX: 1.5,
+          peakScaleY: 1.5,
+          worldW: 150,
+          worldH: 150,
+          sourceW: 100,
+          sourceH: 100,
+          sourcePath: '/fake/ZOOMED.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows.length).toBe(1);
+    const row = plan.rows[0];
+    // Clamped to 1.0 — even though the sampler reported 1.5×.
+    expect(row.effectiveScale).toBeCloseTo(1.0, 6);
+    // outW must be sourceW (100), NOT Math.round(100 * 1.5) = 150.
+    expect(row.outW).toBe(100);
+    expect(row.outH).toBe(100);
+  });
+
+  it('peakScale 5.0 (extreme zoom) still clamps to 1.0 — never extrapolates', () => {
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/MEGAZOOM',
+          attachmentName: 'MEGAZOOM',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'closeup',
+          time: 1.0,
+          frame: 60,
+          peakScale: 5.0,
+          peakScaleX: 5.0,
+          peakScaleY: 5.0,
+          worldW: 1000,
+          worldH: 1000,
+          sourceW: 200,
+          sourceH: 200,
+          sourcePath: '/fake/MEGAZOOM.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows[0].effectiveScale).toBeCloseTo(1.0, 6);
+    expect(plan.rows[0].outW).toBe(200);
+    expect(plan.rows[0].outH).toBe(200);
+  });
+
+  it('Gap-Fix #1 dedup interaction: two attachments share source PNG with peaks 0.8 and 5.0 → both clamp to 1.0; kept dims = sourceW (NOT 5×)', () => {
+    // The clamp must run BEFORE the dedup keep-max comparison. Otherwise
+    // the dedup would promote the 5.0-row to "winner" and emit an upscaled
+    // ExportRow. With the clamp running first, max(0.8, 1.0) = 1.0 → outW
+    // = sourceW.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/SMALL',
+          attachmentName: 'SMALL',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.8,
+          peakScaleX: 0.8,
+          peakScaleY: 0.8,
+          worldW: 80,
+          worldH: 80,
+          sourceW: 100,
+          sourceH: 100,
+          sourcePath: '/fake/SHARED.png',
+        },
+        {
+          attachmentKey: 'default/SLOT/BIG',
+          attachmentName: 'BIG',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'zoom',
+          time: 1,
+          frame: 60,
+          peakScale: 5.0,
+          peakScaleX: 5.0,
+          peakScaleY: 5.0,
+          worldW: 500,
+          worldH: 500,
+          sourceW: 100,
+          sourceH: 100,
+          sourcePath: '/fake/SHARED.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    expect(plan.rows.length).toBe(1);
+    expect(plan.rows[0].effectiveScale).toBeCloseTo(1.0, 6);
+    expect(plan.rows[0].outW).toBe(100);
+    expect(plan.rows[0].outH).toBe(100);
+  });
+});
+
 describe('buildExportPlan — case (d) two attachments share atlas region with different peaks (D-108)', () => {
   it('dedup by sourcePath uses max(peakScale) so the most-zoomed user wins', () => {
     // Two attachments — different names, same sourcePath. Different peaks.
@@ -374,5 +493,42 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
       const viewPlan = buildExportPlanView(summary, ov);
       expect(viewPlan, label).toEqual(corePlan);
     }
+  });
+
+  it('Gap-Fix #1 parity: peakScale 1.5 produces outW = sourceW in BOTH core and renderer copies', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/ZOOMED',
+          attachmentName: 'ZOOMED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'zoom',
+          time: 0,
+          frame: 0,
+          peakScale: 1.5,
+          peakScaleX: 1.5,
+          peakScaleY: 1.5,
+          worldW: 150,
+          worldH: 150,
+          sourceW: 100,
+          sourceH: 100,
+          sourcePath: '/fake/ZOOMED.png',
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+
+    const corePlan = buildExportPlan(summary, new Map());
+    const viewPlan = buildExportPlanView(summary, new Map());
+    expect(viewPlan).toEqual(corePlan);
+    // Both must agree on the clamped output dims (NOT 150).
+    expect(corePlan.rows[0].outW).toBe(100);
+    expect(corePlan.rows[0].outH).toBe(100);
+    expect(viewPlan.rows[0].outW).toBe(100);
+    expect(viewPlan.rows[0].outH).toBe(100);
   });
 });

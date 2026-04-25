@@ -11,6 +11,14 @@
  * renderer gets its own byte-identical copy here instead of crossing
  * the boundary.
  *
+ * Gap-Fix #1 (2026-04-25 human-verify Step 1) — DOWNSCALE-ONLY INVARIANT:
+ *   effectiveScale is clamped to ≤ 1.0 after the override/peakScale resolution
+ *   and BEFORE the dedup keep-max comparison. Per the user-locked Phase 6
+ *   export sizing memory: source dimensions are the ceiling — even if the
+ *   sampler computes a peakScale of 15× (e.g. an attachment dramatically
+ *   zoomed in animation), the exported output is never larger than the
+ *   source PNG. Images can only be reduced, never extrapolated.
+ *
  * Parity contract: the exported function bodies in this file are
  * byte-identical to the canonical source module. If you modify one,
  * modify the other in the same commit. A parity describe block in
@@ -40,6 +48,28 @@ export interface BuildExportPlanOptions {
   /** Default false (D-109). Future Settings toggle path. */
   includeUnused?: boolean;
 }
+
+/**
+ * Build the deduped export plan from a SkeletonSummary + overrides Map.
+ *
+ * INVARIANT (Gap-Fix #1, user-locked Phase 6 export sizing memory):
+ *   For every emitted ExportRow: `effectiveScale ≤ 1.0`. Source dimensions
+ *   are the CEILING — exports may downscale (effectiveScale ∈ (0, 1]) but
+ *   may NEVER upscale beyond the source PNG's pixel dimensions. A peakScale
+ *   of 5× still produces outW=sourceW (clamped to 1.0). This is locked
+ *   policy: anisotropic export breaks Spine UV sampling AND extrapolating
+ *   pixels libvips never had degrades quality vs simply shipping the source.
+ *
+ * D-110 uniform sizing: outW = Math.round(sourceW × effectiveScale),
+ * outH = Math.round(sourceH × effectiveScale), with the SAME effectiveScale
+ * on both axes.
+ *
+ * D-108 dedup: one ExportRow per unique sourcePath; the kept effectiveScale
+ * is max(post-clamp) across all attachments referencing that source.
+ *
+ * D-109 unused exclusion: summary.unusedAttachments is subtracted by default
+ * (opts.includeUnused defaults to false).
+ */
 
 /**
  * Derive the relative output path from a DisplayRow's sourcePath.
@@ -87,10 +117,18 @@ export function buildExportPlan(
     if (!row.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
     // D-111: override-via-applyOverride or fall back to peakScale.
     const overridePct = overrides.get(row.attachmentName);
-    const effScale =
+    const rawEffScale =
       overridePct !== undefined
         ? applyOverride(overridePct).effectiveScale
         : row.peakScale;
+    // Gap-Fix #1 (2026-04-25): clamp to ≤ 1.0 BEFORE the dedup keep-max
+    // comparison so two attachments sharing one source PNG with peaks
+    // 0.8 and 5.0 both fold to 1.0 (the ceiling) rather than the dedup
+    // accidentally promoting one to the source ceiling and leaving the
+    // other reading the unclamped 5.0 value.
+    // User-locked Phase 6 export sizing memory: source dims are the
+    // ceiling, never extrapolate.
+    const effScale = Math.min(rawEffScale, 1);
     const prev = bySourcePath.get(row.sourcePath);
     if (prev === undefined) {
       bySourcePath.set(row.sourcePath, {
