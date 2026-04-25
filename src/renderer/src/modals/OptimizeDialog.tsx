@@ -1,0 +1,395 @@
+/**
+ * Phase 6 Plan 06 — Hand-rolled ARIA modal for Optimize Assets (F8.1 + F8.5).
+ *
+ * Three-state state machine (D-119 + D-120):
+ *   1. 'pre-flight' (initial on mount): scrollable file list preview +
+ *      Cancel/Start footer. excludedUnused count surfaced as a muted note
+ *      (D-109).
+ *   2. 'in-progress' (Start clicked): linear bar + scrollable per-file
+ *      checklist + Cancel footer. Subscribes to api.onExportProgress in
+ *      a useEffect; cleanup via the returned unsubscribe (Pitfall 9 +
+ *      Pitfall 15 leak prevention — the wrapped-const closure on the
+ *      preload side preserves listener identity end-to-end).
+ *   3. 'complete' (export resolved or cancelled): bar at 100% + summary
+ *      line + Open output folder / Close footer.
+ *
+ * ARIA scaffold cloned verbatim from OverrideDialog.tsx (Phase 4 D-81):
+ * role='dialog' + aria-modal='true' + aria-labelledby + outer overlay
+ * onClick=close + inner stopPropagation + onKeyDown for ESC.
+ *
+ * State-conditional close behavior: ESC + click-outside close in
+ * pre-flight or complete. During in-progress they are NO-OPS — user
+ * must explicitly Cancel. This prevents accidental dismissal mid-run
+ * (T-06-16 mitigation: renderer never silently goes deaf while main
+ * keeps writing files).
+ *
+ * Tailwind v4 literal-class discipline (Pitfall 8): every className is a
+ * string literal or clsx with literal branches. Status icons use clsx
+ * with the per-status class branches enumerated below.
+ *
+ * Layer 3 invariant: imports only from react + clsx + ../../../shared/types.js.
+ * NEVER from ../../core/* (tests/arch.spec.ts gate at lines 19-34).
+ */
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
+import clsx from 'clsx';
+import type {
+  ExportPlan,
+  ExportProgressEvent,
+  ExportResponse,
+  ExportSummary,
+} from '../../../shared/types.js';
+
+type DialogState = 'pre-flight' | 'in-progress' | 'complete';
+type RowStatus = 'idle' | 'in-progress' | 'success' | 'error';
+
+export interface OptimizeDialogProps {
+  open: boolean;
+  plan: ExportPlan;
+  outDir: string;
+  onClose: () => void;
+  onRunStart?: () => void;
+  onRunEnd?: () => void;
+}
+
+export function OptimizeDialog(props: OptimizeDialogProps) {
+  const [state, setState] = useState<DialogState>('pre-flight');
+  const [rowStatuses, setRowStatuses] = useState<Map<string, RowStatus>>(() => {
+    const m = new Map<string, RowStatus>();
+    for (const row of props.plan.rows) m.set(row.outPath, 'idle');
+    return m;
+  });
+  const [rowErrors, setRowErrors] = useState<Map<string, string>>(new Map());
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<{ current: number; lastPath: string }>({
+    current: 0,
+    lastPath: '',
+  });
+  const [summary, setSummary] = useState<ExportSummary | null>(null);
+
+  const startBtnRef = useRef<HTMLButtonElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Subscribe to progress events while in-progress. Cleanup unsubscribes
+  // exactly the listener registered (Pitfall 9 — the preload's wrapped-const
+  // closure preserves listener identity through window.api.onExportProgress).
+  useEffect(() => {
+    if (state !== 'in-progress') return;
+    const unsubscribe = window.api.onExportProgress((event: ExportProgressEvent) => {
+      setRowStatuses((prev) => {
+        const next = new Map(prev);
+        next.set(event.outPath, event.status);
+        return next;
+      });
+      setProgress({ current: event.index + 1, lastPath: event.path });
+      if (event.status === 'error' && event.error) {
+        const errMsg = event.error.message;
+        setRowErrors((prev) => {
+          const next = new Map(prev);
+          next.set(event.outPath, errMsg);
+          return next;
+        });
+      }
+    });
+    return unsubscribe;
+  }, [state]);
+
+  // Auto-focus the primary action of the current state — keyboard users get
+  // immediate Enter-to-act behavior without a manual click.
+  useEffect(() => {
+    if (!props.open) return;
+    if (state === 'pre-flight') startBtnRef.current?.focus();
+    if (state === 'in-progress') cancelBtnRef.current?.focus();
+    if (state === 'complete') closeBtnRef.current?.focus();
+  }, [props.open, state]);
+
+  const onStart = useCallback(async () => {
+    setState('in-progress');
+    props.onRunStart?.();
+    // All rows already initialized to 'idle' on mount; progress events flip
+    // them to 'in-progress' / 'success' / 'error' as they fire.
+    const response: ExportResponse = await window.api.startExport(
+      props.plan,
+      props.outDir,
+    );
+    if (response.ok) {
+      setSummary(response.summary);
+    } else {
+      // already-running / invalid-out-dir / Unknown — surface as a synthetic
+      // summary with one synthetic write-error so the complete state still
+      // renders cleanly + the error is visible to the user.
+      setSummary({
+        successes: 0,
+        errors: [
+          {
+            kind: 'write-error',
+            path: props.outDir,
+            message: response.error.message,
+          },
+        ],
+        outputDir: props.outDir,
+        durationMs: 0,
+        cancelled: false,
+      });
+    }
+    setState('complete');
+    props.onRunEnd?.();
+  }, [props]);
+
+  const onCancelInProgress = useCallback(() => {
+    window.api.cancelExport();
+    // Don't change state immediately — wait for startExport to resolve
+    // with summary.cancelled === true, then state flips to 'complete'.
+  }, []);
+
+  const onCloseSafely = useCallback(() => {
+    // ESC + click-outside guard (T-06-16): only allow close in pre-flight or
+    // complete. During in-progress they are NO-OPS — user must explicitly Cancel.
+    if (state === 'in-progress') return;
+    props.onClose();
+  }, [state, props]);
+
+  const onOpenOutputFolder = useCallback(() => {
+    window.api.openOutputFolder(props.outDir);
+  }, [props.outDir]);
+
+  const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') onCloseSafely();
+    if (e.key === 'Enter' && state === 'pre-flight') onStart();
+  };
+
+  if (!props.open) return null;
+
+  const total = props.plan.rows.length;
+  const headerTitle =
+    state === 'complete'
+      ? `Export complete — ${summary?.successes ?? 0} of ${total} succeeded`
+      : state === 'in-progress'
+        ? `Optimize Assets — ${progress.current} of ${total} → ${props.outDir}`
+        : `Optimize Assets — ${total} images → ${props.outDir}`;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="optimize-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onCloseSafely}
+    >
+      <div
+        className="bg-panel border border-border rounded-md p-6 min-w-[640px] max-w-[800px] max-h-[80vh] flex flex-col font-mono"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={keyDown}
+      >
+        <h2 id="optimize-title" className="text-sm text-fg mb-4">
+          {headerTitle}
+        </h2>
+
+        {state === 'pre-flight' && <PreFlightBody plan={props.plan} />}
+        {state !== 'pre-flight' && (
+          <InProgressBody
+            plan={props.plan}
+            rowStatuses={rowStatuses}
+            rowErrors={rowErrors}
+            expandedErrors={expandedErrors}
+            onToggleExpand={(outPath) => {
+              setExpandedErrors((prev) => {
+                const next = new Set(prev);
+                if (next.has(outPath)) next.delete(outPath);
+                else next.add(outPath);
+                return next;
+              });
+            }}
+            progressCurrent={progress.current}
+            total={total}
+            summary={summary}
+          />
+        )}
+
+        <div className="flex gap-2 mt-6 justify-end">
+          {state === 'pre-flight' && (
+            <>
+              <button
+                type="button"
+                onClick={props.onClose}
+                className="border border-border rounded-md px-3 py-1 text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                ref={startBtnRef}
+                type="button"
+                onClick={onStart}
+                disabled={total === 0}
+                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
+              >
+                Start
+              </button>
+            </>
+          )}
+          {state === 'in-progress' && (
+            <button
+              ref={cancelBtnRef}
+              type="button"
+              onClick={onCancelInProgress}
+              className="border border-border rounded-md px-3 py-1 text-xs"
+            >
+              Cancel
+            </button>
+          )}
+          {state === 'complete' && (
+            <>
+              <button
+                type="button"
+                onClick={onOpenOutputFolder}
+                className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
+              >
+                Open output folder
+              </button>
+              <button
+                ref={closeBtnRef}
+                type="button"
+                onClick={props.onClose}
+                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+              >
+                Close
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreFlightBody({ plan }: { plan: ExportPlan }) {
+  return (
+    <div className="flex-1 overflow-auto">
+      <ul className="text-xs text-fg-muted">
+        {plan.rows.map((row) => {
+          const ratio = row.outW > 0 ? row.sourceW / row.outW : 1;
+          return (
+            <li
+              key={row.outPath}
+              className="py-1 border-b border-border last:border-0"
+            >
+              <span className="text-fg">{row.outPath}</span>
+              <span className="ml-2">
+                {row.sourceW}×{row.sourceH} → {row.outW}×{row.outH}
+              </span>
+              {ratio > 1.05 && (
+                <span className="ml-2">~{ratio.toFixed(1)}x smaller</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {plan.excludedUnused.length > 0 && (
+        <p className="mt-3 text-xs text-fg-muted">
+          {plan.excludedUnused.length} unused attachments excluded — see Global panel.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function InProgressBody(props: {
+  plan: ExportPlan;
+  rowStatuses: ReadonlyMap<string, RowStatus>;
+  rowErrors: ReadonlyMap<string, string>;
+  expandedErrors: ReadonlySet<string>;
+  onToggleExpand: (outPath: string) => void;
+  progressCurrent: number;
+  total: number;
+  summary: ExportSummary | null;
+}) {
+  const pct =
+    props.total > 0
+      ? Math.min(100, Math.round((props.progressCurrent / props.total) * 100))
+      : 0;
+  return (
+    <>
+      <div className="mb-4">
+        <div className="h-2 bg-panel border border-border rounded-md overflow-hidden">
+          <div
+            className="h-full bg-accent"
+            style={{ width: `${pct}%` }}
+            aria-hidden
+          />
+        </div>
+      </div>
+      <ul className="flex-1 overflow-auto text-xs">
+        {props.plan.rows.map((row) => {
+          const status = (props.rowStatuses.get(row.outPath) ?? 'idle') as RowStatus;
+          const errMsg = props.rowErrors.get(row.outPath);
+          const expanded = props.expandedErrors.has(row.outPath);
+          return (
+            <li
+              key={row.outPath}
+              className="py-1 border-b border-border last:border-0"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  if (status === 'error' && errMsg) props.onToggleExpand(row.outPath);
+                }}
+                className="w-full text-left flex items-center gap-2"
+                disabled={status !== 'error'}
+              >
+                <span
+                  aria-hidden
+                  className={clsx(
+                    'inline-block w-3 text-center',
+                    status === 'success' && 'text-fg',
+                    status === 'error' && 'text-[color:var(--color-danger)]',
+                    status === 'in-progress' && 'text-fg-muted animate-pulse',
+                    status === 'idle' && 'text-fg-muted',
+                  )}
+                >
+                  {status === 'success'
+                    ? '✓'
+                    : status === 'error'
+                      ? '⚠'
+                      : status === 'in-progress'
+                        ? '·'
+                        : '○'}
+                </span>
+                <span
+                  className={clsx(
+                    'flex-1',
+                    status === 'error'
+                      ? 'text-[color:var(--color-danger)]'
+                      : 'text-fg',
+                  )}
+                >
+                  {row.outPath}
+                </span>
+                <span className="text-fg-muted">
+                  {row.sourceW}×{row.sourceH} → {row.outW}×{row.outH}
+                </span>
+              </button>
+              {expanded && errMsg && (
+                <p className="mt-1 ml-5 text-[color:var(--color-danger)]">
+                  {errMsg}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {props.summary !== null && (
+        <p className="mt-3 text-xs text-fg-muted">
+          {props.summary.successes} succeeded, {props.summary.errors.length} failed in{' '}
+          {(props.summary.durationMs / 1000).toFixed(1)}s
+          {props.summary.cancelled ? ' — cancelled' : ''}
+        </p>
+      )}
+    </>
+  );
+}
