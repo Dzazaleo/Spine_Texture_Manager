@@ -111,6 +111,32 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('Gap-Fix Round 2 Bug #5: AtlasNotFoundError message explains WHY the atlas is required (re-export hint)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-msg-'));
+    const jsonPath = path.join(tmpDir, 'rig.json');
+    fs.writeFileSync(jsonPath, '{}');
+    try {
+      let caught: unknown;
+      try {
+        loadSkeleton(jsonPath);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(AtlasNotFoundError);
+      const err = caught as AtlasNotFoundError;
+      // Locks the new explanatory text. We DO NOT assert byte-for-byte
+      // (a future copywriting tweak shouldn't fail this test) — we lock
+      // the substantive cues a user needs to act on.
+      expect(err.message).toMatch(/Spine projects require an \.atlas file/);
+      expect(err.message).toMatch(/Re-export from the Spine editor/);
+      // Path context still present (unchanged by the message expansion).
+      expect(err.message).toContain(jsonPath);
+      expect(err.message).toContain('.atlas');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('loader: sourcePaths map (Phase 6 Plan 02, F8.3, D-108)', () => {
