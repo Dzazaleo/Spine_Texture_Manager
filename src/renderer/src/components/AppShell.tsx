@@ -36,11 +36,14 @@ import type {
   SkeletonSummary,
   DisplayRow,
   BreakdownRow,
+  ExportPlan,
 } from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { OverrideDialog } from '../modals/OverrideDialog';
+import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { clampOverride } from '../lib/overrides-view.js';
+import { buildExportPlan } from '../lib/export-view.js';
 
 type ActiveTab = 'global' | 'animation';
 
@@ -63,6 +66,16 @@ export function AppShell({ summary }: AppShellProps) {
     currentPercent: number;
     anyOverridden: boolean;
   } | null>(null);
+
+  // Phase 6 Plan 06 — export dialog state. Held independently of
+  // OverrideDialog's dialogState so the two modal lifecycles are
+  // unambiguous. exportInFlight gates the toolbar button per D-117 +
+  // T-06-18 mitigation (rapid double-click is a no-op until onRunEnd).
+  const [exportDialogState, setExportDialogState] = useState<{
+    plan: ExportPlan;
+    outDir: string;
+  } | null>(null);
+  const [exportInFlight, setExportInFlight] = useState(false);
 
   const onJumpToAnimation = useCallback((name: string) => {
     setActiveTab('animation');
@@ -127,6 +140,24 @@ export function AppShell({ summary }: AppShellProps) {
     setDialogState(null);
   }, []);
 
+  // Phase 6 Plan 06 — D-117 + D-118 + D-122 toolbar click flow.
+  //   1. Pre-fill the picker with <skeletonDir>/images-optimized/ (D-122).
+  //      Strip the trailing JSON filename via a platform-agnostic regex
+  //      so both / and \ separators work.
+  //   2. If user cancels picker (returns null), abort.
+  //   3. Build plan client-side via the renderer-side inline copy of
+  //      buildExportPlan (Phase 4 D-75 Layer 3 inline-copy precedent —
+  //      renderer NEVER imports from src/core/* per arch.spec.ts gate).
+  //   4. Mount OptimizeDialog with the plan + outDir.
+  const onClickOptimize = useCallback(async () => {
+    const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '');
+    const defaultOutDir = skeletonDir + '/images-optimized';
+    const outDir = await window.api.pickOutputDirectory(defaultOutDir);
+    if (outDir === null) return; // user cancelled picker
+    const plan = buildExportPlan(summary, overrides);
+    setExportDialogState({ plan, outDir });
+  }, [summary, overrides]);
+
   return (
     <div className="w-full h-full flex flex-col">
       <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
@@ -149,6 +180,21 @@ export function AppShell({ summary }: AppShellProps) {
             Animation Breakdown
           </TabButton>
         </nav>
+        {/* Phase 6 Plan 06 D-117: persistent toolbar button right-aligned
+            via ml-auto. Disabled when no peaks (Pitfall 11 empty-rig) or
+            while an export is in flight (T-06-18 — second click is a no-op
+            until the dialog's onRunEnd fires). Reuses warm-stone tokens
+            from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
+        <div className="ml-auto">
+          <button
+            type="button"
+            onClick={onClickOptimize}
+            disabled={summary.peaks.length === 0 || exportInFlight}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
+          >
+            Optimize Assets
+          </button>
+        </div>
       </header>
       <main className="flex-1 overflow-auto">
         {activeTab === 'global' && (
@@ -178,6 +224,20 @@ export function AppShell({ summary }: AppShellProps) {
           onApply={(percent) => onApplyOverride(dialogState.scope, percent)}
           onClear={() => onClearOverride(dialogState.scope)}
           onCancel={() => setDialogState(null)}
+        />
+      )}
+      {/* Phase 6 Plan 06 — OptimizeDialog mount lives ALONGSIDE the
+          OverrideDialog mount; the two modal lifecycles are independent.
+          onRunStart/onRunEnd toggle exportInFlight so the toolbar button
+          greys out for the duration of the export (D-117 + T-06-18). */}
+      {exportDialogState !== null && (
+        <OptimizeDialog
+          open={true}
+          plan={exportDialogState.plan}
+          outDir={exportDialogState.outDir}
+          onClose={() => setExportDialogState(null)}
+          onRunStart={() => setExportInFlight(true)}
+          onRunEnd={() => setExportInFlight(false)}
         />
       )}
     </div>
