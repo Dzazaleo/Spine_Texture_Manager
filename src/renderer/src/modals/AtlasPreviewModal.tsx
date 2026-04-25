@@ -490,15 +490,22 @@ function AtlasCanvas({
   if (!page) return <div className="text-fg-muted text-xs">No projection.</div>;
 
   // D-139 (Plan 06 amendment): canvas display-size auto-fits modal content area
-  // while preserving 1:1 aspect ratio for square pages. Backing-store stays at
-  // page.width × dpr × page.height × dpr (set in the useEffect above) for
-  // drawImage fidelity. Wrapper uses Tailwind v4 literal-class discipline
-  // (RESEARCH §Pitfall 3) — `aspect-[1/1]` is a literal arbitrary-value class.
+  // while preserving the page's actual aspect ratio. The packer's tight-fit
+  // (D-132 pot:false, square:false) produces non-square bins when overrides
+  // change region dims; locking aspect to 1:1 would re-stretch regions into
+  // ovals (Gate 8 regression). Backing-store stays at page.width × dpr ×
+  // page.height × dpr (set in the useEffect above) for drawImage fidelity.
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div
-        className="aspect-[1/1] w-full max-w-full max-h-full"
-        style={{ maxWidth: `${page.width}px`, maxHeight: `${page.height}px` }}
+        className="max-w-full max-h-full"
+        style={{
+          aspectRatio: `${page.width} / ${Math.max(1, page.height)}`,
+          maxWidth: `${page.width}px`,
+          maxHeight: `${page.height}px`,
+          width: '100%',
+          height: '100%',
+        }}
       >
         <canvas
           ref={canvasRef}
