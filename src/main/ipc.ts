@@ -211,10 +211,18 @@ export async function handleProbeExportConflicts(
   // would collide; not a useful prompt — keep the friendlier message.
   // Mirrors the same check in handleStartExport (locked at both layers
   // so the renderer never has to special-case the response shape).
+  //
+  // Phase 6 REVIEW M-01 (2026-04-25) — use `lastIndexOf('/images/')` so
+  // the derivation matches relativeOutPath in src/core/export.ts:117 and
+  // src/renderer/src/lib/export-view.ts:98. The inner `/images/` is the
+  // export folder; any earlier `/images/` (e.g. user's working layout
+  // `~/work/images/joker_project/images/CIRCLE.png`) is part of the
+  // user's directory hierarchy and must not be treated as the
+  // source-images dir.
   if (validPlan.rows.length > 0) {
     const firstSrc = validPlan.rows[0].sourcePath;
     const normalised = firstSrc.replace(/\\/g, '/');
-    const idx = normalised.indexOf('/images/');
+    const idx = normalised.lastIndexOf('/images/');
     if (idx >= 0) {
       const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
       if (path.resolve(outDir) === path.resolve(sourceImagesDir)) {
@@ -368,14 +376,26 @@ export async function handleStartExport(
   //
   // Source images dir is derived from row[0].sourcePath via the
   // loader convention `<skeletonDir>/images/<regionName>.png`. For nested
-  // regions (e.g. 'AVATAR/FACE'), use the FIRST '/images/' segment so
-  // nested subfolders don't fool the prefix check.
+  // regions (e.g. 'AVATAR/FACE'), use the LAST '/images/' segment so the
+  // inner export folder is identified — `lastIndexOf` matches the parsing
+  // in relativeOutPath (src/core/export.ts:117 +
+  // src/renderer/src/lib/export-view.ts:98), so a user layout like
+  // `~/work/images/joker_project/images/CIRCLE.png` correctly resolves
+  // sourceImagesDir to `~/work/images/joker_project/images` rather than
+  // `~/work/images`.
+  //
+  // Phase 6 REVIEW M-01 (2026-04-25) — switched indexOf → lastIndexOf
+  // for parity with the relativeOutPath parsers in core/export.ts and
+  // export-view.ts. The Round 4 F_OK probe still catches the actual
+  // collision case as defense-in-depth, but the friendlier
+  // 'invalid-out-dir' message is now correct for the parent-of-images
+  // working-layout edge case.
   //
   // Empty plans skip this check (no source path to derive from).
   if (validPlan.rows.length > 0) {
     const firstSrc = validPlan.rows[0].sourcePath;
     const normalised = firstSrc.replace(/\\/g, '/');
-    const idx = normalised.indexOf('/images/');
+    const idx = normalised.lastIndexOf('/images/');
     if (idx >= 0) {
       const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
       if (path.resolve(outDir) === path.resolve(sourceImagesDir)) {

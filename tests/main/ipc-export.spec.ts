@@ -747,6 +747,82 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     }
   });
 
+  /**
+   * Phase 6 REVIEW M-01 (2026-04-25) regression-lock — `lastIndexOf('/images/')`
+   * parity with src/core/export.ts:117 + src/renderer/src/lib/export-view.ts:98.
+   *
+   * User-confirmed edge: skeleton lives under a directory itself named
+   * `images`, e.g. `~/work/images/joker_project/skel.json`. The loader
+   * builds sourcePath as `~/work/images/joker_project/images/CIRCLE.png`.
+   *
+   * Pre-fix (`indexOf`) wrongly derived sourceImagesDir as `~/work/images`
+   * — so picking `~/work/images/joker_project/images` as outDir (the
+   * actual source-images folder) DID NOT trigger the invalid-out-dir
+   * hard-reject (the comparison `~/work/images/joker_project/images` !=
+   * `~/work/images` passed). Worse, picking `~/work/images` itself
+   * false-positived as "outDir IS source-images-dir".
+   *
+   * Post-fix (`lastIndexOf`) the derivation lands on the inner `/images/`
+   * — the actual source-images folder — and the hard-reject fires when
+   * the user genuinely points outDir at it.
+   */
+  it('M-01: lastIndexOf parity — parent dir named "images" no longer false-positives the hard-reject', async () => {
+    const plan: ExportPlan = {
+      rows: [
+        {
+          // Parent layout: /Users/me/work/images/proj/images/CIRCLE.png.
+          // The OUTER /images/ is part of the user's working layout; the
+          // INNER /images/ is the source-images folder we care about.
+          sourcePath: '/Users/me/work/images/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      totals: { count: 1 },
+    };
+
+    // Picking the OUTER /Users/me/work/images as outDir must NOT trigger
+    // the invalid-out-dir hard-reject — that folder is NOT the
+    // source-images dir under the lastIndexOf parsing. (Existence probe
+    // mocked to ENOENT by default, so the export proceeds.)
+    const outerResult = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/Users/me/work/images',
+    );
+    expect(outerResult.ok).toBe(true);
+
+    // Picking the INNER /Users/me/work/images/proj/images as outDir IS
+    // the genuine source-images folder — the hard-reject MUST fire.
+    const innerResult = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      plan,
+      '/Users/me/work/images/proj/images',
+    );
+    expect(innerResult.ok).toBe(false);
+    if (!innerResult.ok) {
+      expect(innerResult.error.kind).toBe('invalid-out-dir');
+    }
+
+    // Same parity check via handleProbeExportConflicts — both call sites
+    // were patched together in M-01 to keep the probe + start branches
+    // consistent.
+    const probeOuter = await handleProbeExportConflicts(plan, '/Users/me/work/images');
+    expect(probeOuter.ok).toBe(true);
+
+    const probeInner = await handleProbeExportConflicts(plan, '/Users/me/work/images/proj/images');
+    expect(probeInner.ok).toBe(false);
+    if (!probeInner.ok) {
+      expect(probeInner.error.kind).toBe('invalid-out-dir');
+    }
+  });
+
   it('Round 4: conflicts are F_OK-gated, not string-match (parent-of-images outDir is OK when images/ subfolder is empty)', async () => {
     // Regression-lock for the Girl atlas-only project bug: even when
     // row.sourcePath strings match resolved outputs verbatim, no actual
