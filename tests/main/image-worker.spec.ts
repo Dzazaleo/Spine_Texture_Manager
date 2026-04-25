@@ -20,14 +20,17 @@
  *   (f) re-entrant prevention is at IPC layer (Plan 05); runExport itself
  *       has no re-entrancy guard. [D-115]
  *
- * Wave 0 status: RED — runExport does not yet exist (Plan 06-04). Mocks
- * are pre-wired so the spec compiles once the export module exists.
+ * Wave 3 status: GREEN — runExport landed in Plan 06-04 Task 1; this file
+ * (Plan 06-01 RED shell + Plan 06-04 Task 2 mock-restoration helper) drives
+ * cases (a)-(f) to passing. Real-bytes integration sanity check lives next
+ * door at tests/main/image-worker.integration.spec.ts (no mocks; exercises
+ * sharp + node:fs/promises against fixtures/EXPORT_PROJECT/images/CIRCLE.png).
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-// RED import — Plan 06-04 introduces runExport in src/main/image-worker.ts.
+// GREEN since Plan 06-04 Task 1 — runExport lives in src/main/image-worker.ts.
 import { runExport } from '../../src/main/image-worker.js';
 import type { ExportPlan, ExportProgressEvent } from '../../src/shared/types.js';
 
@@ -63,10 +66,42 @@ function buildPlan(rows: number): ExportPlan {
   };
 }
 
+/**
+ * Restore default success impls on every mock. vi.clearAllMocks() only clears
+ * call history — it does NOT reset .mockImplementation() / .mockResolvedValue()
+ * established by prior tests. Without this, case (b)'s access-throws-on-img1
+ * impl leaks into case (c), and case (c)'s sharp-throws-on-call-3 impl leaks
+ * into cases (d)+(e). This helper re-establishes the all-success baseline so
+ * each case starts from a known clean state — then the case sets its own
+ * targeted impl on top.
+ *
+ * Plan 06-04 Task 2 [Rule 3 - Blocking] — added because the Plan 06-01 RED
+ * shell relied on vi.clearAllMocks alone, which is insufficient for the
+ * cross-test impl pollution the cases (b)/(c) targeted-throws strategy
+ * inherently creates.
+ */
+async function restoreDefaultMocks(): Promise<void> {
+  const fsPromises = await import('node:fs/promises');
+  vi.mocked(fsPromises.access).mockReset().mockResolvedValue(undefined);
+  vi.mocked(fsPromises.mkdir).mockReset().mockResolvedValue(undefined);
+  vi.mocked(fsPromises.rename).mockReset().mockResolvedValue(undefined);
+  const sharpModule = await import('sharp');
+  vi.mocked(sharpModule.default).mockReset().mockImplementation(
+    () => ({
+      resize: vi.fn(() => ({
+        png: vi.fn(() => ({
+          toFile: vi.fn().mockResolvedValue({ size: 100 }),
+        })),
+      })),
+    }) as unknown as ReturnType<typeof sharpModule.default>,
+  );
+}
+
 let tmpDir: string;
-beforeEach(() => {
+beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-export-'));
   vi.clearAllMocks();
+  await restoreDefaultMocks();
 });
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
