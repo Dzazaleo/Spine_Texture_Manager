@@ -9,7 +9,7 @@
  * modules whose new behavior has not been wired yet.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppShell } from '../../src/renderer/src/components/AppShell';
 import { App } from '../../src/renderer/src/App';
@@ -131,39 +131,44 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // First drop: SIMPLE_TEST.json (clean → loaded).
     const f1 = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
     fireEvent.drop(dropTarget, { dataTransfer: { files: [f1] } as unknown as DataTransfer });
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
 
+    // Phase 8.1 Plan 05 — Rule 3 fix (precedent set by Plan 08.1-04): React 19's
+    // update scheduler uses MessageChannel/setTimeout for state-update flushing
+    // (not microtasks), so naked `await Promise.resolve()` ticks never observe
+    // post-setState DOM. `findByText` polls testing-library's built-in waitFor
+    // (default 1000ms / 50ms) — canonical pattern for async-DOM under React 19.
+    // Also: makeSummary() peaks include CIRCLE + SQUARE only (no TRIANGLE), so
+    // the dirty-mutation fixture targets CIRCLE — an attachment that ACTUALLY
+    // renders in GlobalMaxRenderPanel after the first drop. Pre-fix this spec
+    // searched for TRIANGLE (silent .catch → empty array → dirty mutation
+    // skipped → isDirty stays false → dialog never mounts).
     // Mark the session dirty by applying an override via the GlobalMaxRender
     // panel double-click → OverrideDialog → Apply path. The override Map
-    // gains TRIANGLE → AppShell's isDirty memo flips true.
-    const dirtyTriangleCell = await screen.findAllByText(/TRIANGLE/i).catch(() => []);
-    if (dirtyTriangleCell.length > 0) {
-      fireEvent.doubleClick(dirtyTriangleCell[0]);
-      await Promise.resolve();
-      const input = screen.queryByRole('spinbutton') ?? screen.queryByRole('textbox');
-      if (input) {
-        fireEvent.change(input, { target: { value: '50' } });
-        const apply = screen.queryByRole('button', { name: /Apply/i });
-        if (apply) {
-          await userEvent.click(apply);
-          await Promise.resolve();
-        }
-      }
-    }
+    // gains CIRCLE → AppShell's isDirty memo flips true.
+    // Note: onDoubleClick lives on the Scale <td> (e.g. "0.500×"), NOT the
+    // attachmentName <td> — so we target the row containing CIRCLE and
+    // find the Scale cell within it.
+    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleRow = circleNameCell.closest('tr')!;
+    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    fireEvent.doubleClick(scaleCell);
+    const input = await screen.findByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '50' } });
+    const apply = await screen.findByRole('button', { name: /^Apply$/i });
+    await userEvent.click(apply);
 
     // Second drop: a different .json (the dirty-guard should fire).
     const f2 = new File(['{}'], 'OTHER.json', { type: 'application/json' });
     fireEvent.drop(dropTarget, { dataTransfer: { files: [f2] } as unknown as DataTransfer });
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
 
     // SaveQuitDialog must be mounted with the new-skeleton-drop body copy.
-    const dialogTitle = screen.queryByText(/Save changes before loading a new skeleton/i);
+    // findByText waits for the async-driven mount under React 19.
+    const dialogTitle = await screen.findByText(/Save changes before loading a new skeleton/i);
     expect(dialogTitle, 'SaveQuitDialog with new-skeleton-drop title must mount').toBeTruthy();
 
     // Cancel — second drop is aborted.
     const cancelBtn = screen.getByRole('button', { name: /^Cancel$/i });
     await userEvent.click(cancelBtn);
-    await Promise.resolve();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadCalls = (globalThis as any).api.loadSkeletonFromFile.mock.calls;
@@ -179,38 +184,32 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // First drop: load a skeleton .json so AppShell mounts.
     const f1 = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
     fireEvent.drop(dropTarget, { dataTransfer: { files: [f1] } as unknown as DataTransfer });
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
 
-    // Mark the session dirty (same approach as VR-03a).
-    const dirtyTriangleCell = await screen.findAllByText(/TRIANGLE/i).catch(() => []);
-    if (dirtyTriangleCell.length > 0) {
-      fireEvent.doubleClick(dirtyTriangleCell[0]);
-      await Promise.resolve();
-      const input = screen.queryByRole('spinbutton') ?? screen.queryByRole('textbox');
-      if (input) {
-        fireEvent.change(input, { target: { value: '50' } });
-        const apply = screen.queryByRole('button', { name: /Apply/i });
-        if (apply) {
-          await userEvent.click(apply);
-          await Promise.resolve();
-        }
-      }
-    }
+    // Phase 8.1 Plan 05 — Rule 3 fix (see VR-03a above for full rationale).
+    // findByText replaces microtask-await + queryByText (React 19 concurrent
+    // rendering); CIRCLE replaces TRIANGLE (CIRCLE is in makeSummary()).
+    // onDoubleClick lives on the Scale <td>, so we find the row containing
+    // CIRCLE then target the Scale cell within it (peakScale 0.5 → "0.500×").
+    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleRow = circleNameCell.closest('tr')!;
+    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    fireEvent.doubleClick(scaleCell);
+    const input = await screen.findByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '50' } });
+    const apply = await screen.findByRole('button', { name: /^Apply$/i });
+    await userEvent.click(apply);
 
     // Second drop: a .stmproj.
     const f2 = new File(['{}'], 'OTHER.stmproj', { type: 'application/json' });
     fireEvent.drop(dropTarget, { dataTransfer: { files: [f2] } as unknown as DataTransfer });
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
 
     // SaveQuitDialog with new-project-drop title.
-    const dialogTitle = screen.queryByText(/Save changes before opening this project/i);
+    const dialogTitle = await screen.findByText(/Save changes before opening this project/i);
     expect(dialogTitle, 'SaveQuitDialog with new-project-drop title must mount').toBeTruthy();
 
     // Don't Save — second drop proceeds.
     const dontSaveBtn = screen.getByRole('button', { name: /Don.t Save/i });
     await userEvent.click(dontSaveBtn);
-    await Promise.resolve();
-    await Promise.resolve();
 
     // openProjectFromFile must have been called for OTHER.stmproj.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

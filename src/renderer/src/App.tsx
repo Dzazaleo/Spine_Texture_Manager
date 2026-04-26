@@ -18,7 +18,7 @@
  * In production builds (app.isPackaged), consider reducing console verbosity
  * — Phase 9 concern per RESEARCH Security Domain line 1065.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { AppShell } from './components/AppShell';
 import type {
@@ -166,6 +166,27 @@ export function App() {
     setState({ status: 'idle' });
   }, []);
 
+  /**
+   * Phase 8.1 D-163 — callback-ref bridge for the dirty-guard.
+   *
+   * AppShell registers its impl into beforeDropRef.current via a useEffect
+   * (AppShell.tsx Plan 08.1-05 Task 1). The handleBeforeDrop wrapper passed to
+   * DropZone is stable (useCallback with empty deps); it dereferences the ref
+   * at call time so it always sees the latest registered impl. When AppShell
+   * is unmounted (state.status !== 'loaded' / 'projectLoaded'), the ref is
+   * null and handleBeforeDrop returns true (no guard — the drop proceeds).
+   */
+  const beforeDropRef = useRef<
+    ((fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>) | null
+  >(null);
+
+  const handleBeforeDrop = useCallback(
+    async (fileName: string, kind: 'json' | 'stmproj'): Promise<boolean> => {
+      return beforeDropRef.current?.(fileName, kind) ?? true;
+    },
+    [],
+  );
+
   // D-17: echo summary to console on successful load (ROADMAP exit criterion).
   // Phase 8: extended to fire on `projectLoaded` too — same console contract.
   useEffect(() => {
@@ -181,6 +202,7 @@ export function App() {
       onLoadStart={handleLoadStart}
       onProjectDrop={handleProjectLoad}
       onProjectDropStart={handleLoadStart}
+      onBeforeDrop={handleBeforeDrop}
     >
       {state.status === 'idle' && (
         <p className="text-fg-muted font-mono text-sm">
@@ -195,17 +217,25 @@ export function App() {
       {state.status === 'loaded' && (
         // Phase 8 Plan 04 Task 4: thread samplingHz=120 constant. Phase 9
         // replaces this with a value read from settings state.
-        <AppShell summary={state.summary} samplingHz={120} />
+        // Phase 8.1 D-163: pass beforeDropRef so AppShell can register its
+        // dirty-guard impl for the new-skeleton/new-project drop guard.
+        <AppShell
+          summary={state.summary}
+          samplingHz={120}
+          onBeforeDropRef={beforeDropRef}
+        />
       )}
       {state.status === 'projectLoaded' && (
         // Phase 8 Plan 04 Task 4: .stmproj drop / open path. Pass the
         // materialized project as initialProject so AppShell seeds
         // restored overrides + lastSaved + stale-override banner from
         // the saved file. samplingHz comes from the project (D-146).
+        // Phase 8.1 D-163: pass beforeDropRef (same as 'loaded' branch).
         <AppShell
           summary={state.summary}
           samplingHz={state.project.samplingHz}
           initialProject={state.project}
+          onBeforeDropRef={beforeDropRef}
         />
       )}
       {state.status === 'projectLoadFailed' && (
