@@ -30,13 +30,16 @@
  * pure-TS math tree — the latter would trip the arch.spec.ts gate at
  * lines 19-34.
  */
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import type {
   SkeletonSummary,
   DisplayRow,
   BreakdownRow,
   ExportPlan,
+  AppSessionState,
+  MaterializedProject,
+  SaveResponse,
 } from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
@@ -44,6 +47,7 @@ import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
+import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -51,9 +55,25 @@ type ActiveTab = 'global' | 'animation';
 
 export interface AppShellProps {
   summary: SkeletonSummary;
+  /**
+   * Phase 8 D-146 — sampling rate threaded from App.tsx. No Settings UI yet
+   * (Phase 9); App.tsx passes a constant 120. Optional with default 120 to
+   * keep existing call sites working during the App.tsx ripple in Task 4.
+   */
+  samplingHz?: number;
+  /**
+   * Phase 8 — present when AppShell is mounted with a project file already
+   * loaded (i.e. App.tsx routed a `.stmproj` open through
+   * `window.api.openProjectFromPath`). AppShell uses these values to seed
+   * currentProjectPath, lastSaved, the restored overrides Map (with stale-key
+   * drop already applied main-side per D-150), and the stale-override banner.
+   * When undefined, AppShell mounts as a fresh untitled session (the existing
+   * post-skeleton-drop flow).
+   */
+  initialProject?: MaterializedProject;
 }
 
-export function AppShell({ summary }: AppShellProps) {
+export function AppShell({ summary, samplingHz = 120, initialProject }: AppShellProps) {
   // D-50: plain useState; default 'global' on every mount (i.e. every new drop).
   const [activeTab, setActiveTab] = useState<ActiveTab>('global');
   // D-52: jump-target; null means no pending focus.
@@ -68,7 +88,70 @@ export function AppShell({ summary }: AppShellProps) {
   const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
-  const [overrides, setOverrides] = useState<Map<string, number>>(new Map());
+  // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
+  // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
+  // the IPC seam). Stale keys are already dropped main-side per D-150.
+  const [overrides, setOverrides] = useState<Map<string, number>>(
+    () => new Map(initialProject ? Object.entries(initialProject.restoredOverrides) : []),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 8 — Save/Load state (D-140..D-156). Plain useState, no Context
+  // (matches D-74 / D-77).
+  // ---------------------------------------------------------------------------
+
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(
+    initialProject?.projectFilePath ?? null,
+  );
+
+  /**
+   * Snapshot of the persisted state at the most recent successful Save (or Open).
+   * Null on a fresh untitled session. Phase 8 v1: tracks (overrides, samplingHz)
+   * for the dirty signal; sortColumn/sortDir/lastOutDir are PERSISTED on Save
+   * but do NOT participate in the dirty derivation (deferred to Phase 9 polish
+   * — see truths block in plan frontmatter).
+   */
+  const [lastSaved, setLastSaved] = useState<{
+    overrides: Record<string, number>;
+    samplingHz: number;
+  } | null>(
+    initialProject
+      ? {
+          overrides: { ...initialProject.restoredOverrides },
+          samplingHz: initialProject.samplingHz,
+        }
+      : null,
+  );
+
+  const [saveQuitDialogState, setSaveQuitDialogState] = useState<{
+    reason: SaveQuitDialogProps['reason'];
+    pendingAction: () => void;
+  } | null>(null);
+
+  const [saveInFlight, setSaveInFlight] = useState(false);
+
+  const [staleOverrideNotice, setStaleOverrideNotice] = useState<string[] | null>(
+    initialProject && initialProject.staleOverrideKeys.length > 0
+      ? initialProject.staleOverrideKeys
+      : null,
+  );
+
+  /**
+   * D-149 inline error state. Set when a load attempt returns
+   * SkeletonNotFoundOnLoadError; cleared after the locate-skeleton + reload
+   * chain succeeds OR the user cancels. Cached fields needed for the reload
+   * IPC are stashed alongside the error.
+   */
+  const [skeletonNotFoundError, setSkeletonNotFoundError] = useState<{
+    message: string;
+    originalSkeletonPath: string;
+    projectPath: string;
+    mergedOverrides: Record<string, number>;
+    cachedSamplingHz: number;
+    cachedLastOutDir: string | null;
+    cachedSortColumn: string | null;
+    cachedSortDir: 'asc' | 'desc' | null;
+  } | null>(null);
 
   // D-77 dialog lifecycle — null means dialog closed.
   const [dialogState, setDialogState] = useState<{
@@ -329,6 +412,230 @@ export function AppShell({ summary }: AppShellProps) {
   // (ConflictDialog Cancel routes through onConflictCancel which is more
   // specific — it must resolve the pending promise too).
   void closeBothDialogs;
+
+  // ---------------------------------------------------------------------------
+  // Phase 8 — Save/Load wiring (D-140..D-156). buildSessionState helper +
+  // dirty derivation + click handlers + keyboard listener + before-quit
+  // subscription. Layer 3 invariant: nothing here imports from src/core/*;
+  // every IPC hop goes through window.api.* — preload owns the boundary.
+  // ---------------------------------------------------------------------------
+
+  const buildSessionState = useCallback(
+    (): AppSessionState => ({
+      skeletonPath: summary.skeletonPath,
+      atlasPath: summary.atlasPath ?? null,
+      imagesDir: null,
+      overrides: Object.fromEntries(overrides),
+      samplingHz,
+      // Phase 9 polish — currently null; D-145 schema field present but
+      // not yet hoisted into AppShell state. Documented deferral per D-147.
+      lastOutDir: null,
+      // D-91 default; Phase 9 hoists actual panel sort state.
+      sortColumn: 'attachmentName',
+      sortDir: 'asc',
+    }),
+    [summary.skeletonPath, summary.atlasPath, overrides, samplingHz],
+  );
+
+  /**
+   * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.
+   * lastOutDir/sortColumn/sortDir are persisted on Save but excluded from the
+   * dirty signal until Phase 9 hoists them to AppShell state. Documented
+   * deferral — non-trivial refactor out of Phase 8 scope.
+   *
+   * Untitled session (lastSaved === null): dirty when overrides has any entries.
+   * Loaded session: dirty when overrides Map differs from lastSaved.overrides
+   * Record OR samplingHz differs.
+   */
+  const isDirty = useMemo(() => {
+    if (lastSaved === null) {
+      return overrides.size > 0;
+    }
+    if (overrides.size !== Object.keys(lastSaved.overrides).length) return true;
+    for (const [k, v] of overrides) {
+      if (lastSaved.overrides[k] !== v) return true;
+    }
+    if (samplingHz !== lastSaved.samplingHz) return true;
+    return false;
+  }, [overrides, lastSaved, samplingHz]);
+
+  /**
+   * onClickSave — Save when currentProjectPath is set; Save As otherwise.
+   * Awaitable so the SaveQuitDialog 'quit' flow can chain pendingAction
+   * after a successful save.
+   */
+  const onClickSave = useCallback(async (): Promise<SaveResponse> => {
+    setSaveInFlight(true);
+    try {
+      const state = buildSessionState();
+      let resp: SaveResponse;
+      if (currentProjectPath !== null) {
+        resp = await window.api.saveProject(state, currentProjectPath);
+      } else {
+        const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+        const basename =
+          summary.skeletonPath.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? 'Untitled';
+        resp = await window.api.saveProjectAs(state, skeletonDir, basename);
+        if (resp.ok) setCurrentProjectPath(resp.path);
+      }
+      if (resp.ok) {
+        setLastSaved({
+          overrides: { ...state.overrides },
+          samplingHz: state.samplingHz ?? 120,
+        });
+        // Auto-clear stale-override notice on successful save (CONTEXT discretion).
+        setStaleOverrideNotice(null);
+      }
+      return resp;
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [buildSessionState, currentProjectPath, summary.skeletonPath]);
+
+  /**
+   * mountOpenResponse — apply a MaterializedProject to AppShell's state
+   * machine. Used by both onClickOpen (Cmd+O / Open button) and
+   * onClickLocateSkeleton (D-149 recovery). Does NOT remount AppShell —
+   * Open is fully self-contained at this level.
+   *
+   * Trade-off: Cmd+O works for the SAME-skeleton case (most common).
+   * Cross-skeleton Open requires drag-dropping the .stmproj so App.tsx's
+   * state machine can transition (re-mounts AppShell with new summary).
+   */
+  const mountOpenResponse = useCallback((project: MaterializedProject) => {
+    setCurrentProjectPath(project.projectFilePath);
+    setOverrides(new Map(Object.entries(project.restoredOverrides)));
+    setLastSaved({
+      overrides: { ...project.restoredOverrides },
+      samplingHz: project.samplingHz,
+    });
+    setStaleOverrideNotice(
+      project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
+    );
+    setSkeletonNotFoundError(null);
+  }, []);
+
+  const onClickOpen = useCallback(async () => {
+    const resp = await window.api.openProject();
+    if (!resp.ok) {
+      if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {
+        // The picker variant invokes main's handler which reads + parses the
+        // file before failing — for SkeletonNotFoundOnLoadError to surface
+        // useful info, main would need to thread the original skeletonPath
+        // into the SerializableError.message. For Phase 8 v1 we surface the
+        // error generically; the App.tsx path-based dispatch (Task 4) is
+        // the recommended entry point because it has access to the
+        // projectPath at error time. AppShell's Open button is best-effort.
+        setSkeletonNotFoundError({
+          message: resp.error.message,
+          originalSkeletonPath: '',
+          projectPath: '',
+          mergedOverrides: {},
+          cachedSamplingHz: 120,
+          cachedLastOutDir: null,
+          cachedSortColumn: null,
+          cachedSortDir: null,
+        });
+        return;
+      }
+      // Other errors: surface via existing error UI. The inline banner pattern
+      // is the standard.
+      return;
+    }
+    mountOpenResponse(resp.project);
+  }, [mountOpenResponse]);
+
+  /**
+   * D-149 recovery flow (Approach A). Triggered by the inline error
+   * banner's "Locate skeleton…" button. Steps:
+   *   1. Open the file picker via window.api.locateSkeleton(originalPath).
+   *   2. If user picks a file, call window.api.reloadProjectWithSkeleton
+   *      with the new path + cached overrides/settings from the failed Open.
+   *   3. On success, mount the result via mountOpenResponse — same code
+   *      path used for onClickOpen success. Clears skeletonNotFoundError.
+   *
+   * NO App.tsx callback. AppShell is self-contained for the recovery flow.
+   */
+  const onClickLocateSkeleton = useCallback(async () => {
+    if (skeletonNotFoundError === null) return;
+    const located = await window.api.locateSkeleton(skeletonNotFoundError.originalSkeletonPath);
+    if (!located.ok) return; // user cancelled picker
+    const resp = await window.api.reloadProjectWithSkeleton({
+      projectPath: skeletonNotFoundError.projectPath,
+      newSkeletonPath: located.newPath,
+      mergedOverrides: skeletonNotFoundError.mergedOverrides,
+      samplingHz: skeletonNotFoundError.cachedSamplingHz,
+      lastOutDir: skeletonNotFoundError.cachedLastOutDir,
+      sortColumn: skeletonNotFoundError.cachedSortColumn,
+      sortDir: skeletonNotFoundError.cachedSortDir,
+    });
+    if (!resp.ok) {
+      // Located file ALSO fails to load (rare). Update banner message but
+      // keep the recovery affordance.
+      setSkeletonNotFoundError({
+        ...skeletonNotFoundError,
+        message: resp.error.message,
+      });
+      return;
+    }
+    mountOpenResponse(resp.project);
+  }, [skeletonNotFoundError, mountOpenResponse]);
+
+  /**
+   * Cmd/Ctrl+S+O keyboard listener with modal-suppression (Pattern 4 +
+   * Pitfall 6). Suppresses when ANY role="dialog" is in the document —
+   * every project modal uses role="dialog" so the heuristic is universal.
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMetaOrCtrl = e.metaKey || e.ctrlKey;
+      if (!isMetaOrCtrl) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        e.stopPropagation();
+        void onClickSave();
+      } else if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault();
+        e.stopPropagation();
+        void onClickOpen();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClickSave, onClickOpen]);
+
+  /**
+   * before-quit dirty-guard subscription (D-143 + Pitfall 1). When the user
+   * tries to quit while isDirty === true, mount SaveQuitDialog with reason
+   * 'quit'. When clean, fire confirmQuitProceed immediately so main can
+   * complete the quit.
+   */
+  useEffect(() => {
+    const unsub = window.api.onCheckDirtyBeforeQuit(() => {
+      if (!isDirty) {
+        window.api.confirmQuitProceed();
+        return;
+      }
+      setSaveQuitDialogState({
+        reason: 'quit',
+        pendingAction: () => {
+          window.api.confirmQuitProceed();
+        },
+      });
+    });
+    return unsub;
+  }, [isDirty]);
+
+  // Task 2a vs Task 2b split: Task 2a lands the wiring (state + handlers);
+  // Task 2b consumes the symbols in JSX (toolbar buttons + chip + modal
+  // mount + banners). The void-references below keep Task 2a typecheck-
+  // green; Task 2b removes them when the JSX consumes the symbols.
+  void SaveQuitDialog;
+  void saveQuitDialogState;
+  void saveInFlight;
+  void staleOverrideNotice;
+  void onClickLocateSkeleton;
 
   return (
     <div className="w-full h-full flex flex-col">
