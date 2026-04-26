@@ -57,11 +57,22 @@ import {
   type ChangeEvent,
   type ReactNode,
   type MutableRefObject,
+  type CSSProperties,
 } from 'react';
 import clsx from 'clsx';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
 import { computeExportDims } from '../lib/export-view.js';
+
+/**
+ * Phase 9 Plan 03 — Threshold for switching from flat-table render to
+ * TanStack Virtual (D-191 + D-195). Below ≤100 rows: flat-table preserves
+ * Cmd-F text search and pays zero virtualization overhead (SIMPLE_PROJECT,
+ * Jokerman). Above 100: useVirtualizer kicks in for `fixtures/Girl` and
+ * future production rigs.
+ */
+const VIRTUALIZATION_THRESHOLD = 100;
 
 type SortCol =
   | 'attachmentName'
@@ -284,6 +295,13 @@ interface RowProps {
   isFlashing: boolean;
   /** Phase 7 D-130: ref-registration callback so the panel can scroll this row into view. */
   registerRef: (el: HTMLElement | null) => void;
+  /**
+   * Phase 9 Plan 03: virtualizer transform style. The virtualized render
+   * path applies `transform: translateY(...)` to position rows over the
+   * total-height spacer; below-threshold flat-table render leaves it
+   * undefined and the row sits at its natural position.
+   */
+  style?: CSSProperties;
 }
 
 function Row({
@@ -298,6 +316,7 @@ function Row({
   selectedKeys,
   isFlashing,
   registerRef,
+  style,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -331,6 +350,7 @@ function Row({
   return (
     <tr
       ref={(el) => registerRef(el)}
+      style={style}
       className={clsx(
         'border-b border-border hover:bg-accent/5',
         checked && 'bg-accent/5',
@@ -581,6 +601,57 @@ export function GlobalMaxRenderPanel({
     [sortCol],
   );
 
+  // Phase 9 Plan 03 (D-191/D-195) — threshold-gated TanStack Virtual.
+  // Below threshold: existing flat-table JSX renders unchanged (preserves
+  // Cmd-F text search and zero virtualization overhead). Above threshold:
+  // virtualizer takes over. SIMPLE_PROJECT and Jokerman stay below; Girl
+  // crosses (~80 attachments × multiple skins → 200-300 rows).
+  const useVirtual = sorted.length > VIRTUALIZATION_THRESHOLD;
+
+  // Stable identity for measurement-cache survival across sort/filter
+  // (RESEARCH §Pitfall 2 — index-based default keys cause measurement flicker).
+  const getItemKey = useCallback(
+    (index: number) => sorted[index].attachmentKey,
+    [sorted],
+  );
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => parentRef.current,
+    // Uniform-row table — 34 px is the current row height by inspection
+    // of typography + py-2 padding (RESEARCH §Recommendations #12).
+    estimateSize: () => 34,
+    // 20-row overscan — well-tested default for tables of this size.
+    overscan: 20,
+    getItemKey,
+  });
+
+  // Phase 9 D-191 — scroll restoration on sort/filter change. RESEARCH §Q1:
+  // when row order or filter changes, snap to top so the user's "find a row"
+  // intent is satisfied via the search field rather than scroll memory.
+  useEffect(() => {
+    if (!useVirtual) return;
+    virtualizer.scrollToIndex(0);
+    // virtualizer identity changes per-render but scrollToIndex is idempotent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortCol, sortDir, query, useVirtual]);
+
+  // Phase 9 D-191 — focusAttachmentName cross-panel jump (Phase 7 D-130) MUST
+  // continue to work in the virtualized path. Find the row's index in `sorted`
+  // and scrollToIndex; the existing registerRowRef + isFlashing keep handling
+  // the visual flash once the row is mounted.
+  useEffect(() => {
+    if (!useVirtual) return;
+    if (!focusAttachmentName) return;
+    const idx = sorted.findIndex((r) => r.attachmentName === focusAttachmentName);
+    if (idx >= 0) {
+      virtualizer.scrollToIndex(idx, { align: 'center' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusAttachmentName, sorted, useVirtual]);
+
   // Plain single-toggle (Space / Enter keyboard path, or plain mouse click).
   const handleToggleRow = useCallback(
     (key: string) => {
@@ -679,100 +750,231 @@ export function GlobalMaxRenderPanel({
           </table>
         </section>
       )}
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-panel">
-            <th scope="col" className="py-2 px-3 border-b border-border w-8">
-              <SelectAllCheckbox
-                visibleKeys={visibleKeys}
-                selected={selected}
-                onBulk={setSelected}
+      {/* Phase 9 Plan 03 — Sticky <thead> via Tailwind `sticky top-0` (D-191
+          + RESEARCH §Pitfall 1). MUST stay on <thead>, NEVER on <tr> inside
+          <tbody>: virtualizer applies transform: translateY to <tr>s, which
+          creates stacking contexts that break sticky positioning. The same
+          <thead> markup works in BOTH the flat-table and virtualized render
+          paths — only the surrounding scroll-container wrapper differs. */}
+      {useVirtual ? (
+        // Virtualized render path (sorted.length > 100). RESEARCH §Q1
+        // shape: outer scroll container with overflow-anchor:none + inner
+        // total-height spacer + table with translateY-positioned rows.
+        <div
+          ref={parentRef}
+          // overflow-anchor:none prevents browser scroll re-anchoring on
+          // sort/filter content-height changes (RESEARCH §Recommendations
+          // #11). No Tailwind utility — inline style required.
+          style={{
+            height: 'calc(100vh - 200px)',
+            overflow: 'auto',
+            overflowAnchor: 'none',
+          }}
+        >
+          <div
+            style={{
+              height: virtualizer.getTotalSize(),
+              position: 'relative',
+            }}
+          >
+            <table className="w-full border-collapse">
+              <thead className="bg-panel sticky top-0 z-10">
+                <tr>
+                  <th scope="col" className="py-2 px-3 border-b border-border w-8">
+                    <SelectAllCheckbox
+                      visibleKeys={visibleKeys}
+                      selected={selected}
+                      onBulk={setSelected}
+                    />
+                  </th>
+                  <SortHeader
+                    col="attachmentName"
+                    label="Attachment"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    col="skinName"
+                    label="Skin"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    col="sourceW"
+                    label="Source W×H"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    col="worldW"
+                    label="Peak W×H"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    col="peakScale"
+                    label="Scale"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                  <SortHeader
+                    col="animationName"
+                    label="Source Animation"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortHeader
+                    col="frame"
+                    label="Frame"
+                    activeCol={sortCol}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    align="right"
+                  />
+                </tr>
+              </thead>
+              <tbody>
+                {virtualizer.getVirtualItems().map((virtualRow, idx) => {
+                  const row = sorted[virtualRow.index];
+                  return (
+                    <Row
+                      key={row.attachmentKey}
+                      row={row}
+                      query={query}
+                      checked={selected.has(row.attachmentKey)}
+                      onToggle={handleToggleRow}
+                      onRangeToggle={handleRangeToggle}
+                      suppressNextChangeRef={suppressNextChangeRef}
+                      onJumpToAnimation={onJumpToAnimation}
+                      onOpenOverrideDialog={openDialog}
+                      selectedKeys={selectedAttachmentNames}
+                      isFlashing={isFlashing === row.attachmentName}
+                      registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                      // Per RESEARCH §Q1: translate basis is the row's
+                      // INITIAL position, not absolute scroll offset. The
+                      // `idx * virtualRow.size` subtraction is documented
+                      // in the official TanStack Virtual table example
+                      // and is REQUIRED for <tr> rendering (vs the
+                      // <div>-based docs default).
+                      style={{
+                        transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
+                      }}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        // Flat-table render path (sorted.length ≤ 100). UNCHANGED from
+        // pre-Phase-9 — preserves Cmd-F text search and zero virtualization
+        // overhead. SIMPLE_PROJECT, Jokerman, and any rig at or below the
+        // threshold land here.
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-panel">
+              <th scope="col" className="py-2 px-3 border-b border-border w-8">
+                <SelectAllCheckbox
+                  visibleKeys={visibleKeys}
+                  selected={selected}
+                  onBulk={setSelected}
+                />
+              </th>
+              <SortHeader
+                col="attachmentName"
+                label="Attachment"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
               />
-            </th>
-            <SortHeader
-              col="attachmentName"
-              label="Attachment"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-            />
-            <SortHeader
-              col="skinName"
-              label="Skin"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-            />
-            <SortHeader
-              col="sourceW"
-              label="Source W×H"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-              align="right"
-            />
-            <SortHeader
-              col="worldW"
-              label="Peak W×H"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-              align="right"
-            />
-            <SortHeader
-              col="peakScale"
-              label="Scale"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-              align="right"
-            />
-            <SortHeader
-              col="animationName"
-              label="Source Animation"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-            />
-            <SortHeader
-              col="frame"
-              label="Frame"
-              activeCol={sortCol}
-              dir={sortDir}
-              onSort={handleSort}
-              align="right"
-            />
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.length === 0 && (
-            <tr>
-              <td colSpan={8} className="text-fg-muted font-mono text-sm text-center py-8">
-                {query.trim() !== ''
-                  ? 'No attachments match "' + query + '"'
-                  : 'No attachments'}
-              </td>
+              <SortHeader
+                col="skinName"
+                label="Skin"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                col="sourceW"
+                label="Source W×H"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortHeader
+                col="worldW"
+                label="Peak W×H"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortHeader
+                col="peakScale"
+                label="Scale"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+                align="right"
+              />
+              <SortHeader
+                col="animationName"
+                label="Source Animation"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                col="frame"
+                label="Frame"
+                activeCol={sortCol}
+                dir={sortDir}
+                onSort={handleSort}
+                align="right"
+              />
             </tr>
-          )}
-          {sorted.map((row) => (
-            <Row
-              key={row.attachmentKey}
-              row={row}
-              query={query}
-              checked={selected.has(row.attachmentKey)}
-              onToggle={handleToggleRow}
-              onRangeToggle={handleRangeToggle}
-              suppressNextChangeRef={suppressNextChangeRef}
-              onJumpToAnimation={onJumpToAnimation}
-              onOpenOverrideDialog={openDialog}
-              selectedKeys={selectedAttachmentNames}
-              /* Phase 7 D-130 NEW: */
-              isFlashing={isFlashing === row.attachmentName}
-              registerRef={(el) => registerRowRef(row.attachmentName, el)}
-            />
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={8} className="text-fg-muted font-mono text-sm text-center py-8">
+                  {query.trim() !== ''
+                    ? 'No attachments match "' + query + '"'
+                    : 'No attachments'}
+                </td>
+              </tr>
+            )}
+            {sorted.map((row) => (
+              <Row
+                key={row.attachmentKey}
+                row={row}
+                query={query}
+                checked={selected.has(row.attachmentKey)}
+                onToggle={handleToggleRow}
+                onRangeToggle={handleRangeToggle}
+                suppressNextChangeRef={suppressNextChangeRef}
+                onJumpToAnimation={onJumpToAnimation}
+                onOpenOverrideDialog={openDialog}
+                selectedKeys={selectedAttachmentNames}
+                /* Phase 7 D-130 NEW: */
+                isFlashing={isFlashing === row.attachmentName}
+                registerRef={(el) => registerRowRef(row.attachmentName, el)}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
