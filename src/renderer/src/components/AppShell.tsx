@@ -93,6 +93,20 @@ export interface AppShellProps {
   onBeforeDropRef?: MutableRefObject<
     ((fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>) | null
   >;
+  /**
+   * Phase 08.2 D-175 — callback-ref bridge for menu-driven Save / Save As.
+   * App.tsx holds the useRef; AppShell registers `{ onClickSave, onClickSaveAs }`
+   * into ref.current via a useEffect. Menu click handlers in App.tsx
+   * dereference at call time so the latest registered impl always wins;
+   * when AppShell is unmounted the ref is null and the call is a no-op.
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163) — same shape, same
+   * registration discipline.
+   */
+  appShellMenuRef?: MutableRefObject<{
+    onClickSave: () => Promise<SaveResponse>;
+    onClickSaveAs: () => Promise<SaveResponse>;
+  } | null>;
 }
 
 export function AppShell({
@@ -100,6 +114,7 @@ export function AppShell({
   samplingHz = 120,
   initialProject,
   onBeforeDropRef,
+  appShellMenuRef,
 }: AppShellProps) {
   // D-50: plain useState; default 'global' on every mount (i.e. every new drop).
   const [activeTab, setActiveTab] = useState<ActiveTab>('global');
@@ -526,6 +541,38 @@ export function AppShell({
   }, [buildSessionState, currentProjectPath, summary.skeletonPath]);
 
   /**
+   * Phase 08.2 D-175 — dedicated Save As callback for the native menu's
+   * "Save As…" item. Always picks a new path via the dialog regardless
+   * of currentProjectPath. The toolbar Save button continues to use
+   * onClickSave's smart branch (current behavior).
+   *
+   * Mirrors the Save As branch previously inlined in onClickSave. Both
+   * register into appShellMenuRef so menu File→Save / File→Save As… can
+   * dispatch through AppShell's existing handlers without lifting state.
+   */
+  const onClickSaveAs = useCallback(async (): Promise<SaveResponse> => {
+    setSaveInFlight(true);
+    try {
+      const state = buildSessionState();
+      const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+      const basename =
+        summary.skeletonPath.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? 'Untitled';
+      const resp = await window.api.saveProjectAs(state, skeletonDir, basename);
+      if (resp.ok) {
+        setCurrentProjectPath(resp.path);
+        setLastSaved({
+          overrides: { ...state.overrides },
+          samplingHz: state.samplingHz ?? 120,
+        });
+        setStaleOverrideNotice(null);
+      }
+      return resp;
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [buildSessionState, summary.skeletonPath]);
+
+  /**
    * mountOpenResponse — apply a MaterializedProject to AppShell's state
    * machine. Used by both onClickOpen (Cmd+O / Open button) and
    * onClickLocateSkeleton (D-149 recovery). Does NOT remount AppShell —
@@ -619,28 +666,17 @@ export function AppShell({
   }, [skeletonNotFoundError, mountOpenResponse]);
 
   /**
-   * Cmd/Ctrl+S+O keyboard listener with modal-suppression (Pattern 4 +
-   * Pitfall 6). Suppresses when ANY role="dialog" is in the document —
-   * every project modal uses role="dialog" so the heuristic is universal.
+   * Phase 08.2 D-176 — the renderer-side Cmd/Ctrl+S+O keydown listener
+   * has been DELETED end-to-end. The native Electron application Menu
+   * (Phase 08.2 Plan 02) is the single source of truth for these
+   * keyboard accelerators; menu clicks dispatch via webContents.send →
+   * preload → App.tsx's onMenu* subscriptions (Phase 08.2 D-175). The
+   * `[role="dialog"]` modal-suppression heuristic moved into the
+   * notifyMenuState push below (D-184): when any modal is open, main
+   * disables the File menu items so the accelerator becomes a no-op
+   * at the OS level. Eliminates the double-fire risk between the
+   * old keydown listener and the menu accelerator.
    */
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isMetaOrCtrl = e.metaKey || e.ctrlKey;
-      if (!isMetaOrCtrl) return;
-      if (document.querySelector('[role="dialog"]')) return;
-      if (e.key === 's' || e.key === 'S') {
-        e.preventDefault();
-        e.stopPropagation();
-        void onClickSave();
-      } else if (e.key === 'o' || e.key === 'O') {
-        e.preventDefault();
-        e.stopPropagation();
-        void onClickOpen();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClickSave, onClickOpen]);
 
   /**
    * before-quit dirty-guard subscription (D-143 + Pitfall 1). When the user
@@ -663,6 +699,30 @@ export function AppShell({
     });
     return unsub;
   }, [isDirty]);
+
+  /**
+   * Phase 08.2 D-181 / D-184 — push menu state to main whenever the
+   * dependency set changes. summary is non-null while AppShell is mounted
+   * (loaded / projectLoaded branches), so canSave + canSaveAs are always
+   * true here. modalOpen is derived from the four modal state slots
+   * (dialogState — OverrideDialog, exportDialogState — Optimize/Export
+   * dialog, atlasPreviewOpen — AtlasPreviewModal, saveQuitDialogState —
+   * SaveQuitDialog); main disables File menu items when modalOpen is
+   * true (D-184) so the keyboard accelerator becomes a no-op at the OS
+   * level whenever a modal is mounted.
+   */
+  useEffect(() => {
+    const modalOpen =
+      dialogState !== null ||
+      exportDialogState !== null ||
+      atlasPreviewOpen ||
+      saveQuitDialogState !== null;
+    window.api.notifyMenuState({
+      canSave: true,
+      canSaveAs: true,
+      modalOpen,
+    });
+  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState]);
 
   /**
    * Phase 8.1 D-163 — register the dirty-guard impl into App.tsx's
@@ -700,6 +760,23 @@ export function AppShell({
       onBeforeDropRef.current = null;
     };
   }, [isDirty, onBeforeDropRef]);
+
+  /**
+   * Phase 08.2 D-175 — register Save / Save As handlers into App.tsx's
+   * appShellMenuRef so the native menu's File→Save / File→Save As… items
+   * can dispatch through AppShell's existing handlers without lifting
+   * state. Cleanup nulls the ref on unmount so menu clicks fall through
+   * to no-op when AppShell isn't mounted.
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163).
+   */
+  useEffect(() => {
+    if (!appShellMenuRef) return;
+    appShellMenuRef.current = { onClickSave, onClickSaveAs };
+    return () => {
+      appShellMenuRef.current = null;
+    };
+  }, [onClickSave, onClickSaveAs, appShellMenuRef]);
 
   return (
     <div className="w-full h-full flex flex-col">

@@ -27,6 +27,7 @@ import type {
   LoadResponse,
   OpenResponse,
   MaterializedProject,
+  SaveResponse,
 } from '../../shared/types.js';
 
 export type AppState =
@@ -187,6 +188,21 @@ export function App() {
     [],
   );
 
+  /**
+   * Phase 08.2 D-175 — callback-ref bridge for menu-driven Save / Save As.
+   * Parallel to beforeDropRef (Phase 8.1 D-163). AppShell registers
+   * { onClickSave, onClickSaveAs } via a useEffect; menu-event subscriptions
+   * below dereference at call time so the latest registered impl always wins.
+   * When AppShell is unmounted (idle / error / projectLoadFailed), the ref
+   * is null and menu Save / Save As clicks are silent no-ops — main also
+   * disables those items in those states (D-181 / D-187), so the IPC
+   * shouldn't fire; the optional-chain is defense-in-depth.
+   */
+  const appShellMenuRef = useRef<{
+    onClickSave: () => Promise<SaveResponse>;
+    onClickSaveAs: () => Promise<SaveResponse>;
+  } | null>(null);
+
   // D-17: echo summary to console on successful load (ROADMAP exit criterion).
   // Phase 8: extended to fire on `projectLoaded` too — same console contract.
   useEffect(() => {
@@ -195,6 +211,86 @@ export function App() {
       console.log('[Spine Texture Manager] Loaded skeleton summary:', state.summary);
     }
   }, [state]);
+
+  /**
+   * Phase 08.2 D-175 + D-183 — subscribe to all four menu-event channels.
+   * App.tsx is the always-mounted root, so menu Open works in EVERY
+   * AppState (idle / loading / loaded / projectLoaded / projectLoadFailed
+   * / error). This is the canonical 08.1 UAT bug fix end-to-end —
+   * Cmd+O on the recovery banner now opens the file picker.
+   *
+   * onMenuOpen routes through handleBeforeDrop (D-163 ref-bridge) so menu
+   * Open honors the SaveQuitDialog dirty-guard. When AppShell is
+   * unmounted, beforeDropRef.current is null → handleBeforeDrop returns
+   * true via `?? true` fallback → Open proceeds without a guard (the
+   * unmounted state has no dirty session).
+   *
+   * onMenuSave / onMenuSaveAs late-bind through appShellMenuRef. When
+   * AppShell is unmounted the ref is null and the call is a silent no-op
+   * (defense-in-depth — main also disables those items per D-181 / D-187).
+   *
+   * Pitfall 15 cleanup: all four unsubs MUST be called in the cleanup
+   * function so subsequent App.tsx renders don't leak listeners on the
+   * preload's ipcRenderer.on registration.
+   */
+  useEffect(() => {
+    const unsubOpen = window.api.onMenuOpen(async () => {
+      const proceed = await handleBeforeDrop('', 'stmproj');
+      if (!proceed) return;
+      const resp = await window.api.openProject();
+      handleProjectLoad(resp, '(menu)');
+    });
+
+    const unsubOpenRecent = window.api.onMenuOpenRecent(async (path: string) => {
+      const proceed = await handleBeforeDrop(path, 'stmproj');
+      if (!proceed) return;
+      const resp = await window.api.openProjectFromPath(path);
+      handleProjectLoad(resp, path.split(/[\\/]/).pop() ?? path);
+    });
+
+    const unsubSave = window.api.onMenuSave(() => {
+      void appShellMenuRef.current?.onClickSave();
+    });
+
+    const unsubSaveAs = window.api.onMenuSaveAs(() => {
+      void appShellMenuRef.current?.onClickSaveAs();
+    });
+
+    return () => {
+      unsubOpen();
+      unsubOpenRecent();
+      unsubSave();
+      unsubSaveAs();
+    };
+  }, [handleBeforeDrop, handleProjectLoad]);
+
+  /**
+   * Phase 08.2 D-187 — push menu state to main whenever the AppState
+   * transitions to a branch where AppShell is NOT mounted. AppShell pushes
+   * its own state while mounted (see AppShell.tsx Plan 04 Task 2 changes).
+   *
+   * For idle / error / projectLoadFailed: no project loaded, no modal
+   * surface (the recovery banner is a div with role="alert", NOT a
+   * [role="dialog"][aria-modal]). File→Open stays enabled — that's the
+   * Cmd+O fix. Save / Save As are disabled (no project to save).
+   *
+   * The 'loading' state is transient (the next state-change useEffect
+   * cycle takes over); the 'loaded' / 'projectLoaded' states are owned
+   * by AppShell's own notifyMenuState push.
+   */
+  useEffect(() => {
+    if (
+      state.status === 'idle' ||
+      state.status === 'error' ||
+      state.status === 'projectLoadFailed'
+    ) {
+      window.api.notifyMenuState({
+        canSave: false,
+        canSaveAs: false,
+        modalOpen: false,
+      });
+    }
+  }, [state.status]);
 
   return (
     <DropZone
@@ -223,6 +319,7 @@ export function App() {
           summary={state.summary}
           samplingHz={120}
           onBeforeDropRef={beforeDropRef}
+          appShellMenuRef={appShellMenuRef}
         />
       )}
       {state.status === 'projectLoaded' && (
@@ -231,11 +328,14 @@ export function App() {
         // restored overrides + lastSaved + stale-override banner from
         // the saved file. samplingHz comes from the project (D-146).
         // Phase 8.1 D-163: pass beforeDropRef (same as 'loaded' branch).
+        // Phase 08.2 D-175: pass appShellMenuRef so AppShell can register
+        // { onClickSave, onClickSaveAs } for menu-driven Save / Save As.
         <AppShell
           summary={state.summary}
           samplingHz={state.project.samplingHz}
           initialProject={state.project}
           onBeforeDropRef={beforeDropRef}
+          appShellMenuRef={appShellMenuRef}
         />
       )}
       {state.status === 'projectLoadFailed' && (

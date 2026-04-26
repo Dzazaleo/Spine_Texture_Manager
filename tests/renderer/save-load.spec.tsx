@@ -59,6 +59,15 @@ beforeEach(() => {
     onExportProgress: vi.fn(() => () => undefined),
     openOutputFolder: vi.fn(),
     probeExportConflicts: vi.fn(),
+    // Phase 08.2 D-175 / D-181 — menu surface bridges. AppShell pushes
+    // notifyMenuState in a useEffect on mount; App.tsx subscribes to all
+    // four onMenu* channels in a useEffect. Tests must mock these or the
+    // mount-time call throws "window.api.notifyMenuState is not a function".
+    notifyMenuState: vi.fn(),
+    onMenuOpen: vi.fn(() => () => undefined),
+    onMenuOpenRecent: vi.fn(() => () => undefined),
+    onMenuSave: vi.fn(() => () => undefined),
+    onMenuSaveAs: vi.fn(() => () => undefined),
   });
 });
 
