@@ -1,37 +1,112 @@
 // @vitest-environment jsdom
 /**
- * Phase 9 Plan 01 — Wave 0 RED scaffolds for the RigInfoTooltip on the AppShell filename chip.
+ * Phase 9 Plan 06 Task 2 — Wave 4 GREEN tests for the RigInfoTooltip on the
+ * AppShell filename chip.
  *
  * Behavior claimed from `.planning/phases/09-complex-rig-hardening-polish/09-VALIDATION.md`:
  *   - Row 17: Tooltip — fps labeling (skeleton.fps: <N> (editor metadata — does not affect sampling))
  *     plus bones/slots/attachments/animations/skins counts matching the summary shape.
  *
- * Wave 0 design rule: scaffolds are RED-by-design until Wave 4 lands the
- * tooltip surface. The "(editor metadata — does not affect sampling)" wording
- * is load-bearing per CLAUDE.md fact #1 + src/core/sampler.ts:41-44 canonical comment.
+ * The wording "(editor metadata — does not affect sampling)" is **load-bearing**
+ * per CLAUDE.md fact #1 + the canonical comment block at src/core/sampler.ts:41-44.
+ * Plan 06 must surface this exactly so animators are not misled into thinking
+ * skeleton.fps drives sampling.
  *
- * Analog: tests/renderer/atlas-preview-modal.spec.tsx.
+ * Wave 4 GREEN: replaces the Wave 0 RED scaffolds. We render the full AppShell
+ * (the chip is part of AppShell's header at :830-838 pre-Plan-06) with the
+ * window.api preload surface stubbed out — AppShell's mount-time effects need
+ * notifyMenuState / onMenuOpen / onSamplerProgress / onMenuSettings to be
+ * present as functions or it throws.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { AppShell } from '../../src/renderer/src/components/AppShell';
+import type { SkeletonSummary } from '../../src/shared/types';
 
 afterEach(cleanup);
 
+beforeEach(() => {
+  // Stub the preload surface AppShell touches at mount. Every method must be
+  // either an unsub-returning subscription or a vi.fn() — any missing field
+  // throws "is not a function" at AppShell's first render. Mirror save-load.spec.tsx:44-76.
+  vi.stubGlobal('api', {
+    notifyMenuState: vi.fn(),
+    onMenuOpen: vi.fn(() => () => undefined),
+    onMenuOpenRecent: vi.fn(() => () => undefined),
+    onMenuSave: vi.fn(() => () => undefined),
+    onMenuSaveAs: vi.fn(() => () => undefined),
+    onMenuSettings: vi.fn(() => () => undefined),
+    onMenuHelp: vi.fn(() => () => undefined),
+    onSamplerProgress: vi.fn(() => () => undefined),
+    onCheckDirtyBeforeQuit: vi.fn(() => () => undefined),
+    cancelSampler: vi.fn(),
+    confirmQuitProceed: vi.fn(),
+    openExternalUrl: vi.fn(),
+    resampleProject: vi.fn(),
+    pickOutputDirectory: vi.fn(),
+    startExport: vi.fn(),
+    cancelExport: vi.fn(),
+    onExportProgress: vi.fn(() => () => undefined),
+    openOutputFolder: vi.fn(),
+    probeExportConflicts: vi.fn(),
+    saveProject: vi.fn(),
+    saveProjectAs: vi.fn(),
+    openProject: vi.fn(),
+    openProjectFromFile: vi.fn(),
+    openProjectFromPath: vi.fn(),
+    locateSkeleton: vi.fn(),
+    reloadProjectWithSkeleton: vi.fn(),
+    loadSkeletonFromFile: vi.fn(),
+  });
+});
+
+function makeSummary(): SkeletonSummary {
+  return {
+    skeletonPath: '/abs/path/to/SIMPLE_TEST.json',
+    atlasPath: '/abs/path/to/SIMPLE_TEST.atlas',
+    bones: { count: 12, names: [] },
+    slots: { count: 5 },
+    attachments: { count: 8, byType: { RegionAttachment: 8 } },
+    skins: { count: 1, names: ['default'] },
+    animations: { count: 3, names: [] },
+    peaks: [],
+    animationBreakdown: [],
+    unusedAttachments: [],
+    elapsedMs: 42,
+    editorFps: 30,
+  };
+}
+
 describe('RigInfoTooltip — Wave 4 (Claude Discretion: rig-info on filename chip)', () => {
   it('hover filename chip: tooltip becomes visible with skeletonName + bones/slots/attachments/animations/skins counts matching summary', () => {
-    // TODO Wave 4: render(<AppShell summary={makeSummary()} … />); userEvent.hover(filenameChip);
-    //   const tooltip = await screen.findByRole('tooltip');
-    //   expect(tooltip.textContent).toMatch(new RegExp(`bones:\\s*${summary.bones.count}`));
-    //   expect(tooltip.textContent).toMatch(new RegExp(`slots:\\s*${summary.slots.count}`));
-    //   …attachments, animations, skins…
-    expect(true, 'Wave 4: tooltip surface not yet authored').toBe(false);
+    render(<AppShell summary={makeSummary()} samplingHz={120} />);
+    // The filename chip text reads 'Untitled' for fresh sessions; the rig-info
+    // tooltip surface is NOT the chip itself — Plan 06 wraps the chip in a
+    // hoverable container (data-testid='rig-info-host' for unambiguous targeting).
+    const chipHost = screen.getByTestId('rig-info-host');
+    fireEvent.mouseEnter(chipHost);
+    const tooltip = screen.getByRole('tooltip');
+    const text = tooltip.textContent ?? '';
+    expect(text).toMatch(/SIMPLE_TEST\.json/);
+    expect(text).toMatch(/bones:\s*12/);
+    expect(text).toMatch(/slots:\s*5/);
+    expect(text).toMatch(/attachments:\s*8/);
+    expect(text).toMatch(/animations:\s*3/);
+    expect(text).toMatch(/skins:\s*1/);
+
+    // Leaving the host hides the tooltip again.
+    fireEvent.mouseLeave(chipHost);
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   it('skeleton.fps line reads exactly: "skeleton.fps: <N> (editor metadata — does not affect sampling)"', () => {
+    render(<AppShell summary={makeSummary()} samplingHz={120} />);
+    const chipHost = screen.getByTestId('rig-info-host');
+    fireEvent.mouseEnter(chipHost);
+    const tooltip = screen.getByRole('tooltip');
     // CRITICAL wording per CLAUDE.md fact #1 + src/core/sampler.ts:41-44 canonical comment.
-    // TODO Wave 4: expect(tooltip.textContent).toMatch(
-    //   /skeleton\.fps:\s*\d+\s*\(editor metadata — does not affect sampling\)/
-    // );
-    expect(true, 'Wave 4: editorFps surfacing through summary pending').toBe(false);
+    expect(tooltip.textContent).toMatch(
+      /skeleton\.fps:\s*30\s*\(editor metadata — does not affect sampling\)/,
+    );
   });
 });
