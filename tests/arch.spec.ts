@@ -132,3 +132,23 @@ describe('Architecture boundary: src/core must not import sharp / node:fs / node
     expect(offenders, `Core files importing sharp/node:fs: ${offenders.join(', ')}`).toEqual([]);
   });
 });
+
+describe('Phase 8 Layer 3: src/core/project-file.ts must not import electron (T-08-LAYER)', () => {
+  it('src/core/project-file.ts does not import from electron', () => {
+    // Specifically guards the new project-file module — the existing core grep
+    // (lines ~116-134) covers fs/sharp; this block adds electron coverage and
+    // names the file explicitly so future Phase-8 hygiene drift is caught even
+    // if the existing globSync rule changes.
+    const filePath = 'src/core/project-file.ts';
+    let text = '';
+    try {
+      text = readFileSync(filePath, 'utf8');
+    } catch {
+      // File doesn't exist yet (Plan 02 lands it). When it lands the grep applies.
+      return;
+    }
+    expect(text, `${filePath} must not import from electron`).not.toMatch(/from ['"]electron['"]/);
+    expect(text, `${filePath} must not import from node:fs`).not.toMatch(/from ['"]node:fs(\/promises)?['"]/);
+    expect(text, `${filePath} must not import from sharp`).not.toMatch(/from ['"]sharp['"]/);
+  });
+});
