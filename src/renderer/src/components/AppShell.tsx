@@ -30,7 +30,15 @@
  * pure-TS math tree — the latter would trip the arch.spec.ts gate at
  * lines 19-34.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 import type {
   SkeletonSummary,
@@ -71,9 +79,28 @@ export interface AppShellProps {
    * post-skeleton-drop flow).
    */
   initialProject?: MaterializedProject;
+  /**
+   * Phase 8.1 D-163 — callback-ref bridge for the new-skeleton/new-project
+   * dirty-guard. App.tsx holds the useRef and passes it down here. AppShell
+   * registers an impl in a useEffect that mounts SaveQuitDialog when isDirty
+   * is true and a new .json/.stmproj is dropped. The impl resolves the
+   * DropZone.onBeforeDrop Promise to false on Cancel, true on Save / Don't Save
+   * (matching the 'quit' flow shape).
+   *
+   * When undefined, AppShell does not register anything and the drop
+   * proceeds unconditionally — matches pre-Phase-8.1 behavior.
+   */
+  onBeforeDropRef?: MutableRefObject<
+    ((fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>) | null
+  >;
 }
 
-export function AppShell({ summary, samplingHz = 120, initialProject }: AppShellProps) {
+export function AppShell({
+  summary,
+  samplingHz = 120,
+  initialProject,
+  onBeforeDropRef,
+}: AppShellProps) {
   // D-50: plain useState; default 'global' on every mount (i.e. every new drop).
   const [activeTab, setActiveTab] = useState<ActiveTab>('global');
   // D-52: jump-target; null means no pending focus.
@@ -126,6 +153,12 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
   const [saveQuitDialogState, setSaveQuitDialogState] = useState<{
     reason: SaveQuitDialogProps['reason'];
     pendingAction: () => void;
+    // Phase 8.1 D-164: optional Cancel handler. Defaults to undefined.
+    // The existing 'quit' flow keeps it undefined (Cancel is a no-op —
+    // Electron already aborts the quit when before-quit returns false).
+    // The new 'new-skeleton-drop' / 'new-project-drop' flows set it to
+    // resolve the DropZone.onBeforeDrop Promise to false (abort the drop).
+    cancelAction?: () => void;
   } | null>(null);
 
   const [saveInFlight, setSaveInFlight] = useState(false);
@@ -631,6 +664,43 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
     return unsub;
   }, [isDirty]);
 
+  /**
+   * Phase 8.1 D-163 — register the dirty-guard impl into App.tsx's
+   * onBeforeDropRef. Cleanup on unmount sets the ref back to null so
+   * subsequent drops post-unmount fall through to handleBeforeDrop's
+   * `?? true` fallback (proceed without a guard — the unmount itself
+   * signals a confirmed transition).
+   *
+   * isDirty is read INSIDE the impl (via the Promise factory closure)
+   * so the registered callback always sees the latest dirty signal —
+   * the useEffect re-runs when isDirty changes, re-binding the impl.
+   */
+  useEffect(() => {
+    if (!onBeforeDropRef) return;
+    onBeforeDropRef.current = (_fileName, kind) =>
+      new Promise<boolean>((resolve) => {
+        if (!isDirty) {
+          resolve(true);
+          return;
+        }
+        const reason: SaveQuitDialogProps['reason'] =
+          kind === 'json' ? 'new-skeleton-drop' : 'new-project-drop';
+        setSaveQuitDialogState({
+          reason,
+          // Save / Don't Save: resolve true → DropZone proceeds.
+          // The pendingAction fires AFTER setSaveQuitDialogState(null) so the
+          // dialog closes before the drop's IPC handshake begins (D-167 —
+          // overrides die with the unmount when the new skeleton lands).
+          pendingAction: () => resolve(true),
+          // Cancel: resolve false → DropZone aborts → overrides survive.
+          cancelAction: () => resolve(false),
+        });
+      });
+    return () => {
+      onBeforeDropRef.current = null;
+    };
+  }, [isDirty, onBeforeDropRef]);
+
   return (
     <div className="w-full h-full flex flex-col">
       <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
@@ -888,7 +958,14 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
             setSaveQuitDialogState(null);
             action();
           }}
-          onCancel={() => setSaveQuitDialogState(null)}
+          onCancel={() => {
+            // Phase 8.1 D-164: invoke optional cancelAction BEFORE clearing state.
+            // The 'quit' flow leaves cancelAction undefined (no-op — Electron handles
+            // the quit-abort). The 'new-skeleton-drop' / 'new-project-drop' flows
+            // set cancelAction to resolve the DropZone.onBeforeDrop Promise to false.
+            saveQuitDialogState.cancelAction?.();
+            setSaveQuitDialogState(null);
+          }}
         />
       )}
     </div>
