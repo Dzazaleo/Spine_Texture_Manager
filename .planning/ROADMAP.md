@@ -296,6 +296,16 @@ Plans:
 
 ---
 
+### Phase 08.1: Close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard) (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 08.1 to break down)
+
 ## Phase 9: Complex-rig hardening + polish
 
 **Depends on:** Phase 8 green and user-supplied complex rig.

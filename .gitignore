@@ -39,3 +39,6 @@ scripts/diagnose-*.ts
 
 # Claude Code local config + agent worktrees (per-machine, not for remote)
 .claude/
+
+# GSD ephemeral checkpoint state (regenerated each discuss-phase session)
+.planning/phases/**/*-DISCUSS-CHECKPOINT.json

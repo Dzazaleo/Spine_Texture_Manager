@@ -6,11 +6,11 @@ status: unknown
 stopped_at: Phase 8 COMPLETE
 last_updated: "2026-04-26T09:27:13Z"
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 8
   total_plans: 43
   completed_plans: 39
-  percent: 91
+  percent: 83
 ---
 
 # State
@@ -179,3 +179,9 @@ Environment notes preserved from prior phases:
 **Planned Phase:** 8 (Save/Load project state) — 5 plans — 2026-04-25T23:45:26.708Z
 
 **Executed Phase:** 04 (scale-overrides) COMPLETE — all 3 plans executed (Waves 1+2+3), human-verify signed off with 4 gap-fixes landed, F5.1/F5.2/F5.3 complete end-to-end — 2026-04-24T15:14:59Z
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard) — URGENT. Closes VR-01/VR-02/VR-03 from `.planning/phases/08-save-load-project-state/08-VERIFICATION.md` before Phase 9 advances.
