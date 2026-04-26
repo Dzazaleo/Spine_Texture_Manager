@@ -28,6 +28,7 @@ import {
   type PeakRecord,
 } from '../src/core/sampler.js';
 import { SpineLoaderError } from '../src/core/errors.js';
+import { analyze } from '../src/core/analyzer.js';
 
 interface Args {
   skeletonPath: string;
@@ -85,11 +86,15 @@ function renderTable(peaks: Map<string, PeakRecord>): string {
     'Source Animation',
     'Frame',
   ]);
-  const sorted = [...peaks.values()].sort((a, b) => {
-    if (a.skinName !== b.skinName) return a.skinName.localeCompare(b.skinName);
-    if (a.slotName !== b.slotName) return a.slotName.localeCompare(b.slotName);
-    return a.attachmentName.localeCompare(b.attachmentName);
-  });
+  // Delegate fold + sort to src/core/analyzer.ts (D-33, D-34). `sorted` here
+  // is DisplayRow[] — a superset of the prior PeakRecord shape; the
+  // row-building loop below consumes the raw numeric fields and applies its
+  // own .toFixed(1) / .toFixed(3) / String() formatters to preserve the CLI's
+  // historical column format byte-for-byte. The preformatted label fields
+  // produced by analyzer carry the panel's whole-pixel + trailing-×
+  // divergent format (D-45/D-46) and MUST NOT be consumed here — doing so
+  // would break monospace column alignment.
+  const sorted = analyze(peaks);
   for (const rec of sorted) {
     const worldW = rec.worldW.toFixed(1);
     const worldH = rec.worldH.toFixed(1);
@@ -139,13 +144,17 @@ function main(): void {
       atlasPath: args.atlasPath,
     });
     const t0 = performance.now();
-    const peaks = sampleSkeleton(load, { samplingHz: args.samplingHz });
+    const sampled = sampleSkeleton(load, { samplingHz: args.samplingHz });
     const elapsed = performance.now() - t0;
 
-    process.stdout.write(renderTable(peaks) + '\n');
+    // Phase 3: sampler return is SamplerOutput; CLI reads globalPeaks only.
+    // renderTable() signature unchanged — it consumes Map<string, PeakRecord>.
+    // Byte-for-byte stdout preserved: the footer reads sampled.globalPeaks.size,
+    // which matches the Phase 2 peaks.size for any input.
+    process.stdout.write(renderTable(sampled.globalPeaks) + '\n');
     process.stdout.write(
       `\nSampled in ${elapsed.toFixed(1)} ms at ${args.samplingHz} Hz ` +
-        `(${peaks.size} attachments across ${load.skeletonData.skins.length} skins, ` +
+        `(${sampled.globalPeaks.size} attachments across ${load.skeletonData.skins.length} skins, ` +
         `${load.skeletonData.animations.length} animations)\n`,
     );
     process.exit(0);

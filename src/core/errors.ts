@@ -29,8 +29,22 @@ export class AtlasNotFoundError extends SpineLoaderError {
     public readonly searchedPath: string,
     public readonly skeletonPath: string,
   ) {
+    // Gap-Fix Round 2 (2026-04-25) — Bug #5: expanded message explains WHY
+    // the atlas is required. The original "No atlas file found" was
+    // technically correct but did not tell the user that a Spine project
+    // needs the .atlas alongside the .json (the skeleton JSON alone does
+    // NOT carry region metadata — only attachment names and bone
+    // references). Users dragging a bare .json without re-exporting from
+    // the Spine editor with the atlas included would see a cryptic
+    // failure; the new message points them at the correct fix.
+    //
+    // Class + .name + searchedPath + skeletonPath are unchanged — only
+    // the human message is expanded so existing tests that assert on the
+    // class / name / typed fields continue to pass byte-for-byte.
     super(
-      `No atlas file found beside skeleton JSON.\n  Skeleton: ${skeletonPath}\n  Expected atlas at: ${searchedPath}`,
+      `Spine projects require an .atlas file beside the .json (carries region metadata that the skeleton JSON alone does not have). ` +
+        `Re-export from the Spine editor with the atlas included.\n` +
+        `  Skeleton: ${skeletonPath}\n  Expected atlas at: ${searchedPath}`,
     );
     this.name = 'AtlasNotFoundError';
   }

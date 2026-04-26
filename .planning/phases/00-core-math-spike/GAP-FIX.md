@@ -1,16 +1,22 @@
 ---
-status: implemented-pending-reverify
+status: closed-iteration-4-shipping
 phase: 00-core-math-spike
-parent_plan: 00-07 (paused at human-verify checkpoint)
+parent_plan: 00-07 (closed 2026-04-23 on iter-4 hull_sqrt)
 diagnosed: 2026-04-22
 approved: 2026-04-22
 implemented: 2026-04-22
+closed: 2026-04-23
 handoff_reason: fresh-session requested to avoid orchestrator context bias
 debug_session: .planning/debug/phase-0-scale-overshoot.md
+shipping_formula: iter-4 hull_sqrt (branch feat/mesh-render-scale-v3)
+anisotropic_deferred: iter-5 affine SVD on feat/mesh-render-scale-anisotropic — pushed for record, not merged
 commits:
   - fix(00-core) render-scale formula
   - fix(00-core) CLI Frame column uses editor fps
   - test(00-core) numeric goldens for CIRCLE/SQUARE/SQUARE2/TRIANGLE
+  - feat(00-core) convex-hull area-ratio mesh render-scale (iteration-4)
+  - test(00-core) update mesh goldens for iter-4 hull_sqrt formula
+  - docs(00-07) mark iteration-4 hull_sqrt implemented in GAP-FIX.md
 ---
 
 # Phase 0 — Sampler Correctness Gap Fix
@@ -315,3 +321,277 @@ Close Plan 00-07 against current (weighted-sum) formula with an explicit
 note that meshes with shared scaled bones may over-report. Open a new phase
 (or plan 00-08 addendum) for the per-triangle formula iteration, with the
 Jokerman fixture + updated skeleton2.json as regression anchors.
+
+## Iteration-3 implementation (2026-04-22)
+
+Branch: `feat/mesh-render-scale-v3`. Status: **implemented — pending human
+verify**. Do NOT close Plan 00-07 until user approves the re-captured tables.
+
+### Formula
+
+Only the MeshAttachment branch of `computeRenderScale` changed. Region path
+(bone-axis scales) and non-Mesh VertexAttachment subtypes (weighted-sum
+fallback with inline warning comment) are unchanged.
+
+```
+peakScale(mesh) = max over triangles T of sqrt( world_area(T) / source_area(T) )
+```
+
+- `world_area(T)`: signed 2× triangle area from `attachment.computeWorldVertices`
+  output (post-bone-weighting, post-TransformConstraint/IK/Physics).
+- `source_area(T)`: signed 2× triangle area from `attachment.uvs` (0..1 over
+  the atlas page) × atlas page pixel dimensions. Source dims are read from
+  `region.page` with defensive fallback to `region.texture.page` for
+  alternative runtime region shapes.
+- Isotropic by construction → `peakScaleX = peakScaleY = peakScale`. The
+  per-axis split is deferred to a future iteration that introduces
+  edge-projection ratios.
+
+### Implementation result
+
+Re-captured CLI tables on all three fixtures (Sampled at 120 Hz):
+
+**SIMPLE_TEST** — regression anchor, must still pass user ground truth:
+
+```
+Attachment         Skin     Source W×H  Peak W×H       Scale  Source Animation  Frame
+-----------------  -------  ----------  -------------  -----  ----------------  -----
+CIRCLE/CIRCLE      default  699×699     1061.6×1231.4  2.191  TRANSFORM         34
+SQUARE/SQUARE      default  1000×1000   2102.8×2102.8  1.500  PATH              0
+SQUARE2/SQUARE     default  1000×1000   607.1×607.1    0.460  PATH              20
+TRIANGLE/TRIANGLE  default  833×759     1870.6×1979.1  2.000  PATH              0
+```
+
+Per-animation breakdown for CIRCLE (mesh — the only iteration-3-affected
+attachment in this fixture):
+
+| Animation | Iter-3 peakScale | Iter-1 peakScale (prior) | Reading |
+|---|---|---|---|
+| PATH | 2.116 @ f0 | 2.000 @ f29 | iter-3 finds boundary triangles that stretch slightly past the uniform 2× chain scale |
+| SIMPLE_SCALE | 2.156 @ f26 | 2.000 @ ~f29 | same behavior, linear curve instead of stepped |
+| SIMPLE_ROTATION | 1.306 @ f30 | ~1.0 | rotation-only animation surfaces boundary-triangle sensitivity |
+| TRANSFORM | 2.196 @ f34 | similar | composite rotation+scale — per-triangle max dominates |
+
+Region attachments (SQUARE, SQUARE2, TRIANGLE) are unchanged — same formula,
+same values.
+
+**skeleton2.json** (synthetic camera-move rig):
+
+```
+Attachment         Skin     Source W×H  Peak W×H     Scale  Source Animation      Frame
+-----------------  -------  ----------  -----------  -----  --------------------  -----
+CIRCLE/CIRCLE      default  699×699     520.1×480.0  1.210  TRANSFORM             27
+CIRCLE2/CIRCLE     default  699×699     699.0×699.0  1.000  Setup Pose (Default)  0
+SQUARE/SQUARE      default  1000×1000   695.0×695.0  0.500  CAM                   4
+SQUARE2/SQUARE     default  1000×1000   350.3×350.3  0.254  Setup Pose (Default)  0
+TRIANGLE/TRIANGLE  default  833×759     487.3×459.0  0.500  CAM                   4
+```
+
+CAM animation CIRCLE peak = 1.049 @ f10 (detected by per-animation probe).
+The two most-stretched triangles (tri 37, tri 35) show local-stretch
+area-ratio ≈ 1.10 at f10 — genuine local deformation, not noise; the rest of
+the mesh shrinks to ~0.6 at that frame. This is a **divergence from the user's
+editor reading of 0.447 × 0.775 along a single visually-stretched triangle**:
+the user reading matches hull_sqrt (~0.61) / the mesh's average stretch, not
+the per-triangle max-area-ratio. Documented for user review — the per-triangle
+formula is doing exactly what the spec defined ("captures LOCAL stretch at
+the most-stretched triangle, not an average"), but the anisotropic major-axis
+reading the user measures in the editor is a different quantity. User to
+verify whether the iter-3 answer (isotropic area-ratio-sqrt) is the intent,
+or whether a per-axis split (deferred feature) is required to match editor
+intuition.
+
+**Jokerman rig** (gitignored — licensed fixture, local validation only):
+
+Key rows for the shared-bone spillover test:
+
+| Attachment | Iter-1 (prior) | Iter-3 (now) | User expected |
+|---|---|---|---|
+| AVATAR-BODY/AVATAR/BODY | 1.199 R_FLEX f24 | 1.317 JUMP f24 | ≈ 1.07 — **iter-3 does NOT fix BODY's false-positive in this rig** |
+| AVATAR-R_ARM/AVATAR/R_ARM | 1.058 JUMP f28 | 1.447 R_THROW_CARDS f17 | ≈ 1.319 at WAITING f0 |
+| AVATAR-FACE/AVATAR/FACE | 1.060 JUMP f28 | 2.619 LAUGH f14 | (new reading — user verify) |
+| AVATAR-LEGS/AVATAR/LEGS | 1.060 JUMP f10 | 2.603 JUMP f22 | (new reading — user verify) |
+| AVATAR-L_EYELID | 1.060 JUMP f28 | 3.108 JUMP f25 | (new reading — user verify) |
+
+**Observation**: the per-triangle max-area-ratio surfaces MUCH more local
+stretch than iteration-1's weighted-sum formula across the Jokerman rig.
+Several attachments report scale >> expected uniform intent. Needs human
+triage:
+  - Are these genuine per-triangle stretches the animator needs to know
+    about for texture sizing? (If so, iter-3 is strictly more informative.)
+  - Or are they artifacts of the per-triangle formula being too sensitive
+    to boundary triangles at weighted bone joints (spillover in a different
+    direction from iter-1)?
+
+### Test goldens updated
+
+`tests/core/sampler.spec.ts`:
+- CIRCLE PATH / SIMPLE_SCALE tests changed from strict 2.0 (iter-1 golden) to
+  regression-floor (`>= 2.0`) + iter-3 anchor values (`≈ 2.116`, `≈ 2.156`).
+- CIRCLE invariant PATH ≈ SIMPLE_SCALE relaxed from 1e-3 to 5e-2 (iter-3
+  tracks per-triangle boundary stretch, sensitive to exact peak tick under
+  stepped-vs-linear curves).
+- Region attachments (SQUARE, SQUARE2, TRIANGLE) goldens unchanged.
+
+`tests/core/bounds.spec.ts`: no golden changes needed — the mesh test asserts
+`scale ≈ 1.0` at setup pose, which the iter-3 formula still satisfies
+(setup-pose max triangle ratio on CIRCLE = 1.000217 → sqrt = 1.0001).
+
+Full suite: 47 passed / 1 skipped / 0 failed. `npx tsc --noEmit` clean.
+
+### Human-verify checkpoint (Plan 00-07 stays PAUSED until approved)
+
+User must approve each row of the three re-captured tables above against the
+editor before merge to main. Specific questions requiring user decision:
+
+1. SIMPLE_TEST CIRCLE at 2.116 in PATH — is the "uniform 2× → exactly 2.0"
+   prediction wrong (boundary triangles DO stretch slightly past the chain
+   scale), or is per-triangle too sensitive and we need a hull-based formula?
+2. skeleton2 CAM CIRCLE — should the peak be per-triangle max-area-ratio
+   (1.049) or mesh-average area-ratio (≈ 0.60) or per-axis major-stretch
+   (0.775)? These are three different correctness criteria.
+3. Jokerman — several attachments show 2–3× peaks that iter-1 missed. Real
+   or spurious?
+
+Answering these may require a 4th iteration (per-axis split, or hybrid
+mean-area + max-triangle, or edge-projection-based anisotropy).
+
+## Iteration-4 implementation (2026-04-22)
+
+User review of iteration-3 rejected it — most Jokerman attachments over-
+reported vs the iter-1 values (user: "prior values seem correct 1.060").
+Iteration-3 commits kept on branch as record; iteration-4 supersedes.
+
+### Formula — convex-hull area-ratio (iter-2 winner)
+
+Only the MeshAttachment branch changed. Region and weighted-sum-fallback
+unchanged.
+
+```
+peakScale(mesh) = sqrt( area(hull(worldVertices)) / area(hull(sourceVertices)) )
+```
+
+- `hull(worldVertices)`: convex hull (Andrew's monotone chain) of the mesh's
+  world-vertex buffer from `computeWorldVertices`.
+- `hull(sourceVertices)`: convex hull of `attachment.uvs × (pageW, pageH)` —
+  same basis used at identity, so ratio ≈ 1.0 at setup pose.
+- Isotropic: `scaleX = scaleY = scale`. Per-axis split deferred.
+
+### Why iter-4 supersedes iter-3
+
+Per-triangle max-area-ratio (iter-3) captured legitimate local stretches at
+weighted-bone joints that the user does NOT see in the editor. Hull area is
+a mesh-wide metric — the dummy-texture footprint the user actually
+measures. GAP-FIX iter-2 table had already validated hull_sqrt as matching
+user ground truth (BODY 1.07, uniform 1.6× → 1.606). Iteration-3 was a
+detour; iteration-4 returns to the iter-2 winner and commits it.
+
+### Re-captured CLI tables (iter-4)
+
+**SIMPLE_TEST**:
+```
+Attachment         Skin     Source W×H  Peak W×H       Scale  Source Animation  Frame
+-----------------  -------  ----------  -------------  -----  ----------------  -----
+CIRCLE/CIRCLE      default  699×699     1440.4×1411.4  2.018  PATH              27
+SQUARE/SQUARE      default  1000×1000   2102.8×2102.8  1.500  PATH              0
+SQUARE2/SQUARE     default  1000×1000   607.1×607.1    0.460  PATH              20
+TRIANGLE/TRIANGLE  default  833×759     1870.6×1979.1  2.000  PATH              0
+```
+
+**skeleton2.json**:
+```
+Attachment         Skin     Source W×H  Peak W×H     Scale  Source Animation      Frame
+-----------------  -------  ----------  -----------  -----  --------------------  -----
+CIRCLE/CIRCLE      default  699×699     425.5×647.5  0.610  CAM                   19
+CIRCLE2/CIRCLE     default  699×699     699.0×699.0  1.000  Setup Pose (Default)  0
+SQUARE/SQUARE      default  1000×1000   695.0×695.0  0.500  CAM                   4
+SQUARE2/SQUARE     default  1000×1000   350.3×350.3  0.254  Setup Pose (Default)  0
+TRIANGLE/TRIANGLE  default  833×759     487.3×459.0  0.500  CAM                   4
+```
+
+**Jokerman** — key rows (gitignored fixture):
+
+| Attachment | Iter-1 | Iter-3 | **Iter-4** | User expected |
+|---|---|---|---|---|
+| BODY | 1.199 | 1.317 | **1.043** | ≈ 1.07 ✓ |
+| R_ARM | 1.058 | 1.447 | **1.022** | (iter-1 1.060 approved) |
+| FACE | 1.060 | 2.619 | **1.000** | 1.060 range |
+| LEGS | 1.060 | 2.603 | **1.092** | 1.060 range |
+| L_EYELID | 1.060 | 3.108 | **1.001** | 1.060 range |
+
+Region attachments (EYES, MOUTH, NECK, TEETH) unchanged at 1.060 — they go
+through the bone-axis formula, not the mesh branch.
+
+### Known discrepancy (flagged for user decision)
+
+**SIMPLE_TEST CIRCLE = 2.018 in PATH, user expected 1.49.** Iter-4 says the
+CIRCLE mesh's overall world-hull area grows by ≈4.07× (sqrt = 2.018) during
+PATH's CHAIN_2 → 2× scaling — consistent with a uniform 2× chain scale.
+The 1.49 reading is NOT explained by hull area, AABB ratio, or bone scale
+on the fixture. Candidates:
+  - User's 1.49 is a specific visual measurement (e.g. OBB major axis at a
+    chosen frame, not peak). Would be an anisotropic reading that an
+    iter-5 per-axis split could produce.
+  - User's 1.49 is based on a different ground-truth interpretation of the
+    rig than the fixture currently embodies.
+
+Remaining discrepancy pending user clarification. All other rows across the
+three fixtures agree with user-approved iter-1 values or GAP-FIX iter-2
+probe data.
+
+### Test goldens updated
+
+`tests/core/sampler.spec.ts`:
+- CIRCLE PATH / SIMPLE_SCALE tests: `|peakScale - 2.0| < 5e-2` (hull_sqrt
+  lands at 2.018 / 1.997). Loose tolerance reflects that hull_sqrt over-
+  reports slightly for rotated-chain meshes vs the idealized 2.0 scalar.
+- Invariant PATH ≈ SIMPLE_SCALE preserved at 5e-2.
+- Region goldens unchanged.
+
+Full suite: 47 passed / 1 skipped. `npx tsc --noEmit` clean.
+
+### Plan 00-07 status
+
+Still PAUSED at human-verify. User to approve:
+1. SIMPLE_TEST CIRCLE at 2.018 vs 1.49 expectation — source of discrepancy?
+2. skeleton2 CAM CIRCLE at 0.610 (matches iter-2 probe's 0.608).
+3. Jokerman all rows — should match iter-1 "1.060 is correct" guidance.
+
+## Iteration-5 experiment and closing decision (2026-04-23)
+
+User accepted iter-4 hull_sqrt's SIMPLE_TEST / Jokerman / Girl (new fixture)
+values as "closest to reality" across all iteration variants tested. The
+skeleton2 CAM anisotropic reading (0.610 isotropic vs user's editor reading
+of 0.447 × 0.775) was deferred as a known limit, matching the existing
+ROADMAP.md "Deferred" entry:
+
+> Aspect-ratio anomaly flag (when `scaleX != scaleY` at peak).
+
+Iter-5 attempts explored — all rejected or inferior to iter-4 overall:
+
+| Formula | Best fit for | Rejected because |
+|---|---|---|
+| Per-triangle max (iter-3) | nothing | over-reports on all rigs |
+| Min-area OBB on hull | anisotropy capture | LEGS 1.584 (outlier-sensitive) |
+| Best-fit affine SVD | anisotropic CAM (0.713) | over-reports Jokerman across the board |
+| Per-vertex Jacobian | Jokerman rigs (1.060 exact) | misses CAM translation-anisotropy (0.5) |
+| Per-triangle area-weighted SVD | nothing uniformly | LEGS 1.595, L_EYELID 1.693 |
+
+Branch `feat/mesh-render-scale-anisotropic` preserves the iter-5 affine
+SVD commit as historical record. Pushed to remote, not merged.
+
+### Validated on Girl fixture (145 attachments, 15 animations)
+
+Girl fixture (Joker rig, top-screen animation, 4 atlas pages) sampled
+clean with iter-4 hull_sqrt. Peaks ranged 0.356–0.524 across main body
+meshes (downscaled rig) and 1.619–1.654 for MAGIC_EXPLOSION VFX sprites.
+User confirmed: values match editor reality within acceptable tolerance.
+
+### Shipping decision
+
+- **Ship:** iter-4 hull_sqrt, branch `feat/mesh-render-scale-v3`.
+- **Archive for record:** iter-5 affine SVD, branch `feat/mesh-render-scale-anisotropic`.
+- **Defer:** per-axis anisotropic split (already in ROADMAP.md Deferred as
+  "aspect-ratio anomaly flag").
+
+Plan 00-07 closes on iter-4. Phase 0 advances to COMPLETE.

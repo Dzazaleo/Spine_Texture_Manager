@@ -5,8 +5,22 @@ node_modules/
 dist/
 coverage/
 
+# electron-vite bundle output
+out/
+
+# electron-builder release output (defensive — default is dist/ which is already ignored)
+release/
+
+# TypeScript project-references incremental build info (composite: true emits these)
+*.tsbuildinfo
+
 # User's Spine editor source files — NOT part of the app
 temp/
+
+# Licensed/third-party rigs used locally for validation only — not redistributable
+fixtures/Jokerman/
+fixtures/Girl/
+fixtures/images/
 
 # OS cruft
 .DS_Store
@@ -14,3 +28,17 @@ temp/
 # Logs
 *.log
 npm-debug.log*
+
+# Phase 2 CLI byte-for-byte golden + sibling diff artifacts
+# (handoff between Plan 02-01 Task 3 and Plan 02-03; removed by 02-03 final cleanup)
+fixtures/SIMPLE_PROJECT/.cli-*.txt
+
+# Debug probe scripts — ad-hoc sampler/analyzer investigations, not part of the app
+scripts/probe-*.ts
+scripts/diagnose-*.ts
+
+# Claude Code local config + agent worktrees (per-machine, not for remote)
+.claude/
+
+# GSD ephemeral checkpoint state (regenerated each discuss-phase session)
+.planning/phases/**/*-DISCUSS-CHECKPOINT.json

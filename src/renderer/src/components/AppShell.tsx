@@ -1,0 +1,1378 @@
+/**
+ * Phase 3 Plan 02 — Top-tab shell hosting the two panels (D-49 resolution).
+ *
+ * Provides header chrome (filename chip — hoisted from the prior global panel's
+ * internal header per D-49) + a tab strip with two labels (D-51 order: Global
+ * first, Animation Breakdown second). Owns the active-tab state (D-50 — plain
+ * useState, no library, no persistence) and the focus-animation state
+ * (D-52) used to thread jump-to-animation clicks from the Global tab's
+ * Source Animation cells into the Animation Breakdown tab's scroll + flash
+ * effect.
+ *
+ * State resets on every new skeleton drop by virtue of the parent's status
+ * machine unmounting this component during the idle / loading transition —
+ * no explicit reset useEffect needed.
+ *
+ * Layer 3 invariant: this file imports only from react, clsx, the shared types
+ * file, and sibling renderer modules. It NEVER imports from src/core/*. The
+ * tests/arch.spec.ts Layer 3 grep gate auto-scans this file on every test run.
+ *
+ * Tailwind v4 literal-class discipline: every className is a string literal
+ * (or a clsx conditional with literal branches). No template interpolation.
+ *
+ * Phase 4 Plan 02 extension: owns `overrides: Map<string, number>` (D-74)
+ * plus a nullable `dialogState` (D-77 lifecycle) and three callbacks
+ * (onOpenOverrideDialog, onApplyOverride, onClearOverride). Renders
+ * `<OverrideDialog>` conditionally below `<main>`. The overrides map resets
+ * on every new drop by the same unmount-on-idle-transition mechanism that
+ * resets activeTab (D-50 / D-74 parity). Layer 3: the clamp primitive is
+ * imported from the renderer-side overrides-view module, never from the
+ * pure-TS math tree — the latter would trip the arch.spec.ts gate at
+ * lines 19-34.
+ */
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from 'react';
+import clsx from 'clsx';
+import type {
+  SkeletonSummary,
+  DisplayRow,
+  BreakdownRow,
+  ExportPlan,
+  AppSessionState,
+  MaterializedProject,
+  SaveResponse,
+} from '../../../shared/types.js';
+import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
+import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
+import { OverrideDialog } from '../modals/OverrideDialog';
+import { OptimizeDialog } from '../modals/OptimizeDialog';
+import { ConflictDialog } from '../modals/ConflictDialog';
+import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
+import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
+import { SettingsDialog } from '../modals/SettingsDialog';
+import { HelpDialog } from '../modals/HelpDialog';
+import { clampOverride } from '../lib/overrides-view.js';
+import { buildExportPlan } from '../lib/export-view.js';
+
+type ActiveTab = 'global' | 'animation';
+
+export interface AppShellProps {
+  summary: SkeletonSummary;
+  /**
+   * Phase 8 D-146 — sampling rate threaded from App.tsx. No Settings UI yet
+   * (Phase 9); App.tsx passes a constant 120. Optional with default 120 to
+   * keep existing call sites working during the App.tsx ripple in Task 4.
+   */
+  samplingHz?: number;
+  /**
+   * Phase 8 — present when AppShell is mounted with a project file already
+   * loaded (i.e. App.tsx routed a `.stmproj` open through
+   * `window.api.openProjectFromPath`). AppShell uses these values to seed
+   * currentProjectPath, lastSaved, the restored overrides Map (with stale-key
+   * drop already applied main-side per D-150), and the stale-override banner.
+   * When undefined, AppShell mounts as a fresh untitled session (the existing
+   * post-skeleton-drop flow).
+   */
+  initialProject?: MaterializedProject;
+  /**
+   * Phase 8.1 D-163 — callback-ref bridge for the new-skeleton/new-project
+   * dirty-guard. App.tsx holds the useRef and passes it down here. AppShell
+   * registers an impl in a useEffect that mounts SaveQuitDialog when isDirty
+   * is true and a new .json/.stmproj is dropped. The impl resolves the
+   * DropZone.onBeforeDrop Promise to false on Cancel, true on Save / Don't Save
+   * (matching the 'quit' flow shape).
+   *
+   * When undefined, AppShell does not register anything and the drop
+   * proceeds unconditionally — matches pre-Phase-8.1 behavior.
+   */
+  onBeforeDropRef?: MutableRefObject<
+    ((fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>) | null
+  >;
+  /**
+   * Phase 08.2 D-175 — callback-ref bridge for menu-driven Save / Save As.
+   * App.tsx holds the useRef; AppShell registers `{ onClickSave, onClickSaveAs }`
+   * into ref.current via a useEffect. Menu click handlers in App.tsx
+   * dereference at call time so the latest registered impl always wins;
+   * when AppShell is unmounted the ref is null and the call is a no-op.
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163) — same shape, same
+   * registration discipline.
+   */
+  appShellMenuRef?: MutableRefObject<{
+    onClickSave: () => Promise<SaveResponse>;
+    onClickSaveAs: () => Promise<SaveResponse>;
+  } | null>;
+}
+
+export function AppShell({
+  summary,
+  samplingHz = 120,
+  initialProject,
+  onBeforeDropRef,
+  appShellMenuRef,
+}: AppShellProps) {
+  // D-50: plain useState; default 'global' on every mount (i.e. every new drop).
+  const [activeTab, setActiveTab] = useState<ActiveTab>('global');
+  // D-52: jump-target; null means no pending focus.
+  const [focusAnimationName, setFocusAnimationName] = useState<string | null>(null);
+
+  // Phase 7 D-130 — NEW: attachment jump-target plumbing (parallel to
+  // focusAnimationName, different consumer panel — GlobalMaxRenderPanel).
+  const [focusAttachmentName, setFocusAttachmentName] = useState<string | null>(null);
+
+  // Phase 7 D-134 — NEW: Atlas Preview modal lifecycle. Plain boolean, no
+  // snapshot state — the modal reads summary + overrides directly (D-131).
+  const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
+
+  // Phase 9 Plan 02 D-194 — sampling-in-flight UI surface. Indeterminate
+  // progress per RESEARCH §Q4 (byte-frozen sampler has no inner-loop emit
+  // point; intermediate percent values do not arrive — percent is 0 on
+  // start and 100 on complete). Toggling on `0` and clearing on `100`
+  // gives the renderer a binary "is sampling running?" signal that drives
+  // the spinner banner below.
+  const [samplingInFlight, setSamplingInFlight] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — Settings dialog lifecycle (Edit→Preferences from the
+  // 08.2 menu surface; Plan 09-05 wired the IPC). Plain useState; null/false
+  // when closed.
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 07 — Help dialog lifecycle (Help→Documentation from the
+  // 08.2 menu surface; Plan 09-05 wired menu:help-clicked + onMenuHelp).
+  // Plain useState; false when closed. Pitfall 9 listener-identity
+  // preservation lives in the preload — the wrapped const is captured there
+  // so removeListener targets the same reference in our useEffect cleanup.
+  const [helpOpen, setHelpOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — local samplingHz state. Seeded from the prop; Settings
+  // mutates this and a useEffect below dispatches the re-sample IPC. The
+  // parent (App.tsx) re-renders AppShell with `samplingHz` prop fed from
+  // state.project.samplingHz on the projectLoaded branch — but the local
+  // override here wins for the duration of an in-flight sampling change.
+  // After the re-sample completes, the parent's setState replaces the
+  // summary AND threads the new samplingHz back via the prop, at which
+  // point the prop and local state agree.
+  const [samplingHzLocal, setSamplingHzLocal] = useState<number>(samplingHz);
+
+  // Phase 9 Plan 06 — rig-info tooltip hover state. Plain useState (Pattern B
+  // from PATTERNS §"src/renderer/src/components/RigInfoTooltip.tsx" —
+  // testability via fireEvent.mouseEnter/Leave). The HTML `title=…` attribute
+  // is replaced by this rich multi-line surface so the load-bearing
+  // skeleton.fps wording (CLAUDE.md fact #1 + sampler.ts:41-44) can render
+  // as structured content rather than a flat title string.
+  const [rigInfoOpen, setRigInfoOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — local summary override for the post-resample state.
+  // When SettingsDialog applies a new samplingHz, the resample IPC returns a
+  // fresh SkeletonSummary; we hold it here so the panels render the new
+  // peaks. The prop `summary` remains the canonical source for the initial
+  // mount and any external state change (Open / drag-drop). When this is
+  // null, the prop drives rendering — when set, the local override wins.
+  const [localSummary, setLocalSummary] = useState<SkeletonSummary | null>(null);
+  const effectiveSummary = localSummary ?? summary;
+
+  // When the parent passes a new `summary` prop (e.g. App.tsx re-mounted
+  // AppShell on a fresh drop), drop the localSummary override so the prop
+  // wins again. Without this, dropping a NEW skeleton after a Settings
+  // change would still show the previous skeleton's peaks.
+  useEffect(() => {
+    setLocalSummary(null);
+  }, [summary]);
+
+  // D-74: plain useState; resets on every mount (new drop remounts AppShell).
+  // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
+  // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
+  // the IPC seam). Stale keys are already dropped main-side per D-150.
+  const [overrides, setOverrides] = useState<Map<string, number>>(
+    () => new Map(initialProject ? Object.entries(initialProject.restoredOverrides) : []),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 8 — Save/Load state (D-140..D-156). Plain useState, no Context
+  // (matches D-74 / D-77).
+  // ---------------------------------------------------------------------------
+
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(
+    initialProject?.projectFilePath ?? null,
+  );
+
+  /**
+   * Snapshot of the persisted state at the most recent successful Save (or Open).
+   * Null on a fresh untitled session. Phase 8 v1: tracks (overrides, samplingHz)
+   * for the dirty signal; sortColumn/sortDir/lastOutDir are PERSISTED on Save
+   * but do NOT participate in the dirty derivation (deferred to Phase 9 polish
+   * — see truths block in plan frontmatter).
+   */
+  const [lastSaved, setLastSaved] = useState<{
+    overrides: Record<string, number>;
+    samplingHz: number;
+  } | null>(
+    initialProject
+      ? {
+          overrides: { ...initialProject.restoredOverrides },
+          samplingHz: initialProject.samplingHz,
+        }
+      : null,
+  );
+
+  const [saveQuitDialogState, setSaveQuitDialogState] = useState<{
+    reason: SaveQuitDialogProps['reason'];
+    pendingAction: () => void;
+    // Phase 8.1 D-164: optional Cancel handler. Defaults to undefined.
+    // The existing 'quit' flow keeps it undefined (Cancel is a no-op —
+    // Electron already aborts the quit when before-quit returns false).
+    // The new 'new-skeleton-drop' / 'new-project-drop' flows set it to
+    // resolve the DropZone.onBeforeDrop Promise to false (abort the drop).
+    cancelAction?: () => void;
+  } | null>(null);
+
+  const [saveInFlight, setSaveInFlight] = useState(false);
+
+  const [staleOverrideNotice, setStaleOverrideNotice] = useState<string[] | null>(
+    initialProject && initialProject.staleOverrideKeys.length > 0
+      ? initialProject.staleOverrideKeys
+      : null,
+  );
+
+  /**
+   * D-149 inline error state. Set when a load attempt returns
+   * SkeletonNotFoundOnLoadError; cleared after the locate-skeleton + reload
+   * chain succeeds OR the user cancels. Cached fields needed for the reload
+   * IPC are stashed alongside the error.
+   */
+  const [skeletonNotFoundError, setSkeletonNotFoundError] = useState<{
+    message: string;
+    originalSkeletonPath: string;
+    projectPath: string;
+    mergedOverrides: Record<string, number>;
+    cachedSamplingHz: number;
+    cachedLastOutDir: string | null;
+    cachedSortColumn: string | null;
+    cachedSortDir: 'asc' | 'desc' | null;
+  } | null>(null);
+
+  // D-77 dialog lifecycle — null means dialog closed.
+  const [dialogState, setDialogState] = useState<{
+    scope: string[];
+    currentPercent: number;
+    anyOverridden: boolean;
+  } | null>(null);
+
+  // Phase 6 Plan 06 — export dialog state. Held independently of
+  // OverrideDialog's dialogState so the two modal lifecycles are
+  // unambiguous. exportInFlight gates the toolbar button per D-117 +
+  // T-06-18 mitigation (rapid double-click is a no-op until onRunEnd).
+  const [exportDialogState, setExportDialogState] = useState<{
+    plan: ExportPlan;
+    outDir: string;
+  } | null>(null);
+  const [exportInFlight, setExportInFlight] = useState(false);
+
+  // Gap-Fix Round 3 (2026-04-25) — ConflictDialog state. Mounted on top of
+  // OptimizeDialog (z-50 overlay → topmost) when probeExportConflicts
+  // returns a non-empty list. Three user actions resolve the pending
+  // confirmation promise:
+  //   - Cancel              → close both dialogs, resolve { proceed: false }
+  //   - Pick different folder → close ConflictDialog, re-pick, re-probe;
+  //                             AppShell may either resolve { proceed: false }
+  //                             (user cancels picker) or recurse into a fresh
+  //                             ConflictDialog if the new folder also collides
+  //   - Overwrite all       → close ConflictDialog, resolve { proceed: true,
+  //                                                           overwrite: true }
+  //
+  // Implemented via a useRef holding the resolver of the in-flight promise
+  // returned from onConfirmStart — the OptimizeDialog awaits this promise
+  // before flipping to in-progress state.
+  const [conflictState, setConflictState] = useState<{
+    conflicts: string[];
+  } | null>(null);
+  // Pending resolver from the OptimizeDialog's onConfirmStart promise.
+  // We use a ref (not state) because the resolver is consumed exactly once
+  // and the consumer (button click handlers below) needs the LATEST value
+  // synchronously without going through a re-render. Storing it in state
+  // would risk stale-closure bugs when the user takes an action between
+  // renders.
+  const pendingConfirmResolve = useRef<
+    ((decision: { proceed: boolean; overwrite?: boolean }) => void) | null
+  >(null);
+
+  const onJumpToAnimation = useCallback((name: string) => {
+    setActiveTab('animation');
+    setFocusAnimationName(name);
+  }, []);
+
+  const onFocusConsumed = useCallback(() => {
+    setFocusAnimationName(null);
+  }, []);
+
+  // Phase 7 D-130 — NEW: Atlas Preview canvas dblclick → close modal +
+  // switch to Global tab + dispatch focus to GlobalMaxRenderPanel. Three
+  // state writes; narrow useCallback deps (only setters; React guarantees
+  // setState identity is stable — empty deps array is correct).
+  const onJumpToAttachment = useCallback((name: string) => {
+    setActiveTab('global');
+    setFocusAttachmentName(name);
+    setAtlasPreviewOpen(false);
+  }, []);
+
+  const onFocusAttachmentConsumed = useCallback(() => {
+    setFocusAttachmentName(null);
+  }, []);
+
+  // Phase 7 D-134 — NEW: toolbar button click handler.
+  const onClickAtlasPreview = useCallback(() => {
+    setAtlasPreviewOpen(true);
+  }, []);
+
+  const onOpenOverrideDialog = useCallback(
+    (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
+      // D-86: batch only when the clicked row is in the selection set AND size > 1.
+      // D-87: "clicked row not in selection" = per-row, ignore selection.
+      // Gap-fix A + B (human-verify 2026-04-24): the selectedKeys contract
+      // now carries attachmentName values (GlobalMaxRenderPanel converts its
+      // internal attachmentKey selection before calling). See
+      // 04-03-SUMMARY.md §Deviations.
+      const inSelection =
+        selectedKeys !== undefined &&
+        selectedKeys.has(row.attachmentName) &&
+        selectedKeys.size > 1;
+      const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
+      // Gap-fix B (human-verify 2026-04-24): prefill is the existing override
+      // when set, else round(peakScale * 100) of the clicked row — shows
+      // current effective as the starting point in the new semantics where
+      // 100% = source dimensions and no-override = peakScale default.
+      // WR-01 (code review 2026-04-24): clamp the prefill so peakScale > 1.0
+      // (e.g. SIMPLE_TEST's pre-scaled SQUARE2 bone at ~1.78×) doesn't display
+      // a value above the "Max = 100%" helper text.
+      const currentPercent = clampOverride(
+        overrides.get(row.attachmentName) ?? Math.round(row.peakScale * 100),
+      );
+      // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
+      const anyOverridden = scope.some((name) => overrides.has(name));
+      setDialogState({ scope, currentPercent, anyOverridden });
+    },
+    [overrides],
+  );
+
+  const onApplyOverride = useCallback((scope: string[], percent: number) => {
+    // D-79: silent clamp on Apply. Layer 3 arch gate forbids core imports
+    // from renderer; the renderer copy in lib/overrides-view is the
+    // canonical path for renderer-side clamp math.
+    const clamped = clampOverride(percent);
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      // D-88: batch writes the same percent to every scope entry.
+      for (const name of scope) next.set(name, clamped);
+      return next;
+    });
+    setDialogState(null);
+  }, []);
+
+  const onClearOverride = useCallback((scope: string[]) => {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      // D-76: clearing = delete from map; no sentinel. D-88: batch clears all scope.
+      for (const name of scope) next.delete(name);
+      return next;
+    });
+    setDialogState(null);
+  }, []);
+
+  // Phase 6 Plan 06 — D-117 + D-118 + D-122 toolbar click flow.
+  //   1. Pre-fill the picker with <skeletonDir>/images-optimized/ (D-122).
+  //      Strip the trailing JSON filename via a platform-agnostic regex
+  //      so both / and \ separators work.
+  //   2. If user cancels picker (returns null), abort.
+  //   3. Build plan client-side via the renderer-side inline copy of
+  //      buildExportPlan (Phase 4 D-75 Layer 3 inline-copy precedent —
+  //      renderer NEVER imports from src/core/* per arch.spec.ts gate).
+  //   4. Mount OptimizeDialog with the plan + outDir.
+  //
+  // Gap-Fix Round 3 (2026-04-25): the picker → buildPlan → mount sequence
+  // is preserved here verbatim. The probe-then-confirm flow runs LATER,
+  // when the user clicks Start inside OptimizeDialog (see onConfirmStart
+  // below) — not on this initial toolbar click. This keeps the pre-flight
+  // dialog usable as a "review before committing" surface even when
+  // collisions exist.
+  const pickOutputDir = useCallback(async (): Promise<string | null> => {
+    // Phase 6 REVIEW L-01 (2026-04-25) — fall back to '.' (process cwd
+    // resolution at the OS picker) when the skeleton path has no parent
+    // segment. Edge case: a skeleton at filesystem root like '/skel.json'
+    // would otherwise produce defaultOutDir = '/images-optimized' and
+    // suggest writing to system root. Realistically nobody drops a skeleton
+    // there, but the regex-strip approach has no defense and a one-token
+    // fallback removes the suggestion entirely.
+    const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+    const defaultOutDir = skeletonDir + '/images-optimized';
+    return window.api.pickOutputDirectory(defaultOutDir);
+  }, [summary.skeletonPath]);
+
+  const onClickOptimize = useCallback(async () => {
+    const outDir = await pickOutputDir();
+    if (outDir === null) return; // user cancelled picker
+    const plan = buildExportPlan(summary, overrides);
+    setExportDialogState({ plan, outDir });
+  }, [pickOutputDir, summary, overrides]);
+
+  // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
+  //
+  // OptimizeDialog calls this when the user clicks Start; we run the
+  // backend conflict probe and either:
+  //   - return { proceed: true, overwrite: false } if there are no
+  //     conflicts (the dialog flips to in-progress and runs startExport
+  //     with overwrite=false)
+  //   - return a promise resolved later by ConflictDialog button clicks
+  //     when conflicts ARE present (the user's choice translates into
+  //     proceed/overwrite via the resolver in pendingConfirmResolve)
+  //
+  // Hard-reject case (outDir IS source-images-dir) returns ok:false from
+  // the probe IPC; we surface a synthetic conflict dialog with the error
+  // message... no, simpler: we resolve { proceed: false } and let the
+  // OptimizeDialog flip to complete state with the synthetic error
+  // (existing behaviour when startExport rejects). Actually NO — at this
+  // point the dialog is still in pre-flight; if we return proceed:false
+  // the dialog stays in pre-flight which is wrong. We fall through and
+  // let startExport reject; the dialog's existing synthetic-summary path
+  // surfaces the message.
+  const onConfirmStart = useCallback(async (): Promise<{
+    proceed: boolean;
+    overwrite?: boolean;
+  }> => {
+    if (exportDialogState === null) return { proceed: false };
+    const { plan, outDir } = exportDialogState;
+    const probeResult = await window.api.probeExportConflicts(plan, outDir);
+    if (!probeResult.ok) {
+      // Hard-reject (e.g. outDir IS source-images-dir). Let the dialog
+      // proceed; startExport will fail with the same error and the
+      // existing synthetic-summary path surfaces the message in the
+      // complete state.
+      return { proceed: true, overwrite: false };
+    }
+    if (probeResult.conflicts.length === 0) {
+      // No collisions — proceed straight to startExport without overwrite.
+      return { proceed: true, overwrite: false };
+    }
+    // Conflicts exist — mount ConflictDialog and wait for user decision.
+    return new Promise((resolve) => {
+      pendingConfirmResolve.current = resolve;
+      setConflictState({ conflicts: probeResult.conflicts });
+    });
+  }, [exportDialogState]);
+
+  const closeBothDialogs = useCallback(() => {
+    setConflictState(null);
+    setExportDialogState(null);
+    pendingConfirmResolve.current = null;
+  }, []);
+
+  // ConflictDialog: Cancel — back out entirely. Close both dialogs and
+  // resolve the pending confirmation as not-proceed so OptimizeDialog
+  // doesn't move past pre-flight.
+  const onConflictCancel = useCallback(() => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    setExportDialogState(null);
+    if (resolve) resolve({ proceed: false });
+  }, []);
+
+  // ConflictDialog: Overwrite all — proceed with overwrite=true.
+  const onConflictOverwrite = useCallback(() => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    if (resolve) resolve({ proceed: true, overwrite: true });
+  }, []);
+
+  // ConflictDialog: Pick different folder — close conflict dialog, resolve
+  // the in-flight confirmation as not-proceed (OptimizeDialog stays in
+  // pre-flight), then re-trigger the picker. If the user picks a new
+  // folder, rebuild the plan against the existing summary/overrides and
+  // re-mount the OptimizeDialog (the user can then click Start again,
+  // which re-enters the probe-then-confirm pipeline).
+  const onConflictPickDifferent = useCallback(async () => {
+    const resolve = pendingConfirmResolve.current;
+    pendingConfirmResolve.current = null;
+    setConflictState(null);
+    if (resolve) resolve({ proceed: false });
+    const newOutDir = await pickOutputDir();
+    if (newOutDir === null) {
+      // User cancelled the picker — close OptimizeDialog too. The user
+      // backed out of the export entirely.
+      setExportDialogState(null);
+      return;
+    }
+    const plan = buildExportPlan(summary, overrides);
+    setExportDialogState({ plan, outDir: newOutDir });
+  }, [pickOutputDir, summary, overrides]);
+  // closeBothDialogs is referenced in JSDoc above; keep the symbol live
+  // for the typechecker even though it's no longer wired to any handler
+  // (ConflictDialog Cancel routes through onConflictCancel which is more
+  // specific — it must resolve the pending promise too).
+  void closeBothDialogs;
+
+  // ---------------------------------------------------------------------------
+  // Phase 8 — Save/Load wiring (D-140..D-156). buildSessionState helper +
+  // dirty derivation + click handlers + keyboard listener + before-quit
+  // subscription. Layer 3 invariant: nothing here imports from src/core/*;
+  // every IPC hop goes through window.api.* — preload owns the boundary.
+  // ---------------------------------------------------------------------------
+
+  const buildSessionState = useCallback(
+    (): AppSessionState => ({
+      skeletonPath: summary.skeletonPath,
+      atlasPath: summary.atlasPath ?? null,
+      imagesDir: null,
+      overrides: Object.fromEntries(overrides),
+      // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
+      // change is reflected in the saved session state. The prop seeds the
+      // local on first mount; SettingsDialog.onApply mutates the local,
+      // which then drives the dirty derivation AND the next Save's payload.
+      samplingHz: samplingHzLocal,
+      // Phase 9 polish — currently null; D-145 schema field present but
+      // not yet hoisted into AppShell state. Documented deferral per D-147.
+      lastOutDir: null,
+      // D-91 default; Phase 9 hoists actual panel sort state.
+      sortColumn: 'attachmentName',
+      sortDir: 'asc',
+    }),
+    [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal],
+  );
+
+  /**
+   * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.
+   * lastOutDir/sortColumn/sortDir are persisted on Save but excluded from the
+   * dirty signal until Phase 9 hoists them to AppShell state. Documented
+   * deferral — non-trivial refactor out of Phase 8 scope.
+   *
+   * Untitled session (lastSaved === null): dirty when overrides has any entries.
+   * Loaded session: dirty when overrides Map differs from lastSaved.overrides
+   * Record OR samplingHz differs.
+   *
+   * Phase 9 Plan 06 — read samplingHzLocal here so a Settings change marks
+   * the project dirty even before the re-sample IPC returns. AppShell's
+   * existing :506-508 dirty contract is preserved verbatim — only the
+   * dependency source changes (prop → local state seeded from prop).
+   */
+  const isDirty = useMemo(() => {
+    if (lastSaved === null) {
+      return overrides.size > 0;
+    }
+    if (overrides.size !== Object.keys(lastSaved.overrides).length) return true;
+    for (const [k, v] of overrides) {
+      if (lastSaved.overrides[k] !== v) return true;
+    }
+    if (samplingHzLocal !== lastSaved.samplingHz) return true;
+    return false;
+  }, [overrides, lastSaved, samplingHzLocal]);
+
+  /**
+   * onClickSave — Save when currentProjectPath is set; Save As otherwise.
+   * Awaitable so the SaveQuitDialog 'quit' flow can chain pendingAction
+   * after a successful save.
+   */
+  const onClickSave = useCallback(async (): Promise<SaveResponse> => {
+    setSaveInFlight(true);
+    try {
+      const state = buildSessionState();
+      let resp: SaveResponse;
+      if (currentProjectPath !== null) {
+        resp = await window.api.saveProject(state, currentProjectPath);
+      } else {
+        const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+        const basename =
+          summary.skeletonPath.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? 'Untitled';
+        resp = await window.api.saveProjectAs(state, skeletonDir, basename);
+        if (resp.ok) setCurrentProjectPath(resp.path);
+      }
+      if (resp.ok) {
+        setLastSaved({
+          overrides: { ...state.overrides },
+          samplingHz: state.samplingHz ?? 120,
+        });
+        // Auto-clear stale-override notice on successful save (CONTEXT discretion).
+        setStaleOverrideNotice(null);
+      }
+      return resp;
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [buildSessionState, currentProjectPath, summary.skeletonPath]);
+
+  /**
+   * Phase 08.2 D-175 — dedicated Save As callback for the native menu's
+   * "Save As…" item. Always picks a new path via the dialog regardless
+   * of currentProjectPath. The toolbar Save button continues to use
+   * onClickSave's smart branch (current behavior).
+   *
+   * Mirrors the Save As branch previously inlined in onClickSave. Both
+   * register into appShellMenuRef so menu File→Save / File→Save As… can
+   * dispatch through AppShell's existing handlers without lifting state.
+   */
+  const onClickSaveAs = useCallback(async (): Promise<SaveResponse> => {
+    setSaveInFlight(true);
+    try {
+      const state = buildSessionState();
+      const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+      const basename =
+        summary.skeletonPath.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? 'Untitled';
+      const resp = await window.api.saveProjectAs(state, skeletonDir, basename);
+      if (resp.ok) {
+        setCurrentProjectPath(resp.path);
+        setLastSaved({
+          overrides: { ...state.overrides },
+          samplingHz: state.samplingHz ?? 120,
+        });
+        setStaleOverrideNotice(null);
+      }
+      return resp;
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [buildSessionState, summary.skeletonPath]);
+
+  /**
+   * mountOpenResponse — apply a MaterializedProject to AppShell's state
+   * machine. Used by both onClickOpen (Cmd+O / Open button) and
+   * onClickLocateSkeleton (D-149 recovery). Does NOT remount AppShell —
+   * Open is fully self-contained at this level.
+   *
+   * Trade-off: Cmd+O works for the SAME-skeleton case (most common).
+   * Cross-skeleton Open requires drag-dropping the .stmproj so App.tsx's
+   * state machine can transition (re-mounts AppShell with new summary).
+   */
+  const mountOpenResponse = useCallback((project: MaterializedProject) => {
+    // Phase 9 Plan 06 — handleProjectResample passes empty-string for the
+    // projectFilePath when AppShell is in the skeleton-only branch (no
+    // .stmproj saved yet). Treat empty as null so the filename chip keeps
+    // showing 'Untitled' rather than ''. The Open / Save As paths still
+    // pass real .stmproj paths and slot in unchanged.
+    setCurrentProjectPath(project.projectFilePath !== '' ? project.projectFilePath : null);
+    setOverrides(new Map(Object.entries(project.restoredOverrides)));
+    setLastSaved({
+      overrides: { ...project.restoredOverrides },
+      samplingHz: project.samplingHz,
+    });
+    setStaleOverrideNotice(
+      project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
+    );
+    setSkeletonNotFoundError(null);
+  }, []);
+
+  const onClickOpen = useCallback(async () => {
+    // Phase 9 Plan 02 D-194 — if a sample is in flight (e.g., user clicked
+    // Cmd+O via the 08.2 menu while the previous Open's sample is still
+    // running), abort the in-flight sample first. The new Open's sample
+    // contests for the same module-level samplerWorkerHandle in main; pre-
+    // empting cleanly via terminate() avoids the user briefly seeing stale
+    // peaks from the old project.
+    if (samplingInFlight) {
+      window.api.cancelSampler();
+      // Optimistic UI clear — the cancelled response will arrive shortly via
+      // the open's ok:false branch but clearing immediately gives crisper UX.
+      setSamplingInFlight(false);
+    }
+    const resp = await window.api.openProject();
+    if (!resp.ok) {
+      if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {
+        // Phase 8.1 D-160: read the threaded recovery payload from the typed
+        // envelope. The discriminated-union narrowing exposes 7 additional
+        // fields populated by handleProjectOpenFromPath at
+        // src/main/project-io.ts:333-343 (Plan 08.1-02). The toolbar Open
+        // path now has full parity with the drag-drop path —
+        // onClickLocateSkeleton's reloadProjectWithSkeleton call receives
+        // the real projectPath, the real originalSkeletonPath, and the
+        // real cached overrides + settings. Pre-Phase-8.1 these were empty
+        // literals, causing main's input validator to reject the recovery
+        // request with kind:'Unknown', message:'projectPath must be a
+        // .stmproj path' — VR-02 from 08-VERIFICATION.md.
+        setSkeletonNotFoundError({
+          message: resp.error.message,
+          originalSkeletonPath: resp.error.originalSkeletonPath,
+          projectPath: resp.error.projectPath,
+          mergedOverrides: resp.error.mergedOverrides,
+          cachedSamplingHz: resp.error.samplingHz,
+          cachedLastOutDir: resp.error.lastOutDir,
+          cachedSortColumn: resp.error.sortColumn,
+          cachedSortDir: resp.error.sortDir,
+        });
+        return;
+      }
+      // Other errors: surface via existing error UI. The inline banner pattern
+      // is the standard.
+      return;
+    }
+    mountOpenResponse(resp.project);
+  }, [mountOpenResponse, samplingInFlight]);
+
+  /**
+   * D-149 recovery flow (Approach A). Triggered by the inline error
+   * banner's "Locate skeleton…" button. Steps:
+   *   1. Open the file picker via window.api.locateSkeleton(originalPath).
+   *   2. If user picks a file, call window.api.reloadProjectWithSkeleton
+   *      with the new path + cached overrides/settings from the failed Open.
+   *   3. On success, mount the result via mountOpenResponse — same code
+   *      path used for onClickOpen success. Clears skeletonNotFoundError.
+   *
+   * NO App.tsx callback. AppShell is self-contained for the recovery flow.
+   */
+  const onClickLocateSkeleton = useCallback(async () => {
+    if (skeletonNotFoundError === null) return;
+    const located = await window.api.locateSkeleton(skeletonNotFoundError.originalSkeletonPath);
+    if (!located.ok) return; // user cancelled picker
+    const resp = await window.api.reloadProjectWithSkeleton({
+      projectPath: skeletonNotFoundError.projectPath,
+      newSkeletonPath: located.newPath,
+      mergedOverrides: skeletonNotFoundError.mergedOverrides,
+      samplingHz: skeletonNotFoundError.cachedSamplingHz,
+      lastOutDir: skeletonNotFoundError.cachedLastOutDir,
+      sortColumn: skeletonNotFoundError.cachedSortColumn,
+      sortDir: skeletonNotFoundError.cachedSortDir,
+    });
+    if (!resp.ok) {
+      // Located file ALSO fails to load (rare). Update banner message but
+      // keep the recovery affordance.
+      setSkeletonNotFoundError({
+        ...skeletonNotFoundError,
+        message: resp.error.message,
+      });
+      return;
+    }
+    mountOpenResponse(resp.project);
+  }, [skeletonNotFoundError, mountOpenResponse]);
+
+  /**
+   * Phase 08.2 D-176 — the renderer-side Cmd/Ctrl+S+O keydown listener
+   * has been DELETED end-to-end. The native Electron application Menu
+   * (Phase 08.2 Plan 02) is the single source of truth for these
+   * keyboard accelerators; menu clicks dispatch via webContents.send →
+   * preload → App.tsx's onMenu* subscriptions (Phase 08.2 D-175). The
+   * `[role="dialog"]` modal-suppression heuristic moved into the
+   * notifyMenuState push below (D-184): when any modal is open, main
+   * disables the File menu items so the accelerator becomes a no-op
+   * at the OS level. Eliminates the double-fire risk between the
+   * old keydown listener and the menu accelerator.
+   */
+
+  /**
+   * before-quit dirty-guard subscription (D-143 + Pitfall 1). When the user
+   * tries to quit while isDirty === true, mount SaveQuitDialog with reason
+   * 'quit'. When clean, fire confirmQuitProceed immediately so main can
+   * complete the quit.
+   */
+  useEffect(() => {
+    const unsub = window.api.onCheckDirtyBeforeQuit(() => {
+      if (!isDirty) {
+        window.api.confirmQuitProceed();
+        return;
+      }
+      setSaveQuitDialogState({
+        reason: 'quit',
+        pendingAction: () => {
+          window.api.confirmQuitProceed();
+        },
+      });
+    });
+    return unsub;
+  }, [isDirty]);
+
+  /**
+   * Phase 9 Plan 02 D-194 — subscribe to sampler progress events.
+   * Pitfall 9 + 15 (RESEARCH): cleanup MUST return the unsubscribe closure;
+   * the wrapped const inside preload preserves listener identity so
+   * removeListener actually removes the subscription.
+   *
+   * Progress is indeterminate (0 → 100, no intermediate ticks). We toggle
+   * samplingInFlight on receipt of `0` (sampling started) and clear it on
+   * `100` (sampling completed). On cancel/error the bridge does NOT emit
+   * a final progress event — clearing happens via the project-open
+   * continuation (the open returns ok:false; the cancel handler in
+   * onClickOpen also clears optimistically).
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onSamplerProgress((percent) => {
+      if (percent === 0) setSamplingInFlight(true);
+      else if (percent >= 100) setSamplingInFlight(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 08.2 D-181 / D-184 — push menu state to main whenever the
+   * dependency set changes. summary is non-null while AppShell is mounted
+   * (loaded / projectLoaded branches), so canSave + canSaveAs are always
+   * true here. modalOpen is derived from the four modal state slots
+   * (dialogState — OverrideDialog, exportDialogState — Optimize/Export
+   * dialog, atlasPreviewOpen — AtlasPreviewModal, saveQuitDialogState —
+   * SaveQuitDialog); main disables File menu items when modalOpen is
+   * true (D-184) so the keyboard accelerator becomes a no-op at the OS
+   * level whenever a modal is mounted.
+   */
+  useEffect(() => {
+    const modalOpen =
+      dialogState !== null ||
+      exportDialogState !== null ||
+      atlasPreviewOpen ||
+      saveQuitDialogState !== null ||
+      // Phase 9 Plan 06 — SettingsDialog also participates in the modalOpen
+      // derivation. While open, File menu items (Save / Save As) get
+      // disabled at the OS level via 08.2 D-184 — same automatic surface
+      // every other [role="dialog"][aria-modal="true"] modal gets.
+      settingsOpen ||
+      // Phase 9 Plan 07 — HelpDialog joins the same derivation. aria-modal
+      // alone would auto-suppress via 08.2 D-184, but explicit inclusion
+      // keeps the derivation list parallel with the other 5 modal slots.
+      helpOpen;
+    window.api.notifyMenuState({
+      canSave: true,
+      canSaveAs: true,
+      modalOpen,
+    });
+  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen, helpOpen]);
+
+  /**
+   * Phase 9 Plan 06 — Settings menu subscription. The native Edit→Preferences…
+   * menu item (Plan 09-05 Task 1) fires `menu:settings-clicked`; we lift the
+   * SettingsDialog open state in response. Pitfall 9 listener-identity
+   * preservation lives in the preload (Plan 09-05 Task 2 onMenuSettings);
+   * the wrapped const is captured there so removeListener targets the same
+   * reference in our cleanup.
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onMenuSettings(() => setSettingsOpen(true));
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 9 Plan 07 — Help menu subscription. The native Help→Documentation
+   * menu item (Plan 09-05 Task 1) fires `menu:help-clicked`; we lift the
+   * HelpDialog open state in response. Pitfall 9 listener-identity
+   * preservation lives in the preload (Plan 09-05 Task 2 onMenuHelp); the
+   * wrapped const is captured there so removeListener targets the same
+   * reference in our cleanup. Mirrors the onMenuSettings useEffect above
+   * verbatim — only the channel name and state setter differ.
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onMenuHelp(() => setHelpOpen(true));
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 9 Plan 06 — re-sample on samplingHz change (RESEARCH §Pitfall 7).
+   *
+   * The first useEffect run (mount) is skipped via the `resampleSkipMount`
+   * ref — the project was JUST loaded with the correct samplingHz so a
+   * re-sample would be a no-op-shaped duplicate. Subsequent changes (driven
+   * by SettingsDialog.onApply) dispatch the new IPC and refresh the
+   * displayed peaks via the local summary override.
+   *
+   * On error: leave the prior summary in place; the panels keep showing
+   * the old peaks. A future polish phase could surface the error via the
+   * existing skeletonNotFoundError banner family — this error path is
+   * extremely rare (the skeleton file would have to vanish between Open
+   * and Apply) so silent recovery is acceptable for v1.
+   *
+   * Cancellation: when the user opens a different file mid-resample, the
+   * existing onClickOpen path calls cancelSampler() (Phase 9 Plan 02
+   * D-194) which terminate()s the worker; our await resolves with
+   * `ok: false, error: { kind: 'Unknown', message: 'Sampling cancelled.' }`
+   * and we fall through.
+   */
+  const resampleSkipMount = useRef<boolean>(true);
+  useEffect(() => {
+    if (resampleSkipMount.current) {
+      resampleSkipMount.current = false;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const resp = await window.api.resampleProject({
+        skeletonPath: summary.skeletonPath,
+        atlasPath: summary.atlasPath,
+        samplingHz: samplingHzLocal,
+        // Pitfall 3 boundary conversion: Map → Record at the IPC seam.
+        overrides: Object.fromEntries(overrides),
+        lastOutDir: null,
+        sortColumn: 'attachmentName',
+        sortDir: 'asc',
+        projectFilePath: currentProjectPath,
+      });
+      // Guard against a stale response landing after the next samplingHz
+      // change (or unmount). The cancelled flag below is set by the
+      // cleanup callback; if true, drop the response on the floor.
+      if (cancelled) return;
+      if (resp.ok) {
+        // Replace the displayed summary AND refresh lastSaved.samplingHz so
+        // the dirty-derivation does not stay perpetually dirty after the
+        // user accepts the new rate. Stale-override keys are surfaced via
+        // the existing banner; restoredOverrides re-mounts the Map.
+        setLocalSummary(resp.project.summary);
+        setOverrides(new Map(Object.entries(resp.project.restoredOverrides)));
+        setStaleOverrideNotice(
+          resp.project.staleOverrideKeys.length > 0
+            ? resp.project.staleOverrideKeys
+            : null,
+        );
+        // After resample, the new samplingHz is now the "current saved"
+        // value if we were already saved (lastSaved !== null). For untitled
+        // sessions, lastSaved stays null and Save will capture it later.
+        setLastSaved((prev) =>
+          prev !== null ? { ...prev, samplingHz: samplingHzLocal } : prev,
+        );
+      }
+      // ok:false: silent — leave the existing summary in place. Future
+      // polish: thread an error banner.
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally narrow deps: re-fire only on samplingHzLocal changes.
+    // Including overrides / paths in the deps would re-trigger a sample on
+    // every override edit, which is the wrong contract — overrides are a
+    // post-sample percent multiplier, not an input to the sampler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [samplingHzLocal]);
+
+  /**
+   * Phase 8.1 D-163 — register the dirty-guard impl into App.tsx's
+   * onBeforeDropRef. Cleanup on unmount sets the ref back to null so
+   * subsequent drops post-unmount fall through to handleBeforeDrop's
+   * `?? true` fallback (proceed without a guard — the unmount itself
+   * signals a confirmed transition).
+   *
+   * isDirty is read INSIDE the impl (via the Promise factory closure)
+   * so the registered callback always sees the latest dirty signal —
+   * the useEffect re-runs when isDirty changes, re-binding the impl.
+   */
+  useEffect(() => {
+    if (!onBeforeDropRef) return;
+    onBeforeDropRef.current = (_fileName, kind) =>
+      new Promise<boolean>((resolve) => {
+        if (!isDirty) {
+          resolve(true);
+          return;
+        }
+        const reason: SaveQuitDialogProps['reason'] =
+          kind === 'json' ? 'new-skeleton-drop' : 'new-project-drop';
+        setSaveQuitDialogState({
+          reason,
+          // Save / Don't Save: resolve true → DropZone proceeds.
+          // The pendingAction fires AFTER setSaveQuitDialogState(null) so the
+          // dialog closes before the drop's IPC handshake begins (D-167 —
+          // overrides die with the unmount when the new skeleton lands).
+          pendingAction: () => resolve(true),
+          // Cancel: resolve false → DropZone aborts → overrides survive.
+          cancelAction: () => resolve(false),
+        });
+      });
+    return () => {
+      onBeforeDropRef.current = null;
+    };
+  }, [isDirty, onBeforeDropRef]);
+
+  /**
+   * Phase 08.2 D-175 — register Save / Save As handlers into App.tsx's
+   * appShellMenuRef so the native menu's File→Save / File→Save As… items
+   * can dispatch through AppShell's existing handlers without lifting
+   * state. Cleanup nulls the ref on unmount so menu clicks fall through
+   * to no-op when AppShell isn't mounted.
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163).
+   */
+  useEffect(() => {
+    if (!appShellMenuRef) return;
+    appShellMenuRef.current = { onClickSave, onClickSaveAs };
+    return () => {
+      appShellMenuRef.current = null;
+    };
+  }, [onClickSave, onClickSaveAs, appShellMenuRef]);
+
+  return (
+    <div className="w-full h-full flex flex-col">
+      <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
+        {/* Filename chip — hoisted from the prior panel's internal header per D-49.
+            Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
+            Renders 'Untitled' when currentProjectPath is null; otherwise the project
+            basename. Class string preserved verbatim for visual continuity.
+            Phase 9 Plan 06 — wrapped in a hoverable container with a rich rig-info
+            tooltip. The HTML `title=…` attribute is removed (replaced by the
+            structured multi-line tooltip below). The skeleton.fps line is
+            load-bearing per CLAUDE.md fact #1 + sampler.ts:41-44. */}
+        <div
+          data-testid="rig-info-host"
+          className="relative inline-block"
+          onMouseEnter={() => setRigInfoOpen(true)}
+          onMouseLeave={() => setRigInfoOpen(false)}
+        >
+          <span
+            className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg cursor-help"
+            aria-describedby={rigInfoOpen ? 'rig-info-tooltip' : undefined}
+          >
+            {isDirty ? '• ' : ''}
+            {currentProjectPath
+              ? currentProjectPath.split(/[\\/]/).pop() ?? 'Untitled'
+              : 'Untitled'}
+          </span>
+          {rigInfoOpen && (
+            <div
+              id="rig-info-tooltip"
+              role="tooltip"
+              className="absolute top-full left-0 mt-1 z-30 bg-panel border border-border rounded-md p-3 text-xs font-mono text-fg whitespace-pre min-w-[260px] shadow-lg"
+            >
+              <div className="text-fg">
+                {effectiveSummary.skeletonPath.split(/[\\/]/).pop() ?? effectiveSummary.skeletonPath}
+              </div>
+              <div className="text-fg-muted mt-2">
+                {`bones:        ${effectiveSummary.bones.count}\n` +
+                  `slots:        ${effectiveSummary.slots.count}\n` +
+                  `attachments:  ${effectiveSummary.attachments.count}\n` +
+                  `animations:   ${effectiveSummary.animations.count}\n` +
+                  `skins:        ${effectiveSummary.skins.count}`}
+              </div>
+              <div className="text-fg-muted mt-2">
+                {`skeleton.fps: ${effectiveSummary.editorFps} (editor metadata — does not affect sampling)`}
+              </div>
+            </div>
+          )}
+        </div>
+        <nav role="tablist" className="flex gap-1 items-center">
+          <TabButton
+            isActive={activeTab === 'global'}
+            onClick={() => setActiveTab('global')}
+          >
+            Global
+          </TabButton>
+          <TabButton
+            isActive={activeTab === 'animation'}
+            onClick={() => setActiveTab('animation')}
+          >
+            Animation Breakdown
+          </TabButton>
+        </nav>
+        {/* Phase 6 Plan 06 D-117: persistent toolbar button right-aligned
+            via ml-auto. Disabled when no peaks (Pitfall 11 empty-rig) or
+            while an export is in flight (T-06-18 — second click is a no-op
+            until the dialog's onRunEnd fires). Reuses warm-stone tokens
+            from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
+        <div className="ml-auto flex gap-2">
+          {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
+              immediately LEFT of Optimize Assets (right-aligned cluster).
+              Disabled when no peaks (summary not loaded yet or empty rig).
+              Reuses warm-stone tokens; class string matches Optimize Assets
+              for Tailwind v4 literal-class scanner discipline (Pitfall 3). */}
+          <button
+            type="button"
+            onClick={onClickAtlasPreview}
+            disabled={effectiveSummary.peaks.length === 0}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Atlas Preview
+          </button>
+          <button
+            type="button"
+            onClick={onClickOptimize}
+            disabled={effectiveSummary.peaks.length === 0 || exportInFlight}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Optimize Assets
+          </button>
+          {/* Phase 8 D-140 — Save toolbar button. Class string verbatim from
+              Optimize Assets above (Tailwind v4 literal-class scanner discipline,
+              Pitfall 8). Disabled when no skeleton (peaks empty) or save in flight. */}
+          <button
+            type="button"
+            onClick={() => void onClickSave()}
+            disabled={effectiveSummary.peaks.length === 0 || saveInFlight}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Save
+          </button>
+          {/* Phase 8 D-140 — Open toolbar button. Class string verbatim from
+              Optimize Assets above. No disabled state — Open is always
+              available (replaces the current session). */}
+          <button
+            type="button"
+            onClick={() => void onClickOpen()}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          >
+            Open
+          </button>
+        </div>
+      </header>
+      {/* Phase 9 Plan 02 D-194 — indeterminate sampling spinner. Surfaces while
+          a sample is in flight (worker spawn → sampleSkeleton → complete/cancel).
+          Indeterminate CSS animation per RESEARCH §Q4 (no determinate percent
+          available because sampler is byte-frozen — no inner-loop emit point). */}
+      {samplingInFlight && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Sampling skeleton"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span
+            className="inline-block w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span>Sampling skeleton…</span>
+        </div>
+      )}
+      {/* Phase 8 D-150 — stale-override banner. Renders count + first-5 names
+          (then "+ N more" suffix when > 5); dismissible. Auto-clears on next
+          successful Save (see onClickSave). RESEARCH §Open Q4 RESOLVED styling:
+          muted-fg body + accent left-bar. */}
+      {staleOverrideNotice !== null && staleOverrideNotice.length > 0 && (
+        <div
+          role="status"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />
+          <span className="flex-1">
+            {staleOverrideNotice.length} saved override
+            {staleOverrideNotice.length === 1 ? '' : 's'} skipped — attachments
+            no longer in skeleton:&nbsp;
+            <span className="font-mono text-fg">
+              {staleOverrideNotice.slice(0, 5).join(', ')}
+            </span>
+            {staleOverrideNotice.length > 5
+              ? ` + ${staleOverrideNotice.length - 5} more`
+              : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => setStaleOverrideNotice(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {/* Phase 8 D-149 — locate-skeleton inline error. Mounted when an Open or
+          drop attempt returns SkeletonNotFoundOnLoadError. The "Locate
+          skeleton…" button invokes window.api.locateSkeleton →
+          reloadProjectWithSkeleton via onClickLocateSkeleton; "Dismiss"
+          clears the banner without recovery. */}
+      {skeletonNotFoundError !== null && (
+        <div
+          role="alert"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-danger" aria-hidden="true" />
+          <span className="flex-1">
+            <span className="font-semibold text-danger">Skeleton not found:</span>{' '}
+            {skeletonNotFoundError.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => void onClickLocateSkeleton()}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Locate skeleton…
+          </button>
+          <button
+            type="button"
+            onClick={() => setSkeletonNotFoundError(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      <main className="flex-1 overflow-auto">
+        {activeTab === 'global' && (
+          <GlobalMaxRenderPanel
+            summary={effectiveSummary}
+            onJumpToAnimation={onJumpToAnimation}
+            overrides={overrides}
+            onOpenOverrideDialog={onOpenOverrideDialog}
+            /* Phase 7 D-130 NEW props — mirror AnimationBreakdownPanel's
+               focusAnimationName/onFocusConsumed pair. */
+            focusAttachmentName={focusAttachmentName}
+            onFocusConsumed={onFocusAttachmentConsumed}
+          />
+        )}
+        {activeTab === 'animation' && (
+          <AnimationBreakdownPanel
+            summary={effectiveSummary}
+            focusAnimationName={focusAnimationName}
+            onFocusConsumed={onFocusConsumed}
+            overrides={overrides}
+            onOpenOverrideDialog={onOpenOverrideDialog}
+          />
+        )}
+      </main>
+      {dialogState !== null && (
+        <OverrideDialog
+          open={true}
+          scope={dialogState.scope}
+          currentPercent={dialogState.currentPercent}
+          anyOverridden={dialogState.anyOverridden}
+          onApply={(percent) => onApplyOverride(dialogState.scope, percent)}
+          onClear={() => onClearOverride(dialogState.scope)}
+          onCancel={() => setDialogState(null)}
+        />
+      )}
+      {/* Phase 6 Plan 06 — OptimizeDialog mount lives ALONGSIDE the
+          OverrideDialog mount; the two modal lifecycles are independent.
+          onRunStart/onRunEnd toggle exportInFlight so the toolbar button
+          greys out for the duration of the export (D-117 + T-06-18).
+
+          Gap-Fix Round 3 (2026-04-25) — onConfirmStart wires the probe-
+          then-confirm pipeline: OptimizeDialog awaits this BEFORE
+          flipping to in-progress so the dialog never shows the running
+          UI for an export that ConflictDialog cancelled. */}
+      {exportDialogState !== null && (
+        <OptimizeDialog
+          open={true}
+          plan={exportDialogState.plan}
+          outDir={exportDialogState.outDir}
+          onClose={() => setExportDialogState(null)}
+          onRunStart={() => setExportInFlight(true)}
+          onRunEnd={() => setExportInFlight(false)}
+          onConfirmStart={onConfirmStart}
+        />
+      )}
+      {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
+          OptimizeDialog (same z-50; later-mounted wins paint order). The
+          three handlers each resolve the pending OptimizeDialog
+          onConfirmStart promise so the dialog can either proceed,
+          stay in pre-flight, or be backed out entirely. */}
+      {conflictState !== null && (
+        <ConflictDialog
+          open={true}
+          conflicts={conflictState.conflicts}
+          onCancel={onConflictCancel}
+          onPickDifferent={onConflictPickDifferent}
+          onOverwrite={onConflictOverwrite}
+        />
+      )}
+      {/* Phase 7 D-134 — Atlas Preview modal. Conditionally mounted (matches
+          OverrideDialog/OptimizeDialog/ConflictDialog shape). Reads summary
+          + overrides directly per D-131 snapshot-at-open semantics: the
+          modal's internal useMemo captures the values on every mode/page
+          toggle, and AppShell's overrides Map is the single source of
+          truth — re-opening after an override edit re-snapshots. */}
+      {atlasPreviewOpen && (
+        <AtlasPreviewModal
+          open={true}
+          summary={effectiveSummary}
+          overrides={overrides}
+          onJumpToAttachment={onJumpToAttachment}
+          onClose={() => setAtlasPreviewOpen(false)}
+        />
+      )}
+      {/* Phase 9 Plan 06 — Settings dialog. Edit→Preferences (Plan 09-05)
+          opens this. onApply mutates samplingHzLocal which triggers the
+          re-sample useEffect above. role="dialog" + aria-modal="true" auto-
+          suppresses File menu via 08.2 D-184 — settingsOpen also feeds the
+          modalOpen derivation explicitly above for parity. */}
+      {settingsOpen && (
+        <SettingsDialog
+          open={true}
+          currentSamplingHz={samplingHzLocal}
+          onApply={(hz) => {
+            setSamplingHzLocal(hz);
+            setSettingsOpen(false);
+          }}
+          onCancel={() => setSettingsOpen(false)}
+        />
+      )}
+      {/* Phase 9 Plan 07 — Help dialog. Help→Documentation (Plan 09-05)
+          opens this; onClose closes. role="dialog" + aria-modal="true"
+          auto-suppresses File menu via 08.2 D-184; helpOpen also feeds
+          modalOpen explicitly above for parity with the other 5 slots.
+          External link buttons inside HelpDialog call
+          window.api.openExternalUrl with allow-listed Spine doc URLs
+          (Plan 09-05 SHELL_OPEN_EXTERNAL_ALLOWED). */}
+      {helpOpen && (
+        <HelpDialog open={true} onClose={() => setHelpOpen(false)} />
+      )}
+      {/* Phase 8 D-143 — SaveQuitDialog mount. Mirrors ConflictDialog mount
+          idiom (conditional on null state). Used in three contexts via
+          the `reason` discriminator: 'quit' (Cmd+Q on dirty), 'new-skeleton-drop'
+          (drop .json on dirty), 'new-project-drop' (drop .stmproj on dirty).
+          Save click awaits onClickSave; on success runs the pendingAction
+          (e.g. confirmQuitProceed for 'quit') then closes. Save failure
+          leaves the dialog open for retry/cancel. Don't Save runs the
+          pendingAction without saving. Cancel closes without action. */}
+      {saveQuitDialogState !== null && (
+        <SaveQuitDialog
+          open={true}
+          reason={saveQuitDialogState.reason}
+          basename={
+            currentProjectPath
+              ? currentProjectPath.split(/[\\/]/).pop() ?? null
+              : null
+          }
+          saving={saveInFlight}
+          onSave={async () => {
+            const resp = await onClickSave();
+            if (resp.ok) {
+              const action = saveQuitDialogState.pendingAction;
+              setSaveQuitDialogState(null);
+              action();
+            }
+            // On save failure: leave dialog open for retry/cancel.
+          }}
+          onDontSave={() => {
+            const action = saveQuitDialogState.pendingAction;
+            setSaveQuitDialogState(null);
+            action();
+          }}
+          onCancel={() => {
+            // Phase 8.1 D-164: invoke optional cancelAction BEFORE clearing state.
+            // The 'quit' flow leaves cancelAction undefined (no-op — Electron handles
+            // the quit-abort). The 'new-skeleton-drop' / 'new-project-drop' flows
+            // set cancelAction to resolve the DropZone.onBeforeDrop Promise to false.
+            saveQuitDialogState.cancelAction?.();
+            setSaveQuitDialogState(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * One of the two tab strip buttons. Two-weight contract per the design spec:
+ * active branch uses weight 600 (font-semibold); inactive branch uses weight
+ * 400 (font-normal). Weight 500 is forbidden — active/inactive contrast is
+ * carried by three orthogonal channels (weight + color + underline indicator).
+ */
+function TabButton({
+  isActive,
+  onClick,
+  children,
+}: {
+  isActive: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      role="tab"
+      type="button"
+      aria-selected={isActive}
+      onClick={onClick}
+      className={clsx(
+        'relative px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent',
+        isActive ? 'font-semibold text-accent' : 'font-normal text-fg-muted hover:text-fg',
+      )}
+    >
+      {children}
+      {isActive && (
+        <span
+          aria-hidden
+          className="absolute left-0 right-0 -bottom-px h-[2px] bg-accent"
+        />
+      )}
+    </button>
+  );
+}

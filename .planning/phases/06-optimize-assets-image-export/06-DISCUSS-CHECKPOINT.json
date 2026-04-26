@@ -1,0 +1,26 @@
+{
+  "phase": "6",
+  "phase_name": "Optimize Assets (image export)",
+  "timestamp": "2026-04-24T22:45:00Z",
+  "areas_completed": ["Export plan + output semantics", "Worker architecture + concurrency"],
+  "areas_remaining": ["Progress protocol + OptimizeDialog UX"],
+  "decisions": {
+    "Export plan + output semantics": [
+      {"question": "Export produces one output PNG per what unit?", "answer": "Per atlas region / source PNG file"},
+      {"question": "Unused attachment handling?", "answer": "Exclude by default"},
+      {"question": "Rounding for sourceW × effectiveScale?", "answer": "Math.round"},
+      {"question": "Pre-flight validation of source PNG existence?", "answer": "Pre-flight, continue on missing, collect as errors"}
+    ],
+    "Worker architecture + concurrency": [
+      {"question": "Where does sharp run?", "answer": "Main process, async concurrent (confirmed after user noted future 300+ image case; sequential + libvips internal threading suffices, worker_threads is a Phase 9 migration path if needed)"},
+      {"question": "Concurrency level?", "answer": "Sequential (1 at a time)"},
+      {"question": "Cancel semantics?", "answer": "Finish in-flight file, stop new ones, keep partial output"},
+      {"question": "Per-file error handling?", "answer": "Skip + continue + surface in error list"}
+    ]
+  },
+  "deferred_ideas": [
+    "Multi-JSON shared-images export — future feature where multiple skeleton JSONs export against a shared images/ folder; export plan needs to merge peaks across rigs (max effective scale per region across all loaded rigs). Not in Phase 6 scope.",
+    "Worker_threads migration if Phase 9 hardening shows main-process responsiveness suffering at 300+ files."
+  ],
+  "canonical_refs": []
+}

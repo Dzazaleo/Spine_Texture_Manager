@@ -1,0 +1,44 @@
+{
+  "phase": "3",
+  "phase_name": "Animation Breakdown panel",
+  "timestamp": "2026-04-23T17:15:00Z",
+  "areas_completed": [
+    "Panel navigation model",
+    "Per-animation data & row granularity",
+    "Setup Pose + empty-state semantics"
+  ],
+  "areas_remaining": [
+    "Card UX & Phase 4 readiness"
+  ],
+  "decisions": {
+    "Panel navigation model": [
+      { "question": "How should Phase 2 and Phase 3 panels coexist?", "answer": "Top tabs", "options_presented": ["Top tabs", "Left sidebar nav", "Scroll-stack", "Toggle button"] },
+      { "question": "Tab shell structure?", "answer": "New AppShell component (src/renderer/src/components/AppShell.tsx)", "options_presented": ["AppShell component", "Inline in App.tsx", "Tabs inside each panel"] },
+      { "question": "Active-tab state ownership + persistence?", "answer": "useState in AppShell, resets on new drop", "options_presented": ["useState in AppShell, reset on new drop", "useState, survives redrop", "Persisted to localStorage"] },
+      { "question": "Tab labels + order?", "answer": "Global | Animation Breakdown", "options_presented": ["Global | Animation Breakdown", "Icons + labels", "Global | Animation"] }
+    ],
+    "Per-animation data & row granularity": [
+      { "question": "How should per-animation peak data be computed?", "answer": "Extend sampler to emit both globalPeaks + perAnimation", "options_presented": ["Extend sampler to emit both", "Parallel second pass", "Boolean 'active' flag only"] },
+      { "question": "Row granularity within a card?", "answer": "Dedupe by attachment name (matches Phase 2 gap-fix B)", "options_presented": ["Dedupe by attachment name", "Per-(slot, attachment)", "Per-(skin, slot, attachment)"] },
+      { "question": "Row column set?", "answer": "Full set: Attachment | Bone Path | Source W×H | Scale | Peak W×H | Frame | [Override]", "options_presented": ["Full set", "Compact composite cell", "Skin-aware columns"] },
+      { "question": "Card order?", "answer": "Skeleton JSON order (matches editor dopesheet)", "options_presented": ["Skeleton JSON order", "Alphabetical", "By active-asset count DESC", "By max peak scale DESC"] },
+      { "question": "Default row sort within a card?", "answer": "Scale DESC (matches Phase 2 D-29)", "options_presented": ["Scale DESC", "Bone Path", "Attachment name A→Z"] },
+      { "question": "Clickable per-card sort?", "answer": "Locked — not clickable", "options_presented": ["Locked", "Clickable headers per card", "Single global sort"] },
+      { "question": "User clarification: per-animation cards show only attachment-affected rows. Correct?", "answer": "Confirmed. Affected = scale-delta >1e-6 OR AttachmentTimeline names attachment.", "options_presented": ["Scale-delta OR attachment-swap", "Scale-delta only", "Conservative: any timeline touching slot/bone chain"] }
+    ],
+    "Setup Pose + empty-state semantics": [
+      { "question": "Setup Pose top card contents?", "answer": "All attachments at their setup-pose peak", "options_presented": ["All attachments at setup-pose peak", "Only never-affected attachments", "Attachments with isSetupPosePeak=true"] },
+      { "question": "Setup Pose card uses same rules as animation cards?", "answer": "Yes — same dedupe/columns/Scale-DESC sort. Frame = '—' em dash; Scale column shows setup-pose scale (e.g., SQUARE2 = 2.000× pre-scaled bone).", "options_presented": ["Yes, same rules", "Different: no Scale column"] },
+      { "question": "'No assets referenced' trigger?", "answer": "Animation whose affected set (scale-delta OR AttachmentTimeline) is empty renders this state inside its card.", "options_presented": ["Derived from affected-criterion above"] }
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [
+    "~/.claude/plans/i-need-to-create-zesty-eich.md §Phase 4 Animation Breakdown panel",
+    ".planning/REQUIREMENTS.md §F4 (F4.1–F4.4)",
+    ".planning/ROADMAP.md §Phase 3",
+    ".planning/phases/02-global-max-render-source-panel/02-CONTEXT.md (D-28/D-32/D-43/D-44; dedupe-by-attachment-name)",
+    "src/core/sampler.ts (PeakRecord shape; locked tick lifecycle)",
+    "src/core/types.ts (SampleRecord interface)"
+  ]
+}

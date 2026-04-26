@@ -1,0 +1,22 @@
+{
+  "phase": "4",
+  "phase_name": "Scale overrides",
+  "timestamp": "2026-04-24T00:00:00Z",
+  "areas_completed": ["Dialog trigger + input UX", "Override badge visuals"],
+  "areas_remaining": ["Batch override via Phase 2 selection"],
+  "decisions": {
+    "Dialog trigger + input UX": [
+      {"question": "How should the override dialog be triggered?", "answer": "Both: double-click Scale cell + Override button", "options_presented": ["Both: dbl-click Scale cell + Override button", "Button only on both panels", "Double-click only"]},
+      {"question": "What input control for the percentage?", "answer": "Text input with % suffix, integer", "options_presented": ["Text input with % suffix, integer (Recommended)", "Text input with decimal precision", "Slider + live numeric readout", "Spinbox (arrows, step 5%)"]},
+      {"question": "How should >100% input be clamped?", "answer": "Accept + silent clamp on Apply", "options_presented": ["Accept + silent clamp on Apply (Recommended)", "Type-guard: reject >100 while typing", "Accept + flag with warning"]},
+      {"question": "How should a user remove an existing override?", "answer": "'Reset' button in dialog", "options_presented": ["'Reset' button in dialog (Recommended)", "Set to 100% to clear (only)", "Right-click row -> Clear override"]}
+    ],
+    "Override badge visuals": [
+      {"question": "Where does the override badge render on a row?", "answer": "Inline inside the Scale cell", "options_presented": ["Inline inside the Scale cell (Recommended)", "New column between Scale and Peak WxH", "Small chip next to attachment name"]},
+      {"question": "What does the badge visually communicate?", "answer": "Override % + recomputed Scale", "options_presented": ["Override % + recomputed Scale (Recommended)", "Original peak preserved, badge added", "Icon + hover tooltip"]},
+      {"question": "When user sets 200% (clamps to 100%), how does the badge appear?", "answer": "Show as overridden at 100%", "options_presented": ["Show as overridden at 100% (Recommended)", "Hide badge - treat as no-op", "Show badge with 'clamped' marker"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": []
+}

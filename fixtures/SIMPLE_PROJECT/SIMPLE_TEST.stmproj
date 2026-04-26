@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skeletonPath": "SIMPLE_TEST.json",
+  "atlasPath": "SIMPLE_TEST.atlas",
+  "imagesDir": null,
+  "overrides": {
+    "CIRCLE": 60,
+    "SQUARE": 89
+  },
+  "samplingHz": 120,
+  "lastOutDir": null,
+  "sortColumn": "attachmentName",
+  "sortDir": "asc",
+  "documentation": {}
+}
