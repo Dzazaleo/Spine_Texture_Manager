@@ -526,6 +526,38 @@ export function AppShell({
   }, [buildSessionState, currentProjectPath, summary.skeletonPath]);
 
   /**
+   * Phase 08.2 D-175 — dedicated Save As callback for the native menu's
+   * "Save As…" item. Always picks a new path via the dialog regardless
+   * of currentProjectPath. The toolbar Save button continues to use
+   * onClickSave's smart branch (current behavior).
+   *
+   * Mirrors the Save As branch previously inlined in onClickSave. Both
+   * register into appShellMenuRef so menu File→Save / File→Save As… can
+   * dispatch through AppShell's existing handlers without lifting state.
+   */
+  const onClickSaveAs = useCallback(async (): Promise<SaveResponse> => {
+    setSaveInFlight(true);
+    try {
+      const state = buildSessionState();
+      const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
+      const basename =
+        summary.skeletonPath.split(/[\\/]/).pop()?.replace(/\.json$/i, '') ?? 'Untitled';
+      const resp = await window.api.saveProjectAs(state, skeletonDir, basename);
+      if (resp.ok) {
+        setCurrentProjectPath(resp.path);
+        setLastSaved({
+          overrides: { ...state.overrides },
+          samplingHz: state.samplingHz ?? 120,
+        });
+        setStaleOverrideNotice(null);
+      }
+      return resp;
+    } finally {
+      setSaveInFlight(false);
+    }
+  }, [buildSessionState, summary.skeletonPath]);
+
+  /**
    * mountOpenResponse — apply a MaterializedProject to AppShell's state
    * machine. Used by both onClickOpen (Cmd+O / Open button) and
    * onClickLocateSkeleton (D-149 recovery). Does NOT remount AppShell —
