@@ -237,6 +237,73 @@ const api: Api = {
   confirmQuitProceed: () => {
     ipcRenderer.send('project:confirm-quit-proceed');
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 8.2 D-175 / D-181 — menu surface bridges.
+  //   - notifyMenuState pushes derived menu state to main on every relevant
+  //     renderer-state change (summary, dialogState, modal flags). Main
+  //     rebuilds + reapplies the application Menu on every notify.
+  //   - onMenu* subscribe to main's menu click events (one-way
+  //     webContents.send from the menu builder's click handlers in
+  //     src/main/index.ts). All four follow Pitfall 9 listener-identity
+  //     preservation: the wrapped const is captured BEFORE ipcRenderer.on
+  //     and the unsubscribe closure references the SAME wrapped (else
+  //     ipcRenderer.removeListener silently fails — it compares by
+  //     reference).
+  // -------------------------------------------------------------------------
+
+  /**
+   * Phase 8.2 D-181 — push derived menu state to main; main rebuilds and
+   * reapplies the application Menu on every notify (canSave / canSaveAs /
+   * modalOpen). Fire-and-forget — main does not respond. Main validates
+   * the payload field-by-field at the trust boundary (T-08.2-03-01).
+   */
+  notifyMenuState: (state: { canSave: boolean; canSaveAs: boolean; modalOpen: boolean }): void => {
+    ipcRenderer.send('menu:notify-state', state);
+  },
+
+  /**
+   * Phase 8.2 D-175 — subscribe to menu File→Open click. Returns unsubscribe.
+   * Pitfall 9: wrapped const captured for listener-identity preservation.
+   */
+  onMenuOpen: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:open-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:open-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Phase 8.2 D-175 — subscribe to menu File→Open Recent → <path> click.
+   * Callback receives the absolute path of the recent entry the user
+   * clicked. Pitfall 9 listener-identity preservation.
+   */
+  onMenuOpenRecent: (cb: (path: string) => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, path: string) => cb(path);
+    ipcRenderer.on('menu:open-recent-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:open-recent-clicked', wrapped);
+    };
+  },
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Save click. Pitfall 9. */
+  onMenuSave: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:save-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:save-clicked', wrapped);
+    };
+  },
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Save As… click. Pitfall 9. */
+  onMenuSaveAs: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:save-as-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:save-as-clicked', wrapped);
+    };
+  },
 };
 
 if (process.contextIsolated) {
