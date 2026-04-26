@@ -535,6 +535,57 @@ export type LoadResponse =
   | { ok: false; error: SerializableError };
 
 /**
+ * Phase 9 Plan 02 D-193 + D-194 — Sampler-worker postMessage protocol.
+ *
+ * Worker → main: discriminated union of progress / complete / cancelled / error.
+ * Main → worker: cancel-only.
+ * workerData: path-based input — the worker re-loads the JSON inside the worker
+ * process so SkeletonData (with its circular refs and class-instance prototypes)
+ * NEVER crosses the postMessage boundary (Pitfall 4: structured-clone strips
+ * prototypes from class instances).
+ *
+ * SamplerOutput's globalPeaks is a Map<string, PeakRecord>; PeakRecord is a plain
+ * interface with primitives only (sampler.ts:97-100, 119-123). Maps are explicitly
+ * structured-clone-able per the algorithm spec, so the COMPUTED output crosses
+ * postMessage cleanly even though the INPUT SkeletonData cannot.
+ *
+ * NOTE on the SamplerOutput type: tsconfig.web.json excludes src/core/**, so
+ * the shared types module cannot directly `import type { SamplerOutput } from
+ * '../core/sampler.js'` (the renderer would compile against a missing source
+ * file). The worker payload is consumed ONLY by main-process code (the
+ * sampler-worker bridge re-routes the output into project-io's existing
+ * SkeletonSummary path; the renderer only sees the SkeletonSummary, not the
+ * SamplerOutput Map). We therefore declare an opaque structural alias here —
+ * `unknown` is too loose for the bridge to typecheck cleanly, so we use a
+ * minimal Map shape that matches the real SamplerOutput's `globalPeaks /
+ * perAnimation / setupPosePeaks` triple. The main-side code that consumes
+ * this payload casts to the real `SamplerOutput` from sampler.ts at the
+ * usage site (worker file, bridge file).
+ */
+export interface SamplerOutputShape {
+  /** Map<string, PeakRecord> — Phase 2 globalPeaks (sampler.ts:120). */
+  globalPeaks: Map<string, unknown>;
+  /** Map<string, PeakRecord> — Phase 3 D-54 per-animation peaks. */
+  perAnimation: Map<string, unknown>;
+  /** Map<string, PeakRecord> — Phase 3 D-60 setup-pose-only peaks. */
+  setupPosePeaks: Map<string, unknown>;
+}
+
+export type SamplerWorkerOutbound =
+  | { type: 'progress'; percent: number }
+  | { type: 'complete'; output: SamplerOutputShape }
+  | { type: 'cancelled' }
+  | { type: 'error'; error: SerializableError };
+
+export type SamplerWorkerInbound = { type: 'cancel' };
+
+export interface SamplerWorkerData {
+  skeletonPath: string;
+  atlasRoot?: string;
+  samplingHz: number;
+}
+
+/**
  * Phase 8 — .stmproj v1 schema (D-145..D-156).
  *
  * Persisted to disk as JSON. structuredClone-safe by construction: only

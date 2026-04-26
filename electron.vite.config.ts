@@ -37,6 +37,15 @@ export default defineConfig({
     // (commit b5d6988). Reference: electron-vite v5 docs + Node 24 ESM loader behaviour.
     build: {
       rollupOptions: {
+        // Phase 9 Plan 02 D-190 — emit the sampler worker as a separate
+        // main-bundle entry so `new Worker(workerPath)` can spawn it at
+        // runtime. The default single-entry shorthand picks up
+        // src/main/index.ts only; we extend with explicit input objects
+        // covering both index.ts AND sampler-worker.ts.
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          'sampler-worker': resolve(__dirname, 'src/main/sampler-worker.ts'),
+        },
         output: {
           format: 'cjs',
           entryFileNames: '[name].cjs',
