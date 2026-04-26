@@ -45,7 +45,7 @@ vi.mock('electron', () => ({
     getAllWindows: vi.fn(() => []),
   },
   dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
-  shell: { showItemInFolder: vi.fn(), openPath: vi.fn() },
+  shell: { showItemInFolder: vi.fn(), openPath: vi.fn(), openExternal: vi.fn() },
   ipcMain: {
     on: vi.fn((channel: string, handler: (evt: unknown, ...args: unknown[]) => void) => {
       ipcMainOnHandlers.set(channel, handler);
@@ -171,5 +171,65 @@ describe('Phase 9 D-194 — sampler IPC channels', () => {
     // the handler short-circuits without calling terminate(). Idempotent
     // (T-09-02-IPC-02 DoS-flood mitigation).
     expect(() => handler!({} as unknown)).not.toThrow();
+  });
+});
+
+/**
+ * Phase 9 Plan 05 T-09-05-OPEN-EXTERNAL — shell:open-external allow-list.
+ *
+ * The 'shell:open-external' channel is renderer→main fire-and-forget that
+ * routes a URL to shell.openExternal. Critical security control: the URL
+ * MUST be validated against a closed allow-list before the shell call
+ * (Electron security checklist — arbitrary shell.openExternal(userInput)
+ * is a documented sandbox-escape vector).
+ *
+ * Four cases:
+ *   1. handler is registered on ipcMain.on
+ *   2. allow-listed URL → shell.openExternal IS called with the URL
+ *   3. non-allow-listed URL → shell.openExternal is NOT called (silent reject)
+ *   4. non-string / empty payload → shell.openExternal is NOT called
+ */
+describe('Phase 9 Plan 05 T-09-05-OPEN-EXTERNAL — shell:open-external allow-list', () => {
+  it('shell:open-external handler is registered on ipcMain.on', async () => {
+    registerIpcHandlers();
+    expect(ipcMainOnHandlers.has('shell:open-external')).toBe(true);
+  });
+
+  it('allow-listed URL invokes shell.openExternal', async () => {
+    const electron = await import('electron');
+    const openExternalMock = vi.mocked(electron.shell.openExternal);
+    openExternalMock.mockClear();
+    registerIpcHandlers();
+    const handler = ipcMainOnHandlers.get('shell:open-external')!;
+    handler({} as unknown, 'https://esotericsoftware.com/spine-runtimes');
+    expect(openExternalMock).toHaveBeenCalledWith(
+      'https://esotericsoftware.com/spine-runtimes',
+    );
+  });
+
+  it('non-allow-listed URL is silently rejected (defense in depth — T-09-05-OPEN-EXTERNAL)', async () => {
+    const electron = await import('electron');
+    const openExternalMock = vi.mocked(electron.shell.openExternal);
+    openExternalMock.mockClear();
+    registerIpcHandlers();
+    const handler = ipcMainOnHandlers.get('shell:open-external')!;
+    handler({} as unknown, 'https://evil.example.com/');
+    handler({} as unknown, 'http://esotericsoftware.com/spine-runtimes'); // wrong scheme
+    handler({} as unknown, 'https://esotericsoftware.com/spine-runtimes/'); // trailing-slash drift
+    expect(openExternalMock).not.toHaveBeenCalled();
+  });
+
+  it('non-string / empty payload is silently rejected', async () => {
+    const electron = await import('electron');
+    const openExternalMock = vi.mocked(electron.shell.openExternal);
+    openExternalMock.mockClear();
+    registerIpcHandlers();
+    const handler = ipcMainOnHandlers.get('shell:open-external')!;
+    handler({} as unknown, 12345);
+    handler({} as unknown, null);
+    handler({} as unknown, undefined);
+    handler({} as unknown, '');
+    handler({} as unknown, { url: 'https://esotericsoftware.com/spine-runtimes' });
+    expect(openExternalMock).not.toHaveBeenCalled();
   });
 });
