@@ -488,7 +488,15 @@ export interface SkeletonSummary {
  * contains a stack trace (T-01-02-02 information-disclosure mitigation).
  */
 export interface SerializableError {
-  kind: 'SkeletonJsonNotFoundError' | 'AtlasNotFoundError' | 'AtlasParseError' | 'Unknown';
+  kind:
+    | 'SkeletonJsonNotFoundError'
+    | 'AtlasNotFoundError'
+    | 'AtlasParseError'
+    | 'ProjectFileNotFoundError'      // Phase 8 D-149: file missing on disk
+    | 'ProjectFileParseError'          // Phase 8 Pitfall 9: JSON.parse SyntaxError
+    | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1
+    | 'SkeletonNotFoundOnLoadError'    // Phase 8 D-149: triggers locate-skeleton flow
+    | 'Unknown';
   message: string;
 }
 
@@ -496,6 +504,76 @@ export interface SerializableError {
 export type LoadResponse =
   | { ok: true; summary: SkeletonSummary }
   | { ok: false; error: SerializableError };
+
+/**
+ * Phase 8 — .stmproj v1 schema (D-145..D-156).
+ *
+ * Persisted to disk as JSON. structuredClone-safe by construction: only
+ * primitives, plain objects, and nested Records — no Map, no class instances.
+ * Maps live ONLY in renderer/main memory; the IPC + on-disk shape uses
+ * Record<string, number> for `overrides` (Pitfall 3 boundary conversion).
+ *
+ * Required fields per D-145: version, skeletonPath, overrides, documentation.
+ * All other fields are nullable; Load treats null as "use default".
+ */
+export interface ProjectFileV1 {
+  version: 1;
+  skeletonPath: string;
+  atlasPath: string | null;
+  imagesDir: string | null;
+  overrides: Record<string, number>;
+  samplingHz: number | null;
+  lastOutDir: string | null;
+  sortColumn: string | null;
+  sortDir: 'asc' | 'desc' | null;
+  documentation: object;
+}
+
+export type ProjectFile = ProjectFileV1;
+
+/**
+ * Phase 8 — the renderer-side state snapshot AppShell hands to saveProject /
+ * saveProjectAs. Same shape as ProjectFileV1 minus `version` and `documentation`
+ * (those are stamped by serializeProjectFile in src/core/project-file.ts).
+ */
+export interface AppSessionState {
+  skeletonPath: string;
+  atlasPath: string | null;
+  imagesDir: string | null;
+  overrides: Record<string, number>;
+  samplingHz: number | null;
+  lastOutDir: string | null;
+  sortColumn: string | null;
+  sortDir: 'asc' | 'desc' | null;
+}
+
+/**
+ * Phase 8 — Open response payload. Built by main/project-io.ts after re-sampling
+ * the resolved skeleton. `restoredOverrides` is INTERSECTED with the re-sampled
+ * peaks (D-150) — `staleOverrideKeys` lists names that were dropped.
+ */
+export interface MaterializedProject {
+  summary: SkeletonSummary;
+  restoredOverrides: Record<string, number>;
+  staleOverrideKeys: string[];
+  samplingHz: number;
+  lastOutDir: string | null;
+  sortColumn: string | null;
+  sortDir: 'asc' | 'desc' | null;
+  projectFilePath: string;
+}
+
+export type SaveResponse =
+  | { ok: true; path: string }
+  | { ok: false; error: SerializableError };
+
+export type OpenResponse =
+  | { ok: true; project: MaterializedProject }
+  | { ok: false; error: SerializableError };
+
+export type LocateSkeletonResponse =
+  | { ok: true; newPath: string }
+  | { ok: false };
 
 /**
  * The contextBridge-exposed `window.api` surface.
@@ -567,4 +645,29 @@ export interface Api {
    * a completed export (Electron shell.showItemInFolder). One-way.
    */
   openOutputFolder: (dir: string) => void;
+  // Phase 8 — project file IPC surface (D-140..D-156).
+  saveProject: (state: AppSessionState, currentPath: string | null) => Promise<SaveResponse>;
+  saveProjectAs: (state: AppSessionState, defaultDir: string, defaultBasename: string) => Promise<SaveResponse>;
+  openProject: () => Promise<OpenResponse>;
+  openProjectFromFile: (file: File) => Promise<OpenResponse>;
+  openProjectFromPath: (absolutePath: string) => Promise<OpenResponse>;
+  locateSkeleton: (originalPath: string) => Promise<LocateSkeletonResponse>;
+  /**
+   * Phase 8 D-149 recovery (Approach A). Called by AppShell AFTER locateSkeleton
+   * resolves with a user-picked .json path. Args carry the cached overrides + settings
+   * from the failed Open; main re-runs loader + sampler + buildSummary against the
+   * new skeleton and returns OpenResponse so AppShell mounts via the same code path
+   * used for Open.
+   */
+  reloadProjectWithSkeleton: (args: {
+    projectPath: string;
+    newSkeletonPath: string;
+    mergedOverrides: Record<string, number>;
+    samplingHz?: number;
+    lastOutDir?: string | null;
+    sortColumn?: string | null;
+    sortDir?: 'asc' | 'desc' | null;
+  }) => Promise<OpenResponse>;
+  onCheckDirtyBeforeQuit: (handler: () => void) => () => void;
+  confirmQuitProceed: () => void;
 }

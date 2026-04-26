@@ -47,6 +47,23 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { Api, ExportProgressEvent, LoadResponse } from '../shared/types.js';
 
+// Phase 8 Plan 01 [Rule 3 - Blocking] — the Api interface gained 9 new members
+// for the Save/Load project file surface (saveProject / saveProjectAs /
+// openProject / openProjectFromFile / openProjectFromPath / locateSkeleton /
+// reloadProjectWithSkeleton / onCheckDirtyBeforeQuit / confirmQuitProceed).
+// Plan 03 wires the main-process handlers; Plan 04 wires the preload bridges
+// and AppShell consumers. Until then we ship typecheck-satisfying
+// "not-yet-implemented" stubs so the preload bundle continues to typecheck
+// AND any accidental early consumer in the renderer fails loudly with a
+// clear message rather than `undefined is not a function`.
+// (Same pattern as the Plan 06-02 NOT_YET_WIRED stubs that were superseded
+// by real bridges in Plan 06-05.)
+const NOT_YET_WIRED_PHASE8 = (method: string): never => {
+  throw new Error(
+    `window.api.${method} is not yet wired — Phase 8 Plan 04 ships the IPC bridge.`,
+  );
+};
+
 const api: Api = {
   loadSkeletonFromFile: async (file: File): Promise<LoadResponse> => {
     const jsonPath = webUtils.getPathForFile(file);
@@ -138,6 +155,19 @@ const api: Api = {
   openOutputFolder: (dir: string): void => {
     ipcRenderer.send('shell:open-folder', dir);
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 8 Plan 04 will replace these stubs with real preload bridges.
+  // -------------------------------------------------------------------------
+  saveProject: async (_state, _currentPath) => NOT_YET_WIRED_PHASE8('saveProject'),
+  saveProjectAs: async (_state, _defaultDir, _defaultBasename) => NOT_YET_WIRED_PHASE8('saveProjectAs'),
+  openProject: async () => NOT_YET_WIRED_PHASE8('openProject'),
+  openProjectFromFile: async (_file) => NOT_YET_WIRED_PHASE8('openProjectFromFile'),
+  openProjectFromPath: async (_absolutePath) => NOT_YET_WIRED_PHASE8('openProjectFromPath'),
+  locateSkeleton: async (_originalPath) => NOT_YET_WIRED_PHASE8('locateSkeleton'),
+  reloadProjectWithSkeleton: async (_args) => NOT_YET_WIRED_PHASE8('reloadProjectWithSkeleton'),
+  onCheckDirtyBeforeQuit: (_handler) => NOT_YET_WIRED_PHASE8('onCheckDirtyBeforeQuit'),
+  confirmQuitProceed: () => NOT_YET_WIRED_PHASE8('confirmQuitProceed'),
 };
 
 if (process.contextIsolated) {
