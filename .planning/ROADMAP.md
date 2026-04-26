@@ -298,14 +298,18 @@ Plans:
 
 ### Phase 08.1: Close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard) (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Close the 3 reachability gaps from Phase 8 verification (VR-01 .stmproj-drop recovery routing; VR-02 toolbar Open empty-recovery-state; VR-03 onBeforeDrop dirty-guard wiring) so /gsd-verify-work 8 passes cleanly. No feature growth; no Phase 9 scope creep.
+**Requirements**: VR-01, VR-02, VR-03 (informal — back to F9.2 / D-143 / D-149 in 08-VERIFICATION.md)
 **Depends on:** Phase 8
-**Plans:** 0 plans
+**Plans:** 6 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 08.1 to break down)
-
+- [ ] 08.1-01-PLAN.md — Wave 0 scaffolding: SerializableError discriminated-union refactor in src/shared/types.ts (D-158, D-171) + RED test scaffolds (8.1-VR-01, 8.1-VR-02, 8.1-VR-03a, 8.1-VR-03b in tests/renderer/save-load.spec.tsx; 8.1-IPC-01 in tests/main/project-io.spec.ts). Wave 1, autonomous, depends_on [].
+- [ ] 08.1-02-PLAN.md — Main-side wire: handleProjectOpenFromPath threads 7 recovery fields at the SkeletonJsonNotFoundError rescue (D-159). Drives 8.1-IPC-01 GREEN. Wave 2, autonomous, depends_on [08.1-01].
+- [ ] 08.1-03-PLAN.md — Renderer-side wire: AppShell.onClickOpen reads threaded fields from typed envelope (D-160); "best-effort" comment block deleted. Drives 8.1-VR-02 GREEN. Wave 3, autonomous, depends_on [08.1-01, 08.1-02].
+- [ ] 08.1-04-PLAN.md — App.tsx projectLoadFailed AppState variant + recovery banner (D-161, D-162); handleLocateSkeleton + handleDismissProjectLoadFailed callbacks. Drives 8.1-VR-01 GREEN. Wave 3, autonomous, depends_on [08.1-01, 08.1-02].
+- [ ] 08.1-05-PLAN.md — VR-03 fix: useRef callback bridge (App.tsx) + onBeforeDropRef prop + useEffect registration (AppShell.tsx) + cancelAction extension to saveQuitDialogState + SaveQuitDialog.onCancel invocation (D-163, D-164). DropZone.tsx and SaveQuitDialog.tsx untouched (D-165). Drives 8.1-VR-03a + 8.1-VR-03b GREEN. Wave 4, autonomous, depends_on [08.1-01, 08.1-04].
+- [ ] 08.1-06-PLAN.md — Close-out: automated exit-criteria sweep + 08.1-VALIDATION.md per-plan map + 3-reproducer manual UAT + ROADMAP.md plan-checkbox flips + STATE.md advance. Wave 5, has checkpoint, depends_on [08.1-01..05].
 ## Phase 9: Complex-rig hardening + polish
 
 **Depends on:** Phase 8 green and user-supplied complex rig.
