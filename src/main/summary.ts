@@ -102,5 +102,14 @@ export function buildSummary(
     animationBreakdown,
     unusedAttachments,
     elapsedMs,
+    /**
+     * Phase 9 Plan 06 — surface the loader's `editorFps` (from
+     * `skeletonData.fps || 30`, see src/core/loader.ts:225-229) through the
+     * summary so the renderer rig-info tooltip can display
+     * `skeleton.fps: <N> (editor metadata — does not affect sampling)`. The
+     * value is INFORMATIONAL — sampling rate is `samplingHz`, not `fps`
+     * (CLAUDE.md fact #1).
+     */
+    editorFps: load.editorFps,
   };
 }

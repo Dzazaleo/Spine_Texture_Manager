@@ -158,6 +158,7 @@ function makeSummary(cardCount: number, rowsPerCard: number): SkeletonSummary {
     animationBreakdown,
     unusedAttachments: [],
     elapsedMs: 1,
+    editorFps: 30,
   };
 }
 

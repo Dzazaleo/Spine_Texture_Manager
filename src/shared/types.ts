@@ -474,6 +474,18 @@ export interface SkeletonSummary {
   unusedAttachments?: UnusedAttachment[];
   /** `loadSkeleton + sampleSkeleton` wall-clock time in ms. */
   elapsedMs: number;
+  /**
+   * Phase 9 Plan 06 — editor dopesheet metadata from `skeletonData.fps`
+   * (loader.ts:225-229: `editorFps = skeletonData.fps || 30`).
+   *
+   * INFORMATIONAL ONLY. Sampling uses `samplingHz` (default 120 Hz per
+   * CLAUDE.md fact #6), NOT this field. Surfaced through the summary so
+   * the rig-info tooltip can display it with the explicit wording
+   * "(editor metadata — does not affect sampling)" — load-bearing per
+   * CLAUDE.md fact #1 + the canonical comment block at
+   * src/core/sampler.ts:41-44.
+   */
+  editorFps: number;
 }
 
 /**

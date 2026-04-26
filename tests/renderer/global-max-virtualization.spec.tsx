@@ -125,6 +125,7 @@ function makeSummary(rowCount: number): SkeletonSummary {
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 1,
+    editorFps: 30,
   };
 }
 

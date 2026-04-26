@@ -78,6 +78,7 @@ function makeSummary(): SkeletonSummary {
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 1,
+    editorFps: 30,
   };
 }
 
