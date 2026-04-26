@@ -671,7 +671,7 @@ The planner SHOULD:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 None blocking. All 10 enumerated open questions answered above. Two soft notes:
 
