@@ -152,3 +152,36 @@ describe('Phase 8 Layer 3: src/core/project-file.ts must not import electron (T-
     expect(text, `${filePath} must not import from sharp`).not.toMatch(/from ['"]sharp['"]/);
   });
 });
+
+// Phase 9 — Layer 3 named anchor for the new worker_threads worker.
+// The existing globSync at lines 19-34 covers src/{main,preload,renderer}/**
+// for general Layer 3 invariants; this named block makes a Phase-9-specific
+// regression visible at PR-review time.
+//
+// Critical: Wave 0 lands this block BEFORE src/main/sampler-worker.ts exists,
+// so the readFileSync MUST tolerate ENOENT gracefully (return early). When
+// Wave 1 lands the file, every assertion below MUST hold.
+describe('Phase 9 Layer 3: src/main/sampler-worker.ts must not import DOM/renderer surfaces', () => {
+  it('does not import from src/renderer/, react, electron, or DOM globals', () => {
+    const filePath = 'src/main/sampler-worker.ts';
+    let text = '';
+    try {
+      text = readFileSync(filePath, 'utf8');
+    } catch {
+      // File doesn't exist yet (Wave 1 lands it). When it lands, the grep applies.
+      return;
+    }
+    expect(text, `${filePath} must not import from src/renderer/`).not.toMatch(
+      /from ['"][^'"]*\/renderer\//,
+    );
+    expect(text, `${filePath} must not import from react`).not.toMatch(
+      /from ['"]react['"]/,
+    );
+    expect(text, `${filePath} must not import from electron`).not.toMatch(
+      /from ['"]electron['"]/,
+    );
+    expect(text, `${filePath} must not reference DOM globals (document., window.)`).not.toMatch(
+      /\b(document|window)\./,
+    );
+  });
+});

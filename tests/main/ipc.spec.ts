@@ -134,3 +134,28 @@ describe('menu:notify-state IPC (D-181)', () => {
     expect(setApplicationMenu).not.toHaveBeenCalled();
   });
 });
+
+// Phase 9 D-194 — sampler:cancel + sampler:progress IPC channels.
+//
+// 'sampler:cancel' is renderer→main fire-and-forget; main calls
+// samplerWorkerHandle?.terminate() (Wave 1 wires the handle).
+// 'sampler:progress' is main→renderer fire-and-forget emitted from
+// the bridge inside handleProjectOpenFromPath / handleProjectReloadWithSkeleton.
+//
+// This block ASSERTS the channel registration shape; the actual handler body
+// is unit-tested via tests/main/sampler-worker.spec.ts (Wave 1).
+//
+// Wave 0 RED-by-design: registration of 'sampler:cancel' on ipcMain.on
+// happens in Wave 1 inside src/main/ipc.ts. These placeholders flip to
+// GREEN when Wave 1 lands the registration.
+describe('Phase 9 D-194 — sampler IPC channels', () => {
+  it('sampler:cancel handler is registered on ipcMain.on', async () => {
+    // TODO Wave 1: registerIpcHandlers(); expect(ipcMainOnHandlers.has('sampler:cancel')).toBe(true);
+    expect(true, 'Wave 1: sampler:cancel registration pending').toBe(false);
+  });
+
+  it('sampler:cancel handler invocation does not throw when no worker is in flight', async () => {
+    // TODO Wave 1: registerIpcHandlers(); ipcMainOnHandlers.get('sampler:cancel')!({} as unknown);
+    expect(true, 'Wave 1: idempotent-cancel contract pending').toBe(false);
+  });
+});
