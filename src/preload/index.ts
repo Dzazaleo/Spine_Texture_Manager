@@ -47,23 +47,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { Api, ExportProgressEvent, LoadResponse } from '../shared/types.js';
 
-// Phase 8 Plan 01 [Rule 3 - Blocking] — the Api interface gained 9 new members
-// for the Save/Load project file surface (saveProject / saveProjectAs /
-// openProject / openProjectFromFile / openProjectFromPath / locateSkeleton /
-// reloadProjectWithSkeleton / onCheckDirtyBeforeQuit / confirmQuitProceed).
-// Plan 03 wires the main-process handlers; Plan 04 wires the preload bridges
-// and AppShell consumers. Until then we ship typecheck-satisfying
-// "not-yet-implemented" stubs so the preload bundle continues to typecheck
-// AND any accidental early consumer in the renderer fails loudly with a
-// clear message rather than `undefined is not a function`.
-// (Same pattern as the Plan 06-02 NOT_YET_WIRED stubs that were superseded
-// by real bridges in Plan 06-05.)
-const NOT_YET_WIRED_PHASE8 = (method: string): never => {
-  throw new Error(
-    `window.api.${method} is not yet wired — Phase 8 Plan 04 ships the IPC bridge.`,
-  );
-};
-
 const api: Api = {
   loadSkeletonFromFile: async (file: File): Promise<LoadResponse> => {
     const jsonPath = webUtils.getPathForFile(file);
@@ -157,17 +140,103 @@ const api: Api = {
   },
 
   // -------------------------------------------------------------------------
-  // Phase 8 Plan 04 will replace these stubs with real preload bridges.
+  // Phase 8 — project file IPC surface (D-140..D-156). Eight new bridges
+  // (6 invoke + 1 listener + 1 sender). Replaces the Plan 01 NOT_YET_WIRED
+  // stubs. Same precedent as Phase 6 Plan 02 commit 13d395e (which superseded
+  // its stubs in Plan 06-05).
   // -------------------------------------------------------------------------
-  saveProject: async (_state, _currentPath) => NOT_YET_WIRED_PHASE8('saveProject'),
-  saveProjectAs: async (_state, _defaultDir, _defaultBasename) => NOT_YET_WIRED_PHASE8('saveProjectAs'),
-  openProject: async () => NOT_YET_WIRED_PHASE8('openProject'),
-  openProjectFromFile: async (_file) => NOT_YET_WIRED_PHASE8('openProjectFromFile'),
-  openProjectFromPath: async (_absolutePath) => NOT_YET_WIRED_PHASE8('openProjectFromPath'),
-  locateSkeleton: async (_originalPath) => NOT_YET_WIRED_PHASE8('locateSkeleton'),
-  reloadProjectWithSkeleton: async (_args) => NOT_YET_WIRED_PHASE8('reloadProjectWithSkeleton'),
-  onCheckDirtyBeforeQuit: (_handler) => NOT_YET_WIRED_PHASE8('onCheckDirtyBeforeQuit'),
-  confirmQuitProceed: () => NOT_YET_WIRED_PHASE8('confirmQuitProceed'),
+
+  /** F9.1 — write current session to a known .stmproj path (dirty save). */
+  saveProject: (state, currentPath) =>
+    ipcRenderer.invoke('project:save', state, currentPath),
+
+  /** F9.1 — open native save-file picker, then write atomically. */
+  saveProjectAs: (state, defaultDir, defaultBasename) =>
+    ipcRenderer.invoke('project:save-as', state, defaultDir, defaultBasename),
+
+  /** F9.2 — open native file picker, then chain to handleProjectOpenFromPath. */
+  openProject: () => ipcRenderer.invoke('project:open'),
+
+  /**
+   * Drop-handler entry point. Resolves the dropped File's filesystem path
+   * via webUtils.getPathForFile and forwards to the path-based handler.
+   * Mirrors loadSkeletonFromFile (Phase 1 D-09 mechanism).
+   *
+   * Returns OpenResponse envelope with kind:'Unknown' when the File has no
+   * underlying path (synthetic File from a test harness — Pitfall 5:
+   * getPathForFile returns "" for Files not backed by a disk file).
+   */
+  openProjectFromFile: async (file: File) => {
+    const projectPath = webUtils.getPathForFile(file);
+    if (!projectPath) {
+      return {
+        ok: false,
+        error: {
+          kind: 'Unknown',
+          message: 'Dropped project file has no filesystem path.',
+        },
+      } as const;
+    }
+    return ipcRenderer.invoke('project:open-from-path', projectPath);
+  },
+
+  /** F9.2 — direct path-based open (used by Phase 9 OS file association). */
+  openProjectFromPath: (absolutePath) =>
+    ipcRenderer.invoke('project:open-from-path', absolutePath),
+
+  /** D-149 — open native picker for the replacement skeleton on missing-skeleton load. */
+  locateSkeleton: (originalPath) =>
+    ipcRenderer.invoke('project:locate-skeleton', originalPath),
+
+  /**
+   * D-149 recovery (Approach A) — path-based skeleton reload.
+   *
+   * Called by AppShell AFTER locateSkeleton resolves with a user-picked path.
+   * The renderer forwards args verbatim; main re-runs loader + sampler +
+   * buildSummary + stale-key intersect against the new skeleton, returning
+   * OpenResponse so AppShell mounts via the same handler used for Open.
+   *
+   * The args shape is structured-clone-safe (Record + primitives, no Map).
+   */
+  reloadProjectWithSkeleton: (args) =>
+    ipcRenderer.invoke('project:reload-with-skeleton', args),
+
+  /**
+   * Phase 8 — dirty-guard listener (D-143 + Pitfall 1). Subscribe pattern
+   * mirrors onExportProgress (lines 143-149): wrapped const captures the
+   * listener identity for clean unsubscribe.
+   *
+   * The renderer mounts SaveQuitDialog when the channel fires; on user
+   * click, it calls confirmQuitProceed (or does nothing for Cancel).
+   * Dual-one-way wiring per RESEARCH §Pitfall 7 — main pauses at
+   * preventDefault until the renderer responds via the separate
+   * confirm-quit-proceed sender below.
+   *
+   * Listener identity preservation (RESEARCH §Pitfall 9): the wrapped
+   * const is captured by the returned unsubscribe closure — ipcRenderer.on/off
+   * compare by reference, so this is the only correct pattern. Anonymous
+   * wrappers leak listeners.
+   */
+  onCheckDirtyBeforeQuit: (handler) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => handler();
+    ipcRenderer.on('project:check-dirty-before-quit', wrapped);
+    return () => {
+      ipcRenderer.removeListener('project:check-dirty-before-quit', wrapped);
+    };
+  },
+
+  /**
+   * Phase 8 — dirty-guard reverse channel (D-143 + Pitfall 1). One-way send
+   * fired by the renderer's SaveQuitDialog after the user picks Save (and
+   * save resolved) or Don't Save. Cancel does NOT send — main stays paused
+   * at the before-quit preventDefault and the app keeps running.
+   *
+   * NEVER use ipcRenderer.invoke here — the synchronous before-quit listener
+   * cannot await an invoke roundtrip.
+   */
+  confirmQuitProceed: () => {
+    ipcRenderer.send('project:confirm-quit-proceed');
+  },
 };
 
 if (process.contextIsolated) {
