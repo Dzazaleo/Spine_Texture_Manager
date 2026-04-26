@@ -699,4 +699,25 @@ export interface Api {
   }) => Promise<OpenResponse>;
   onCheckDirtyBeforeQuit: (handler: () => void) => () => void;
   confirmQuitProceed: () => void;
+
+  // Phase 8.2 D-175 / D-181 — menu surface bridges.
+
+  /**
+   * Phase 8.2 D-181 — push derived menu state to main; main rebuilds and
+   * reapplies the application Menu on every notify (modalOpen, canSave,
+   * canSaveAs).
+   */
+  notifyMenuState: (state: { canSave: boolean; canSaveAs: boolean; modalOpen: boolean }) => void;
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Open click. */
+  onMenuOpen: (cb: () => void) => () => void;
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Open Recent → <path> click. */
+  onMenuOpenRecent: (cb: (path: string) => void) => () => void;
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Save click. */
+  onMenuSave: (cb: () => void) => () => void;
+
+  /** Phase 8.2 D-175 — subscribe to menu File→Save As… click. */
+  onMenuSaveAs: (cb: () => void) => () => void;
 }

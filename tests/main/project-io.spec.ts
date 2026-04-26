@@ -14,11 +14,42 @@ import {
 } from '../../src/main/project-io.js';
 import type { AppSessionState } from '../../src/shared/types.js';
 
+// Phase 8.2 Plan 03 — extended electron mock to satisfy `src/main/recent.ts`'s
+// module-load `app.getPath('userData')` call. Plan 03 wires addRecent into
+// project-io.ts's Save As / Open success arms; recent.ts is therefore now
+// transitively imported by this test file.
 vi.mock('electron', () => ({
   dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
   ipcMain: { handle: vi.fn(), on: vi.fn() },
   BrowserWindow: { getFocusedWindow: vi.fn(() => null) },
-  app: { whenReady: vi.fn(), quit: vi.fn(), on: vi.fn() },
+  app: {
+    whenReady: vi.fn(),
+    quit: vi.fn(),
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp/userData'),
+  },
+}));
+
+// Phase 8.2 Plan 03 — recent.ts is transitively imported via project-io's new
+// addRecent calls. Mock its public surface so success arms don't actually
+// touch the filesystem (writeFile/rename are already mocked above, but that
+// sidesteps the visibility — clearer to mock the module level so test
+// failures point at the recent.ts contract, not raw fs calls).
+vi.mock('../../src/main/recent.js', () => ({
+  loadRecent: vi.fn().mockResolvedValue([]),
+  addRecent: vi.fn().mockResolvedValue([]),
+  clearRecent: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Phase 8.2 Plan 03 — index.ts is dynamically imported from project-io's
+// success arms (await import('./index.js') for applyMenu / getCurrentMenuState
+// / getMainWindow). Mock the surface so test cases driving Save As / Open
+// success don't trigger the real menu builder (which would also try to load
+// recent.json + run electron.Menu.buildFromTemplate against the minimal mock).
+vi.mock('../../src/main/index.js', () => ({
+  applyMenu: vi.fn().mockResolvedValue(undefined),
+  getCurrentMenuState: vi.fn(() => ({ canSave: false, canSaveAs: false, modalOpen: false })),
+  getMainWindow: vi.fn(() => null),
 }));
 
 vi.mock('node:fs/promises', () => ({

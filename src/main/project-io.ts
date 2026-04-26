@@ -49,6 +49,12 @@ import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
 import { buildSummary } from './summary.js';
 import { SkeletonJsonNotFoundError, SpineLoaderError } from '../core/errors.js';
+// Phase 8.2 D-180 — Save As / Open success arms bump the new path to the
+// front of recent.json and rebuild the application Menu so File → Open
+// Recent reflects the latest state immediately. Plan 01 (recent.ts) provides
+// addRecent; Plan 02 (index.ts) provides applyMenu / getCurrentMenuState /
+// getMainWindow.
+import { addRecent } from './recent.js';
 import type {
   AppSessionState,
   SaveResponse,
@@ -152,7 +158,34 @@ export async function handleProjectSaveAs(
   if (result.canceled || !result.filePath) {
     return { ok: false, error: { kind: 'Unknown', message: 'Save cancelled' } };
   }
-  return writeProjectFileAtomic(state as AppSessionState, result.filePath);
+  // Phase 8.2 D-180 — Save As bumps the new path to the front of recent.json
+  // and forces a menu rebuild so File → Open Recent reflects the latest
+  // state immediately. Save (overwrite at existing path; handleProjectSave
+  // above) does NOT bump — the path is already at the front from the
+  // original Open.
+  //
+  // Both side-effects swallow errors: recent.json is non-critical UX state
+  // (D-177) and the user's Save As already succeeded — a missing menu
+  // rebuild or recent-list entry is not worth surfacing as an error
+  // envelope. The dynamic `await import('./index.js')` defers the
+  // index.ts ↔ ipc.ts ↔ project-io.ts cycle resolution until the first
+  // success arm fires (by which time index.ts is fully loaded as the entry
+  // point).
+  const resp = await writeProjectFileAtomic(state as AppSessionState, result.filePath);
+  if (resp.ok) {
+    try {
+      await addRecent(resp.path);
+    } catch {
+      // recent.json non-critical UX state (D-177) — silent.
+    }
+    try {
+      const { applyMenu, getCurrentMenuState, getMainWindow } = await import('./index.js');
+      void applyMenu(getCurrentMenuState(), getMainWindow());
+    } catch {
+      // Menu rebuild also non-critical — silent.
+    }
+  }
+  return resp;
 }
 
 /**
@@ -432,6 +465,28 @@ export async function handleProjectOpenFromPath(
     sortDir: materialized.sortDir,
     projectFilePath: absolutePath,
   };
+  // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
+  // recent.json. Both drag-drop and toolbar Open and menu Open Recent
+  // traverse this code path → all three keep the recent list correct.
+  // CRITICAL: only fire on the ok:true return — NOT on the
+  // SkeletonNotFoundOnLoadError rescue arm above, because that arm's recovery
+  // flow may never produce a successful Open (and the user hasn't actually
+  // landed on a working project yet).
+  //
+  // Both side-effects swallow errors per D-177 (recent.json is non-critical
+  // UX state). Dynamic `await import('./index.js')` mirrors the rationale at
+  // handleProjectSaveAs above (cycle deferral).
+  try {
+    await addRecent(absolutePath);
+  } catch {
+    // recent.json non-critical UX state (D-177) — silent.
+  }
+  try {
+    const { applyMenu, getCurrentMenuState, getMainWindow } = await import('./index.js');
+    void applyMenu(getCurrentMenuState(), getMainWindow());
+  } catch {
+    // Menu rebuild also non-critical — silent.
+  }
   return { ok: true, project };
 }
 
