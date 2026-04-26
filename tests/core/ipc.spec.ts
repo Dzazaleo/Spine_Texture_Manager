@@ -17,10 +17,29 @@
  *       * Missing atlas → {ok: false, error.kind === 'AtlasNotFoundError'}
  *   - T-01-02-02: error.message never contains stack-trace markers.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+
+// Phase 8.2 Plan 03 — Mock electron so the transitive load chain
+// `ipc.ts → project-io.ts → recent.ts → app.getPath('userData')` resolves
+// without spinning up Electron. handleSkeletonLoad itself does not touch
+// electron at runtime; this mock is purely to satisfy the module-load
+// side-effect introduced by Plan 03's recent.ts wiring.
+vi.mock('electron', () => ({
+  dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
+  ipcMain: { handle: vi.fn(), on: vi.fn() },
+  BrowserWindow: { getFocusedWindow: vi.fn(() => null) },
+  app: {
+    whenReady: vi.fn(),
+    quit: vi.fn(),
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp/userData'),
+  },
+  shell: { showItemInFolder: vi.fn() },
+}));
+
 import { handleSkeletonLoad } from '../../src/main/ipc.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');

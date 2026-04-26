@@ -25,12 +25,30 @@ import {
 } from '../../src/main/ipc.js';
 import type { ExportPlan } from '../../src/shared/types.js';
 
+// Phase 8.2 Plan 03 — extended electron mock to satisfy `src/main/recent.ts`'s
+// module-load `app.getPath('userData')` call. ipc.ts imports project-io.ts,
+// which imports addRecent eagerly from recent.ts (Plan 03 D-180 wiring), so
+// recent.ts is transitively loaded by this test file.
 vi.mock('electron', () => ({
   dialog: { showOpenDialog: vi.fn() },
   shell: { showItemInFolder: vi.fn() },
   ipcMain: { handle: vi.fn(), on: vi.fn() },
   BrowserWindow: { getFocusedWindow: vi.fn() },
-  app: { whenReady: vi.fn(), quit: vi.fn(), on: vi.fn() },
+  app: {
+    whenReady: vi.fn(),
+    quit: vi.fn(),
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp/userData'),
+  },
+}));
+
+// Phase 8.2 Plan 03 — recent.ts is transitively imported via ipc.ts →
+// project-io.ts → recent.ts. None of the export tests below traverse the
+// recent code path, but the module must be safe to load.
+vi.mock('../../src/main/recent.js', () => ({
+  loadRecent: vi.fn().mockResolvedValue([]),
+  addRecent: vi.fn().mockResolvedValue([]),
+  clearRecent: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../src/main/image-worker.js', () => ({
