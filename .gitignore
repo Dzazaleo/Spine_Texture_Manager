@@ -42,3 +42,9 @@ scripts/diagnose-*.ts
 
 # GSD ephemeral checkpoint state (regenerated each discuss-phase session)
 .planning/phases/**/*-DISCUSS-CHECKPOINT.json
+
+# Playwright MCP scratch dir
+.playwright-mcp/
+
+# Manual UAT save artifacts in fixtures
+fixtures/SIMPLE_PROJECT/temp.stmproj
