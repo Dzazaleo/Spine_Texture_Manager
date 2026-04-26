@@ -23,16 +23,56 @@
  * Layer-3 boundary test (`tests/arch.spec.ts`) greps this file for platform
  * anti-patterns; keep the grep happy.
  */
-import { app, BrowserWindow, protocol, ipcMain } from 'electron';
+import { app, BrowserWindow, protocol, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { registerIpcHandlers } from './ipc.js';
+import { loadRecent, clearRecent } from './recent.js';
 
 // Phase 8 — Pitfall 1 re-entry guard for the before-quit dirty-guard flow.
 // Set to true once the renderer has confirmed quit is OK; the before-quit
 // handler returns early on the second app.quit() invocation so we don't
 // re-prompt the user (and don't deadlock the synchronous quit listener).
 let isQuitting = false;
+
+/**
+ * Phase 8.2 D-181 — module-scope menu state. Updated by ipc.ts's
+ * 'menu:notify-state' handler (Plan 03) and consumed by buildAppMenu /
+ * applyMenu / project-io.ts (Plan 03 addRecent + menu rebuild).
+ *
+ * Initial value matches "no project loaded, no modal" — what app.whenReady
+ * installs before any renderer event arrives. Plan 03 wires
+ * setCurrentMenuState() into the 'menu:notify-state' IPC handler so renderer
+ * pushes drive subsequent rebuilds via applyMenu().
+ *
+ * mainWindowRef tracks the most recent BrowserWindow so the menu's click
+ * handlers (which capture mainWindow at template-build time) can route through
+ * the latest window even after activate-on-empty re-creates one. Nulled in
+ * the 'closed' listener so a stale handle never reaches webContents.send().
+ */
+export type MenuState = {
+  canSave: boolean;
+  canSaveAs: boolean;
+  modalOpen: boolean;
+};
+
+let currentMenuState: MenuState = {
+  canSave: false,
+  canSaveAs: false,
+  modalOpen: false,
+};
+
+let mainWindowRef: BrowserWindow | null = null;
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindowRef;
+}
+export function getCurrentMenuState(): MenuState {
+  return currentMenuState;
+}
+export function setCurrentMenuState(next: MenuState): void {
+  currentMenuState = next;
+}
 
 // Phase 7 D-133 amendment (per RESEARCH §Pitfall 1): register the
 // app-image:// scheme with privileges that allow:
@@ -96,6 +136,113 @@ ipcMain.on('project:confirm-quit-proceed', () => {
   setTimeout(() => app.quit(), 0);
 });
 
+/**
+ * Phase 8.2 — application Menu builder (D-173, D-174, D-185, D-188).
+ *
+ * Builds the full standard macOS template (App / File / Edit / View /
+ * Window / Help) using role:* for non-File menus so cross-platform
+ * standard accelerators (Cmd+C/V/A/Z, Cmd+W, Cmd+Q etc.) work without
+ * manual wiring.
+ *
+ * Re-reads recent.json on every rebuild via loadRecent() so the Open
+ * Recent submenu always reflects the latest persisted list (D-179
+ * click-and-recover semantics — no fs.access at menu-build time).
+ *
+ * File menu enabled-state computed from MenuState:
+ *   - state.modalOpen === true        → all four File items disabled (D-184)
+ *   - state.canSave === false         → Save disabled (regardless of modalOpen)
+ *   - state.canSaveAs === false       → Save As disabled
+ *   - Open / Open Recent always enabled when modalOpen === false (D-187)
+ *     so Cmd+O fires in idle/error/projectLoadFailed AppState — the
+ *     entire 08.1 UAT bug fix.
+ *
+ * Click handlers fire one-way IPC into the renderer via
+ * mainWindow.webContents.send (D-175); App.tsx subscribes via
+ * window.api.onMenuOpen / onMenuOpenRecent / onMenuSave / onMenuSaveAs
+ * (Plan 04). The renderer then routes through its existing dirty-guard
+ * and openProject() / saveProject() / saveProjectAs() flows.
+ *
+ * Optional-chain on mainWindow inside every click handler is mandatory —
+ * when the window is closed (mainWindowRef === null), the click is a
+ * silent no-op rather than a TypeError. T-08.2-02-01 mitigation.
+ */
+export async function buildAppMenu(
+  state: MenuState,
+  mainWindow: BrowserWindow | null,
+): Promise<Menu> {
+  const recent = await loadRecent();
+  const fileDisabled = state.modalOpen;
+
+  const recentSubmenu: MenuItemConstructorOptions[] =
+    recent.length === 0
+      ? [{ label: '(No recent projects)', enabled: false }]
+      : recent.map((p) => ({
+          label: p.split(/[\\/]/).pop() ?? p,
+          toolTip: p, // Discretion: full absolute path on hover
+          enabled: !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:open-recent-clicked', p),
+        }));
+  recentSubmenu.push({ type: 'separator' });
+  recentSubmenu.push({
+    label: 'Clear Menu',
+    enabled: recent.length > 0,
+    click: async () => {
+      await clearRecent();
+      // Re-apply so the now-empty submenu paints — re-reads recent.json.
+      void applyMenu(currentMenuState, mainWindowRef);
+    },
+  });
+
+  const template: MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open…',
+          accelerator: 'CmdOrCtrl+O',
+          enabled: !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:open-clicked'),
+        },
+        { label: 'Open Recent', submenu: recentSubmenu },
+        { type: 'separator' },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          enabled: state.canSave && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:save-clicked'),
+        },
+        {
+          label: 'Save As…',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          enabled: state.canSaveAs && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:save-as-clicked'),
+        },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    // role:'help' REQUIRES a `submenu` (Electron's MenuItemConstructorOptions
+    // validation throws "Invalid template for MenuItem: must have submenu type
+    // with role help" without it). Empty placeholder for now; Phase 9 may add
+    // documentation links.
+    { role: 'help', submenu: [] },
+  ];
+
+  return Menu.buildFromTemplate(template);
+}
+
+export async function applyMenu(
+  state: MenuState,
+  mainWindow: BrowserWindow | null,
+): Promise<void> {
+  const menu = await buildAppMenu(state, mainWindow);
+  Menu.setApplicationMenu(menu);
+}
+
 // Phase 9 polish drop-in scaffold (D-140 §Out of Scope). The macOS file
 // association registration itself (Info.plist via electron-builder) is Phase 9;
 // this listener is wired now so the registration drop-in is config-only.
@@ -129,6 +276,18 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  // Phase 8.2 — track the active window so menu click handlers can route
+  // mainWindow.webContents.send(...). Null on close so a stale handle never
+  // reaches the renderer (T-08.2-02-01 mitigation). Identity check guards
+  // against a future race where a second window opens before the first
+  // window's 'closed' fires.
+  mainWindowRef = mainWindow;
+  mainWindow.on('closed', () => {
+    if (mainWindowRef === mainWindow) {
+      mainWindowRef = null;
+    }
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -179,6 +338,12 @@ app.whenReady().then(() => {
 
   registerIpcHandlers();
   createWindow();
+
+  // Phase 8.2 — install initial menu (no project loaded, modal-free).
+  // Async-but-fire-and-forget — the menu paints once loadRecent resolves;
+  // main can boot the window in parallel. Plan 03's 'menu:notify-state' IPC
+  // handler will rebuild + reapply once the renderer pushes updated state.
+  void applyMenu(currentMenuState, mainWindowRef);
 
   app.on('activate', () => {
     // macOS convention: re-open a window when dock icon clicked with none open.
