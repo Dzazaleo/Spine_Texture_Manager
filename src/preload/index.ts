@@ -337,6 +337,54 @@ const api: Api = {
   cancelSampler: (): void => {
     ipcRenderer.send('sampler:cancel');
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 9 Plan 05 — Settings + Help menu + external-URL bridges. Three new
+  // methods that mirror the existing 08.2 onMenu* / openOutputFolder patterns
+  // byte-for-byte (channel name + payload type only differ). Pitfall 9
+  // listener-identity preservation applies to both onMenu* methods.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Phase 9 Plan 05 — subscribe to menu Edit→Preferences… click. Returns
+   * unsubscribe. Pitfall 9: wrapped const captured BEFORE ipcRenderer.on so
+   * the unsubscribe closure references the SAME identity that
+   * removeListener compares by reference.
+   */
+  onMenuSettings: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:settings-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:settings-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Phase 9 Plan 05 — subscribe to menu Help→Documentation click. Returns
+   * unsubscribe. Pitfall 9 listener-identity preservation (same shape as
+   * onMenuSettings).
+   */
+  onMenuHelp: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:help-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:help-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Phase 9 Plan 05 — open an external URL in the system browser. One-way
+   * fire-and-forget. Main validates the URL against a hardcoded allow-list
+   * (T-09-05-OPEN-EXTERNAL). Mirrors openOutputFolder's shape at lines
+   * 138-140 with the channel renamed.
+   *
+   * Renderer-side callers (HelpDialog) MUST pass only static URLs that match
+   * the main-process allow-list — see SHELL_OPEN_EXTERNAL_ALLOWED in
+   * src/main/ipc.ts.
+   */
+  openExternalUrl: (url: string): void => {
+    ipcRenderer.send('shell:open-external', url);
+  },
 };
 
 if (process.contextIsolated) {

@@ -105,6 +105,37 @@ const KNOWN_KINDS: ReadonlySet<KnownErrorKind> = new Set<KnownErrorKind>([
 let exportInFlight = false;
 let exportCancelFlag = false;
 
+// ---------------------------------------------------------------------------
+// Phase 9 Plan 05 T-09-05-OPEN-EXTERNAL — closed allow-list of URLs that
+// the 'shell:open-external' handler will pass to shell.openExternal.
+//
+// Defense in depth: the contextBridge surface (window.api.openExternalUrl)
+// only exposes the channel to the trusted renderer; this allow-list catches
+// (a) accidental mistakes — typo'd URLs in HelpDialog source, and
+// (b) any future renderer compromise that tries to inject arbitrary URLs.
+// shell.openExternal with arbitrary user-controlled input is a documented
+// Electron sandbox-escape vector (https://www.electronjs.org/docs/latest/
+// tutorial/security) — never call it without an allow-list when the URL
+// crosses an IPC boundary.
+//
+// Comparison is exact-string equality via Set.has — no prefix matching, no
+// scheme-only checks, no trailing-slash leniency. To add a new entry, the
+// HelpDialog author MUST update this Set verbatim with the URL the dialog
+// hands to window.api.openExternalUrl. Mismatches are silently dropped (the
+// channel is one-way; nothing to return).
+//
+// NEVER allow user-controlled (e.g., skeletonPath, projectPath) URLs in this
+// list. The list is hardcoded at compile time on purpose.
+// ---------------------------------------------------------------------------
+const SHELL_OPEN_EXTERNAL_ALLOWED: ReadonlySet<string> = new Set<string>([
+  // Spine documentation references that HelpDialog (Plan 07) links to.
+  // These are the canonical Spine 4.2 docs the project's help content
+  // points to per CONTEXT.md §"Documentation button" (Claude's Discretion).
+  'https://esotericsoftware.com/spine-runtimes',
+  'https://esotericsoftware.com/spine-api-reference',
+  'https://en.esotericsoftware.com/spine-json-format',
+]);
+
 /**
  * Phase 6 REVIEW L-04 (2026-04-25) — the previous Round 2 helper
  * `isOutDirInsideSourceImages` (folder-position-only rejection) was
@@ -547,6 +578,25 @@ export function registerIpcHandlers(): void {
         // showItemInFolder may throw on some platforms for non-existent
         // paths — silent (one-way channel; nothing to return).
       }
+    }
+  });
+
+  // Phase 9 Plan 05 T-09-05-OPEN-EXTERNAL — open an external URL in the
+  // system browser. Allow-list-validated (SHELL_OPEN_EXTERNAL_ALLOWED) before
+  // the shell.openExternal call. Silent rejection on:
+  //   - non-string / empty payload (typeof / length guard)
+  //   - URL not in the closed allow-list
+  // The channel is one-way (renderer→main fire-and-forget); there is no
+  // envelope to return on rejection. Plan 07 (HelpDialog) consumes this
+  // bridge to open Spine documentation links from the in-app help view.
+  ipcMain.on('shell:open-external', (_evt, url) => {
+    if (typeof url !== 'string' || url.length === 0) return;
+    if (!SHELL_OPEN_EXTERNAL_ALLOWED.has(url)) return;
+    try {
+      void shell.openExternal(url);
+    } catch {
+      // shell.openExternal can throw on platforms where the default browser
+      // is misconfigured. Silent — one-way channel; nothing to return.
     }
   });
 

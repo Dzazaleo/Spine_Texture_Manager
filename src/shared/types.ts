@@ -793,4 +793,42 @@ export interface Api {
    * inner-loop flag-check point).
    */
   cancelSampler: () => void;
+
+  // -------------------------------------------------------------------------
+  // Phase 9 Plan 05 — Settings + Help menu surfaces (Claude's Discretion +
+  // RESEARCH §Q6 + 08.2 D-188). Three new bridges:
+  //   - onMenuSettings: subscribe to Edit→Preferences… click
+  //   - onMenuHelp: subscribe to Help→Documentation click
+  //   - openExternalUrl: open an external URL in the system browser
+  //     (validated against a closed allow-list in main — T-09-05-OPEN-EXTERNAL).
+  // Plan 06 (Settings + tooltip) and Plan 07 (Help dialog) consume these
+  // without further changes to the shared Api surface.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Phase 9 Plan 05 — subscribe to menu Edit→Preferences… click. Returns
+   * unsubscribe. Pitfall 9 listener-identity preservation (mirrors onMenuOpen
+   * at preload/index.ts:269-275).
+   */
+  onMenuSettings: (cb: () => void) => () => void;
+
+  /**
+   * Phase 9 Plan 05 — subscribe to menu Help→Documentation click. Returns
+   * unsubscribe. Pitfall 9 listener-identity preservation (mirrors onMenuOpen
+   * at preload/index.ts:269-275).
+   */
+  onMenuHelp: (cb: () => void) => () => void;
+
+  /**
+   * Phase 9 Plan 05 — open an external URL in the system browser
+   * (shell.openExternal). One-way fire-and-forget. Main validates the URL
+   * against a hardcoded allow-list (T-09-05-OPEN-EXTERNAL); non-allow-listed
+   * URLs are silently rejected as defense in depth even though the contextBridge
+   * surface limits exposure to the trusted renderer.
+   *
+   * Renderer-side callers (HelpDialog) MUST pass only static, hardcoded URLs
+   * that match the main-process allow-list. Add new entries by editing
+   * SHELL_OPEN_EXTERNAL_ALLOWED in src/main/ipc.ts.
+   */
+  openExternalUrl: (url: string) => void;
 }
