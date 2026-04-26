@@ -28,7 +28,7 @@
  */
 import { useState, useCallback, type DragEvent, type ReactNode } from 'react';
 import clsx from 'clsx';
-import type { LoadResponse } from '../../../shared/types.js';
+import type { LoadResponse, OpenResponse } from '../../../shared/types.js';
 
 export interface DropZoneProps {
   /**
@@ -41,11 +41,36 @@ export interface DropZoneProps {
    * so the UI can show a loading hint (D-19 in-place replacement).
    */
   onLoadStart: (fileName: string) => void;
+  /**
+   * Phase 8 — .stmproj branch (D-142). Optional so the existing single-callback
+   * pattern keeps working; AppShell wires both pairs in Plan 04 Task 4.
+   */
+  onProjectDrop?: (resp: OpenResponse, fileName: string) => void;
+  /** Phase 8 — .stmproj loading-start handshake. Mirrors onLoadStart shape. */
+  onProjectDropStart?: (fileName: string) => void;
+  /**
+   * Phase 8 — pre-drop dirty-guard hook (D-143). When provided, DropZone
+   * awaits this promise before invoking the IPC. Returns true to proceed,
+   * false to abort. Default behavior (when undefined): proceed.
+   *
+   * The parent (AppShell or App.tsx) inspects isDirty inside this callback
+   * and may mount the SaveQuitDialog with reason matching the kind:
+   * 'json' → 'new-skeleton-drop'; 'stmproj' → 'new-project-drop'.
+   * Resolves true (Save / Don't Save) or false (Cancel).
+   */
+  onBeforeDrop?: (fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>;
   /** State-appropriate body content injected by parent App.tsx. */
   children: ReactNode;
 }
 
-export function DropZone({ onLoad, onLoadStart, children }: DropZoneProps) {
+export function DropZone({
+  onLoad,
+  onLoadStart,
+  onProjectDrop,
+  onProjectDropStart,
+  onBeforeDrop,
+  children,
+}: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -75,29 +100,66 @@ export function DropZone({ onLoad, onLoadStart, children }: DropZoneProps) {
       const file = e.dataTransfer.files[0];
       if (!file) return;
 
-      // UX guard — surface a typed envelope inline without a main-process
-      // round trip if the user dropped a clearly-wrong extension. NOT a
-      // security check; the main handler re-validates (T-01-02-01).
-      if (!file.name.toLowerCase().endsWith('.json')) {
-        onLoad(
-          {
-            ok: false,
-            error: { kind: 'Unknown', message: `Not a .json file: ${file.name}` },
-          },
-          file.name,
-        );
+      // Phase 8 D-142: extension dispatch — .json → existing skeleton-load
+      // path; .stmproj → new project-load path; everything else → typed
+      // rejection envelope. UX guards only — main handlers re-validate.
+      const lower = file.name.toLowerCase();
+
+      if (lower.endsWith('.stmproj')) {
+        if (typeof onProjectDrop !== 'function' || typeof onProjectDropStart !== 'function') {
+          // No project-handling wired — fall through to legacy rejection
+          // envelope so the parent's existing error UI surfaces something.
+          onLoad(
+            {
+              ok: false,
+              error: { kind: 'Unknown', message: `Project drop not wired: ${file.name}` },
+            },
+            file.name,
+          );
+          return;
+        }
+        // Pre-drop dirty-guard (D-143). Parent (AppShell via App.tsx wiring)
+        // gets a chance to mount SaveQuitDialog before the IPC fires.
+        if (typeof onBeforeDrop === 'function') {
+          const proceed = await onBeforeDrop(file.name, 'stmproj');
+          if (!proceed) return;
+        }
+        onProjectDropStart(file.name);
+        // Pass the raw File — preload calls webUtils.getPathForFile(file).
+        const resp = await window.api.openProjectFromFile(file);
+        onProjectDrop(resp, file.name);
         return;
       }
 
-      onLoadStart(file.name);
-      // Pass the raw File — preload calls webUtils.getPathForFile(file).
-      // D-09 mechanism correction (RESEARCH Finding #1): the legacy
-      // filesystem-path property on the File object was removed in
-      // Electron 32+; we target 41.
-      const resp = await window.api.loadSkeletonFromFile(file);
-      onLoad(resp, file.name);
+      if (lower.endsWith('.json')) {
+        if (typeof onBeforeDrop === 'function') {
+          const proceed = await onBeforeDrop(file.name, 'json');
+          if (!proceed) return;
+        }
+        onLoadStart(file.name);
+        // Pass the raw File — preload calls webUtils.getPathForFile(file).
+        // D-09 mechanism correction (RESEARCH Finding #1): the legacy
+        // filesystem-path property on the File object was removed in
+        // Electron 32+; we target 41.
+        const resp = await window.api.loadSkeletonFromFile(file);
+        onLoad(resp, file.name);
+        return;
+      }
+
+      // Other → typed rejection envelope. Message updated to mention .stmproj
+      // alongside .json so users understand the new accepted formats.
+      onLoad(
+        {
+          ok: false,
+          error: {
+            kind: 'Unknown',
+            message: `Not a .json or .stmproj file: ${file.name}`,
+          },
+        },
+        file.name,
+      );
     },
-    [onLoad, onLoadStart],
+    [onLoad, onLoadStart, onProjectDrop, onProjectDropStart, onBeforeDrop],
   );
 
   return (
