@@ -627,23 +627,22 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
     return unsub;
   }, [isDirty]);
 
-  // Task 2a vs Task 2b split: Task 2a lands the wiring (state + handlers);
-  // Task 2b consumes the symbols in JSX (toolbar buttons + chip + modal
-  // mount + banners). The void-references below keep Task 2a typecheck-
-  // green; Task 2b removes them when the JSX consumes the symbols.
-  void SaveQuitDialog;
-  void saveQuitDialogState;
-  void saveInFlight;
-  void staleOverrideNotice;
-  void onClickLocateSkeleton;
-
   return (
     <div className="w-full h-full flex flex-col">
       <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
         {/* Filename chip — hoisted from the prior panel's internal header per D-49.
-            Exact class string preserved from the prior panel's chip for visual continuity. */}
-        <span className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg">
-          {summary.skeletonPath}
+            Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
+            Renders 'Untitled' when currentProjectPath is null; otherwise the project
+            basename. Title attribute carries the absolute path for hover lookup.
+            Class string preserved verbatim for visual continuity. */}
+        <span
+          className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg"
+          title={currentProjectPath ?? summary.skeletonPath}
+        >
+          {isDirty ? '• ' : ''}
+          {currentProjectPath
+            ? currentProjectPath.split(/[\\/]/).pop() ?? 'Untitled'
+            : 'Untitled'}
         </span>
         <nav role="tablist" className="flex gap-1 items-center">
           <TabButton
@@ -686,8 +685,90 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
           >
             Optimize Assets
           </button>
+          {/* Phase 8 D-140 — Save toolbar button. Class string verbatim from
+              Optimize Assets above (Tailwind v4 literal-class scanner discipline,
+              Pitfall 8). Disabled when no skeleton (peaks empty) or save in flight. */}
+          <button
+            type="button"
+            onClick={() => void onClickSave()}
+            disabled={summary.peaks.length === 0 || saveInFlight}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Save
+          </button>
+          {/* Phase 8 D-140 — Open toolbar button. Class string verbatim from
+              Optimize Assets above. No disabled state — Open is always
+              available (replaces the current session). */}
+          <button
+            type="button"
+            onClick={() => void onClickOpen()}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+          >
+            Open
+          </button>
         </div>
       </header>
+      {/* Phase 8 D-150 — stale-override banner. Renders count + first-5 names
+          (then "+ N more" suffix when > 5); dismissible. Auto-clears on next
+          successful Save (see onClickSave). RESEARCH §Open Q4 RESOLVED styling:
+          muted-fg body + accent left-bar. */}
+      {staleOverrideNotice !== null && staleOverrideNotice.length > 0 && (
+        <div
+          role="status"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />
+          <span className="flex-1">
+            {staleOverrideNotice.length} saved override
+            {staleOverrideNotice.length === 1 ? '' : 's'} skipped — attachments
+            no longer in skeleton:&nbsp;
+            <span className="font-mono text-fg">
+              {staleOverrideNotice.slice(0, 5).join(', ')}
+            </span>
+            {staleOverrideNotice.length > 5
+              ? ` + ${staleOverrideNotice.length - 5} more`
+              : ''}
+          </span>
+          <button
+            type="button"
+            onClick={() => setStaleOverrideNotice(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {/* Phase 8 D-149 — locate-skeleton inline error. Mounted when an Open or
+          drop attempt returns SkeletonNotFoundOnLoadError. The "Locate
+          skeleton…" button invokes window.api.locateSkeleton →
+          reloadProjectWithSkeleton via onClickLocateSkeleton; "Dismiss"
+          clears the banner without recovery. */}
+      {skeletonNotFoundError !== null && (
+        <div
+          role="alert"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-danger" aria-hidden="true" />
+          <span className="flex-1">
+            <span className="font-semibold text-danger">Skeleton not found:</span>{' '}
+            {skeletonNotFoundError.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => void onClickLocateSkeleton()}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Locate skeleton…
+          </button>
+          <button
+            type="button"
+            onClick={() => setSkeletonNotFoundError(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <main className="flex-1 overflow-auto">
         {activeTab === 'global' && (
           <GlobalMaxRenderPanel
@@ -769,6 +850,41 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
           overrides={overrides}
           onJumpToAttachment={onJumpToAttachment}
           onClose={() => setAtlasPreviewOpen(false)}
+        />
+      )}
+      {/* Phase 8 D-143 — SaveQuitDialog mount. Mirrors ConflictDialog mount
+          idiom (conditional on null state). Used in three contexts via
+          the `reason` discriminator: 'quit' (Cmd+Q on dirty), 'new-skeleton-drop'
+          (drop .json on dirty), 'new-project-drop' (drop .stmproj on dirty).
+          Save click awaits onClickSave; on success runs the pendingAction
+          (e.g. confirmQuitProceed for 'quit') then closes. Save failure
+          leaves the dialog open for retry/cancel. Don't Save runs the
+          pendingAction without saving. Cancel closes without action. */}
+      {saveQuitDialogState !== null && (
+        <SaveQuitDialog
+          open={true}
+          reason={saveQuitDialogState.reason}
+          basename={
+            currentProjectPath
+              ? currentProjectPath.split(/[\\/]/).pop() ?? null
+              : null
+          }
+          saving={saveInFlight}
+          onSave={async () => {
+            const resp = await onClickSave();
+            if (resp.ok) {
+              const action = saveQuitDialogState.pendingAction;
+              setSaveQuitDialogState(null);
+              action();
+            }
+            // On save failure: leave dialog open for retry/cancel.
+          }}
+          onDontSave={() => {
+            const action = saveQuitDialogState.pendingAction;
+            setSaveQuitDialogState(null);
+            action();
+          }}
+          onCancel={() => setSaveQuitDialogState(null)}
         />
       )}
     </div>
