@@ -60,7 +60,13 @@ import type {
   SerializableError,
 } from '../shared/types.js';
 
-type KnownErrorKind = SerializableError['kind'];
+// Phase 8.1 D-158 — handleSkeletonLoad's SpineLoaderError forwarder produces
+// only non-recovery error kinds. Excluding 'SkeletonNotFoundOnLoadError' here
+// makes TypeScript verify the forwarder cannot accidentally produce the
+// recovery-payload arm of the SerializableError union without populating its
+// 7 threaded fields (see project-io.ts NonRecoveryKind for the parallel
+// narrowing at the project-open rescue branches).
+type KnownErrorKind = Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>;
 
 const KNOWN_KINDS: ReadonlySet<KnownErrorKind> = new Set<KnownErrorKind>([
   'SkeletonJsonNotFoundError',

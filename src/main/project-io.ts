@@ -58,6 +58,27 @@ import type {
   MaterializedProject,
 } from '../shared/types.js';
 
+/**
+ * Phase 8.1 D-158 — Non-recovery error kinds.
+ *
+ * The `SerializableError` discriminated union has two arms:
+ *   1. `'SkeletonNotFoundOnLoadError'` carries the 7-field recovery payload
+ *      (D-159) and is constructed by hand at the SkeletonJsonNotFoundError
+ *      rescue branches in `handleProjectOpenFromPath` /
+ *      `handleProjectReloadWithSkeleton` — those sites populate the threaded
+ *      fields from the in-scope `materialized` object + `absolutePath`.
+ *   2. The second arm — every other kind — keeps the flat `{kind, message}`
+ *      shape. The SpineLoaderError forwarders cast `err.name` to this arm's
+ *      kind union via `NonRecoveryKind`. This narrowing makes TypeScript
+ *      verify the forwarders cannot accidentally produce the recovery-payload
+ *      arm without populating its 7 fields (which would be a runtime bug —
+ *      AppShell would read `undefined` instead of the cached payload).
+ *
+ * Same shape applied to `src/main/ipc.ts:handleSkeletonLoad` for the
+ * `LoadResponse` envelope.
+ */
+type NonRecoveryKind = Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>;
+
 // ---------------------------------------------------------------------------
 // Save (F9.1, T-08-IO)
 // ---------------------------------------------------------------------------
@@ -333,21 +354,40 @@ export async function handleProjectOpenFromPath(
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
       // D-149 — triggers locate-skeleton flow in the renderer (T-08-MISS).
+      // Phase 8.1 D-158/D-159: thread the cached recovery payload from the
+      // already-materialized project (line 323) + the function arg
+      // `absolutePath`. handleProjectReloadWithSkeleton (lines 459-555)
+      // consumes these values verbatim when the user picks a replacement
+      // skeleton. Pre-Phase-8.1 these fields were absent from the envelope,
+      // forcing the renderer to populate empty literals — VR-02 was the
+      // resulting bug (rejection at handleLocateSkeleton with
+      // "projectPath must be a .stmproj path").
       return {
         ok: false,
         error: {
           kind: 'SkeletonNotFoundOnLoadError',
           message: err.message,
+          projectPath: absolutePath,
+          originalSkeletonPath: materialized.skeletonPath,
+          mergedOverrides: materialized.overrides,
+          samplingHz: materialized.samplingHz,
+          lastOutDir: materialized.lastOutDir,
+          sortColumn: materialized.sortColumn,
+          sortDir: materialized.sortDir,
         },
       };
     }
     if (err instanceof SpineLoaderError) {
       // AtlasNotFoundError, AtlasParseError → forward .name verbatim.
-      // The kind union is locked at compile time; cast is safe by construction.
+      // Phase 8.1 D-158: the SerializableError union's second arm excludes
+      // 'SkeletonNotFoundOnLoadError' (handled above with its threaded
+      // payload). Narrow the cast to NonRecoveryKind so TypeScript verifies
+      // the SpineLoaderError forwarder cannot accidentally produce the
+      // recovery-payload arm without populating its 7 fields.
       return {
         ok: false,
         error: {
-          kind: err.name as SerializableError['kind'],
+          kind: err.name as NonRecoveryKind,
           message: err.message,
         },
       };
@@ -500,16 +540,35 @@ export async function handleProjectReloadWithSkeleton(
     load = loadSkeleton(a.newSkeletonPath, {});
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
-      return {
-        ok: false,
-        error: { kind: 'SkeletonNotFoundOnLoadError', message: err.message },
-      };
-    }
-    if (err instanceof SpineLoaderError) {
+      // Phase 8.1 D-158/D-159: the user-picked replacement skeleton was
+      // ALSO missing (rare — file deleted between picker close and
+      // loadSkeleton call). Re-thread the recovery payload so the renderer
+      // can re-prompt the locate-skeleton picker without losing the cached
+      // overrides/settings. `originalSkeletonPath` carries the just-picked
+      // (now-missing) path so the picker can default-locate near it.
       return {
         ok: false,
         error: {
-          kind: err.name as SerializableError['kind'],
+          kind: 'SkeletonNotFoundOnLoadError',
+          message: err.message,
+          projectPath: a.projectPath,
+          originalSkeletonPath: a.newSkeletonPath,
+          mergedOverrides: a.mergedOverrides as Record<string, number>,
+          samplingHz,
+          lastOutDir,
+          sortColumn,
+          sortDir,
+        },
+      };
+    }
+    if (err instanceof SpineLoaderError) {
+      // Phase 8.1 D-158: narrow to NonRecoveryKind so TypeScript verifies the
+      // SpineLoaderError forwarder cannot accidentally produce the
+      // recovery-payload arm without populating its 7 fields.
+      return {
+        ok: false,
+        error: {
+          kind: err.name as NonRecoveryKind,
           message: err.message,
         },
       };
