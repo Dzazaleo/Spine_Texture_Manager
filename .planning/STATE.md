@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Phase 08.1 Plan 01 complete
-last_updated: "2026-04-26T10:52:00Z"
+stopped_at: Phase 08.1 Plan 02 complete
+last_updated: "2026-04-26T11:00:29Z"
 progress:
   total_phases: 11
   completed_phases: 9
   total_plans: 49
-  completed_plans: 45
-  percent: 92
+  completed_plans: 46
+  percent: 94
 ---
 
 # State
@@ -21,13 +21,15 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 08.1 — Close Phase 8 verification gaps IN PROGRESS** (1/6 plans executed: Plan 08.1-01 complete, Wave 0 RED scaffolding landed; Plans 08.1-02..06 pending)
+**Phase 08.1 — Close Phase 8 verification gaps IN PROGRESS** (2/6 plans executed: Plans 08.1-01 + 08.1-02 complete; Plans 08.1-03..06 pending)
 
 ## Current plan
 
-**Plan 08.1-02 (NEXT).** Drives 8.1-IPC-01 GREEN by threading the 7 recovery fields at `src/main/project-io.ts:333-343` (the `SkeletonJsonNotFoundError` rescue branch). Also clears the 5 deliberate downstream typecheck breaks Plan 08.1-01 left in place. Wave 2, autonomous, depends_on [08.1-01].
+**Plan 08.1-03 (NEXT).** Drives 8.1-VR-02 GREEN by replacing the 8 hardcoded empty/null literals at `src/renderer/src/components/AppShell.tsx:529-538` (onClickOpen rescue) with field reads from the typed `resp.error` payload (D-160). The renderer-side half of the VR-02 fix — completes the wire that Plan 08.1-02 just landed on the main side. Wave 3, autonomous, depends_on [08.1-01, 08.1-02].
 
 ## Last completed
+
+- **Plan 08.1-02 (2026-04-26):** Wave 2 main-side wire for VR-02 (D-159). **1 atomic commit** `dbb3ffc` (feat: thread 7 recovery fields into SkeletonNotFoundOnLoadError envelope; primary D-159 wire at `handleProjectOpenFromPath:333-355` populates `projectPath`/`originalSkeletonPath`/`mergedOverrides`/`samplingHz`/`lastOutDir`/`sortColumn`/`sortDir` from the in-scope `materialized` object + `absolutePath` arg; parallel D-159 wire at `handleProjectReloadWithSkeleton:502-525` re-threads the same 7 fields when the user-picked replacement skeleton is itself missing — rare race condition, lets the renderer re-prompt the picker without losing cached overrides; new type alias `NonRecoveryKind = Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>` near the imports with 14-line JSDoc; 3 SpineLoaderError forwarder casts narrowed to `as NonRecoveryKind` at project-io.ts:362+525 + ipc.ts:264 with parallel-reasoning JSDoc — TypeScript now verifies the forwarders cannot accidentally produce the recovery-payload arm without populating its 7 threaded fields). **1 deviation** auto-fixed (Rule 3 - Blocking — scope expansion to 4 sibling typecheck breaks per Plan 08.1-01's Next-Readiness map at lines 207-211 of 08.1-01-SUMMARY.md AND the orchestrator's explicit objective "Your work clears all 5 of those typecheck breaks"; splitting them across separate commits would have left the inter-plan typecheck broken — violates the Wave-0 type-contract-first invariant). **Test baseline delta:** 270 → **271 passed** (+1 = 8.1-IPC-01 RED→GREEN), 5 → **4 failed** (−1, the remaining 4 are 8.1-VR-01/02/03a/03b which flip in Plans 08.1-03/04), 1 skipped + 1 todo unchanged. **All 5 deliberate Plan-01 typecheck breaks resolved** (project-io.ts:338/349/505/511 + ipc.ts:257). Pre-existing deferred `scripts/probe-per-anim.ts:14:31` TS2339 unchanged (out of scope per `.planning/phases/04-scale-overrides/deferred-items.md`). **Locked-file invariants vs Phase 5 baseline `552389e` all clean (0 lines):** `scripts/cli.ts` (CLAUDE.md rule #3), `src/core/sampler.ts`, `src/core/loader.ts`. `src/core/project-file.ts` 392 lines = Plan 08-02 baseline (D-171 lock holds — schema unchanged in 8.1; this plan does not touch the file). `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` exits 0 with CIRCLE 2.018 / SQUARE 1.500 / TRIANGLE 2.000 byte-for-byte unchanged. **TDD GREEN gate:** RED commit `a40fffc` (Plan 08.1-01 Task 2) failed with `Received: undefined`; GREEN commit `dbb3ffc` makes spec PASS (`Tests 1 passed | 11 skipped (12)` evidence captured in commit message). **AppShell.tsx:529-538 still typechecks** (the empty/null/120 literals satisfy the new union arm); Plan 08.1-03 will replace them with field reads from `resp.error.*`. **Pattern established:** compile-time `Exclude<Union['kind'], PayloadArmKind>` narrowing at SpineLoaderError forwarder cast sites — zero runtime cost, catches future error-class additions at compile time. SUMMARY at `.planning/phases/08.1-close-phase-8-verification-gaps-locate-skeleton-recovery-rea/08.1-02-SUMMARY.md`.
 
 - **Plan 08.1-01 (2026-04-26):** Wave 0 RED scaffolding for Phase 8.1. **3 atomic commits**: `765c2a4` (refactor: SerializableError → discriminated union per D-158/D-171 — promote flat interface to tagged union; the `'SkeletonNotFoundOnLoadError'` arm carries 7 cached recovery fields `projectPath`/`originalSkeletonPath`/`mergedOverrides`/`samplingHz`/`lastOutDir`/`sortColumn`/`sortDir`; the other 7 kinds keep `{kind, message}`; D-171 invariant intact — `src/core/project-file.ts` untouched, `.stmproj` v1 schema byte-identical) + `a40fffc` (test: 8.1-IPC-01 RED — new sibling spec inside F9.2 describe asserting `handleProjectOpenFromPath` populates the 7 threaded fields when skeleton is missing on disk; type-narrowing via `result.error.kind === 'SkeletonNotFoundOnLoadError'` exposes fields without `as` casts; FAILS with `Received: undefined` until Plan 08.1-02 wires) + `d756dd9` (test: flip 2 it.todos + add 8.1-VR-01/02 → 4 RED renderer specs; new App import + extended beforeEach mocks for `loadSkeletonFromFile`/`locateSkeleton`/`reloadProjectWithSkeleton`/`openProjectFromFile`; 8.1-VR-01 asserts App.tsx mounts `role=alert` recovery banner on .stmproj drop with missing skeleton, 8.1-VR-02 asserts AppShell.onClickOpen threads `projectPath` into `reloadProjectWithSkeleton` IPC instead of empty string, 8.1-VR-03a/b assert SaveQuitDialog mounts with `reason='new-skeleton-drop'`/`'new-project-drop'` body copy on dirty + drop; both prior `it.todo` placeholders gone; redundant DropZone .stmproj describe deleted). **1 deviation** auto-fixed (Rule 1 grep-literal hygiene — comment containing literal `it.todo` substring reworded so plan's `grep -c "it.todo" tests/renderer/save-load.spec.tsx` returns 0; same class as Plan 01-01 Dev #4, 01-02 Dev #3/#4, 01-03 Dev #3, 01-04 Dev #1, 02-01 Dev #3, 02-03, 04-01 Dev #1). **Test baseline:** 270 passed + 1 skipped + 1 todo + 5 failed (was 270/0/3/1 at Phase 8 close; +5 RED specs added by design, −2 todos flipped/deleted, 0 GREEN flips — those land in Plans 08.1-02/03/04). **5 deliberate downstream typecheck breaks** at construction sites (project-io.ts:338, 349, 505, 511 + ipc.ts:257) — Plan 08.1-02 fixes by threading fields and narrowing casts. Pre-existing deferred TS error scripts/probe-per-anim.ts:14:31 TS2339 unchanged (out of scope). **Locked-file invariants vs Phase 8.1 baseline `90dd202` all clean (0 lines):** `src/core/project-file.ts` (D-171), `src/core/sampler.ts`, `scripts/cli.ts`, `src/core/loader.ts`. `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` exits 0 with CIRCLE 2.018 / SQUARE 1.500 / TRIANGLE 2.000 byte-for-byte unchanged. **All 11 plan-level verification gates PASS.** Patterns reaffirmed: (1) discriminated-union typed-error envelope idiom — when an error variant needs to carry kind-specific payload, promote flat interface to tagged union; (2) Wave-0 RED-scaffolding pattern (Plan 08-01 precedent) — type contract + grep-anchored RED specs land first, downstream plans drive each spec to GREEN. SUMMARY at `.planning/phases/08.1-close-phase-8-verification-gaps-locate-skeleton-recovery-rea/08.1-01-SUMMARY.md`.
 
@@ -60,7 +62,7 @@ Milestone 1 — MVP
 
 ## Next action
 
-**Phase 8 COMPLETE.** Next: `/gsd-verify-work 8` to formally verify F9 / F9.1 / F9.2 coverage and close the phase. After verification, `/gsd-plan-phase 9` to start Phase 9 (complex-rig hardening + polish — UI virtualization, sampler worker thread if profiling shows main-thread jank, Settings modal, recent projects menu, OS file association registration drop-in).
+**Phase 8.1 in progress (2/6 plans complete).** Next: execute Plan 08.1-03 (renderer-side wire — replace AppShell.tsx:529-538 empty literals with `resp.error.*` field reads per D-160; drives 8.1-VR-02 GREEN). Wave 3, autonomous, depends_on [08.1-01, 08.1-02]. After 08.1-03: Plan 08.1-04 (App.tsx projectLoadFailed branch — drives 8.1-VR-01 GREEN), Plan 08.1-05 (onBeforeDropRef bridge — drives 8.1-VR-03a/b GREEN), Plan 08.1-06 (close-out + 3-reproducer manual UAT). After Phase 8.1 close-out: `/gsd-verify-work 8` re-runs cleanly; then `/gsd-plan-phase 9` (complex-rig hardening + polish).
 
 Phase 7 verify (`/gsd-verify-work 7`) and Phase 4 verify (`/gsd-verify-work 4`) remain outstanding but are orthogonal — planner advances serially per the existing precedent.
 
