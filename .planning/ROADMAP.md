@@ -304,7 +304,7 @@ Plans:
 **Plans:** 6 plans
 
 Plans:
-- [ ] 08.1-01-PLAN.md — Wave 0 scaffolding: SerializableError discriminated-union refactor in src/shared/types.ts (D-158, D-171) + RED test scaffolds (8.1-VR-01, 8.1-VR-02, 8.1-VR-03a, 8.1-VR-03b in tests/renderer/save-load.spec.tsx; 8.1-IPC-01 in tests/main/project-io.spec.ts). Wave 1, autonomous, depends_on [].
+- [x] 08.1-01-PLAN.md — Wave 0 scaffolding: SerializableError discriminated-union refactor in src/shared/types.ts (D-158, D-171) + RED test scaffolds (8.1-VR-01, 8.1-VR-02, 8.1-VR-03a, 8.1-VR-03b in tests/renderer/save-load.spec.tsx; 8.1-IPC-01 in tests/main/project-io.spec.ts). Wave 1, autonomous, depends_on []. ✅ 2026-04-26 — commits `765c2a4` (refactor: types union) + `a40fffc` (test: 8.1-IPC-01 RED) + `d756dd9` (test: 4 RED renderer specs); 1 deviation (Rule 1 grep-literal hygiene); 270 passed + 5 RED + 1 todo + 1 skipped (was 270/0/3/1); locked-file diffs clean. SUMMARY: `08.1-01-SUMMARY.md`.
 - [ ] 08.1-02-PLAN.md — Main-side wire: handleProjectOpenFromPath threads 7 recovery fields at the SkeletonJsonNotFoundError rescue (D-159). Drives 8.1-IPC-01 GREEN. Wave 2, autonomous, depends_on [08.1-01].
 - [ ] 08.1-03-PLAN.md — Renderer-side wire: AppShell.onClickOpen reads threaded fields from typed envelope (D-160); "best-effort" comment block deleted. Drives 8.1-VR-02 GREEN. Wave 3, autonomous, depends_on [08.1-01, 08.1-02].
 - [ ] 08.1-04-PLAN.md — App.tsx projectLoadFailed AppState variant + recovery banner (D-161, D-162); handleLocateSkeleton + handleDismissProjectLoadFailed callbacks. Drives 8.1-VR-01 GREEN. Wave 3, autonomous, depends_on [08.1-01, 08.1-02].
