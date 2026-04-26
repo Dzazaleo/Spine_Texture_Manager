@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Phase 08.2 context gathered
-last_updated: "2026-04-26T14:02:39.592Z"
+last_updated: "2026-04-26T14:51:21.581Z"
 progress:
   total_phases: 12
   completed_phases: 10
-  total_plans: 49
+  total_plans: 54
   completed_plans: 50
-  percent: 100
+  percent: 93
 ---
 
 # State
@@ -203,7 +203,7 @@ Environment notes preserved from prior phases:
 - Requirements: `.planning/REQUIREMENTS.md`
 - Roadmap: `.planning/ROADMAP.md`
 
-**Planned Phase:** 08.1 (close-phase-8-verification-gaps) — 6 plans — 2026-04-26T10:39:39.169Z
+**Planned Phase:** 08.2 (File-menu surface + Cmd+O accelerator gating fix) — 5 plans — 2026-04-26T14:51:21.566Z
 
 **Executed Phase:** 04 (scale-overrides) COMPLETE — all 3 plans executed (Waves 1+2+3), human-verify signed off with 4 gap-fixes landed, F5.1/F5.2/F5.3 complete end-to-end — 2026-04-24T15:14:59Z
 
