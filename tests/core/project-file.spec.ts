@@ -137,7 +137,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
     expect(file.skeletonPath.startsWith('.') || file.skeletonPath === 'SIMPLE.json').toBe(true);
     expect(file.skeletonPath.endsWith('SIMPLE.json')).toBe(true);
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
-    expect(back.summary.skeletonPath ?? back.projectFilePath).toBeDefined(); // shape lock — see Plan 02
+    expect(back.summary?.skeletonPath ?? back.projectFilePath).toBeDefined(); // shape lock — see Plan 02
   });
 
   it('cross-volume falls back to absolute (D-155 + Pitfall 4)', () => {
