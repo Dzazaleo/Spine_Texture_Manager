@@ -222,14 +222,56 @@ export async function buildAppMenu(
         { role: 'close' },
       ],
     },
-    { role: 'editMenu' },
+    // Phase 9 Plan 05 — replaces { role: 'editMenu' } with a custom Edit
+    // submenu (RESEARCH §Q6 + 08.2 D-188). Standard Edit roles preserved so
+    // cross-platform accelerators (Cmd/Ctrl+Z/Y/X/C/V/A) keep working
+    // automatically; Preferences… is appended after a separator so it sits
+    // at the bottom per the macOS HIG App-menu convention extended to
+    // Edit-menu placement on Win/Linux. Accelerator CommandOrControl+,
+    // works cross-platform without branching (Cmd+, on macOS, Ctrl+, on
+    // Win/Linux — matches VSCode / modern editor convention).
+    //
+    // Preferences is unconditionally enabled (T-09-05-MENU-01): even in the
+    // empty/error AppState the user can inspect samplingHz (default 120 per
+    // CLAUDE.md fact #6). Mirrors File→Open's D-187 unconditional enable.
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Preferences…',
+          accelerator: 'CommandOrControl+,',
+          click: () => mainWindow?.webContents.send('menu:settings-clicked'),
+        },
+      ],
+    },
     { role: 'viewMenu' },
     { role: 'windowMenu' },
-    // role:'help' REQUIRES a `submenu` (Electron's MenuItemConstructorOptions
-    // validation throws "Invalid template for MenuItem: must have submenu type
-    // with role help" without it). Empty placeholder for now; Phase 9 may add
-    // documentation links.
-    { role: 'help', submenu: [] },
+    // Phase 9 Plan 05 — fills the 08.2 D-188 placeholder. role:'help' MUST
+    // be preserved (Pitfall 8: Electron's MenuItemConstructorOptions
+    // validation throws "Invalid template for MenuItem: must have submenu
+    // type with role help" without role + non-empty submenu). The
+    // Documentation item is unconditionally enabled (T-09-05-MENU-02): Help
+    // is always available regardless of AppState. macOS Help-menu search
+    // integration comes free with role:'help' — no extra wiring needed.
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Documentation',
+          click: () => mainWindow?.webContents.send('menu:help-clicked'),
+        },
+      ],
+    },
   ];
 
   return Menu.buildFromTemplate(template);
