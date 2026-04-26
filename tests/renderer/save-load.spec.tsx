@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AppShell } from '../../src/renderer/src/components/AppShell';
+import { App } from '../../src/renderer/src/App';
 import type { SkeletonSummary, OpenResponse, SaveResponse } from '../../src/shared/types';
 
 afterEach(cleanup);
@@ -45,10 +46,11 @@ beforeEach(() => {
     saveProject: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
     saveProjectAs: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
     openProject: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
-    openProjectFromFile: vi.fn(),
+    openProjectFromFile: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
     openProjectFromPath: vi.fn(),
-    locateSkeleton: vi.fn(),
-    reloadProjectWithSkeleton: vi.fn(),
+    loadSkeletonFromFile: vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() }),
+    locateSkeleton: vi.fn().mockResolvedValue({ ok: true, newPath: '/a/b/SIMPLE_RENAMED.json' }),
+    reloadProjectWithSkeleton: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
     onCheckDirtyBeforeQuit: vi.fn(() => () => undefined),
     confirmQuitProceed: vi.fn(),
     pickOutputDirectory: vi.fn(),
@@ -119,14 +121,102 @@ describe('Keyboard shortcuts (D-140 + Pitfall 6)', () => {
 });
 
 describe('SaveQuitDialog three-button flow (D-143)', () => {
-  // Plan 04 Task 2b deferral: this spec asserts the cross-component contract
-  // between DropZone (Task 3) and AppShell's onBeforeDrop callback hook —
-  // which is wired in App.tsx (Task 4). The full integration cannot be
-  // exercised from AppShell alone (DropZone is mounted by App.tsx, not by
-  // AppShell). The behaviour itself IS exercised end-to-end via the human-
-  // verify smoke test in Plan 05. Keeping the test name in the file so
-  // VALIDATION.md `-t` selectors keep resolving.
-  it.todo('dirty + drop opens guard');
+  // Phase 8.1 Plan 01 Task 3: the two prior placeholder shells are flipped
+  // to real RED specs. Plan 08.1-04 (D-163 ref-bridge) wires the
+  // App.tsx <-> AppShell coupling that turns these GREEN.
+  it('8.1-VR-03a: dirty + .json drop → SaveQuitDialog reason=new-skeleton-drop (D-163, D-164)', async () => {
+    const { container } = render(<App />);
+    const dropTarget = container.firstElementChild as HTMLElement;
+
+    // First drop: SIMPLE_TEST.json (clean → loaded).
+    const f1 = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f1] } as unknown as DataTransfer });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    // Mark the session dirty by applying an override via the GlobalMaxRender
+    // panel double-click → OverrideDialog → Apply path. The override Map
+    // gains TRIANGLE → AppShell's isDirty memo flips true.
+    const dirtyTriangleCell = await screen.findAllByText(/TRIANGLE/i).catch(() => []);
+    if (dirtyTriangleCell.length > 0) {
+      fireEvent.doubleClick(dirtyTriangleCell[0]);
+      await Promise.resolve();
+      const input = screen.queryByRole('spinbutton') ?? screen.queryByRole('textbox');
+      if (input) {
+        fireEvent.change(input, { target: { value: '50' } });
+        const apply = screen.queryByRole('button', { name: /Apply/i });
+        if (apply) {
+          await userEvent.click(apply);
+          await Promise.resolve();
+        }
+      }
+    }
+
+    // Second drop: a different .json (the dirty-guard should fire).
+    const f2 = new File(['{}'], 'OTHER.json', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f2] } as unknown as DataTransfer });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    // SaveQuitDialog must be mounted with the new-skeleton-drop body copy.
+    const dialogTitle = screen.queryByText(/Save changes before loading a new skeleton/i);
+    expect(dialogTitle, 'SaveQuitDialog with new-skeleton-drop title must mount').toBeTruthy();
+
+    // Cancel — second drop is aborted.
+    const cancelBtn = screen.getByRole('button', { name: /^Cancel$/i });
+    await userEvent.click(cancelBtn);
+    await Promise.resolve();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const loadCalls = (globalThis as any).api.loadSkeletonFromFile.mock.calls;
+    // The first drop loaded SIMPLE_TEST.json. After Cancel, the second
+    // drop must NOT have triggered a second loadSkeletonFromFile call.
+    expect(loadCalls.length).toBe(1);
+  });
+
+  it("8.1-VR-03b: dirty + .stmproj drop → SaveQuitDialog reason=new-project-drop, Don't Save proceeds (D-163, D-164, D-167)", async () => {
+    const { container } = render(<App />);
+    const dropTarget = container.firstElementChild as HTMLElement;
+
+    // First drop: load a skeleton .json so AppShell mounts.
+    const f1 = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f1] } as unknown as DataTransfer });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    // Mark the session dirty (same approach as VR-03a).
+    const dirtyTriangleCell = await screen.findAllByText(/TRIANGLE/i).catch(() => []);
+    if (dirtyTriangleCell.length > 0) {
+      fireEvent.doubleClick(dirtyTriangleCell[0]);
+      await Promise.resolve();
+      const input = screen.queryByRole('spinbutton') ?? screen.queryByRole('textbox');
+      if (input) {
+        fireEvent.change(input, { target: { value: '50' } });
+        const apply = screen.queryByRole('button', { name: /Apply/i });
+        if (apply) {
+          await userEvent.click(apply);
+          await Promise.resolve();
+        }
+      }
+    }
+
+    // Second drop: a .stmproj.
+    const f2 = new File(['{}'], 'OTHER.stmproj', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f2] } as unknown as DataTransfer });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    // SaveQuitDialog with new-project-drop title.
+    const dialogTitle = screen.queryByText(/Save changes before opening this project/i);
+    expect(dialogTitle, 'SaveQuitDialog with new-project-drop title must mount').toBeTruthy();
+
+    // Don't Save — second drop proceeds.
+    const dontSaveBtn = screen.getByRole('button', { name: /Don.t Save/i });
+    await userEvent.click(dontSaveBtn);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // openProjectFromFile must have been called for OTHER.stmproj.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const projCalls = (globalThis as any).api.openProjectFromFile.mock.calls;
+    expect(projCalls.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('Stale-override banner (D-150)', () => {
@@ -161,14 +251,84 @@ describe('Stale-override banner (D-150)', () => {
   });
 });
 
-describe('DropZone branch on .stmproj (D-142)', () => {
-  // Plan 04 Task 2b deferral: DropZone is rendered by App.tsx, not by
-  // AppShell. The full extension-branch dispatch (Task 3) + handleProjectLoad
-  // wiring (Task 4) requires the App component as the test target. Asserting
-  // the branch via a synthetic File event needs jsdom DataTransfer +
-  // webUtils.getPathForFile stubs — both available, but the surface that
-  // Plan 04 ships is exercised end-to-end by the Plan 05 human-verify drop
-  // smoke. Keeping the test name in the file so VALIDATION.md `-t` selectors
-  // keep resolving.
-  it.todo('dropzone branch on stmproj');
+describe('8.1-VR-01: .stmproj drop SkeletonNotFoundOnLoadError → App.tsx recovery banner (D-161, D-162)', () => {
+  it('renders Skeleton not found banner with Locate skeleton button on .stmproj drop with missing skeleton', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).api.openProjectFromFile = vi.fn().mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'SkeletonNotFoundOnLoadError',
+        message: 'Skeleton JSON not found: /a/b/RENAMED.json',
+        projectPath: '/a/b/proj.stmproj',
+        originalSkeletonPath: '/a/b/RENAMED.json',
+        mergedOverrides: { TRIANGLE: 50 },
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+      },
+    } as OpenResponse);
+
+    const { container } = render(<App />);
+    // Simulate a .stmproj drop on the full-window DropZone.
+    const dropTarget = container.firstElementChild as HTMLElement;
+    const file = new File(['{}'], 'proj.stmproj', { type: 'application/json' });
+    const dataTransfer = { files: [file] } as unknown as DataTransfer;
+    fireEvent.drop(dropTarget, { dataTransfer });
+    // Wait one microtask + one resolved promise for the async drop chain.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Recovery banner is present (NOT the generic text-accent-muted error line).
+    const banner = screen.queryByRole('alert');
+    expect(banner, 'projectLoadFailed banner should mount with role=alert').toBeTruthy();
+    expect(banner!.textContent).toMatch(/Skeleton not found/i);
+    // Locate skeleton button reachable.
+    const locateBtn = screen.getByRole('button', { name: /Locate skeleton/i });
+    expect(locateBtn).toBeTruthy();
+  });
+});
+
+describe('8.1-VR-02: AppShell toolbar Open threads projectPath into recovery banner (D-159, D-160)', () => {
+  it('Open → SkeletonNotFoundOnLoadError envelope → Locate skeleton uses threaded projectPath', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).api.openProject = vi.fn().mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'SkeletonNotFoundOnLoadError',
+        message: 'Skeleton JSON not found: /a/b/RENAMED.json',
+        projectPath: '/a/b/proj.stmproj',
+        originalSkeletonPath: '/a/b/RENAMED.json',
+        mergedOverrides: { TRIANGLE: 50 },
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+      },
+    } as OpenResponse);
+
+    const summary = makeSummary();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    render(<AppShell summary={summary} samplingHz={120} {...({} as any)} />);
+
+    // Click toolbar Open. AppShell internal state sets skeletonNotFoundError
+    // with the THREADED projectPath (NOT empty string).
+    const openBtn = screen.getByRole('button', { name: /^Open$/i });
+    await userEvent.click(openBtn);
+
+    // Locate skeleton button surfaces in the inline banner.
+    const locateBtn = await screen.findByRole('button', { name: /Locate skeleton/i });
+    await userEvent.click(locateBtn);
+
+    // The reload IPC must have been called with the threaded projectPath
+    // (post-fix from Plan 08.1-03; pre-fix this is empty string and the
+    // call is made but with the wrong path — the assertion locks the
+    // post-fix contract).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const calls = (globalThis as any).api.reloadProjectWithSkeleton.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0][0].projectPath).toBe('/a/b/proj.stmproj');
+    expect(calls[0][0].mergedOverrides).toEqual({ TRIANGLE: 50 });
+  });
 });
