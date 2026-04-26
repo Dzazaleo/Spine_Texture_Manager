@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase-9-complete-ready-for-milestone-close
-stopped_at: Phase 9 complete — manual UAT signed off
-last_updated: "2026-04-26T21:30:00.000Z"
+status: v1.0 milestone complete
+stopped_at: Phase 9 context gathered
+last_updated: "2026-04-26T22:18:06.856Z"
 progress:
   total_phases: 12
-  completed_phases: 12
+  completed_phases: 11
   total_plans: 62
-  completed_plans: 63
+  completed_plans: 62
   percent: 100
 ---
 
@@ -206,6 +206,18 @@ Environment notes preserved from prior phases:
 **Planned Phase:** 9 (Complex-rig hardening + polish) — 8 plans — 2026-04-26T18:28:14.174Z
 
 **Executed Phase:** 04 (scale-overrides) COMPLETE — all 3 plans executed (Waves 1+2+3), human-verify signed off with 4 gap-fixes landed, F5.1/F5.2/F5.3 complete end-to-end — 2026-04-24T15:14:59Z
+
+## Deferred Items
+
+Items acknowledged and deferred at v1.0 milestone close on 2026-04-26:
+
+| Category | Item | Status | Disposition |
+|----------|------|--------|-------------|
+| debug | phase-0-scale-overshoot | investigating | Defer to post-v1.0 (sampling formula refinement; v1.0 ships current behavior — RC1 hypothesis: AABB/source inflates by rotation factor) |
+| todo | 2026-04-24-phase-4-code-review-follow-up (ui) | pending | Defer to post-v1.0 (cosmetic Phase 4 code-review follow-up; non-blocking) |
+| seed | SEED-001-atlas-less-mode | dormant | Post-MVP by design (json + images folder, no .atlas) |
+| seed | SEED-002-dims-badge-override-cap | dormant | Post-MVP by design (canonical vs source dims mismatch UX) |
+| uat_gap | Phase 07 07-HUMAN-UAT.md | signed-off | Stale flag (0 pending scenarios; UAT signed off in plan 07-06) |
 
 ## Accumulated Context
 
