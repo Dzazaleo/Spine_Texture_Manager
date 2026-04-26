@@ -57,6 +57,7 @@ import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { SettingsDialog } from '../modals/SettingsDialog';
+import { HelpDialog } from '../modals/HelpDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -142,6 +143,13 @@ export function AppShell({
   // 08.2 menu surface; Plan 09-05 wired the IPC). Plain useState; null/false
   // when closed.
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 07 — Help dialog lifecycle (Help→Documentation from the
+  // 08.2 menu surface; Plan 09-05 wired menu:help-clicked + onMenuHelp).
+  // Plain useState; false when closed. Pitfall 9 listener-identity
+  // preservation lives in the preload — the wrapped const is captured there
+  // so removeListener targets the same reference in our useEffect cleanup.
+  const [helpOpen, setHelpOpen] = useState<boolean>(false);
 
   // Phase 9 Plan 06 — local samplingHz state. Seeded from the prop; Settings
   // mutates this and a useEffect below dispatches the re-sample IPC. The
@@ -817,13 +825,17 @@ export function AppShell({
       // derivation. While open, File menu items (Save / Save As) get
       // disabled at the OS level via 08.2 D-184 — same automatic surface
       // every other [role="dialog"][aria-modal="true"] modal gets.
-      settingsOpen;
+      settingsOpen ||
+      // Phase 9 Plan 07 — HelpDialog joins the same derivation. aria-modal
+      // alone would auto-suppress via 08.2 D-184, but explicit inclusion
+      // keeps the derivation list parallel with the other 5 modal slots.
+      helpOpen;
     window.api.notifyMenuState({
       canSave: true,
       canSaveAs: true,
       modalOpen,
     });
-  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen]);
+  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen, helpOpen]);
 
   /**
    * Phase 9 Plan 06 — Settings menu subscription. The native Edit→Preferences…
@@ -835,6 +847,20 @@ export function AppShell({
    */
   useEffect(() => {
     const unsubscribe = window.api.onMenuSettings(() => setSettingsOpen(true));
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 9 Plan 07 — Help menu subscription. The native Help→Documentation
+   * menu item (Plan 09-05 Task 1) fires `menu:help-clicked`; we lift the
+   * HelpDialog open state in response. Pitfall 9 listener-identity
+   * preservation lives in the preload (Plan 09-05 Task 2 onMenuHelp); the
+   * wrapped const is captured there so removeListener targets the same
+   * reference in our cleanup. Mirrors the onMenuSettings useEffect above
+   * verbatim — only the channel name and state setter differ.
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onMenuHelp(() => setHelpOpen(true));
     return unsubscribe;
   }, []);
 
@@ -1257,6 +1283,16 @@ export function AppShell({
           }}
           onCancel={() => setSettingsOpen(false)}
         />
+      )}
+      {/* Phase 9 Plan 07 — Help dialog. Help→Documentation (Plan 09-05)
+          opens this; onClose closes. role="dialog" + aria-modal="true"
+          auto-suppresses File menu via 08.2 D-184; helpOpen also feeds
+          modalOpen explicitly above for parity with the other 5 slots.
+          External link buttons inside HelpDialog call
+          window.api.openExternalUrl with allow-listed Spine doc URLs
+          (Plan 09-05 SHELL_OPEN_EXTERNAL_ALLOWED). */}
+      {helpOpen && (
+        <HelpDialog open={true} onClose={() => setHelpOpen(false)} />
       )}
       {/* Phase 8 D-143 — SaveQuitDialog mount. Mirrors ConflictDialog mount
           idiom (conditional on null state). Used in three contexts via
