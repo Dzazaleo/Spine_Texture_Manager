@@ -212,3 +212,4 @@ Environment notes preserved from prior phases:
 ### Roadmap Evolution
 
 - Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard) — URGENT. Closes VR-01/VR-02/VR-03 from `.planning/phases/08-save-load-project-state/08-VERIFICATION.md` before Phase 9 advances.
+- Phase 8.2 inserted after Phase 8.1 (2026-04-26): File-menu surface + Cmd+O accelerator gating fix — URGENT. Bundles (a) the Cmd+O-blocked-during-error-state issue discovered in 08.1 UAT with (b) the missing native File menu items (Open / Open Recent / Save / Save As). Both touch the same Electron menu + IPC accelerator surface — ship together. Pre-Phase-9.
