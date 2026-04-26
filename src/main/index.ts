@@ -23,10 +23,16 @@
  * Layer-3 boundary test (`tests/arch.spec.ts`) greps this file for platform
  * anti-patterns; keep the grep happy.
  */
-import { app, BrowserWindow, protocol } from 'electron';
+import { app, BrowserWindow, protocol, ipcMain } from 'electron';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { registerIpcHandlers } from './ipc.js';
+
+// Phase 8 — Pitfall 1 re-entry guard for the before-quit dirty-guard flow.
+// Set to true once the renderer has confirmed quit is OK; the before-quit
+// handler returns early on the second app.quit() invocation so we don't
+// re-prompt the user (and don't deadlock the synchronous quit listener).
+let isQuitting = false;
 
 // Phase 7 D-133 amendment (per RESEARCH §Pitfall 1): register the
 // app-image:// scheme with privileges that allow:
@@ -44,6 +50,65 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
   },
 ]);
+
+// Phase 8 — dirty-guard intercept (D-143). Standard Electron pattern with the
+// Pitfall 1 setTimeout deferral on the second quit invocation. Wired EARLY
+// (module load time) so the listener catches Cmd+Q before window-all-closed
+// fires.
+//
+// Flow (dual-one-way wiring per RESEARCH §Pitfall 7):
+//   1. User triggers quit (Cmd+Q, menu, etc.). Electron fires 'before-quit'.
+//   2. Listener calls event.preventDefault() to pause the quit and sends
+//      'project:check-dirty-before-quit' to the renderer's first window.
+//   3. Renderer mounts SaveQuitDialog (or fast-paths through if not dirty).
+//      User picks Save / Don't Save / Cancel.
+//   4. Save success or Don't Save → renderer sends 'project:confirm-quit-proceed'.
+//      Cancel → renderer does NOT send anything; main stays paused at the
+//      preventDefault() above and the app keeps running.
+//   5. confirm-quit-proceed listener sets isQuitting=true and re-invokes
+//      app.quit() via setTimeout(..., 0) — the load-bearing setTimeout
+//      from Pitfall 1 prevents synchronous re-fire of the before-quit handler.
+//   6. The re-fired before-quit handler sees isQuitting=true and returns early
+//      (without preventDefault), letting the quit propagate to OS exit.
+//
+// NEVER use ipcMain.handle (invoke) for the renderer→main confirm channel;
+// the synchronous before-quit listener cannot await an invoke roundtrip.
+app.on('before-quit', (event) => {
+  if (isQuitting) return; // re-entry guard — already confirmed; let it through
+  event.preventDefault();
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) {
+    // No window to ask; let the quit through. setTimeout breaks the
+    // synchronous re-fire that would otherwise hit the preventDefault
+    // path again (Pitfall 1).
+    isQuitting = true;
+    setTimeout(() => app.quit(), 0);
+    return;
+  }
+  win.webContents.send('project:check-dirty-before-quit');
+});
+
+ipcMain.on('project:confirm-quit-proceed', () => {
+  isQuitting = true;
+  // Load-bearing setTimeout (Pitfall 1) — defers the second app.quit() to a
+  // fresh microtask so the synchronous re-fire of before-quit sees
+  // isQuitting === true and returns early, allowing OS exit to propagate.
+  setTimeout(() => app.quit(), 0);
+});
+
+// Phase 9 polish drop-in scaffold (D-140 §Out of Scope). The macOS file
+// association registration itself (Info.plist via electron-builder) is Phase 9;
+// this listener is wired now so the registration drop-in is config-only.
+// On macOS, when the user double-clicks a .stmproj file in Finder, Electron
+// fires 'open-file' BEFORE the window is ready; we forward the path to the
+// renderer's first window. If the app launched via the file double-click
+// (no window yet), the path arrives before createWindow resolves — Phase 9
+// will add stash logic for that race.
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) win.webContents.send('project:open-from-os', filePath);
+});
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

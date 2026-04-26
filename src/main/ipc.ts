@@ -44,6 +44,14 @@ import { sampleSkeleton } from '../core/sampler.js';
 import { SpineLoaderError } from '../core/errors.js';
 import { buildSummary } from './summary.js';
 import { runExport } from './image-worker.js';
+import {
+  handleProjectSave,
+  handleProjectSaveAs,
+  handleProjectOpen,
+  handleProjectOpenFromPath,
+  handleLocateSkeleton,
+  handleProjectReloadWithSkeleton,
+} from './project-io.js';
 import type {
   ExportPlan,
   ExportResponse,
@@ -497,4 +505,29 @@ export function registerIpcHandlers(): void {
       }
     }
   });
+
+  // Phase 8 — project file IPC channels (D-140..D-156). Six invoke channels
+  // routing to src/main/project-io.ts. Trust-boundary validation lives inside
+  // each handler (typeof + extension checks; mirrors handleSkeletonLoad:227-235).
+  ipcMain.handle('project:save', async (_evt, state, currentPath) =>
+    handleProjectSave(state, currentPath),
+  );
+  ipcMain.handle('project:save-as', async (_evt, state, defaultDir, defaultBasename) =>
+    handleProjectSaveAs(state, defaultDir, defaultBasename),
+  );
+  ipcMain.handle('project:open', async (_evt) => handleProjectOpen());
+  ipcMain.handle('project:open-from-path', async (_evt, absolutePath) =>
+    handleProjectOpenFromPath(absolutePath),
+  );
+  ipcMain.handle('project:locate-skeleton', async (_evt, originalPath) =>
+    handleLocateSkeleton(originalPath),
+  );
+  // D-149 recovery (Approach A): dedicated path-based skeleton-reload channel.
+  // Renderer calls this AFTER locate-skeleton resolves, with the user-picked
+  // .json path + the overrides/settings cached from the failed Open. Returns
+  // OpenResponse so the renderer mounts via the same path used for Open
+  // (no new state-machine branch).
+  ipcMain.handle('project:reload-with-skeleton', async (_evt, args) =>
+    handleProjectReloadWithSkeleton(args),
+  );
 }
