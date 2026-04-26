@@ -25,12 +25,25 @@ import type {
   SkeletonSummary,
   SerializableError,
   LoadResponse,
+  OpenResponse,
+  MaterializedProject,
 } from '../../shared/types.js';
 
 export type AppState =
   | { status: 'idle' }
   | { status: 'loading'; fileName: string }
   | { status: 'loaded'; fileName: string; summary: SkeletonSummary }
+  /**
+   * Phase 8 Plan 04 — NEW variant. Set when DropZone routed a .stmproj drop
+   * (or Cmd+O picked one) through window.api.openProjectFromFile /
+   * openProjectFromPath; carries the materialized project alongside the
+   * summary so AppShell can be mounted with initialProject seeding the
+   * restored overrides + lastSaved snapshot.
+   *
+   * The skeleton-only `loaded` variant is PRESERVED verbatim — existing
+   * .json drop path stays at `loaded` exactly as today.
+   */
+  | { status: 'projectLoaded'; fileName: string; summary: SkeletonSummary; project: MaterializedProject }
   | { status: 'error'; fileName: string; error: SerializableError };
 
 export function App() {
@@ -48,16 +61,41 @@ export function App() {
     }
   }, []);
 
+  /**
+   * Phase 8 Plan 04 — handleProjectLoad. Mirrors handleLoad's shape but
+   * targets the new `projectLoaded` AppState variant. Triggered when DropZone
+   * receives a .stmproj drop and forwards via window.api.openProjectFromFile.
+   * On error, the existing `error` branch UI surfaces the SerializableError.
+   */
+  const handleProjectLoad = useCallback((resp: OpenResponse, fileName: string) => {
+    if (resp.ok) {
+      setState({
+        status: 'projectLoaded',
+        fileName,
+        summary: resp.project.summary,
+        project: resp.project,
+      });
+    } else {
+      setState({ status: 'error', fileName, error: resp.error });
+    }
+  }, []);
+
   // D-17: echo summary to console on successful load (ROADMAP exit criterion).
+  // Phase 8: extended to fire on `projectLoaded` too — same console contract.
   useEffect(() => {
-    if (state.status === 'loaded') {
+    if (state.status === 'loaded' || state.status === 'projectLoaded') {
       // eslint-disable-next-line no-console
       console.log('[Spine Texture Manager] Loaded skeleton summary:', state.summary);
     }
   }, [state]);
 
   return (
-    <DropZone onLoad={handleLoad} onLoadStart={handleLoadStart}>
+    <DropZone
+      onLoad={handleLoad}
+      onLoadStart={handleLoadStart}
+      onProjectDrop={handleProjectLoad}
+      onProjectDropStart={handleLoadStart}
+    >
       {state.status === 'idle' && (
         <p className="text-fg-muted font-mono text-sm">
           Drop a <code>.spine</code> JSON file anywhere in this window
@@ -68,7 +106,22 @@ export function App() {
           Loading {state.fileName}…
         </p>
       )}
-      {state.status === 'loaded' && <AppShell summary={state.summary} />}
+      {state.status === 'loaded' && (
+        // Phase 8 Plan 04 Task 4: thread samplingHz=120 constant. Phase 9
+        // replaces this with a value read from settings state.
+        <AppShell summary={state.summary} samplingHz={120} />
+      )}
+      {state.status === 'projectLoaded' && (
+        // Phase 8 Plan 04 Task 4: .stmproj drop / open path. Pass the
+        // materialized project as initialProject so AppShell seeds
+        // restored overrides + lastSaved + stale-override banner from
+        // the saved file. samplingHz comes from the project (D-146).
+        <AppShell
+          summary={state.summary}
+          samplingHz={state.project.samplingHz}
+          initialProject={state.project}
+        />
+      )}
       {state.status === 'error' && (
         <div className="w-full max-w-3xl mx-auto p-8">
           <p className="text-accent-muted font-mono text-sm">
