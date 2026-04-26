@@ -275,15 +275,17 @@ describe('8.1-VR-01: .stmproj drop SkeletonNotFoundOnLoadError → App.tsx recov
     const file = new File(['{}'], 'proj.stmproj', { type: 'application/json' });
     const dataTransfer = { files: [file] } as unknown as DataTransfer;
     fireEvent.drop(dropTarget, { dataTransfer });
-    // Wait one microtask + one resolved promise for the async drop chain.
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    // Phase 8.1 Plan 04 — Rule 3 fix: React 19's update scheduler uses
+    // MessageChannel/setTimeout for state-update flushing (not microtasks),
+    // so naked `await Promise.resolve()` ticks never observe the post-setState
+    // DOM. `findByRole` polls with testing-library's built-in waitFor
+    // (default 1000ms, 50ms interval) until the banner mounts — the canonical
+    // pattern for async-driven DOM under React 19's concurrent rendering.
 
     // Recovery banner is present (NOT the generic text-accent-muted error line).
-    const banner = screen.queryByRole('alert');
+    const banner = await screen.findByRole('alert');
     expect(banner, 'projectLoadFailed banner should mount with role=alert').toBeTruthy();
-    expect(banner!.textContent).toMatch(/Skeleton not found/i);
+    expect(banner.textContent).toMatch(/Skeleton not found/i);
     // Locate skeleton button reachable.
     const locateBtn = screen.getByRole('button', { name: /Locate skeleton/i });
     expect(locateBtn).toBeTruthy();
