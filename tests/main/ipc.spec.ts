@@ -63,6 +63,15 @@ vi.mock('../../src/main/recent.js', () => ({
   clearRecent: vi.fn(),
 }));
 
+// Phase 9 Plan 02 — sampler-worker-bridge is consumed by ipc.ts for the
+// 'sampler:cancel' handler. Mock so getSamplerWorkerHandle returns null
+// (no in-flight worker in this test); the cancel handler should be a no-op
+// and not throw.
+vi.mock('../../src/main/sampler-worker-bridge.js', () => ({
+  getSamplerWorkerHandle: vi.fn(() => null),
+  runSamplerInWorker: vi.fn(),
+}));
+
 // Import AFTER all vi.mock() blocks so module-load side effects (electron's
 // app.on, ipcMain.on, protocol.registerSchemesAsPrivileged) hit the mocks.
 import { registerIpcHandlers } from '../../src/main/ipc.js';
@@ -150,12 +159,17 @@ describe('menu:notify-state IPC (D-181)', () => {
 // GREEN when Wave 1 lands the registration.
 describe('Phase 9 D-194 — sampler IPC channels', () => {
   it('sampler:cancel handler is registered on ipcMain.on', async () => {
-    // TODO Wave 1: registerIpcHandlers(); expect(ipcMainOnHandlers.has('sampler:cancel')).toBe(true);
-    expect(true, 'Wave 1: sampler:cancel registration pending').toBe(false);
+    registerIpcHandlers();
+    expect(ipcMainOnHandlers.has('sampler:cancel')).toBe(true);
   });
 
   it('sampler:cancel handler invocation does not throw when no worker is in flight', async () => {
-    // TODO Wave 1: registerIpcHandlers(); ipcMainOnHandlers.get('sampler:cancel')!({} as unknown);
-    expect(true, 'Wave 1: idempotent-cancel contract pending').toBe(false);
+    registerIpcHandlers();
+    const handler = ipcMainOnHandlers.get('sampler:cancel');
+    expect(handler).toBeDefined();
+    // No worker in flight — getSamplerWorkerHandle returns null (mocked) so
+    // the handler short-circuits without calling terminate(). Idempotent
+    // (T-09-02-IPC-02 DoS-flood mitigation).
+    expect(() => handler!({} as unknown)).not.toThrow();
   });
 });

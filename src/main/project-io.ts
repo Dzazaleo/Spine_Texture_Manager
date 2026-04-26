@@ -46,9 +46,14 @@ import {
   materializeProjectFile,
 } from '../core/project-file.js';
 import { loadSkeleton } from '../core/loader.js';
-import { sampleSkeleton } from '../core/sampler.js';
 import { buildSummary } from './summary.js';
 import { SkeletonJsonNotFoundError, SpineLoaderError } from '../core/errors.js';
+// Phase 9 Plan 02 D-190 + D-193 — sampling moved to a worker_threads Worker.
+// project-io.ts no longer imports sampleSkeleton directly; it dispatches
+// through runSamplerInWorker which spawns src/main/sampler-worker.ts and
+// relays {type:'progress', percent} events to the renderer.
+import { runSamplerInWorker } from './sampler-worker-bridge.js';
+import type { SamplerOutput } from '../core/sampler.js';
 // Phase 8.2 D-180 — Save As / Open success arms bump the new path to the
 // front of recent.json and rebuild the application Menu so File → Open
 // Recent reflects the latest state immediately. Plan 01 (recent.ts) provides
@@ -436,8 +441,37 @@ export async function handleProjectOpenFromPath(
 
   // 7. Re-sample. F9.2 "recomputes peaks". samplingHz threads from
   //    materializeProjectFile (D-146 default 120 when null on disk).
+  //
+  // Phase 9 Plan 02 D-190 + D-193 — sampling offloaded to a worker_threads
+  // Worker (path-based protocol; SkeletonData never crosses postMessage).
+  // The `load` variable above is preserved for buildSummary's load-time
+  // metadata (skeletonPath, atlasPath, editorFps); only sampleSkeleton is
+  // moved to the worker. The small load duplication is the cost of D-193's
+  // no-circular-refs protocol (RESEARCH §Q3: <2% overhead vs sampling cost).
   const t0 = performance.now();
-  const samplerOutput = sampleSkeleton(load, { samplingHz: materialized.samplingHz });
+  const samplerResult = await runSamplerInWorker(
+    {
+      skeletonPath: materialized.skeletonPath,
+      atlasRoot: materialized.atlasPath !== null ? materialized.atlasPath : undefined,
+      samplingHz: materialized.samplingHz,
+    },
+    BrowserWindow.getAllWindows()[0]?.webContents ?? null,
+  );
+  if (samplerResult.type !== 'complete') {
+    return {
+      ok: false,
+      error:
+        samplerResult.type === 'cancelled'
+          ? { kind: 'Unknown', message: 'Sampling cancelled.' }
+          : samplerResult.error,
+    };
+  }
+  // SamplerOutputShape (the shared/types declaration) is structurally identical
+  // to SamplerOutput from src/core/sampler.ts; cast at the boundary so
+  // buildSummary receives the precise type. shared/types cannot import from
+  // core (Layer 3 + tsconfig.web.json src/core/** exclude) but the bridge
+  // and project-io can.
+  const samplerOutput = samplerResult.output as unknown as SamplerOutput;
   const elapsedMs = Math.round(performance.now() - t0);
 
   // 8. Build summary (Phase 1 projection — same shape as skeleton:load).
@@ -637,8 +671,28 @@ export async function handleProjectReloadWithSkeleton(
     };
   }
 
+  // Phase 9 Plan 02 D-190 + D-193 — sampling offloaded to worker_threads.
+  // newSkeletonPath is the user-picked replacement; atlasRoot=undefined so
+  // F1.2 sibling auto-discovery applies in the worker (D-152).
   const t0 = performance.now();
-  const samplerOutput = sampleSkeleton(load, { samplingHz });
+  const samplerResult = await runSamplerInWorker(
+    {
+      skeletonPath: a.newSkeletonPath,
+      atlasRoot: undefined,
+      samplingHz,
+    },
+    BrowserWindow.getAllWindows()[0]?.webContents ?? null,
+  );
+  if (samplerResult.type !== 'complete') {
+    return {
+      ok: false,
+      error:
+        samplerResult.type === 'cancelled'
+          ? { kind: 'Unknown', message: 'Sampling cancelled.' }
+          : samplerResult.error,
+    };
+  }
+  const samplerOutput = samplerResult.output as unknown as SamplerOutput;
   const elapsedMs = Math.round(performance.now() - t0);
   const summary = buildSummary(load, samplerOutput, elapsedMs);
 

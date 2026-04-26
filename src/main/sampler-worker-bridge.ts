@@ -29,6 +29,14 @@ import type {
   SamplerWorkerOutbound,
 } from '../shared/types.js';
 
+/**
+ * The bridge's terminal-message subset of SamplerWorkerOutbound. Progress
+ * messages are forwarded to webContents inside the bridge; only complete /
+ * cancelled / error ever resolve the bridge's Promise. Excluding 'progress'
+ * here gives the call site clean type narrowing without a runtime branch.
+ */
+export type SamplerTerminalOutbound = Exclude<SamplerWorkerOutbound, { type: 'progress' }>;
+
 // Module-level handle. Read by the 'sampler:cancel' IPC handler in
 // src/main/ipc.ts (which calls samplerWorkerHandle?.terminate()).
 // The bridge sets it on spawn and clears it on resolve/reject.
@@ -50,8 +58,8 @@ export function getSamplerWorkerHandle(): Worker | null {
 export function runSamplerInWorker(
   params: SamplerWorkerData,
   webContents: Electron.WebContents | null,
-): Promise<SamplerWorkerOutbound> {
-  return new Promise<SamplerWorkerOutbound>((resolve) => {
+): Promise<SamplerTerminalOutbound> {
+  return new Promise<SamplerTerminalOutbound>((resolve) => {
     // Resolve the worker bundle path relative to this file. In production
     // (electron-vite build), the main bundle emits as out/main/index.cjs
     // and the worker as out/main/sampler-worker.cjs; both share the same
@@ -75,7 +83,7 @@ export function runSamplerInWorker(
 
     samplerWorkerHandle = worker;
     let settled = false;
-    const settle = (msg: SamplerWorkerOutbound) => {
+    const settle = (msg: SamplerTerminalOutbound) => {
       if (settled) return;
       settled = true;
       if (samplerWorkerHandle === worker) samplerWorkerHandle = null;
@@ -94,7 +102,8 @@ export function runSamplerInWorker(
         }
         return;
       }
-      // complete / cancelled / error — final message.
+      // complete / cancelled / error — final message. The exhaustive
+      // discriminator narrowing makes msg : SamplerTerminalOutbound here.
       settle(msg);
       void worker.terminate();
     });

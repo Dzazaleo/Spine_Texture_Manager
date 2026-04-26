@@ -771,4 +771,26 @@ export interface Api {
 
   /** Phase 8.2 D-175 — subscribe to menu File→Save As… click. */
   onMenuSaveAs: (cb: () => void) => () => void;
+
+  // Phase 9 Plan 02 D-194 — sampler progress + cancel bridges.
+
+  /**
+   * Subscribe to streaming sampler progress events. Returns an unsubscribe
+   * function. Pitfall 9 listener-identity preservation (mirrors
+   * onExportProgress at preload/index.ts:126-132).
+   *
+   * Progress is INDETERMINATE per RESEARCH §Q4: percent is 0 on start and
+   * 100 on complete; intermediate values do not arrive because the byte-frozen
+   * sampler has no inner-loop emit point. The renderer SHOULD show an
+   * indeterminate spinner, not a determinate progress bar.
+   */
+  onSamplerProgress: (handler: (percent: number) => void) => () => void;
+
+  /**
+   * Fire-and-forget cancel signal. Main routes this to
+   * `samplerWorkerHandle?.terminate()` (RESEARCH §Q5: terminate() is the
+   * actual cancellation mechanism since the byte-frozen sampler has no
+   * inner-loop flag-check point).
+   */
+  cancelSampler: () => void;
 }

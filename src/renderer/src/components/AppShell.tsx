@@ -129,6 +129,14 @@ export function AppShell({
   // snapshot state — the modal reads summary + overrides directly (D-131).
   const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
+  // Phase 9 Plan 02 D-194 — sampling-in-flight UI surface. Indeterminate
+  // progress per RESEARCH §Q4 (byte-frozen sampler has no inner-loop emit
+  // point; intermediate percent values do not arrive — percent is 0 on
+  // start and 100 on complete). Toggling on `0` and clearing on `100`
+  // gives the renderer a binary "is sampling running?" signal that drives
+  // the spinner banner below.
+  const [samplingInFlight, setSamplingInFlight] = useState<boolean>(false);
+
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
   // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
@@ -596,6 +604,18 @@ export function AppShell({
   }, []);
 
   const onClickOpen = useCallback(async () => {
+    // Phase 9 Plan 02 D-194 — if a sample is in flight (e.g., user clicked
+    // Cmd+O via the 08.2 menu while the previous Open's sample is still
+    // running), abort the in-flight sample first. The new Open's sample
+    // contests for the same module-level samplerWorkerHandle in main; pre-
+    // empting cleanly via terminate() avoids the user briefly seeing stale
+    // peaks from the old project.
+    if (samplingInFlight) {
+      window.api.cancelSampler();
+      // Optimistic UI clear — the cancelled response will arrive shortly via
+      // the open's ok:false branch but clearing immediately gives crisper UX.
+      setSamplingInFlight(false);
+    }
     const resp = await window.api.openProject();
     if (!resp.ok) {
       if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {
@@ -627,7 +647,7 @@ export function AppShell({
       return;
     }
     mountOpenResponse(resp.project);
-  }, [mountOpenResponse]);
+  }, [mountOpenResponse, samplingInFlight]);
 
   /**
    * D-149 recovery flow (Approach A). Triggered by the inline error
@@ -699,6 +719,27 @@ export function AppShell({
     });
     return unsub;
   }, [isDirty]);
+
+  /**
+   * Phase 9 Plan 02 D-194 — subscribe to sampler progress events.
+   * Pitfall 9 + 15 (RESEARCH): cleanup MUST return the unsubscribe closure;
+   * the wrapped const inside preload preserves listener identity so
+   * removeListener actually removes the subscription.
+   *
+   * Progress is indeterminate (0 → 100, no intermediate ticks). We toggle
+   * samplingInFlight on receipt of `0` (sampling started) and clear it on
+   * `100` (sampling completed). On cancel/error the bridge does NOT emit
+   * a final progress event — clearing happens via the project-open
+   * continuation (the open returns ok:false; the cancel handler in
+   * onClickOpen also clears optimistically).
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onSamplerProgress((percent) => {
+      if (percent === 0) setSamplingInFlight(true);
+      else if (percent >= 100) setSamplingInFlight(false);
+    });
+    return unsubscribe;
+  }, []);
 
   /**
    * Phase 08.2 D-181 / D-184 — push menu state to main whenever the
@@ -859,6 +900,24 @@ export function AppShell({
           </button>
         </div>
       </header>
+      {/* Phase 9 Plan 02 D-194 — indeterminate sampling spinner. Surfaces while
+          a sample is in flight (worker spawn → sampleSkeleton → complete/cancel).
+          Indeterminate CSS animation per RESEARCH §Q4 (no determinate percent
+          available because sampler is byte-frozen — no inner-loop emit point). */}
+      {samplingInFlight && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Sampling skeleton"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span
+            className="inline-block w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin"
+            aria-hidden="true"
+          />
+          <span>Sampling skeleton…</span>
+        </div>
+      )}
       {/* Phase 8 D-150 — stale-override banner. Renders count + first-5 names
           (then "+ N more" suffix when > 5); dismissible. Auto-clears on next
           successful Save (see onClickSave). RESEARCH §Open Q4 RESOLVED styling:

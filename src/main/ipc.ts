@@ -52,6 +52,7 @@ import {
   handleLocateSkeleton,
   handleProjectReloadWithSkeleton,
 } from './project-io.js';
+import { getSamplerWorkerHandle } from './sampler-worker-bridge.js';
 // Phase 8.2 D-181 — menu state surface lives in src/main/index.ts. We
 // dereference applyMenu / setCurrentMenuState / getMainWindow via dynamic
 // `await import('./index.js')` INSIDE the 'menu:notify-state' handler body
@@ -516,6 +517,24 @@ export function registerIpcHandlers(): void {
     // D-115: cooperative cancel. Flag is read on every iteration of the
     // runExport loop between files. In-flight cannot be aborted mid-libvips.
     exportCancelFlag = true;
+  });
+
+  // Phase 9 Plan 02 D-194 — forceful sampler cancel via worker.terminate().
+  // The byte-frozen sampler (D-102) has no inner-loop emit point so cooperative
+  // flag-checking is impossible. terminate() halts JS execution as soon as
+  // possible (typically <50 ms; ≤200 ms budget per D-194). Pitfall 6: terminate
+  // does NOT run finally blocks — the Phase 9 worker has no resources to clean
+  // up (pure compute job per N2.3) so this is safe.
+  //
+  // Trust boundary (T-09-02-IPC-01): renderer-origin one-way send with no
+  // payload. Idempotent: if no worker is in flight, terminate() is a no-op.
+  // We do NOT additionally validate evt.sender — the contextBridge surface
+  // only exposes cancelSampler() to the trusted renderer.
+  ipcMain.on('sampler:cancel', () => {
+    const handle = getSamplerWorkerHandle();
+    if (handle !== null) {
+      void handle.terminate();
+    }
   });
   ipcMain.on('shell:open-folder', (_evt, dir) => {
     // T-06-14: typeof + length check. dir originates from the renderer's

@@ -68,6 +68,11 @@ beforeEach(() => {
     onMenuOpenRecent: vi.fn(() => () => undefined),
     onMenuSave: vi.fn(() => () => undefined),
     onMenuSaveAs: vi.fn(() => () => undefined),
+    // Phase 9 Plan 02 D-194 — sampler progress + cancel bridges. AppShell
+    // subscribes to onSamplerProgress on mount; the wrapped const must
+    // return an unsubscribe stub so the cleanup in useEffect can call it.
+    onSamplerProgress: vi.fn(() => () => undefined),
+    cancelSampler: vi.fn(),
   });
 });
 

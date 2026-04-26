@@ -304,6 +304,39 @@ const api: Api = {
       ipcRenderer.removeListener('menu:save-as-clicked', wrapped);
     };
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 9 Plan 02 D-194 — sampler progress + cancel bridges. Mirror byte-
+  // for-byte the export pattern at lines 113-115 + 126-132 (channel renames
+  // and payload type only).
+  // -------------------------------------------------------------------------
+
+  /**
+   * Phase 9 D-194 — subscribe to streaming sampler progress events.
+   * Returns an unsubscribe function. Pitfall 9 listener-identity preservation:
+   * the wrapped const is captured BEFORE ipcRenderer.on so removeListener
+   * targets the SAME reference.
+   *
+   * Progress is INDETERMINATE per RESEARCH §Q4: the byte-frozen sampler has
+   * no inner-loop emit point, so percent is 0 on start and 100 on complete
+   * — no intermediate values. The renderer SHOULD show an indeterminate
+   * spinner.
+   */
+  onSamplerProgress: (handler) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, percent: number) => handler(percent);
+    ipcRenderer.on('sampler:progress', wrapped);
+    return () => {
+      ipcRenderer.removeListener('sampler:progress', wrapped);
+    };
+  },
+
+  /**
+   * Phase 9 D-194 — fire-and-forget cancel signal. Main routes this to
+   * worker.terminate() (RESEARCH §Q5 — actual cancellation primitive).
+   */
+  cancelSampler: (): void => {
+    ipcRenderer.send('sampler:cancel');
+  },
 };
 
 if (process.contextIsolated) {
