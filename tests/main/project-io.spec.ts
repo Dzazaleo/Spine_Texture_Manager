@@ -166,6 +166,35 @@ describe('handleProjectOpen / handleProjectOpenFromPath (F9.2)', () => {
     if (!result.ok) expect(result.error.kind).toBe('SkeletonNotFoundOnLoadError');
   });
 
+  it('8.1-IPC-01: missing skeleton threads recovery fields into envelope (D-158, D-159)', async () => {
+    const fs = await import('node:fs/promises');
+    const json = JSON.stringify({
+      version: 1,
+      skeletonPath: '/nonexistent/path.json',
+      atlasPath: null, imagesDir: null,
+      overrides: { CIRCLE: 50, TRIANGLE: 75 },
+      samplingHz: null, lastOutDir: null,
+      sortColumn: null, sortDir: null,
+      documentation: {},
+    });
+    vi.mocked(fs.readFile).mockResolvedValue(json as unknown as string);
+    const result = await handleProjectOpenFromPath('/a/b/proj.stmproj');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('SkeletonNotFoundOnLoadError');
+      // The discriminated-union narrowing exposes the threaded fields.
+      if (result.error.kind === 'SkeletonNotFoundOnLoadError') {
+        expect(result.error.projectPath).toBe('/a/b/proj.stmproj');
+        expect(result.error.originalSkeletonPath).toBe('/nonexistent/path.json');
+        expect(result.error.mergedOverrides).toEqual({ CIRCLE: 50, TRIANGLE: 75 });
+        expect(result.error.samplingHz).toBe(120); // D-146 default
+        expect(result.error.lastOutDir).toBeNull();
+        expect(result.error.sortColumn).toBeNull();
+        expect(result.error.sortDir).toBeNull();
+      }
+    }
+  });
+
   it('newer version returns typed error (D-151, T-08-VER)', async () => {
     const fs = await import('node:fs/promises');
     vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify({ version: 2, skeletonPath: 'x.json', overrides: {}, documentation: {} }) as unknown as string);
