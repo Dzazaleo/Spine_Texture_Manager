@@ -519,22 +519,26 @@ export function AppShell({ summary, samplingHz = 120, initialProject }: AppShell
     const resp = await window.api.openProject();
     if (!resp.ok) {
       if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {
-        // The picker variant invokes main's handler which reads + parses the
-        // file before failing — for SkeletonNotFoundOnLoadError to surface
-        // useful info, main would need to thread the original skeletonPath
-        // into the SerializableError.message. For Phase 8 v1 we surface the
-        // error generically; the App.tsx path-based dispatch (Task 4) is
-        // the recommended entry point because it has access to the
-        // projectPath at error time. AppShell's Open button is best-effort.
+        // Phase 8.1 D-160: read the threaded recovery payload from the typed
+        // envelope. The discriminated-union narrowing exposes 7 additional
+        // fields populated by handleProjectOpenFromPath at
+        // src/main/project-io.ts:333-343 (Plan 08.1-02). The toolbar Open
+        // path now has full parity with the drag-drop path —
+        // onClickLocateSkeleton's reloadProjectWithSkeleton call receives
+        // the real projectPath, the real originalSkeletonPath, and the
+        // real cached overrides + settings. Pre-Phase-8.1 these were empty
+        // literals, causing main's input validator to reject the recovery
+        // request with kind:'Unknown', message:'projectPath must be a
+        // .stmproj path' — VR-02 from 08-VERIFICATION.md.
         setSkeletonNotFoundError({
           message: resp.error.message,
-          originalSkeletonPath: '',
-          projectPath: '',
-          mergedOverrides: {},
-          cachedSamplingHz: 120,
-          cachedLastOutDir: null,
-          cachedSortColumn: null,
-          cachedSortDir: null,
+          originalSkeletonPath: resp.error.originalSkeletonPath,
+          projectPath: resp.error.projectPath,
+          mergedOverrides: resp.error.mergedOverrides,
+          cachedSamplingHz: resp.error.samplingHz,
+          cachedLastOutDir: resp.error.lastOutDir,
+          cachedSortColumn: resp.error.sortColumn,
+          cachedSortDir: resp.error.sortDir,
         });
         return;
       }
