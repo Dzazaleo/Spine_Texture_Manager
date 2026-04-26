@@ -477,28 +477,57 @@ export interface SkeletonSummary {
 }
 
 /**
- * Typed-error envelope for IPC failure paths.
+ * Phase 8.1 D-158 — Discriminated-union typed-error envelope.
  *
- * `kind` values MUST match `SpineLoaderError` subclass `.name` strings in
- * `src/core/errors.ts` byte-for-byte. If you rename a loader error class,
- * update this literal union in the same commit — the IPC handler uses
- * `err.name` as the discriminator.
+ * The `'SkeletonNotFoundOnLoadError'` kind carries the cached recovery
+ * payload (D-149 chain) — `projectPath`, `originalSkeletonPath`,
+ * `mergedOverrides`, `samplingHz`, `lastOutDir`, `sortColumn`, `sortDir`.
+ * These fields are populated by `handleProjectOpenFromPath` in
+ * `src/main/project-io.ts` from the `materialized` object already in
+ * scope at the rescue branch, and consumed by both
+ * `AppShell.onClickOpen` (toolbar Open / Cmd+O recovery path — D-160)
+ * AND by `App.tsx`'s new `projectLoadFailed` state branch (drag-drop
+ * recovery path — D-161/D-162).
  *
- * `message` is the user-facing text from `SpineLoaderError.message`. Never
- * contains a stack trace (T-01-02-02 information-disclosure mitigation).
+ * All other kinds keep their existing `{kind, message}` shape — every
+ * `kind` literal MUST match a `SpineLoaderError` subclass `.name` string
+ * in `src/core/errors.ts` byte-for-byte (the IPC handler uses `err.name`
+ * as the discriminator). Information-disclosure mitigation T-01-02-02
+ * preserved: `message` carries `SpineLoaderError.message` only — never a
+ * stack trace.
+ *
+ * D-171 invariant: this refactor is purely an in-memory IPC envelope
+ * shape. The on-disk `.stmproj` v1 schema in `src/core/project-file.ts`
+ * is NOT touched. `ProjectFileV1.documentation` (D-148), `version: 1`
+ * (D-145), and every other on-disk field stay byte-identical. Existing
+ * `.stmproj` files written by Phase 8 continue to load through Phase 8.1
+ * unchanged.
  */
-export interface SerializableError {
-  kind:
-    | 'SkeletonJsonNotFoundError'
-    | 'AtlasNotFoundError'
-    | 'AtlasParseError'
-    | 'ProjectFileNotFoundError'      // Phase 8 D-149: file missing on disk
-    | 'ProjectFileParseError'          // Phase 8 Pitfall 9: JSON.parse SyntaxError
-    | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1
-    | 'SkeletonNotFoundOnLoadError'    // Phase 8 D-149: triggers locate-skeleton flow
-    | 'Unknown';
-  message: string;
-}
+export type SerializableError =
+  | {
+      kind: 'SkeletonNotFoundOnLoadError';
+      message: string;
+      // Cached recovery payload — fed to handleProjectReloadWithSkeleton
+      // when the user picks a replacement skeleton (D-149 chain).
+      projectPath: string;
+      originalSkeletonPath: string;
+      mergedOverrides: Record<string, number>;
+      samplingHz: number;
+      lastOutDir: string | null;
+      sortColumn: string | null;
+      sortDir: 'asc' | 'desc' | null;
+    }
+  | {
+      kind:
+        | 'SkeletonJsonNotFoundError'
+        | 'AtlasNotFoundError'
+        | 'AtlasParseError'
+        | 'ProjectFileNotFoundError'      // Phase 8 D-149: file missing on disk
+        | 'ProjectFileParseError'          // Phase 8 Pitfall 9: JSON.parse SyntaxError
+        | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1
+        | 'Unknown';
+      message: string;
+    };
 
 /** Discriminated-union result returned from `ipcMain.handle('skeleton:load', ...)`. */
 export type LoadResponse =
