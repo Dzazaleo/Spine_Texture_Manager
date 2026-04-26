@@ -120,13 +120,32 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
     expect(placeholder.enabled).toBe(false);
   });
 
-  it('(d) Edit menu uses role:editMenu (D-188)', async () => {
+  it('(d) Edit menu uses custom submenu (08.2 had role:editMenu — Phase 9 Plan 05 replaces with Edit submenu containing standard roles + Preferences)', async () => {
     await buildAppMenu(
       { canSave: false, canSaveAs: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
-    expect(tpl).toContainEqual(expect.objectContaining({ role: 'editMenu' }));
+    // Phase 9 Plan 05: replaced { role: 'editMenu' } with a custom Edit submenu.
+    // The role:'editMenu' literal is gone; an Edit-labelled menu with a submenu
+    // containing the standard Edit roles (undo/redo/cut/copy/paste/etc.) plus
+    // a Preferences entry is what now occupies the slot.
+    expect(tpl).not.toContainEqual(expect.objectContaining({ role: 'editMenu' }));
+    const editMenu = tpl.find((m: { label?: string }) => m.label === 'Edit');
+    expect(editMenu).toBeDefined();
+    expect(Array.isArray(editMenu.submenu)).toBe(true);
+    // Standard roles must still be present so the cross-platform accelerators
+    // (Cmd+Z / Cmd+C / Cmd+V / etc.) work — role:'editMenu' provided these
+    // automatically; the custom submenu must list them explicitly.
+    const submenuRoles = editMenu.submenu
+      .map((i: { role?: string }) => i.role)
+      .filter((r: string | undefined) => r !== undefined);
+    expect(submenuRoles).toContain('undo');
+    expect(submenuRoles).toContain('redo');
+    expect(submenuRoles).toContain('cut');
+    expect(submenuRoles).toContain('copy');
+    expect(submenuRoles).toContain('paste');
+    expect(submenuRoles).toContain('selectAll');
   });
 
   it('(e) accelerators: Open=CmdOrCtrl+O, Save=CmdOrCtrl+S, Save As=CmdOrCtrl+Shift+S', async () => {
@@ -176,5 +195,92 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
     // Last item is the disabled Clear Menu (nothing to clear).
     expect(recentMenu[recentMenu.length - 1].label).toBe('Clear Menu');
     expect(recentMenu[recentMenu.length - 1].enabled).toBe(false);
+  });
+});
+
+/**
+ * Phase 9 Plan 05 — Edit menu Preferences (Claude's Discretion + RESEARCH §Q6).
+ *
+ * Two cases:
+ *   (h1) Preferences… item exists in the custom Edit submenu with the
+ *        cross-platform accelerator CommandOrControl+,
+ *   (h2) Click handler fires mainWindow?.webContents.send('menu:settings-clicked')
+ */
+describe('Phase 9 Plan 05 — Edit menu Preferences (RESEARCH §Q6 + Claude Discretion)', () => {
+  it('(h1) Preferences… item exists in Edit submenu with accelerator CommandOrControl+,', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const editMenu = tpl.find((m: { label?: string }) => m.label === 'Edit');
+    expect(editMenu).toBeDefined();
+    const prefs = editMenu.submenu.find(
+      (i: { label?: string }) => i.label === 'Preferences…',
+    );
+    expect(prefs).toBeDefined();
+    expect(prefs.accelerator).toBe('CommandOrControl+,');
+  });
+
+  it('(h2) Preferences click fires menu:settings-clicked on the main window webContents', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const editMenu = tpl.find((m: { label?: string }) => m.label === 'Edit');
+    const prefs = editMenu.submenu.find(
+      (i: { label?: string }) => i.label === 'Preferences…',
+    );
+    prefs.click();
+    expect(send).toHaveBeenCalledWith('menu:settings-clicked');
+  });
+});
+
+/**
+ * Phase 9 Plan 05 — Help menu Documentation (08.2 D-188 placeholder filled).
+ *
+ * Two cases:
+ *   (i1) role:'help' submenu now contains a Documentation item (placeholder
+ *        filled, role:'help' preserved per Pitfall 8 — Electron validation
+ *        requires role:'help' to have a non-empty submenu).
+ *   (i2) Click handler fires mainWindow?.webContents.send('menu:help-clicked')
+ */
+describe('Phase 9 Plan 05 — Help menu Documentation (08.2 D-188 placeholder fill)', () => {
+  it('(i1) Documentation item exists inside role:help submenu', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const helpMenu = tpl.find((m: { role?: string }) => m.role === 'help');
+    expect(helpMenu).toBeDefined();
+    expect(Array.isArray(helpMenu.submenu)).toBe(true);
+    const docs = helpMenu.submenu.find(
+      (i: { label?: string }) => i.label === 'Documentation',
+    );
+    expect(docs).toBeDefined();
+  });
+
+  it('(i2) Documentation click fires menu:help-clicked on the main window webContents', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const helpMenu = tpl.find((m: { role?: string }) => m.role === 'help');
+    const docs = helpMenu.submenu.find(
+      (i: { label?: string }) => i.label === 'Documentation',
+    );
+    docs.click();
+    expect(send).toHaveBeenCalledWith('menu:help-clicked');
   });
 });
