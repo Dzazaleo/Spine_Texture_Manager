@@ -301,7 +301,7 @@ Plans:
 **Goal:** Close the 3 reachability gaps from Phase 8 verification (VR-01 .stmproj-drop recovery routing; VR-02 toolbar Open empty-recovery-state; VR-03 onBeforeDrop dirty-guard wiring) so /gsd-verify-work 8 passes cleanly. No feature growth; no Phase 9 scope creep.
 **Requirements**: VR-01, VR-02, VR-03 (informal — back to F9.2 / D-143 / D-149 in 08-VERIFICATION.md)
 **Depends on:** Phase 8
-**Plans:** 6 plans
+**Plans:** 6/6 plans complete
 
 Plans:
 - [x] 08.1-01-PLAN.md — Wave 0 scaffolding: SerializableError discriminated-union refactor in src/shared/types.ts (D-158, D-171) + RED test scaffolds (8.1-VR-01, 8.1-VR-02, 8.1-VR-03a, 8.1-VR-03b in tests/renderer/save-load.spec.tsx; 8.1-IPC-01 in tests/main/project-io.spec.ts). Wave 1, autonomous, depends_on []. ✅ 2026-04-26 — commits `765c2a4` (refactor: types union) + `a40fffc` (test: 8.1-IPC-01 RED) + `d756dd9` (test: 4 RED renderer specs); 1 deviation (Rule 1 grep-literal hygiene); 270 passed + 5 RED + 1 todo + 1 skipped (was 270/0/3/1); locked-file diffs clean. SUMMARY: `08.1-01-SUMMARY.md`.
