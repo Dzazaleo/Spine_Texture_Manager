@@ -76,16 +76,39 @@ beforeEach(() => {
   buildFromTemplate.mockImplementation((template) => ({ template }));
 });
 
+/**
+ * Microtask + dynamic-import flush helper.
+ *
+ * The 'menu:notify-state' handler is async: it (1) awaits a dynamic
+ * `import('./index.js')`, (2) calls `setCurrentMenuState(next)`, (3) fires
+ * `void applyMenu(next, getMainWindow())` as fire-and-forget. applyMenu
+ * itself awaits buildAppMenu → loadRecent before calling Menu.setApplicationMenu.
+ *
+ * Awaiting the handler's returned promise covers steps 1-3, but the
+ * `void applyMenu(...)` is intentionally NOT awaited inside the handler
+ * (it is fire-and-forget per D-181), so we then need to flush the queued
+ * microtasks and macrotasks to let buildAppMenu / loadRecent / setApplicationMenu
+ * complete before the assertion runs. setImmediate fires AFTER all queued
+ * microtasks have drained, so two setImmediate ticks gives the inner await
+ * chain enough time to traverse: dynamic-import → loadRecent (mocked
+ * resolved value) → buildFromTemplate (echo-mock) → setApplicationMenu.
+ */
+async function flushApplyMenu(): Promise<void> {
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+}
+
 describe('menu:notify-state IPC (D-181)', () => {
   it('rebuilds + reapplies menu via Menu.setApplicationMenu on every notify', async () => {
     registerIpcHandlers();
     const handler = ipcMainOnHandlers.get('menu:notify-state');
     expect(handler).toBeDefined();
 
-    handler!({} as unknown, { canSave: true, canSaveAs: true, modalOpen: false });
-    // Allow the void applyMenu's `await loadRecent()` microtask to flush —
-    // applyMenu is fire-and-forget; we wait one tick before asserting.
-    await new Promise((r) => setImmediate(r));
+    // The handler is async (dynamic import inside) — await its returned
+    // promise so the void applyMenu() inside has been kicked off, then
+    // flush the inner await chain.
+    await handler!({} as unknown, { canSave: true, canSaveAs: true, modalOpen: false });
+    await flushApplyMenu();
 
     expect(setApplicationMenu).toHaveBeenCalled();
   });
@@ -96,18 +119,18 @@ describe('menu:notify-state IPC (D-181)', () => {
     expect(handler).toBeDefined();
 
     // Missing modalOpen field — handler must reject silently.
-    handler!({} as unknown, { canSave: true, canSaveAs: true });
-    await new Promise((r) => setImmediate(r));
+    await handler!({} as unknown, { canSave: true, canSaveAs: true });
+    await flushApplyMenu();
     expect(setApplicationMenu).not.toHaveBeenCalled();
 
     // Non-boolean canSave field — handler must reject silently.
-    handler!({} as unknown, { canSave: 'yes', canSaveAs: true, modalOpen: false });
-    await new Promise((r) => setImmediate(r));
+    await handler!({} as unknown, { canSave: 'yes', canSaveAs: true, modalOpen: false });
+    await flushApplyMenu();
     expect(setApplicationMenu).not.toHaveBeenCalled();
 
     // Non-object payload — handler must reject silently.
-    handler!({} as unknown, null);
-    await new Promise((r) => setImmediate(r));
+    await handler!({} as unknown, null);
+    await flushApplyMenu();
     expect(setApplicationMenu).not.toHaveBeenCalled();
   });
 });

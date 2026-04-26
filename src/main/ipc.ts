@@ -52,6 +52,25 @@ import {
   handleLocateSkeleton,
   handleProjectReloadWithSkeleton,
 } from './project-io.js';
+// Phase 8.2 D-181 — menu state surface lives in src/main/index.ts. We
+// dereference applyMenu / setCurrentMenuState / getMainWindow via dynamic
+// `await import('./index.js')` INSIDE the 'menu:notify-state' handler body
+// rather than at module load time. Two reasons:
+//   (a) `src/main/index.ts` imports `registerIpcHandlers` from this file —
+//       eager `import { ... } from './index.js'` here creates a load-time
+//       cycle. Node resolves it fine in production (the module graph
+//       finishes before app.whenReady fires), but vitest's test files mock
+//       `electron` minimally per-spec; test files that target
+//       handlers UNRELATED to this menu wiring (e.g. ipc-export.spec.ts)
+//       don't stub `app.getPath`, so the eager transitive load
+//       `ipc.ts → index.ts → recent.ts → app.getPath('userData')` throws
+//       at module-evaluation time and the spec aborts before any test runs.
+//   (b) Dynamic `await import(...)` defers the index.ts module load until
+//       the FIRST 'menu:notify-state' notify, so spec files that never
+//       fire that channel can mock electron however they want without
+//       paying the recent.ts module-load cost. ipc.spec.ts (this plan)
+//       mocks recent.js + electron's app.getPath itself, so its tests
+//       still see the import resolve cleanly.
 import type {
   ExportPlan,
   ExportResponse,
@@ -536,4 +555,35 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('project:reload-with-skeleton', async (_evt, args) =>
     handleProjectReloadWithSkeleton(args),
   );
+
+  // Phase 8.2 D-181 — renderer pushes menu state on change. Main rebuilds
+  // + reapplies the application Menu on every notify. One-way (ipcMain.on
+  // / ipcRenderer.send) — no envelope returned. Silent rejection on bad
+  // input (defense-in-depth; preload is the trusted surface).
+  //
+  // The dynamic `await import('./index.js')` is deliberate (see the comment
+  // block at the top of this file): it defers the index.ts ↔ ipc.ts cycle
+  // resolution until the first notify, so unrelated test specs that mock
+  // `electron` minimally don't fail at module-load time.
+  ipcMain.on('menu:notify-state', async (_evt, state: unknown) => {
+    // T-08.2-03-01 trust-boundary input validation — same shape as
+    // validateExportPlan (ipc.ts:106-126) and the inline checks in
+    // handleProjectSave (project-io.ts:97-112).
+    if (!state || typeof state !== 'object') return;
+    const s = state as Record<string, unknown>;
+    if (typeof s.canSave !== 'boolean') return;
+    if (typeof s.canSaveAs !== 'boolean') return;
+    if (typeof s.modalOpen !== 'boolean') return;
+
+    const next = {
+      canSave: s.canSave,
+      canSaveAs: s.canSaveAs,
+      modalOpen: s.modalOpen,
+    };
+    const { applyMenu, getMainWindow, setCurrentMenuState } = await import('./index.js');
+    setCurrentMenuState(next);
+    // Fire-and-forget — applyMenu awaits loadRecent() internally; we don't
+    // block the IPC return on it (one-way channel; no response).
+    void applyMenu(next, getMainWindow());
+  });
 }
