@@ -71,9 +71,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import clsx from 'clsx';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
   SkeletonSummary,
   AnimationBreakdown,
@@ -81,6 +83,17 @@ import type {
 } from '../../../shared/types.js';
 import { SearchBar } from '../components/SearchBar';
 import { computeExportDims } from '../lib/export-view.js';
+
+/**
+ * Phase 9 Plan 04 (D-195/D-196) — threshold above which a card's INNER row
+ * list virtualizes via TanStack Virtual. Outer card list is NEVER virtualized
+ * (D-196 outer-not-virtualized invariant — a complex rig has ~16 cards which
+ * stay cheap to render). Below this threshold the existing flat-table JSX
+ * renders unchanged, preserving Cmd-F text search and zero virtualization
+ * overhead. Above it, useVirtualizer + measureElement (variable-height
+ * because Bone Path can wrap and override badges add height) takes over.
+ */
+const VIRTUALIZATION_THRESHOLD = 100;
 
 export interface AnimationBreakdownPanelProps {
   summary: SkeletonSummary;
@@ -456,123 +469,265 @@ interface BreakdownTableProps {
   onOpenOverrideDialog: (row: BreakdownRow) => void;
 }
 
-function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTableProps) {
+/**
+ * Phase 9 Plan 04 (D-196) — shared <thead> markup. Identical between the
+ * flat-table and virtualized render paths so sort/search semantics carry
+ * over verbatim. The `sticky top-0 z-10` utilities apply position:sticky
+ * to <thead> so the column header stays pinned when the inner card
+ * scroll-container scrolls (RESEARCH §Pitfall 1: position:sticky NEVER
+ * goes on a <tr> inside <tbody> — virtualizer applies translateY to <tr>
+ * which creates a stacking context that breaks sticky positioning).
+ */
+function BreakdownTableHead() {
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-panel">
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
-          >
-            Attachment
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
-          >
-            Bone Path
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
-          >
-            Source W×H
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
-          >
-            Scale
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
-          >
-            Peak W×H
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
-          >
-            Frame
-          </th>
-          <th
-            scope="col"
-            className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
-          >
-            Actions
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr
-            key={row.attachmentKey}
-            className="border-b border-border hover:bg-accent/5"
-          >
-            <td className="py-2 px-3 font-mono text-sm text-fg">
-              {highlightMatch(row.attachmentName, query)}
-            </td>
-            <td
-              title={row.bonePath.join(' → ')}
-              className="py-2 px-3 font-mono text-xs text-fg-muted max-w-[320px]"
-            >
-              {truncateMidEllipsis(row.bonePath, 48)}
-            </td>
-            <td className="py-2 px-3 font-mono text-sm text-fg text-right">
-              {row.originalSizeLabel}
-            </td>
-            <td
-              className={clsx(
-                'py-2 px-3 font-mono text-sm text-right',
-                row.override !== undefined ? 'text-accent' : 'text-fg',
-              )}
-              onDoubleClick={() => onOpenOverrideDialog(row)}
-              title={
-                row.override !== undefined
-                  ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
-                  : undefined
-              }
-            >
-              {row.effectiveScale.toFixed(3)}×
-              {row.override !== undefined && <span> • {row.override}%</span>}
-            </td>
-            {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims
-                that buildExportPlan + the optimize dialog use, NOT the
-                world-AABB. Hover tooltip surfaces the world-AABB for
-                power users (rotation / mesh-deformation diagnostic).
-                Override path: same export dims, just driven by the
-                override percent through computeExportDims. */}
-            <td
-              className={clsx(
-                'py-2 px-3 font-mono text-sm text-right',
-                row.override !== undefined ? 'text-accent' : 'text-fg',
-              )}
-              title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
-            >
-              {`${row.effExportW}×${row.effExportH}`}
-            </td>
-            <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
-              {row.frameLabel}
-            </td>
-            <td className="py-2 px-3 font-mono text-sm text-fg">
-              {/* D-69 → D-77: Override Scale button unlocked in Phase 4. Chip
-                  styling kept per 04-CONTEXT Claude's Discretion recommendation;
-                  only the opacity dim and the interaction-blocking attribute
-                  are dropped. */}
-              <button
-                type="button"
-                onClick={() => onOpenOverrideDialog(row)}
-                aria-label={'Override scale for ' + row.attachmentName}
-                className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg hover:bg-accent/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                Override Scale
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <thead className="bg-panel sticky top-0 z-10">
+      <tr>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
+        >
+          Attachment
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
+        >
+          Bone Path
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
+        >
+          Source W×H
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
+        >
+          Scale
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
+        >
+          Peak W×H
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-right"
+        >
+          Frame
+        </th>
+        <th
+          scope="col"
+          className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
+        >
+          Actions
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
+/**
+ * Phase 9 Plan 04 (D-196) — single <tr> rendering shared between the two
+ * paths. The `style` prop is undefined in the flat-table path (zero
+ * behavioral change) and carries the translateY transform in the
+ * virtualized path. The `measureRef` prop is undefined in the flat-table
+ * path and is `virtualizer.measureElement` in the virtualized path —
+ * ResizeObserver-driven exact measurement for variable-height rows
+ * (Bone Path can wrap; override badges add height per RESEARCH §Q10).
+ */
+interface BreakdownRowItemProps {
+  row: EnrichedBreakdownRow;
+  query: string;
+  onOpenOverrideDialog: (row: BreakdownRow) => void;
+  style?: CSSProperties;
+  measureRef?: (el: HTMLTableRowElement | null) => void;
+  dataIndex?: number;
+}
+
+function BreakdownRowItem({
+  row,
+  query,
+  onOpenOverrideDialog,
+  style,
+  measureRef,
+  dataIndex,
+}: BreakdownRowItemProps) {
+  return (
+    <tr
+      ref={measureRef}
+      data-index={dataIndex}
+      style={style}
+      className="border-b border-border hover:bg-accent/5"
+    >
+      <td className="py-2 px-3 font-mono text-sm text-fg">
+        {highlightMatch(row.attachmentName, query)}
+      </td>
+      <td
+        title={row.bonePath.join(' → ')}
+        className="py-2 px-3 font-mono text-xs text-fg-muted max-w-[320px]"
+      >
+        {truncateMidEllipsis(row.bonePath, 48)}
+      </td>
+      <td className="py-2 px-3 font-mono text-sm text-fg text-right">
+        {row.originalSizeLabel}
+      </td>
+      <td
+        className={clsx(
+          'py-2 px-3 font-mono text-sm text-right',
+          row.override !== undefined ? 'text-accent' : 'text-fg',
+        )}
+        onDoubleClick={() => onOpenOverrideDialog(row)}
+        title={
+          row.override !== undefined
+            ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
+            : undefined
+        }
+      >
+        {row.effectiveScale.toFixed(3)}×
+        {row.override !== undefined && <span> • {row.override}%</span>}
+      </td>
+      {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims
+          that buildExportPlan + the optimize dialog use, NOT the
+          world-AABB. Hover tooltip surfaces the world-AABB for
+          power users (rotation / mesh-deformation diagnostic).
+          Override path: same export dims, just driven by the
+          override percent through computeExportDims. */}
+      <td
+        className={clsx(
+          'py-2 px-3 font-mono text-sm text-right',
+          row.override !== undefined ? 'text-accent' : 'text-fg',
+        )}
+        title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
+      >
+        {`${row.effExportW}×${row.effExportH}`}
+      </td>
+      <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
+        {row.frameLabel}
+      </td>
+      <td className="py-2 px-3 font-mono text-sm text-fg">
+        {/* D-69 → D-77: Override Scale button unlocked in Phase 4. Chip
+            styling kept per 04-CONTEXT Claude's Discretion recommendation;
+            only the opacity dim and the interaction-blocking attribute
+            are dropped. */}
+        <button
+          type="button"
+          onClick={() => onOpenOverrideDialog(row)}
+          aria-label={'Override scale for ' + row.attachmentName}
+          className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg hover:bg-accent/10 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          Override Scale
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTableProps) {
+  // Phase 9 Plan 04 (D-195/D-196) — threshold-gated per-card inner-row
+  // virtualization. Below the threshold the existing flat-table JSX
+  // renders unchanged; above it, useVirtualizer + measureElement
+  // (variable-height) takes over. The OUTER card list is NEVER
+  // virtualized (D-196 outer-not-virtualized invariant).
+  const useVirtual = rows.length > VIRTUALIZATION_THRESHOLD;
+
+  // Stable identity — the cache survives sort/filter cycles via the
+  // attachmentKey identity rather than the volatile array index. RESEARCH
+  // §Pitfall 2: index-based default keys cause measurement-cache flicker
+  // when rows reorder.
+  const getItemKey = useCallback(
+    (index: number) => rows[index].attachmentKey,
+    [rows],
+  );
+
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => innerRef.current,
+    // 38px estimate — single-line row height with py-2 padding plus a
+    // little extra for variable-height tolerance (RESEARCH §Recommendations
+    // #12 — taller estimate vs GlobalMaxRender's 34 because Bone Path can
+    // wrap; measureElement corrects to the real height as rows mount).
+    estimateSize: () => 38,
+    overscan: 10,
+    getItemKey,
+  });
+
+  if (!useVirtual) {
+    // Flat-table render path (rows.length ≤ 100). Renders ALL rows in the
+    // DOM — preserves Cmd-F text search and zero virtualization overhead.
+    // Sticky <thead> applies in this path too so the visual header behaviour
+    // matches the virtualized path even though there is no scroll container
+    // around the flat table.
+    return (
+      <table className="w-full border-collapse">
+        <BreakdownTableHead />
+        <tbody>
+          {rows.map((row) => (
+            <BreakdownRowItem
+              key={row.attachmentKey}
+              row={row}
+              query={query}
+              onOpenOverrideDialog={onOpenOverrideDialog}
+            />
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  // Virtualized render path (rows.length > 100). Outer scroll container
+  // bounded at maxHeight: 600px so collapse/expand stays predictable.
+  // overflow-anchor:none prevents the browser from re-anchoring on
+  // sort/filter content-height changes (RESEARCH §Recommendations #11).
+  return (
+    <div
+      ref={innerRef}
+      style={{
+        maxHeight: '600px',
+        overflowY: 'auto',
+        overflowAnchor: 'none',
+      }}
+    >
+      <div
+        style={{
+          height: virtualizer.getTotalSize(),
+          position: 'relative',
+        }}
+      >
+        <table className="w-full border-collapse">
+          <BreakdownTableHead />
+          <tbody>
+            {virtualizer.getVirtualItems().map((virtualRow, idx) => {
+              const row = rows[virtualRow.index];
+              return (
+                <BreakdownRowItem
+                  key={row.attachmentKey}
+                  row={row}
+                  query={query}
+                  onOpenOverrideDialog={onOpenOverrideDialog}
+                  // Per RESEARCH §Q1: translate basis is the row's INITIAL
+                  // position, not absolute scroll offset. The
+                  // (idx * virtualRow.size) subtraction is REQUIRED for
+                  // <tr> rendering per the official TanStack Virtual table
+                  // example.
+                  style={{
+                    transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
+                  }}
+                  // ResizeObserver-driven exact measurement for
+                  // variable-height rows (Bone Path can wrap; override
+                  // badges add height — RESEARCH §Q10).
+                  measureRef={virtualizer.measureElement}
+                  dataIndex={virtualRow.index}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
