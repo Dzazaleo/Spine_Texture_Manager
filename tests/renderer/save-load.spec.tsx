@@ -98,36 +98,25 @@ describe('AppShell Save/Open buttons (D-140, D-141)', () => {
   });
 });
 
-describe('Keyboard shortcuts (D-140 + Pitfall 6)', () => {
-  it('Cmd+S triggers Save', async () => {
-    const summary = makeSummary();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    render(<AppShell summary={summary} elapsedMs={5} samplingHz={120} {...({} as any)} />);
-    fireEvent.keyDown(window, { key: 's', metaKey: true });
-    // Plan 04: window-level listener fires onClickSave when no modal is open.
-    await Promise.resolve();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const calls = (globalThis as any).api.saveProject.mock.calls.length + (globalThis as any).api.saveProjectAs.mock.calls.length;
-    expect(calls).toBeGreaterThan(0);
-  });
-
-  it('Cmd+S suppressed when modal open (T-08-SHORT)', async () => {
-    const summary = makeSummary();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    render(<AppShell summary={summary} elapsedMs={5} samplingHz={120} {...({} as any)} />);
-    // Mount a fake modal element with role="dialog" (the suppression heuristic).
-    const fakeModal = document.createElement('div');
-    fakeModal.setAttribute('role', 'dialog');
-    document.body.appendChild(fakeModal);
-    fireEvent.keyDown(window, { key: 's', metaKey: true });
-    await Promise.resolve();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((globalThis as any).api.saveProject).not.toHaveBeenCalled();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((globalThis as any).api.saveProjectAs).not.toHaveBeenCalled();
-    document.body.removeChild(fakeModal);
-  });
-});
+// Phase 08.2 D-176 — the `Keyboard shortcuts (D-140 + Pitfall 6)` describe
+// block at this position pre-08.2 asserted that the AppShell.tsx window-level
+// keydown listener fired onClickSave on Cmd+S. Plan 08.2-04 DELETED that
+// listener — the native Electron menu accelerator (Plan 08.2-02) is now the
+// single source of truth for Cmd+O / Cmd+S / Cmd+Shift+S. The two cases that
+// targeted the deleted listener are retired here:
+//
+//   - 'Cmd+S triggers Save' — was failing post-Plan 04 because the listener
+//     was deleted; replaced functionally by the native menu accelerator (no
+//     renderer test surface — that's a main-side responsibility verified in
+//     tests/main/menu.spec.ts case (e) and exercised via the live Electron
+//     menu in manual UAT).
+//   - 'Cmd+S suppressed when modal open (T-08-SHORT)' — replaced by
+//     8.2-MENU-02 below (modalOpen flips true on OverrideDialog mount → main
+//     disables File menu items via menu rebuild).
+//
+// 8.2-MENU-06 below provides the inverse assertion: a Cmd+O keydown
+// dispatched into the window does NOT call window.api.openProject() directly
+// (the renderer keydown path is gone end-to-end).
 
 describe('SaveQuitDialog three-button flow (D-143)', () => {
   // Phase 8.1 Plan 01 Task 3: the two prior placeholder shells are flipped
@@ -340,5 +329,161 @@ describe('8.1-VR-02: AppShell toolbar Open threads projectPath into recovery ban
     expect(calls.length).toBeGreaterThan(0);
     expect(calls[0][0].projectPath).toBe('/a/b/proj.stmproj');
     expect(calls[0][0].mergedOverrides).toEqual({ TRIANGLE: 50 });
+  });
+});
+
+/**
+ * Phase 08.2 — File menu wiring renderer specs (8.2-MENU-01..06).
+ *
+ * These six cases assert the renderer side of the native Electron menu
+ * surface shipped by Plans 08.2-02 (main-side menu builder), 08.2-03
+ * (preload bridges + ipc handler), and 08.2-04 (App.tsx subscriptions +
+ * AppShell.tsx push + keydown deletion).
+ *
+ *   01: AppShell pushes notifyMenuState({canSave,canSaveAs:true,modalOpen:false}) on mount
+ *   02: Opening OverrideDialog flips modalOpen:true (D-184)
+ *   03: onMenuOpen → openProject() in the loaded state (the happy path)
+ *   04: onMenuOpen → openProject() in projectLoadFailed state — THE CANONICAL
+ *       08.1 UAT REGRESSION REPRODUCER (Cmd+O on the recovery banner now fires)
+ *   05: onMenuOpenRecent('/abs/path.stmproj') → openProjectFromPath('/abs/path.stmproj')
+ *   06: AppShell keydown listener is gone — Cmd+O via window.dispatchEvent does
+ *       NOT call openProject directly (replaces the retired Keyboard shortcuts
+ *       describe block — the inverse assertion of D-176)
+ */
+describe('Phase 08.2 menu wiring', () => {
+  it('8.2-MENU-01: AppShell calls notifyMenuState on mount with summary loaded', async () => {
+    const { container } = render(<App />);
+    const dropTarget = container.firstElementChild as HTMLElement;
+    const f = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f] } as unknown as DataTransfer });
+    // Wait for the load → AppShell mount → useEffect chain.
+    // makeSummary().peaks contains a CIRCLE row (peakScale 0.5) — its presence
+    // proves AppShell rendered and the mount-time notifyMenuState push fired.
+    await screen.findByText(/^CIRCLE$/i);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    // The mount-time push has canSave/canSaveAs:true (summary loaded), modalOpen:false.
+    expect(api.notifyMenuState).toHaveBeenCalledWith(
+      expect.objectContaining({ canSave: true, canSaveAs: true, modalOpen: false }),
+    );
+  });
+
+  it('8.2-MENU-02: Opening OverrideDialog flips modalOpen to true (D-184)', async () => {
+    const { container } = render(<App />);
+    const dropTarget = container.firstElementChild as HTMLElement;
+    const f = new File(['{}'], 'SIMPLE_TEST.json', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f] } as unknown as DataTransfer });
+    // Same fixture / row-targeting pattern Plan 08.1-05 uses (lines 160-167):
+    // makeSummary() peaks contain CIRCLE + SQUARE (no TRIANGLE) — target CIRCLE
+    // (peakScale 0.5 → "0.500×" in the Scale cell, where onDoubleClick lives).
+    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleRow = circleNameCell.closest('tr')!;
+    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    fireEvent.doubleClick(scaleCell);
+    // The OverrideDialog mount triggers a notifyMenuState push with modalOpen:true.
+    await screen.findByRole('dialog');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    // Find any call where modalOpen===true AFTER the mount push.
+    const modalPushed = api.notifyMenuState.mock.calls.some(
+      (c: unknown[]) => (c[0] as { modalOpen?: boolean }).modalOpen === true,
+    );
+    expect(modalPushed).toBe(true);
+  });
+
+  it('8.2-MENU-03: onMenuOpen callback fires openProject (loaded state)', async () => {
+    render(<App />);
+    // The App.tsx menu-event useEffect runs on mount; capture the registered
+    // callback via .mock.calls[0][0]. Plan 08.2-04's useEffect calls
+    // window.api.onMenuOpen(cb) once; the mock returns a stub unsubscribe.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    expect(api.onMenuOpen.mock.calls.length).toBeGreaterThan(0);
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    expect(api.openProject).toHaveBeenCalled();
+  });
+
+  it('8.2-MENU-04: onMenuOpen in projectLoadFailed state still fires open flow (08.1 UAT fix)', async () => {
+    // THE CANONICAL 08.1 UAT REGRESSION REPRODUCER. Drive App into
+    // projectLoadFailed by dropping a .stmproj that fails to load with
+    // SkeletonNotFoundOnLoadError + the 7 threaded recovery fields per
+    // Phase 8.1 D-158. Then invoke the captured onMenuOpen callback. After
+    // Plan 08.2-04, App.tsx is the always-mounted root that owns the
+    // subscription, so Cmd+O fires regardless of AppState — including the
+    // recovery-banner state where the bug originally manifested.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectFromFile = vi.fn().mockResolvedValue({
+      ok: false,
+      error: {
+        kind: 'SkeletonNotFoundOnLoadError',
+        message: 'Skeleton JSON not found: /missing/skel.json',
+        projectPath: '/abs/proj.stmproj',
+        originalSkeletonPath: '/missing/skel.json',
+        mergedOverrides: {},
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+      },
+    } as OpenResponse);
+
+    const { container } = render(<App />);
+    const dropTarget = container.firstElementChild as HTMLElement;
+    const f = new File(['{}'], 'broken.stmproj', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f] } as unknown as DataTransfer });
+
+    // Wait for App to enter projectLoadFailed (recovery banner mounts as role=alert).
+    await screen.findByRole('alert');
+
+    // Now invoke the captured onMenuOpen — it MUST still trigger openProject.
+    // THIS IS THE CANONICAL 08.1 UAT BUG ASSERTION.
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    expect(api.openProject).toHaveBeenCalled();
+  });
+
+  it('8.2-MENU-05: onMenuOpenRecent fires openProjectFromPath after dirty-guard', async () => {
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectFromPath = vi.fn().mockResolvedValue({
+      ok: true,
+      project: {
+        summary: makeSummary(),
+        restoredOverrides: {},
+        staleOverrideKeys: [],
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+        projectFilePath: '/abs/path.stmproj',
+      },
+    });
+    const cb = api.onMenuOpenRecent.mock.calls[0][0] as (path: string) => Promise<void>;
+    await cb('/abs/path.stmproj');
+    expect(api.openProjectFromPath).toHaveBeenCalledWith('/abs/path.stmproj');
+  });
+
+  it('8.2-MENU-06: AppShell keydown listener is gone — Cmd+O dispatch does NOT call openProject directly', async () => {
+    // Mount AppShell DIRECTLY (NOT App) so the App.tsx-level menu-event
+    // useEffect that captures onMenuOpen never runs — that callback (when
+    // invoked) DOES call openProject, which would pollute this assertion.
+    // We're asserting the OLD AppShell.tsx:626-643 keydown path is gone:
+    // dispatching Cmd+O via window.dispatchEvent must NOT trigger
+    // openProject in any way.
+    const summary = makeSummary();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    render(<AppShell summary={summary} samplingHz={120} {...({} as any)} />);
+    // Defensive reset — even though App isn't mounted, the openProject mock
+    // is shared via vi.stubGlobal('api', ...). Clear before dispatching to
+    // make the assertion unambiguous.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).api.openProject.mockClear();
+    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+    await Promise.resolve();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((globalThis as any).api.openProject).not.toHaveBeenCalled();
   });
 });
