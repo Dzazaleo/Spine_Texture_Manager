@@ -56,6 +56,7 @@ import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
+import { SettingsDialog } from '../modals/SettingsDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -136,6 +137,46 @@ export function AppShell({
   // gives the renderer a binary "is sampling running?" signal that drives
   // the spinner banner below.
   const [samplingInFlight, setSamplingInFlight] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — Settings dialog lifecycle (Edit→Preferences from the
+  // 08.2 menu surface; Plan 09-05 wired the IPC). Plain useState; null/false
+  // when closed.
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — local samplingHz state. Seeded from the prop; Settings
+  // mutates this and a useEffect below dispatches the re-sample IPC. The
+  // parent (App.tsx) re-renders AppShell with `samplingHz` prop fed from
+  // state.project.samplingHz on the projectLoaded branch — but the local
+  // override here wins for the duration of an in-flight sampling change.
+  // After the re-sample completes, the parent's setState replaces the
+  // summary AND threads the new samplingHz back via the prop, at which
+  // point the prop and local state agree.
+  const [samplingHzLocal, setSamplingHzLocal] = useState<number>(samplingHz);
+
+  // Phase 9 Plan 06 — rig-info tooltip hover state. Plain useState (Pattern B
+  // from PATTERNS §"src/renderer/src/components/RigInfoTooltip.tsx" —
+  // testability via fireEvent.mouseEnter/Leave). The HTML `title=…` attribute
+  // is replaced by this rich multi-line surface so the load-bearing
+  // skeleton.fps wording (CLAUDE.md fact #1 + sampler.ts:41-44) can render
+  // as structured content rather than a flat title string.
+  const [rigInfoOpen, setRigInfoOpen] = useState<boolean>(false);
+
+  // Phase 9 Plan 06 — local summary override for the post-resample state.
+  // When SettingsDialog applies a new samplingHz, the resample IPC returns a
+  // fresh SkeletonSummary; we hold it here so the panels render the new
+  // peaks. The prop `summary` remains the canonical source for the initial
+  // mount and any external state change (Open / drag-drop). When this is
+  // null, the prop drives rendering — when set, the local override wins.
+  const [localSummary, setLocalSummary] = useState<SkeletonSummary | null>(null);
+  const effectiveSummary = localSummary ?? summary;
+
+  // When the parent passes a new `summary` prop (e.g. App.tsx re-mounted
+  // AppShell on a fresh drop), drop the localSummary override so the prop
+  // wins again. Without this, dropping a NEW skeleton after a Settings
+  // change would still show the previous skeleton's peaks.
+  useEffect(() => {
+    setLocalSummary(null);
+  }, [summary]);
 
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
@@ -482,7 +523,11 @@ export function AppShell({
       atlasPath: summary.atlasPath ?? null,
       imagesDir: null,
       overrides: Object.fromEntries(overrides),
-      samplingHz,
+      // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
+      // change is reflected in the saved session state. The prop seeds the
+      // local on first mount; SettingsDialog.onApply mutates the local,
+      // which then drives the dirty derivation AND the next Save's payload.
+      samplingHz: samplingHzLocal,
       // Phase 9 polish — currently null; D-145 schema field present but
       // not yet hoisted into AppShell state. Documented deferral per D-147.
       lastOutDir: null,
@@ -490,7 +535,7 @@ export function AppShell({
       sortColumn: 'attachmentName',
       sortDir: 'asc',
     }),
-    [summary.skeletonPath, summary.atlasPath, overrides, samplingHz],
+    [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal],
   );
 
   /**
@@ -502,6 +547,11 @@ export function AppShell({
    * Untitled session (lastSaved === null): dirty when overrides has any entries.
    * Loaded session: dirty when overrides Map differs from lastSaved.overrides
    * Record OR samplingHz differs.
+   *
+   * Phase 9 Plan 06 — read samplingHzLocal here so a Settings change marks
+   * the project dirty even before the re-sample IPC returns. AppShell's
+   * existing :506-508 dirty contract is preserved verbatim — only the
+   * dependency source changes (prop → local state seeded from prop).
    */
   const isDirty = useMemo(() => {
     if (lastSaved === null) {
@@ -511,9 +561,9 @@ export function AppShell({
     for (const [k, v] of overrides) {
       if (lastSaved.overrides[k] !== v) return true;
     }
-    if (samplingHz !== lastSaved.samplingHz) return true;
+    if (samplingHzLocal !== lastSaved.samplingHz) return true;
     return false;
-  }, [overrides, lastSaved, samplingHz]);
+  }, [overrides, lastSaved, samplingHzLocal]);
 
   /**
    * onClickSave — Save when currentProjectPath is set; Save As otherwise.
@@ -591,7 +641,12 @@ export function AppShell({
    * state machine can transition (re-mounts AppShell with new summary).
    */
   const mountOpenResponse = useCallback((project: MaterializedProject) => {
-    setCurrentProjectPath(project.projectFilePath);
+    // Phase 9 Plan 06 — handleProjectResample passes empty-string for the
+    // projectFilePath when AppShell is in the skeleton-only branch (no
+    // .stmproj saved yet). Treat empty as null so the filename chip keeps
+    // showing 'Untitled' rather than ''. The Open / Save As paths still
+    // pass real .stmproj paths and slot in unchanged.
+    setCurrentProjectPath(project.projectFilePath !== '' ? project.projectFilePath : null);
     setOverrides(new Map(Object.entries(project.restoredOverrides)));
     setLastSaved({
       overrides: { ...project.restoredOverrides },
@@ -757,13 +812,107 @@ export function AppShell({
       dialogState !== null ||
       exportDialogState !== null ||
       atlasPreviewOpen ||
-      saveQuitDialogState !== null;
+      saveQuitDialogState !== null ||
+      // Phase 9 Plan 06 — SettingsDialog also participates in the modalOpen
+      // derivation. While open, File menu items (Save / Save As) get
+      // disabled at the OS level via 08.2 D-184 — same automatic surface
+      // every other [role="dialog"][aria-modal="true"] modal gets.
+      settingsOpen;
     window.api.notifyMenuState({
       canSave: true,
       canSaveAs: true,
       modalOpen,
     });
-  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState]);
+  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen]);
+
+  /**
+   * Phase 9 Plan 06 — Settings menu subscription. The native Edit→Preferences…
+   * menu item (Plan 09-05 Task 1) fires `menu:settings-clicked`; we lift the
+   * SettingsDialog open state in response. Pitfall 9 listener-identity
+   * preservation lives in the preload (Plan 09-05 Task 2 onMenuSettings);
+   * the wrapped const is captured there so removeListener targets the same
+   * reference in our cleanup.
+   */
+  useEffect(() => {
+    const unsubscribe = window.api.onMenuSettings(() => setSettingsOpen(true));
+    return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 9 Plan 06 — re-sample on samplingHz change (RESEARCH §Pitfall 7).
+   *
+   * The first useEffect run (mount) is skipped via the `resampleSkipMount`
+   * ref — the project was JUST loaded with the correct samplingHz so a
+   * re-sample would be a no-op-shaped duplicate. Subsequent changes (driven
+   * by SettingsDialog.onApply) dispatch the new IPC and refresh the
+   * displayed peaks via the local summary override.
+   *
+   * On error: leave the prior summary in place; the panels keep showing
+   * the old peaks. A future polish phase could surface the error via the
+   * existing skeletonNotFoundError banner family — this error path is
+   * extremely rare (the skeleton file would have to vanish between Open
+   * and Apply) so silent recovery is acceptable for v1.
+   *
+   * Cancellation: when the user opens a different file mid-resample, the
+   * existing onClickOpen path calls cancelSampler() (Phase 9 Plan 02
+   * D-194) which terminate()s the worker; our await resolves with
+   * `ok: false, error: { kind: 'Unknown', message: 'Sampling cancelled.' }`
+   * and we fall through.
+   */
+  const resampleSkipMount = useRef<boolean>(true);
+  useEffect(() => {
+    if (resampleSkipMount.current) {
+      resampleSkipMount.current = false;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const resp = await window.api.resampleProject({
+        skeletonPath: summary.skeletonPath,
+        atlasPath: summary.atlasPath,
+        samplingHz: samplingHzLocal,
+        // Pitfall 3 boundary conversion: Map → Record at the IPC seam.
+        overrides: Object.fromEntries(overrides),
+        lastOutDir: null,
+        sortColumn: 'attachmentName',
+        sortDir: 'asc',
+        projectFilePath: currentProjectPath,
+      });
+      // Guard against a stale response landing after the next samplingHz
+      // change (or unmount). The cancelled flag below is set by the
+      // cleanup callback; if true, drop the response on the floor.
+      if (cancelled) return;
+      if (resp.ok) {
+        // Replace the displayed summary AND refresh lastSaved.samplingHz so
+        // the dirty-derivation does not stay perpetually dirty after the
+        // user accepts the new rate. Stale-override keys are surfaced via
+        // the existing banner; restoredOverrides re-mounts the Map.
+        setLocalSummary(resp.project.summary);
+        setOverrides(new Map(Object.entries(resp.project.restoredOverrides)));
+        setStaleOverrideNotice(
+          resp.project.staleOverrideKeys.length > 0
+            ? resp.project.staleOverrideKeys
+            : null,
+        );
+        // After resample, the new samplingHz is now the "current saved"
+        // value if we were already saved (lastSaved !== null). For untitled
+        // sessions, lastSaved stays null and Save will capture it later.
+        setLastSaved((prev) =>
+          prev !== null ? { ...prev, samplingHz: samplingHzLocal } : prev,
+        );
+      }
+      // ok:false: silent — leave the existing summary in place. Future
+      // polish: thread an error banner.
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally narrow deps: re-fire only on samplingHzLocal changes.
+    // Including overrides / paths in the deps would re-trigger a sample on
+    // every override edit, which is the wrong contract — overrides are a
+    // post-sample percent multiplier, not an input to the sampler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [samplingHzLocal]);
 
   /**
    * Phase 8.1 D-163 — register the dirty-guard impl into App.tsx's
@@ -825,17 +974,48 @@ export function AppShell({
         {/* Filename chip — hoisted from the prior panel's internal header per D-49.
             Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
             Renders 'Untitled' when currentProjectPath is null; otherwise the project
-            basename. Title attribute carries the absolute path for hover lookup.
-            Class string preserved verbatim for visual continuity. */}
-        <span
-          className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg"
-          title={currentProjectPath ?? summary.skeletonPath}
+            basename. Class string preserved verbatim for visual continuity.
+            Phase 9 Plan 06 — wrapped in a hoverable container with a rich rig-info
+            tooltip. The HTML `title=…` attribute is removed (replaced by the
+            structured multi-line tooltip below). The skeleton.fps line is
+            load-bearing per CLAUDE.md fact #1 + sampler.ts:41-44. */}
+        <div
+          data-testid="rig-info-host"
+          className="relative inline-block"
+          onMouseEnter={() => setRigInfoOpen(true)}
+          onMouseLeave={() => setRigInfoOpen(false)}
         >
-          {isDirty ? '• ' : ''}
-          {currentProjectPath
-            ? currentProjectPath.split(/[\\/]/).pop() ?? 'Untitled'
-            : 'Untitled'}
-        </span>
+          <span
+            className="inline-block border border-border rounded-md px-2 py-0.5 text-xs font-mono text-fg cursor-help"
+            aria-describedby={rigInfoOpen ? 'rig-info-tooltip' : undefined}
+          >
+            {isDirty ? '• ' : ''}
+            {currentProjectPath
+              ? currentProjectPath.split(/[\\/]/).pop() ?? 'Untitled'
+              : 'Untitled'}
+          </span>
+          {rigInfoOpen && (
+            <div
+              id="rig-info-tooltip"
+              role="tooltip"
+              className="absolute top-full left-0 mt-1 z-30 bg-panel border border-border rounded-md p-3 text-xs font-mono text-fg whitespace-pre min-w-[260px] shadow-lg"
+            >
+              <div className="text-fg">
+                {effectiveSummary.skeletonPath.split(/[\\/]/).pop() ?? effectiveSummary.skeletonPath}
+              </div>
+              <div className="text-fg-muted mt-2">
+                {`bones:        ${effectiveSummary.bones.count}\n` +
+                  `slots:        ${effectiveSummary.slots.count}\n` +
+                  `attachments:  ${effectiveSummary.attachments.count}\n` +
+                  `animations:   ${effectiveSummary.animations.count}\n` +
+                  `skins:        ${effectiveSummary.skins.count}`}
+              </div>
+              <div className="text-fg-muted mt-2">
+                {`skeleton.fps: ${effectiveSummary.editorFps} (editor metadata — does not affect sampling)`}
+              </div>
+            </div>
+          )}
+        </div>
         <nav role="tablist" className="flex gap-1 items-center">
           <TabButton
             isActive={activeTab === 'global'}
@@ -864,7 +1044,7 @@ export function AppShell({
           <button
             type="button"
             onClick={onClickAtlasPreview}
-            disabled={summary.peaks.length === 0}
+            disabled={effectiveSummary.peaks.length === 0}
             className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
           >
             Atlas Preview
@@ -872,7 +1052,7 @@ export function AppShell({
           <button
             type="button"
             onClick={onClickOptimize}
-            disabled={summary.peaks.length === 0 || exportInFlight}
+            disabled={effectiveSummary.peaks.length === 0 || exportInFlight}
             className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
           >
             Optimize Assets
@@ -883,7 +1063,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => void onClickSave()}
-            disabled={summary.peaks.length === 0 || saveInFlight}
+            disabled={effectiveSummary.peaks.length === 0 || saveInFlight}
             className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
           >
             Save
@@ -982,7 +1162,7 @@ export function AppShell({
       <main className="flex-1 overflow-auto">
         {activeTab === 'global' && (
           <GlobalMaxRenderPanel
-            summary={summary}
+            summary={effectiveSummary}
             onJumpToAnimation={onJumpToAnimation}
             overrides={overrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
@@ -994,7 +1174,7 @@ export function AppShell({
         )}
         {activeTab === 'animation' && (
           <AnimationBreakdownPanel
-            summary={summary}
+            summary={effectiveSummary}
             focusAnimationName={focusAnimationName}
             onFocusConsumed={onFocusConsumed}
             overrides={overrides}
@@ -1056,10 +1236,26 @@ export function AppShell({
       {atlasPreviewOpen && (
         <AtlasPreviewModal
           open={true}
-          summary={summary}
+          summary={effectiveSummary}
           overrides={overrides}
           onJumpToAttachment={onJumpToAttachment}
           onClose={() => setAtlasPreviewOpen(false)}
+        />
+      )}
+      {/* Phase 9 Plan 06 — Settings dialog. Edit→Preferences (Plan 09-05)
+          opens this. onApply mutates samplingHzLocal which triggers the
+          re-sample useEffect above. role="dialog" + aria-modal="true" auto-
+          suppresses File menu via 08.2 D-184 — settingsOpen also feeds the
+          modalOpen derivation explicitly above for parity. */}
+      {settingsOpen && (
+        <SettingsDialog
+          open={true}
+          currentSamplingHz={samplingHzLocal}
+          onApply={(hz) => {
+            setSamplingHzLocal(hz);
+            setSettingsOpen(false);
+          }}
+          onCancel={() => setSettingsOpen(false)}
         />
       )}
       {/* Phase 8 D-143 — SaveQuitDialog mount. Mirrors ConflictDialog mount

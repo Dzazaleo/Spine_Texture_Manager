@@ -73,6 +73,29 @@ beforeEach(() => {
     // return an unsubscribe stub so the cleanup in useEffect can call it.
     onSamplerProgress: vi.fn(() => () => undefined),
     cancelSampler: vi.fn(),
+    // Phase 9 Plan 05 — Settings + Help menu surfaces. AppShell subscribes
+    // to onMenuSettings on mount (Plan 06); App.tsx may subscribe to
+    // onMenuHelp from Plan 07. openExternalUrl is the matching shell bridge.
+    onMenuSettings: vi.fn(() => () => undefined),
+    onMenuHelp: vi.fn(() => () => undefined),
+    openExternalUrl: vi.fn(),
+    // Phase 9 Plan 06 — re-sample IPC. AppShell calls this from a useEffect
+    // when samplingHzLocal changes (Settings dialog Apply). The mount-pass
+    // is skipped via a ref, so the mock value here is reached only by tests
+    // that drive a samplingHz change; an OK envelope keeps that path clean.
+    resampleProject: vi.fn().mockResolvedValue({
+      ok: true,
+      project: {
+        summary: makeSummary(),
+        restoredOverrides: {},
+        staleOverrideKeys: [],
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+        projectFilePath: '/a/b/proj.stmproj',
+      },
+    } as OpenResponse),
   });
 });
 

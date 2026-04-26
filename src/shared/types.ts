@@ -663,6 +663,43 @@ export type OpenResponse =
   | { ok: true; project: MaterializedProject }
   | { ok: false; error: SerializableError };
 
+/**
+ * Phase 9 Plan 06 — Re-sample arguments for the `'project:resample'` IPC.
+ *
+ * Triggered by the renderer when the user changes `samplingHz` in
+ * SettingsDialog (RESEARCH §Pitfall 7). Carries the renderer's already-
+ * validated session state (overrides + paths + sort + lastOutDir +
+ * projectFilePath) so main can re-run loader → sampler-worker →
+ * buildSummary → stale-key intersect and return a fresh
+ * MaterializedProject.
+ *
+ * All fields primitive (Record<string, number> for overrides — Pitfall 3
+ * boundary: renderer converts its Map to Record before crossing IPC). The
+ * shape mirrors the subset of MaterializedProject the renderer holds in
+ * memory after a successful Open, plus the new `samplingHz` value.
+ */
+export interface ResampleArgs {
+  skeletonPath: string;
+  /**
+   * Optional — when undefined, the loader's F1.2 sibling auto-discovery
+   * applies (D-152). Renderer typically passes `summary.atlasPath`.
+   */
+  atlasPath?: string;
+  /** New sampling rate. Main re-validates as positive integer. */
+  samplingHz: number;
+  /**
+   * Current overrides from AppShell's overrides Map, converted via
+   * Object.fromEntries. Main re-intersects against the new sampler peaks
+   * (D-150 stale-key drop), so the renderer doesn't need to pre-filter.
+   */
+  overrides: Record<string, number>;
+  /** Optional metadata round-tripped into MaterializedProject (no behavioral effect). */
+  lastOutDir?: string | null;
+  sortColumn?: string | null;
+  sortDir?: 'asc' | 'desc' | null;
+  projectFilePath?: string | null;
+}
+
 export type LocateSkeletonResponse =
   | { ok: true; newPath: string }
   | { ok: false };
@@ -843,4 +880,20 @@ export interface Api {
    * SHELL_OPEN_EXTERNAL_ALLOWED in src/main/ipc.ts.
    */
   openExternalUrl: (url: string) => void;
+
+  /**
+   * Phase 9 Plan 06 — Re-sample an already-loaded project with a new
+   * `samplingHz`. The user-facing trigger is SettingsDialog's Apply button
+   * (RESEARCH §Pitfall 7: changing `samplingHz` MUST re-sample so the
+   * displayed peaks reflect the new rate). Main re-runs the loader +
+   * sampler-worker + buildSummary + stale-override intersect chain and
+   * returns the standard OpenResponse envelope so the renderer mounts via
+   * the same code path used for Open.
+   *
+   * Trust boundary: see ResampleArgs JSDoc above. Main re-validates types
+   * (skeletonPath ends in .json, samplingHz is a positive integer,
+   * overrides is a Record). Defense in depth — the renderer already
+   * holds these values from the prior Open success.
+   */
+  resampleProject: (args: ResampleArgs) => Promise<OpenResponse>;
 }

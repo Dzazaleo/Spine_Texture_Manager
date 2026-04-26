@@ -721,3 +721,151 @@ export async function handleProjectReloadWithSkeleton(
   };
   return { ok: true, project };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 9 Plan 06 — Re-sample on samplingHz change (RESEARCH §Pitfall 7).
+// ---------------------------------------------------------------------------
+
+/**
+ * Handler for the `'project:resample'` IPC channel. Called by the renderer
+ * after the user clicks Apply in SettingsDialog with a new samplingHz value.
+ * Re-runs the loader → sampler-worker → buildSummary → stale-key intersect
+ * chain and returns OpenResponse so AppShell can mount the result via
+ * mountOpenResponse — same code path used for File→Open.
+ *
+ * The `load` step IS re-run (not cached): worker.terminate() across IPC may
+ * outlive the JS-side `load` reference; making this stateless keeps the
+ * handler simple and matches the Plan 02 worker bridge contract (path-based
+ * protocol, D-193). The duplication cost is <2% of sampling time per
+ * RESEARCH §Q3.
+ *
+ * Trust boundary (T-09-06-RESAMPLE-*): every renderer-origin field is
+ * type-validated before reaching loadSkeleton or runSamplerInWorker. The
+ * arms mirror handleProjectOpenFromPath's validators (lines 311-323) and
+ * handleProjectReloadWithSkeleton's validators (lines 597-615).
+ *
+ * Returns ok:false on:
+ *   - bad arg shape (kind:'Unknown')
+ *   - loadSkeleton failure (forwards SpineLoaderError.name as the kind)
+ *   - sampler 'cancelled' (kind:'Unknown', message:'Sampling cancelled.')
+ *   - sampler 'error' (forwards error envelope verbatim)
+ */
+export async function handleProjectResample(
+  args: unknown,
+): Promise<OpenResponse> {
+  if (!args || typeof args !== 'object') {
+    return {
+      ok: false,
+      error: { kind: 'Unknown', message: 'resample args must be an object' },
+    };
+  }
+  const a = args as Record<string, unknown>;
+  if (typeof a.skeletonPath !== 'string' || !a.skeletonPath.endsWith('.json')) {
+    return {
+      ok: false,
+      error: { kind: 'Unknown', message: 'skeletonPath must be a .json path' },
+    };
+  }
+  if (
+    typeof a.samplingHz !== 'number' ||
+    !Number.isInteger(a.samplingHz) ||
+    a.samplingHz <= 0
+  ) {
+    return {
+      ok: false,
+      error: { kind: 'Unknown', message: 'samplingHz must be a positive integer' },
+    };
+  }
+  if (!a.overrides || typeof a.overrides !== 'object') {
+    return {
+      ok: false,
+      error: { kind: 'Unknown', message: 'overrides must be a Record' },
+    };
+  }
+  const atlasPath = typeof a.atlasPath === 'string' ? a.atlasPath : undefined;
+
+  let load;
+  try {
+    load = loadSkeleton(a.skeletonPath, atlasPath !== undefined ? { atlasPath } : {});
+  } catch (err) {
+    if (err instanceof SkeletonJsonNotFoundError) {
+      // Resample shouldn't normally hit this — the renderer holds the
+      // skeletonPath from a successful prior Open. If the file vanished
+      // in the meantime, surface as SkeletonJsonNotFoundError (a
+      // NonRecoveryKind) rather than the recovery-payload arm — there's
+      // no projectPath to thread through, and the user already had the
+      // project loaded anyway.
+      return {
+        ok: false,
+        error: { kind: 'SkeletonJsonNotFoundError', message: err.message },
+      };
+    }
+    if (err instanceof SpineLoaderError) {
+      return {
+        ok: false,
+        error: { kind: err.name as NonRecoveryKind, message: err.message },
+      };
+    }
+    return {
+      ok: false,
+      error: {
+        kind: 'Unknown',
+        message: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
+
+  const t0 = performance.now();
+  const samplerResult = await runSamplerInWorker(
+    {
+      skeletonPath: a.skeletonPath,
+      atlasRoot: atlasPath,
+      samplingHz: a.samplingHz,
+    },
+    BrowserWindow.getAllWindows()[0]?.webContents ?? null,
+  );
+  if (samplerResult.type !== 'complete') {
+    return {
+      ok: false,
+      error:
+        samplerResult.type === 'cancelled'
+          ? { kind: 'Unknown', message: 'Sampling cancelled.' }
+          : samplerResult.error,
+    };
+  }
+  const samplerOutput = samplerResult.output as unknown as SamplerOutput;
+  const elapsedMs = Math.round(performance.now() - t0);
+  const summary = buildSummary(load, samplerOutput, elapsedMs);
+
+  // D-150 stale-key intersect (mirrors lines 484-490 + 701-710). Per-key
+  // value validation guards against bad serialization across IPC.
+  const presentNames = new Set(summary.peaks.map((r) => r.attachmentName));
+  const restored: Record<string, number> = {};
+  const stale: string[] = [];
+  for (const [name, percent] of Object.entries(
+    a.overrides as Record<string, unknown>,
+  )) {
+    if (typeof percent !== 'number' || !Number.isFinite(percent)) continue;
+    if (presentNames.has(name)) restored[name] = percent;
+    else stale.push(name);
+  }
+
+  const project: MaterializedProject = {
+    summary,
+    restoredOverrides: restored,
+    staleOverrideKeys: stale,
+    samplingHz: a.samplingHz,
+    lastOutDir: typeof a.lastOutDir === 'string' ? a.lastOutDir : null,
+    sortColumn: typeof a.sortColumn === 'string' ? a.sortColumn : null,
+    sortDir: a.sortDir === 'asc' || a.sortDir === 'desc' ? a.sortDir : null,
+    // The renderer carries currentProjectPath which may be null on a fresh
+    // skeleton-only session (no .stmproj saved yet). Match that contract: an
+    // empty string is NOT a valid path; null is the canonical "no project file".
+    // MaterializedProject.projectFilePath is typed as `string` so we coerce
+    // the null case to '' — AppShell.mountOpenResponse reads
+    // project.projectFilePath into a `string | null` state slot via Plan 04
+    // and treats empty-string as null in the UI seam.
+    projectFilePath: typeof a.projectFilePath === 'string' ? a.projectFilePath : '',
+  };
+  return { ok: true, project };
+}

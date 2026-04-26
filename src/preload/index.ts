@@ -385,6 +385,15 @@ const api: Api = {
   openExternalUrl: (url: string): void => {
     ipcRenderer.send('shell:open-external', url);
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 9 Plan 06 — Re-sample bridge. SettingsDialog.onApply triggers
+  // AppShell to call this with the new samplingHz + the cached session state
+  // (overrides + paths + sort + lastOutDir + projectFilePath). Main returns
+  // OpenResponse so AppShell can mount via mountOpenResponse — same seam as
+  // File→Open success. RESEARCH §Pitfall 7 + 09-CONTEXT.md Settings modal.
+  // -------------------------------------------------------------------------
+  resampleProject: (args) => ipcRenderer.invoke('project:resample', args),
 };
 
 if (process.contextIsolated) {

@@ -51,6 +51,7 @@ import {
   handleProjectOpenFromPath,
   handleLocateSkeleton,
   handleProjectReloadWithSkeleton,
+  handleProjectResample,
 } from './project-io.js';
 import { getSamplerWorkerHandle } from './sampler-worker-bridge.js';
 // Phase 8.2 D-181 — menu state surface lives in src/main/index.ts. We
@@ -623,6 +624,16 @@ export function registerIpcHandlers(): void {
   // (no new state-machine branch).
   ipcMain.handle('project:reload-with-skeleton', async (_evt, args) =>
     handleProjectReloadWithSkeleton(args),
+  );
+  // Phase 9 Plan 06 — re-sample on samplingHz change. The renderer dispatches
+  // this from SettingsDialog.onApply when the user picks a new rate; main re-
+  // runs loader + sampler-worker + buildSummary + stale-key intersect and
+  // returns OpenResponse for the same mountOpenResponse seam used for Open.
+  // Trust-boundary input checks live inside handleProjectResample
+  // (T-09-06-RESAMPLE-INPUT / -HZ / -OVERRIDES). Cancellation works through
+  // the existing 'sampler:cancel' handler above (worker.terminate()).
+  ipcMain.handle('project:resample', async (_evt, args) =>
+    handleProjectResample(args),
   );
 
   // Phase 8.2 D-181 — renderer pushes menu state on change. Main rebuilds
