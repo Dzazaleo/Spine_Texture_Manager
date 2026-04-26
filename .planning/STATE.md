@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Phase 9 context gathered
-last_updated: "2026-04-26T18:34:54.167Z"
+status: phase-9-complete-ready-for-milestone-close
+stopped_at: Phase 9 complete — manual UAT signed off
+last_updated: "2026-04-26T21:30:00.000Z"
 progress:
   total_phases: 12
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 62
-  completed_plans: 55
-  percent: 89
+  completed_plans: 63
+  percent: 100
 ---
 
 # State
@@ -21,11 +21,11 @@ Milestone 1 — MVP
 
 ## Current phase
 
-**Phase 08.1 COMPLETE — UAT signed off, discovered Cmd+O-during-error issue routed to Phase 08.2** (6/6 plans executed and closed: Plans 08.1-01 through 08.1-06 all GREEN; manual UAT 2026-04-26 across 3 reproducer scripts all PASS; one adjacent keyboard-accelerator gating discovery flagged for Phase 08.2 planner pickup. Ready for `/gsd-verify-work 8` re-run; Phase 9 unblocked or Phase 08.2 if Cmd+O-during-error issue is prioritized first.)
+**Phase 9 COMPLETE — Complex-rig hardening + polish, all 5 ROADMAP deliverables shipped, N2.2 exit gate GREEN, manual UAT signed off 2026-04-26.** All 8 plans (09-01 through 09-08) executed and closed: greenfield worker_threads sampler in `src/main/sampler-worker.ts`; TanStack Virtual integration in both panels (GlobalMaxRender flat-table virt + AnimationBreakdown per-card inner-row virt) at threshold N=100; SettingsDialog under Edit→Preferences (Cmd/Ctrl+,) + samplingHz re-sample wiring (per-project persistence per Phase 8 D-146); rig-info tooltip on filename chip with load-bearing skeleton.fps wording aligned to sampler.ts:41-44 (CLAUDE.md fact #1); HelpDialog with 7 static React sections + allow-listed external links (T-09-05-OPEN-EXTERNAL). `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` wall-time gate **606 ms** (~13× under 8000 ms test budget; ~17× under 10000 ms N2.2 contract). All D-102 byte-frozen invariants preserved (sampler.ts / cli.ts / loader.ts / project-file.ts / DropZone.tsx / SaveQuitDialog.tsx diffs vs eb97923 all 0 lines). Ready for `/gsd-verify-work 9`; Phase 9 unblocked for milestone v1.0 close.
 
 ## Current plan
 
-**Plan 08.1-06 COMPLETE (close-out, Wave 5).** Full close-out signed off 2026-04-26. Automated exit-criteria sweep green: full vitest **275 passed + 1 skipped + 1 todo** (surpasses target ≥273); both typecheck projects clean (only pre-existing deferred `scripts/probe-per-anim.ts` TS2339 out-of-scope); `npx electron-vite build` green; 6 locked-file diffs vs Phase 8.1 baseline `90dd202` all 0 lines (`scripts/cli.ts`, `src/core/sampler.ts`, `src/core/loader.ts`, `src/core/project-file.ts` (D-171), `src/renderer/src/components/DropZone.tsx`, `src/renderer/src/modals/SaveQuitDialog.tsx` (D-165)); `npm run cli` exits 0 with CIRCLE 2.018 / SQUARE 1.500 / TRIANGLE 2.000 byte-for-byte unchanged; all 15 plan-level 8.1-specific validation greps PASS; `08.1-VALIDATION.md` finalized with per-plan map (6 plans) + per-spec GREEN evidence + locked-file invariants table + build-size deltas + CLI smoke + UAT signoff; ROADMAP.md Phase 08.1 Goal finalized per D-172 + all 6 plan checkboxes flipped to [x]. **Manual UAT signed off 2026-04-26:** (1) **VR-01** ✓ PASS — App.tsx role=alert recovery banner mounts; Locate skeleton… → pick → reload chain restores project with TRIANGLE override intact; Dismiss returns to idle; (2) **VR-02** ✓ PASS — original "kind:'Unknown', message:'projectPath must be a .stmproj path'" bug is fixed; AppShell inline banner with non-empty projectPath; Locate→pick→reload chain succeeds without rejection; (3) **VR-03 (Parts A + B)** ✓ PASS — SaveQuitDialog mounts with correct title per reason discriminator; Cancel aborts the drop preserving overrides; Don't Save proceeds and discards overrides via unmount; Save saves-then-proceeds. **One adjacent discovery routed to Phase 08.2:** Cmd+O does NOT open the file picker while the app is in an error state (recovery banner visible OR "Not a .json or .stmproj file" toast still showing); user must dismiss the existing error or drop a clean file first. NOT a regression of VR-02's data-correctness fix — it's a separate keyboard-accelerator gating issue at the listener registration / suppression layer. SUMMARY at `.planning/phases/08.1-close-phase-8-verification-gaps-locate-skeleton-recovery-rea/08.1-06-SUMMARY.md`. depends_on [08.1-01..05].
+**Plan 09-08 COMPLETE (close-out, Wave 6).** Full close-out signed off 2026-04-26. Automated exit-criteria sweep GREEN: full vitest **331 passed + 1 skipped + 1 todo** (333 total; +56 vs pre-Phase-9 baseline of 275); typecheck web project clean; node project clean modulo pre-existing deferred `scripts/probe-per-anim.ts:14` TS2339 (documented in `09-01 deferred-items.md`); `npx electron-vite build` green with `out/main/sampler-worker.cjs` emitted at 4.0 KB (`out/main/index.cjs` 60 KB; `out/preload/index.cjs` 16 KB; total `out/` 920 KB); 6 locked-file diffs vs commit `eb97923` baseline all 0 lines; `npm run cli` exits 0 with CIRCLE 2.018 / SQUARE 1.500 / TRIANGLE 2.000 byte-for-byte unchanged from Phase 5 baseline; all 18 `09-VALIDATION.md` behaviors flipped to ✅ green; `09-VALIDATION.md` frontmatter `nyquist_compliant: true` + `wave_0_complete: true`; ROADMAP.md Phase 9 Goal finalized + all 8 plan checkboxes flipped to [x]. **Manual UAT signed off 2026-04-26:** (1) **N2.2 wall-time** PASS — fixtures/Girl samples in 606 ms with no dropped UI frames during sampling; (2) **Both panels virtualize** correctly above N=100, sticky thead intact, all interactions preserved; (3) **Settings modal** Cmd/Ctrl+, → samplingHz change triggers re-sample; per-project persistence model clarified to user (samplingHz lives in `.stmproj` per Phase 8 D-146; Save to persist; per-app preference deferred per CONTEXT.md line 287); (4) **Rig-info tooltip** wording matches sampler.ts:41-44 verbatim; (5) **HelpDialog** → Spine docs link opens system browser via allow-listed `shell.openExternal`. SUMMARY files committed for all 8 plans.
 
 ## Last completed
 
