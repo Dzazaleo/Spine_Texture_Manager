@@ -1,0 +1,44 @@
+
+> spine-texture-manager@1.1.0-rc1 build:mac
+> electron-vite build && electron-builder --mac dmg
+
+vite v7.3.2 building ssr environment for production...
+transforming...
+✓ 16 modules transformed.
+rendering chunks...
+out/main/sampler-worker.cjs            1.79 kB
+out/main/chunks/sampler-DeZk9uvF.cjs  16.19 kB
+out/main/index.cjs                    58.10 kB
+✓ built in 113ms
+vite v7.3.2 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.cjs  14.69 kB
+✓ built in 7ms
+vite v7.3.2 building client environment for production...
+transforming...
+✓ 50 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                                               0.61 kB
+../../out/renderer/assets/jetbrains-mono-latin-400-normal-V6pRDFza.woff2   21.17 kB
+../../out/renderer/assets/jetbrains-mono-latin-400-normal-6-qcROiO.woff    27.50 kB
+../../out/renderer/assets/index-O6eO3VE0.css                               25.93 kB
+../../out/renderer/assets/index-DT659NNz.js                               757.35 kB
+✓ built in 386ms
+  • electron-builder  version=26.8.1 os=25.3.0
+  • loaded configuration  file=/Users/leo/Documents/WORK/CODING/Spine_Texture_Manager/electron-builder.yml
+  • author is missed in the package.json  appPackageFile=/Users/leo/Documents/WORK/CODING/Spine_Texture_Manager/package.json
+  • executing @electron/rebuild  electronVersion=41.3.0 arch=arm64 buildFromSource=false workspaceRoot=/Users/leo/Documents/WORK/CODING/Spine_Texture_Manager projectDir=./ appDir=./
+  • installing native dependencies  arch=arm64
+  • completed installing native dependencies
+  • packaging       platform=darwin arch=arm64 electron=41.3.0 appOutDir=release/mac-arm64
+  • searching for node modules  pm=npm searchDir=/Users/leo/Documents/WORK/CODING/Spine_Texture_Manager
+(node:3323) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  • duplicate dependency references  dependencies=["react-dom@19.2.5"]
+  • default Electron icon is used  reason=application icon is not set
+  • signing         file=release/mac-arm64/Spine Texture Manager.app platform=darwin type=distribution identityName=- identityHash=none provisioningProfile=none
+  • skipped macOS notarization  reason=`notarize` options were unable to be generated
+  • building        target=DMG arch=arm64 file=release/Spine Texture Manager-1.1.0-rc1-arm64.dmg
+  • building block map  blockMapFile=release/Spine Texture Manager-1.1.0-rc1-arm64.dmg.blockmap
