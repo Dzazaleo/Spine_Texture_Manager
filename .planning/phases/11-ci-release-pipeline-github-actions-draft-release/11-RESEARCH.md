@@ -996,7 +996,7 @@ gh release view v1.1.0-rc1 --json name,isDraft,assets,body
 | A9 | `actions/upload-artifact@v4` per-job 500-artifact limit and per-workflow ~10GB are not threatened by ~370MB total | Pattern 5 | Low — well within both limits. |
 | A10 | `softprops/action-gh-release@v2.6.2` SHA `3bb12739c298aeb8a4eeaf626c5b8d85266b0e65` is the canonical pin | Standard Stack | Low — verified via `gh api repos/softprops/action-gh-release/git/refs/tags/v2.6.2`. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `package.json` build:* scripts get `--publish never` baked in, or stay as Phase-11-only `-- --publish never` arguments in `release.yml`?**
    - What we know: Both approaches work. Baking into package.json is safer (defense-in-depth); keeping it CI-only avoids changing Phase-10-stable behavior.
