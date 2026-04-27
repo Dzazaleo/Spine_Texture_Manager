@@ -50,7 +50,8 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 - [ ] **UPD-03**: When an update is available, the app prompts the user with version + release-notes summary and an opt-in download.
 - [ ] **UPD-04**: After download, the app prompts the user to restart and apply the update; "Later" defers without nagging on next startup.
 - [ ] **UPD-05**: Auto-update degrades gracefully when offline or when GitHub is unreachable — no crash, no error dialog, no nag loop.
-- [ ] **UPD-06**: Auto-update works on macOS and Linux. **Windows note:** electron-updater historically requires code-signed builds on Windows; if unsigned auto-update proves infeasible, ship Windows users a "manual update" path (notify of new release, link to download page) and document the gap.
+- [x] **UPD-06
+**: Auto-update works on macOS and Linux. **Windows note:** electron-updater historically requires code-signed builds on Windows; if unsigned auto-update proves infeasible, ship Windows users a "manual update" path (notify of new release, link to download page) and document the gap.
 
 ### TEL — Crash + error reporting
 
@@ -111,7 +112,7 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 | UPD-03  | Phase 12 | Pending |
 | UPD-04  | Phase 12 | Pending |
 | UPD-05  | Phase 12 | Pending |
-| UPD-06  | Phase 12 | Pending |
+| UPD-06  | Phase 12 | Complete (Plan 12-02 — CI delivery surface for electron-updater: feed publication + electron-builder publish:github + 3-OS test matrix; runtime auto-update via Plan 12-01) |
 | TEL-01  | Phase 13 | Pending |
 | TEL-02  | Phase 13 | Pending |
 | TEL-03  | Phase 13 | Pending |
@@ -124,4 +125,4 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 ---
 
-*Last updated: 2026-04-27 — Phase 10 closed (DIST-01..DIST-07): Plan 10-02 landed 3-platform electron-builder.yml; Plan 10-03 closed live macOS .dmg evidence + smoke-test recipe; user-approved manual Optimize Assets smoke. Cross-platform live verification (Windows EXE + Linux AppImage) handed to Phase 11 CI.*
+*Last updated: 2026-04-27 — Phase 12 Plan 02 closed (UPD-06): CI delivery surface for electron-updater landed — electron-updater@^6.8.3 runtime dep, electron-builder.yml publish flipped to GitHub provider, release.yml test job expanded to 3-OS matrix with fail-fast, per-platform latest*.yml feed publication wired into draft GitHub Releases. Plan 12-01 (auto-update runtime wiring) and remaining Phase 12 plans pending.*
