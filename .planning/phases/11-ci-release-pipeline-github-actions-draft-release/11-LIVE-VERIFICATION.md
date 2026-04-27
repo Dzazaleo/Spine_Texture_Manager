@@ -191,11 +191,141 @@ This release was built from tag `v1.1.0-rc1`.
 
 ## Workflow_dispatch dry run (Task 3)
 
-_pending Task 3_
+Triggered: `gh workflow run release.yml --ref main` at 2026-04-27T12:19:56Z (HEAD commit `d6db749`).
+Run ID: `24994622845` (created 12:19:57Z).
+URL: https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/24994622845
+Wall time: 12:19:57Z → 12:23:55Z = **3 min 58 s**.
+
+### Job conclusions
+
+```json
+[
+  {"name":"test",        "conclusion":"success"},
+  {"name":"build-mac",   "conclusion":"success"},
+  {"name":"build-linux", "conclusion":"success"},
+  {"name":"build-win",   "conclusion":"success"},
+  {"name":"publish",     "conclusion":"skipped"}
+]
+```
+
+The `publish` job is `skipped` because its `if:` condition
+
+```yaml
+if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+```
+
+evaluates to `false` for `workflow_dispatch` events (where `github.event_name == 'workflow_dispatch'` and `github.ref == 'refs/heads/main'`). This is decision D-04 working exactly as designed — the dry run can exercise the entire build matrix without ever touching the Releases API.
+
+### Artifacts on the run summary
+
+`gh run view --json artifacts` is not exposed by the gh CLI; querying the underlying API instead:
+
+```bash
+$ gh api repos/Dzazaleo/Spine_Texture_Manager/actions/runs/24994622845/artifacts \
+    --jq '[.artifacts[] | {name, size_in_bytes}] | sort_by(.name)'
+[
+  {"name":"installer-linux", "size_in_bytes": 138318564},
+  {"name":"installer-mac",   "size_in_bytes": 125321448},
+  {"name":"installer-win",   "size_in_bytes": 107935910}
+]
+```
+
+Three artifacts, exactly the names specified in the workflow file. Sizes match the tag-push run (24994332338) within ~30 bytes — the only difference is the embedded commit SHA in the binary, which is expected.
+
+### No new draft release was created
+
+```bash
+$ gh release list --limit 5 --json tagName,isDraft
+[{"isDraft":true,"tagName":"v1.1.0-rc1"}]
+```
+
+Only the v1.1.0-rc1 draft from Task 2 is present. The dispatch did NOT create any new release entry.
+
+### Acceptance — Task 3
+
+- [x] **#7** — workflow_dispatch dry run produced 3 inspectable artifacts (`installer-mac`, `installer-win`, `installer-linux`); `publish` job appears as `skipped`; no new draft release was created.
 
 ## Atomicity audit (Task 4)
 
-_pending Task 4_
+Static / verbal audit of `.github/workflows/release.yml` against criterion #8's four sub-conditions plus the documented anti-pattern absence list. Captured 2026-04-27.
+
+```bash
+$ YAML=.github/workflows/release.yml
+
+# 8(a) publish.needs lists all 3 build jobs
+$ grep -n -A1 '^  publish:' $YAML | head -10
+112:  publish:
+113-    needs: [build-mac, build-win, build-linux]
+$ grep -nE '^    needs:.*build-mac.*build-win.*build-linux' $YAML
+113:    needs: [build-mac, build-win, build-linux]
+
+# 8(b) publish.if includes both push event AND tag-ref guard
+$ grep -n "github.event_name == 'push'" $YAML
+39:        if: github.event_name == 'push'                         # version-guard step (build-time)
+115:    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')   # publish job
+$ grep -n "startsWith(github.ref, 'refs/tags/v')" $YAML
+115:    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+# 8(c) build jobs use if-no-files-found: error
+$ grep -c 'if-no-files-found: error' $YAML
+3
+$ grep -n 'if-no-files-found: error' $YAML
+71:          if-no-files-found: error
+90:          if-no-files-found: error
+109:          if-no-files-found: error
+
+# 8(d) softprops uses fail_on_unmatched_files: true (SHA-pinned)
+$ grep -c 'fail_on_unmatched_files: true' $YAML
+1
+$ grep -n 'fail_on_unmatched_files: true' $YAML
+146:          fail_on_unmatched_files: true
+$ grep -n 'softprops/action-gh-release@' $YAML
+139:        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
+
+# Anti-patterns absent
+$ grep -c 'GH_TOKEN' $YAML            ;# expect 0
+0
+$ grep -c 'GITHUB_TOKEN' $YAML        ;# expect 0
+0
+$ grep -E 'apt[- ]get?\s+install.*libfuse2' $YAML || echo ok
+ok                                    # D-17 — no FUSE install at build time
+$ grep -E 'actions/cache@.*electron-builder' $YAML || echo ok
+ok                                    # D-15 — no electron-builder cache in v1.1
+$ grep -E '(certificateFile|CSC_LINK|APPLE_ID|notarize)' $YAML || echo ok
+ok                                    # No paid signing keys in v1.1
+$ grep -E '(latest\.yml|latest-mac\.yml)' $YAML || echo ok
+ok                                    # Phase 12 territory — auto-update not in scope
+$ grep -iE '(sentry|source-?map.*upload)' $YAML || echo ok
+ok                                    # Phase 13 territory — crash reporting not in scope
+```
+
+### Acceptance — Task 4
+
+- [x] **8(a)** — `publish.needs` includes `build-mac`, `build-win`, `build-linux` (line 113).
+- [x] **8(b)** — `publish.if` combines `github.event_name == 'push'` AND `startsWith(github.ref, 'refs/tags/v')` (line 115).
+- [x] **8(c)** — `if-no-files-found: error` appears exactly **3** times (lines 71, 90, 109 — one per build job's `actions/upload-artifact` step).
+- [x] **8(d)** — `fail_on_unmatched_files: true` appears **1** time (line 146) inside the publish job's SHA-pinned `softprops/action-gh-release@v2.6.2` step (line 139).
+
+### Anti-pattern absence audit (bonus)
+
+- [x] No `GH_TOKEN` literal anywhere (Pitfall 1 / T-11-01 — environment-level mitigation).
+- [x] No `GITHUB_TOKEN` literal anywhere.
+- [x] No `apt install libfuse2` (D-17 — FUSE is install-time, not build-time).
+- [x] No `actions/cache@*` for electron-builder cache (D-15 — Phase 12 concern).
+- [x] No signing key references (`certificateFile`, `CSC_LINK`, `APPLE_ID`, `notarize` all absent).
+- [x] No `latest.yml` / `latest-mac.yml` references (Phase 12 — auto-update territory).
+- [x] No Sentry / source-map upload references (Phase 13 — crash reporting territory).
+
+### Live verification confirms the static audit
+
+The successful run 24994332338 + dispatch run 24994622845 confirm all four 8(*) sub-conditions held in production:
+
+- **8(a)** — `publish` actually waited for all 3 builds (started at `12:16:55Z`, after the slowest build `build-win` finished at `12:16:52Z`).
+- **8(b)** — `publish` ran on tag-push (24994332338) but was `skipped` on `workflow_dispatch` (24994622845).
+- **8(c)** — both runs uploaded all 3 artifacts; the `if-no-files-found: error` setting was never triggered because builds always emitted ≥ 1 matching file.
+- **8(d)** — `fail_on_unmatched_files: true` is in place; not exercised because all 3 download-artifact paths matched.
+
+Combined with the **two failed runs** earlier in Task 2 (24993716580 and 24994071839) — which both correctly skipped publish because of upstream test/build failures — the atomicity-by-construction is proven empirically as well as statically. **T-11-02 (partial-asset draft release) is mitigated and verifiable.**
 
 ## REL-04 install smoke (Task 5)
 
