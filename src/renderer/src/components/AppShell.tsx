@@ -434,13 +434,22 @@ export function AppShell({
     // Phase 6 REVIEW L-01 (2026-04-25) — fall back to '.' (process cwd
     // resolution at the OS picker) when the skeleton path has no parent
     // segment. Edge case: a skeleton at filesystem root like '/skel.json'
-    // would otherwise produce defaultOutDir = '/images-optimized' and
-    // suggest writing to system root. Realistically nobody drops a skeleton
-    // there, but the regex-strip approach has no defense and a one-token
-    // fallback removes the suggestion entirely.
+    // would otherwise produce a leading-separator suggestion (writing to
+    // system root). Realistically nobody drops a skeleton there, but the
+    // regex-strip approach has no defense and a one-token fallback
+    // removes the suggestion entirely.
+    //
+    // Phase 12 F2 fix (per 11-WIN-FINDINGS.md §F2 + 12-RESEARCH.md §"F2
+    // File-Picker Fixes"): drop the '/images-optimized' suffix that made
+    // the native Windows folder picker treat the call as save-as
+    // ("create new file 'images-optimized'?"). Land the picker at the
+    // project's parent directory; the user navigates from there via the
+    // picker's New Folder button or double-click navigation. The
+    // post-pick safeguards at src/main/ipc.ts:415-460 (handleStartExport
+    // "outDir IS source-images-dir" hard-reject) and probeExportConflicts
+    // overwrite-warning are RESEARCH-VERIFIED-CORRECT and unchanged.
     const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
-    const defaultOutDir = skeletonDir + '/images-optimized';
-    return window.api.pickOutputDirectory(defaultOutDir);
+    return window.api.pickOutputDirectory(skeletonDir);
   }, [summary.skeletonPath]);
 
   const onClickOptimize = useCallback(async () => {

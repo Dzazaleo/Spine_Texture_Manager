@@ -70,8 +70,18 @@ describe('F2 regression: AppShell pickOutputDir defaultPath does not glue images
       'AppShell.tsx',
     );
     const src = await readFile(srcPath, 'utf8');
+    // Strip comments before scanning so the post-fix doc comment that
+    // describes the old bug doesn't false-trigger the source-grep. We
+    // strip BOTH leading-`//` line comments AND `/* … */` block comments
+    // (a coarse strip is fine for our literal-string concern; we are
+    // not parsing TypeScript).
+    const codeOnly = src
+      .replace(/\/\*[\s\S]*?\*\//g, '') // block comments (incl. JSDoc)
+      .split('\n')
+      .map((line) => line.replace(/\/\/.*$/, '')) // trailing line comments
+      .join('\n');
     // The bug pattern was: skeletonDir + '/images-optimized'
-    expect(src).not.toMatch(/skeletonDir\s*\+\s*['"]\/images-optimized['"]/);
-    expect(src).not.toMatch(/['"]\/images-optimized['"]/);
+    expect(codeOnly).not.toMatch(/skeletonDir\s*\+\s*['"]\/images-optimized['"]/);
+    expect(codeOnly).not.toMatch(/['"]\/images-optimized['"]/);
   });
 });
