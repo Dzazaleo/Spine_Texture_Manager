@@ -69,7 +69,9 @@
   4. Causing one platform job to fail (e.g. simulating a Windows build break) prevents publication of the draft release with partial assets — the workflow reaches a terminal failure state with all-or-nothing semantics.
   5. The draft release body, when manually published, follows the documented release-notes template (summary / new in this version / known issues / link to install instructions) and a non-developer tester downloading from the published release page can install the app on their OS without a `git`/Node.js toolchain.
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 11-01-PLAN.md — Author .github/workflows/release.yml + .github/release-template.md + bake `--publish never` into package.json build:* scripts (Wave 1, autonomous)
+- [ ] 11-02-PLAN.md — Live verification: push v1.1.0-rc1, capture gh CLI evidence for the 8 falsifiable criteria, workflow_dispatch dry run, atomicity audit, REL-04 install smoke (Wave 2, has checkpoints)
 
 ### Phase 12: Auto-update + tester install docs
 
@@ -113,7 +115,7 @@
 |-------|-----------|----------------|--------|-----------|
 | 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
 | 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
-| 11. CI release pipeline | v1.1 | 0/0 | Not started | — |
+| 11. CI release pipeline | v1.1 | 0/2 | Planned     | — |
 | 12. Auto-update + install docs | v1.1 | 0/0 | Not started | — |
 | 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
 
