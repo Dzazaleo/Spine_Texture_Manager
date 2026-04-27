@@ -1430,37 +1430,45 @@ For developers (build from source): clone, `npm install`, `npm run dev`. See `CL
 6. **F2 file-picker on Windows:** Optimize Assets → output picker opens; folder field is empty; user clicks **New folder** → enters name → **Export Here** succeeds. No "create the file?" or "folder name not valid" errors.
 7. **F3 Spine 3.8 reject:** drop a Spine 3.8 JSON onto the app; assert error message reads *"This file was exported from Spine 3.8.99. Spine Texture Manager requires Spine 4.2 or later. ..."* (or equivalent matching the typed-error envelope shape).
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Each Q below carries an inline `**RESOLVED**:` annotation citing the plan/task that handles it. All six are pre-resolved at plan time; nothing remains open against Phase 12 execution.
 
 1. **`pathToFileURL` availability in sandboxed preload context.**
    - What we know: the existing preload imports `webUtils` from `electron` and uses it under sandbox: true (`[VERIFIED: src/preload/index.ts:47]`). Sandboxed preloads have access to a curated subset of Node modules.
    - What's unclear: whether `node:url` is in the curated subset, or whether `pathToFileURL` must be moved to the main process behind an invoke channel.
    - Recommendation: at 12-03 plan time, attempt the preload import; if it fails at runtime, fall back to a main-process invoke (`window.api.pathToImageUrl(absolutePath)` → `ipcMain.handle('image-url:path-to-url', (e, p) => pathToFileURL(p).pathname)`). Both work; preload is faster (no IPC roundtrip per region).
+   - **RESOLVED**: 12-03 Task 1 ships the IPC-invoke variant unconditionally (channel `atlas:resolve-image-url`); preload bridge `pathToImageUrl` returns `Promise<string>`. AtlasPreviewModal.tsx awaits the bridge call. No runtime detection, no conditional rewrite — the sync-vs-IPC choice is pre-resolved at plan time per checker blocker fix #5.
 
 2. **Asset filename URL-encoding mismatch in `latest*.yml`.**
    - What we know: electron-builder writes `path: Spine-Texture-Manager-1.1.0-rc1-arm64.dmg` (dashes) into `latest-mac.yml`, while the on-disk file is `Spine Texture Manager-1.1.0-rc1-arm64.dmg` (spaces). `[VERIFIED: ls release/ + cat release/latest-mac.yml]`
    - What's unclear: whether GitHub Releases serves the asset successfully when electron-updater requests the URL-encoded form.
    - Recommendation: during 12-02 implementation, manually upload v1.1.0-rc2 build artifacts to a draft release, then `curl -I` the URL form electron-updater will request (`https://github.com/.../releases/download/v1.1.0-rc2/Spine-Texture-Manager-1.1.0-rc2-arm64.dmg`). If it 404s, set `electron-builder.yml` `productName` to a hyphen-cased variant or set `artifactName` template to use `${name}` instead of `${productName}`.
+   - **RESOLVED**: 12-02 Task 2 acceptance criterion includes a `curl -I` smoke test against the rc1 release feed; 12-01 Spike Task 6 verifies end-to-end against the real feed during the live spike runbook. Mismatch (if any) is caught before the spike's Detect step succeeds.
 
 3. **Actual Windows 11 SmartScreen wording in 2026.**
    - What we know: documented historical wording is "Windows protected your PC" + "More info" + "Run anyway." `[CITED: WebSearch + multiple electron-builder docs references]`
    - What's unclear: Microsoft has updated the SmartScreen UI multiple times since 2024. The exact button text on the Windows test host as of 2026-04-27 may differ from documented wording.
    - Recommendation: capture the actual screenshot during INSTALL.md authoring (D-14); if wording differs, transcribe verbatim into INSTALL.md so testers see the same string the OS displays.
+   - **RESOLVED**: 12-06 Task 1 (screenshot capture checkpoint) handles this — capture happens against live Windows 11 in 2026, no prediction needed. Wording in INSTALL.md is transcribed verbatim from the captured screenshot.
 
 4. **Renderer-side `pickOutputDirectory(defaultPath)` call site identification.**
    - What we know: the bug repro shows the picker landing on the source-files directory with a prefilled `images` folder name. The renderer must be passing `defaultPath = sourceDir + '/images'` or similar.
    - What's unclear: which file in `src/renderer/` contains this construction (research did not grep).
    - Recommendation: at 12-04 plan time, run `grep -rn "pickOutputDirectory" src/renderer/` first; identify the construction site; apply Part 1 fix.
+   - **RESOLVED**: located at plan-phase via PATTERNS audit at `src/renderer/src/components/AppShell.tsx:412-413`. 12-04 Task 1 `read_first` cites the line. The bug pattern is `skeletonDir + '/images-optimized'`; the fix drops the suffix.
 
 5. **Whether the `app-update.yml` resource bundle is correctly emitted when `electron-builder.yml` flips from `publish: null` to `publish: { provider: 'github', ... }`.**
    - What we know: `[CITED: GitHub issues #8620, #2667]` — historic reports of `app-update.yml` not being emitted under certain configs. The Phase 11 belt-and-braces was `publish: null`. Phase 12 must flip this.
    - What's unclear: whether the v1.1.0-rc1 build that's already on the draft release has `app-update.yml` baked in (it doesn't — built with `publish: null`).
    - Recommendation: a fresh local build with the flipped config MUST be done before pushing v1.1.0-rc2 tag. Inspect `release/win-unpacked/resources/app-update.yml` (Windows) or `release/mac/Spine Texture Manager.app/Contents/Resources/app-update.yml` (macOS); confirm shape matches `{ provider: 'github', owner: 'Dzazaleo', repo: 'Spine_Texture_Manager', updaterCacheDirName: '...' }`. If missing, escalate before tag push.
+   - **RESOLVED**: 12-02 Task 2 acceptance criterion greps for `app-update.yml` in `dist/` (or `release/{platform}-unpacked/resources/`) after `electron-builder` build; spike runbook step 2 (12-01 Task 6) re-verifies pre-tag-push. If missing, the spike aborts before Detect step — no silent failure path.
 
 6. **Whether `releaseType: 'release'` in `electron-builder.yml`'s `publish` block affects the READ side of electron-updater at all.**
    - What we know: `[CITED: electron.build/publish]` — `releaseType` controls electron-builder's auto-publish (which we don't use; CLI is `--publish never`). Read-side filtering is via `autoUpdater.allowPrerelease: true` at runtime.
    - What's unclear: whether setting `releaseType: 'prerelease'` in the YAML changes how electron-updater reads the feed (e.g., if the feed file embedding includes a "treat-as-prerelease" hint that suppresses update detection from non-prerelease tracks).
    - Recommendation: Use `releaseType: release` (or omit entirely — defaults to draft). The READ side is governed by `allowPrerelease: true` we'll set in `auto-update.ts`. If unexpected behavior arises in spike, revisit.
+   - **RESOLVED**: at runtime — `electron-updater` 6.x reads any non-draft release on the public GitHub provider regardless of the YAML `releaseType` flag (which only affects the unused PUBLISH side). Defer to spike outcome (12-01 Task 6) for confirmation. Low-risk; runtime-defaultable.
 
 ## Sources
 
