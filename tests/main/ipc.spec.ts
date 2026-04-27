@@ -22,13 +22,17 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Hoist-safe spy capture (see Plan 02 §Deviations from Plan #1).
-const { buildFromTemplate, setApplicationMenu, ipcMainOnHandlers } = vi.hoisted(() => ({
+const { buildFromTemplate, setApplicationMenu, ipcMainOnHandlers, ipcMainHandleHandlers } = vi.hoisted(() => ({
   buildFromTemplate: vi.fn(),
   setApplicationMenu: vi.fn(),
   // Map-backed captor — keys are channel names, values are the handler the
   // module passed to ipcMain.on. Lets us look up 'menu:notify-state' after
   // registerIpcHandlers() without round-tripping through real Electron.
   ipcMainOnHandlers: new Map<string, (evt: unknown, ...args: unknown[]) => void>(),
+  // Phase 12 Plan 03 — invoke-handler captor (mirrors ipcMainOnHandlers shape)
+  // so we can pull out 'atlas:resolve-image-url' after registerIpcHandlers()
+  // and exercise it directly without round-tripping through real Electron.
+  ipcMainHandleHandlers: new Map<string, (evt: unknown, ...args: unknown[]) => unknown>(),
 }));
 
 vi.mock('electron', () => ({
@@ -50,7 +54,12 @@ vi.mock('electron', () => ({
     on: vi.fn((channel: string, handler: (evt: unknown, ...args: unknown[]) => void) => {
       ipcMainOnHandlers.set(channel, handler);
     }),
-    handle: vi.fn(),
+    // Phase 12 Plan 03 — capture invoke handlers in the same Map-backed
+    // pattern as ipcMain.on so 'atlas:resolve-image-url' (and any future
+    // invoke channel) can be looked up + called directly from specs.
+    handle: vi.fn((channel: string, handler: (evt: unknown, ...args: unknown[]) => unknown) => {
+      ipcMainHandleHandlers.set(channel, handler);
+    }),
   },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
 }));
@@ -79,6 +88,7 @@ import { registerIpcHandlers } from '../../src/main/ipc.js';
 beforeEach(() => {
   vi.clearAllMocks();
   ipcMainOnHandlers.clear();
+  ipcMainHandleHandlers.clear();
   // Echo-mock buildFromTemplate so applyMenu's chain resolves to a non-null
   // Menu — we don't assert on the template here; menu.spec.ts already covers
   // the structure.
@@ -231,5 +241,70 @@ describe('Phase 9 Plan 05 T-09-05-OPEN-EXTERNAL — shell:open-external allow-li
     handler({} as unknown, '');
     handler({} as unknown, { url: 'https://esotericsoftware.com/spine-runtimes' });
     expect(openExternalMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
+ *
+ * The 'atlas:resolve-image-url' invoke channel maps a renderer-supplied
+ * absolute filesystem path to an `app-image://localhost/<pathname>` URL via
+ * `pathToFileURL().pathname` running in the privileged main process.
+ *
+ * Renderer cannot do this itself — sandboxed renderers have no `node:url`,
+ * and naive string concat (`app-image://localhost${path}`) glues drive
+ * letters onto the host on Windows: `'C:\\…'` produces host `localhostc`
+ * (lowercased; up to first `:`), which 404s the atlas-preview image fetch.
+ * RESEARCH §F1 + 11-WIN-FINDINGS §F1 — `localhostc/` is the smoking gun.
+ *
+ * Cases:
+ *   1. handler is registered on ipcMain.handle
+ *   2. POSIX absolute path → returned URL has host='localhost' and pathname='/Users/...'
+ *   3. Windows-style path → returned URL has host='localhost' (NOT 'localhostc')
+ *      and pathname starts with '/C:/'
+ *   4. non-string / empty payload → returns '' (renderer broken-image fallback)
+ */
+describe('Phase 12 Plan 03 (D-19) — atlas:resolve-image-url F1 fix', () => {
+  it('atlas:resolve-image-url handler is registered on ipcMain.handle', async () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('atlas:resolve-image-url')).toBe(true);
+  });
+
+  it('POSIX absolute path resolves to app-image://localhost/<pathname>', async () => {
+    registerIpcHandlers();
+    const handler = ipcMainHandleHandlers.get('atlas:resolve-image-url')!;
+    const result = await handler({} as unknown, '/Users/leo/stm/images/CIRCLE.png');
+    expect(typeof result).toBe('string');
+    const parsed = new URL(result as string);
+    expect(parsed.protocol).toBe('app-image:');
+    expect(parsed.host).toBe('localhost');
+    expect(parsed.pathname).toBe('/Users/leo/stm/images/CIRCLE.png');
+  });
+
+  it('Windows-style path keeps host=localhost and puts drive letter in pathname (F1 regression)', async () => {
+    registerIpcHandlers();
+    const handler = ipcMainHandleHandlers.get('atlas:resolve-image-url')!;
+    const result = await handler(
+      {} as unknown,
+      'C:\\Users\\Tester\\stm\\images\\CIRCLE.png',
+    );
+    expect(typeof result).toBe('string');
+    const parsed = new URL(result as string);
+    // The bug: host became 'localhostc' (drive-letter `C` glued onto 'localhost'
+    // up to the first ':'). The fix MUST keep host pinned to 'localhost'.
+    expect(parsed.host).toBe('localhost');
+    expect(parsed.host).not.toMatch(/localhostc/i);
+    // Drive letter must end up in the path, not the host.
+    expect(parsed.pathname).toMatch(/^\/C:\//);
+  });
+
+  it('non-string / empty payload returns empty string (renderer broken-image fallback)', async () => {
+    registerIpcHandlers();
+    const handler = ipcMainHandleHandlers.get('atlas:resolve-image-url')!;
+    expect(await handler({} as unknown, 12345)).toBe('');
+    expect(await handler({} as unknown, null)).toBe('');
+    expect(await handler({} as unknown, undefined)).toBe('');
+    expect(await handler({} as unknown, '')).toBe('');
+    expect(await handler({} as unknown, { path: '/foo' })).toBe('');
   });
 });
