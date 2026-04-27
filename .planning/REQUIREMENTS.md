@@ -80,8 +80,39 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | | |
+| DIST-01 | Phase 10 | Pending |
+| DIST-02 | Phase 10 | Pending |
+| DIST-03 | Phase 10 | Pending |
+| DIST-04 | Phase 10 | Pending |
+| DIST-05 | Phase 10 | Pending |
+| DIST-06 | Phase 10 | Pending |
+| DIST-07 | Phase 10 | Pending |
+| CI-01   | Phase 11 | Pending |
+| CI-02   | Phase 11 | Pending |
+| CI-03   | Phase 11 | Pending |
+| CI-04   | Phase 11 | Pending |
+| CI-05   | Phase 11 | Pending |
+| CI-06   | Phase 11 | Pending |
+| REL-01  | Phase 11 | Pending |
+| REL-02  | Phase 11 | Pending |
+| REL-03  | Phase 12 | Pending |
+| REL-04  | Phase 11 | Pending |
+| UPD-01  | Phase 12 | Pending |
+| UPD-02  | Phase 12 | Pending |
+| UPD-03  | Phase 12 | Pending |
+| UPD-04  | Phase 12 | Pending |
+| UPD-05  | Phase 12 | Pending |
+| UPD-06  | Phase 12 | Pending |
+| TEL-01  | Phase 13 | Pending |
+| TEL-02  | Phase 13 | Pending |
+| TEL-03  | Phase 13 | Pending |
+| TEL-04  | Phase 13 | Pending |
+| TEL-05  | Phase 13 | Pending |
+| TEL-06  | Phase 13 | Pending |
+| TEL-07  | Phase 13 | Pending |
+
+**Coverage**: 30/30 requirements mapped (DIST 7 → P10, CI 6 + REL 3 → P11, UPD 6 + REL 1 → P12, TEL 7 → P13). No orphans, no double-mappings.
 
 ---
 
-*Last updated: 2026-04-27 — v1.1 milestone definition*
+*Last updated: 2026-04-27 — v1.1 milestone roadmap landed (Phases 10–13)*
