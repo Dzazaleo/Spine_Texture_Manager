@@ -49,7 +49,10 @@
   4. Installer file names and the version string embedded in the macOS `Info.plist` and Windows version resource match `package.json`'s `version` field exactly.
   5. Linux `.AppImage` build is attempted locally only as a smoke test; failure here is acceptable in this phase (Linux is verified by CI in Phase 11), but the `electron-builder.yml` Linux target configuration is complete and committed.
 
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 10-01-PLAN.md — Version bump (0.0.0 → 1.1.0-rc1) + per-platform npm scripts + build/.gitkeep sentinel (Wave 1)
+- [ ] 10-02-PLAN.md — electron-builder.yml extension: mac ad-hoc + Windows NSIS unsigned + Linux AppImage (Wave 2)
+- [ ] 10-03-PLAN.md — Build macOS .dmg, capture shell assertions, write 10-SMOKE-TEST.md, manual Optimize Assets verification (Wave 3, includes checkpoint)
 
 ### Phase 11: CI release pipeline (GitHub Actions → draft Release)
 
@@ -109,7 +112,7 @@
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
-| 10. Installer build (electron-builder) | v1.1 | 0/0 | Not started | — |
+| 10. Installer build (electron-builder) | v1.1 | 0/3 | Planned | — |
 | 11. CI release pipeline | v1.1 | 0/0 | Not started | — |
 | 12. Auto-update + install docs | v1.1 | 0/0 | Not started | — |
 | 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
