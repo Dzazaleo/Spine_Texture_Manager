@@ -28,6 +28,12 @@ import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { registerIpcHandlers } from './ipc.js';
 import { loadRecent, clearRecent } from './recent.js';
+// Phase 12 Plan 01 Task 5 — auto-update boot wiring (UPD-01, D-06).
+// initAutoUpdater binds events, configures autoDownload=false /
+// autoInstallOnAppQuit=false / allowPrerelease=true, and schedules the
+// 3.5s startup check from inside the function body. Called after applyMenu
+// so the menu is up by the time the first 'update:available' could fire.
+import { initAutoUpdater } from './auto-update.js';
 
 // Phase 8 — Pitfall 1 re-entry guard for the before-quit dirty-guard flow.
 // Set to true once the renderer has confirmed quit is OK; the before-quit
@@ -270,6 +276,20 @@ export async function buildAppMenu(
           label: 'Documentation',
           click: () => mainWindow?.webContents.send('menu:help-clicked'),
         },
+        // Phase 12 Plan 01 Task 5 — Help → Check for Updates… (UPD-02 / D-07).
+        // Unconditionally enabled (Pattern G + T-09-05-MENU-02 — Help items
+        // are always available regardless of AppState). No accelerator
+        // (CONTEXT.md Claude's Discretion: macOS standard is no accelerator
+        // on Help-menu items; cross-platform consistency keeps the convention
+        // on Windows/Linux too). Optional-chain on mainWindow per
+        // T-08.2-02-01 (closed-window null-safety; renderer subscribes via
+        // window.api.onMenuCheckForUpdates and invokes
+        // window.api.checkForUpdates() when it fires). Plan 12-06 will add
+        // the sibling "Installation Guide…" item; not this plan.
+        {
+          label: 'Check for Updates…',
+          click: () => mainWindow?.webContents.send('menu:check-for-updates-clicked'),
+        },
       ],
     },
   ];
@@ -386,6 +406,15 @@ app.whenReady().then(() => {
   // main can boot the window in parallel. Plan 03's 'menu:notify-state' IPC
   // handler will rebuild + reapply once the renderer pushes updated state.
   void applyMenu(currentMenuState, mainWindowRef);
+
+  // Phase 12 Plan 01 Task 5 — auto-update startup wiring (UPD-01 / D-06).
+  // initAutoUpdater binds the four electron-updater event listeners
+  // (update-available / update-not-available / update-downloaded / error),
+  // configures autoDownload=false (UPD-03 opt-in), autoInstallOnAppQuit=false,
+  // allowPrerelease=true (rc tags subscribe to themselves), and schedules
+  // the 3.5s startup check via setTimeout INSIDE its own body. silent-swallow
+  // on error/timeout per UPD-05.
+  initAutoUpdater();
 
   app.on('activate', () => {
     // macOS convention: re-open a window when dock icon clicked with none open.

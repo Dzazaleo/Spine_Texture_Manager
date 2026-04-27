@@ -58,6 +58,7 @@ import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { SettingsDialog } from '../modals/SettingsDialog';
 import { HelpDialog } from '../modals/HelpDialog';
+import { UpdateDialog, type UpdateDialogState, type UpdateDialogVariant } from '../modals/UpdateDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -150,6 +151,34 @@ export function AppShell({
   // preservation lives in the preload — the wrapped const is captured there
   // so removeListener targets the same reference in our useEffect cleanup.
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
+
+  // Phase 12 Plan 01 Task 5 — UpdateDialog lifecycle (D-05 / D-07 / D-08).
+  // The 4-state machine + variant routing live here. Main is the single
+  // source of truth for `variant` (D-04: macOS/Linux always 'auto-update';
+  // Windows is 'auto-update' if SPIKE_PASSED, 'windows-fallback' otherwise).
+  // The renderer never derives variant from the platform — it consumes the
+  // `variant` field of the IPC payload as supplied by main.
+  const [updateState, setUpdateState] = useState<{
+    open: boolean;
+    state: UpdateDialogState;
+    version: string;
+    summary: string;
+    variant: UpdateDialogVariant;
+  }>({
+    open: false,
+    state: 'available',
+    version: '',
+    summary: '',
+    variant: 'auto-update',
+  });
+
+  // D-07 — only show "you're up to date" / error on MANUAL checks. Startup
+  // checks fire 'update:none' and 'update:error' too, but the renderer
+  // suppresses those mounts via this ref. Set to true when the user clicks
+  // Help → Check for Updates, consumed-and-cleared by the next 'update:none'
+  // / 'update:error' event. Plain useRef so the value persists across
+  // useEffect cleanups without triggering re-renders.
+  const manualCheckPendingRef = useRef<boolean>(false);
 
   // Phase 9 Plan 06 — local samplingHz state. Seeded from the prop; Settings
   // mutates this and a useEffect below dispatches the re-sample IPC. The
@@ -829,13 +858,17 @@ export function AppShell({
       // Phase 9 Plan 07 — HelpDialog joins the same derivation. aria-modal
       // alone would auto-suppress via 08.2 D-184, but explicit inclusion
       // keeps the derivation list parallel with the other 5 modal slots.
-      helpOpen;
+      helpOpen ||
+      // Phase 12 Plan 01 — UpdateDialog joins the modalOpen derivation
+      // (D-05 + 08.2 D-184). aria-modal="true" auto-suppresses File menu
+      // items; explicit inclusion keeps the derivation list parallel.
+      updateState.open;
     window.api.notifyMenuState({
       canSave: true,
       canSaveAs: true,
       modalOpen,
     });
-  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen, helpOpen]);
+  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen, helpOpen, updateState.open]);
 
   /**
    * Phase 9 Plan 06 — Settings menu subscription. The native Edit→Preferences…
@@ -862,6 +895,86 @@ export function AppShell({
   useEffect(() => {
     const unsubscribe = window.api.onMenuHelp(() => setHelpOpen(true));
     return unsubscribe;
+  }, []);
+
+  /**
+   * Phase 12 Plan 01 Task 5 — auto-update IPC subscriptions
+   * (UPD-01..UPD-06 + D-04 + D-05 + D-07).
+   *
+   * Five channels:
+   *   - 'update:available'  → mount UpdateDialog with version + summary +
+   *     variant supplied by main (D-04 — main is single source of truth).
+   *   - 'update:downloaded' → transition state from 'downloading' to
+   *     'downloaded'; UpdateDialog flips Download+Restart → Restart button.
+   *   - 'update:none'       → ONLY surface "You're up to date" on manual
+   *     checks (D-07); startup checks silent (manualCheckPendingRef gate).
+   *     D-05 forbids window.alert — reuse UpdateDialog with state='none'.
+   *   - 'update:error'      → ONLY surface error on manual checks
+   *     (mirrors update:none; main itself silent-swallows on startup
+   *     before sending update:error per UPD-05).
+   *   - 'menu:check-for-updates-clicked' → set manualCheckPendingRef and
+   *     invoke checkForUpdates (Help → Check for Updates path).
+   *
+   * Pitfall 9 listener-identity preservation lives in the preload
+   * (src/preload/index.ts — wrapped consts captured BEFORE ipcRenderer.on).
+   * Cleanup unsubscribes all five.
+   */
+  useEffect(() => {
+    const unsubAvailable = window.api.onUpdateAvailable((payload) => {
+      setUpdateState({
+        open: true,
+        state: 'available',
+        version: payload.version,
+        summary: payload.summary,
+        variant: payload.variant === 'windows-fallback' ? 'windows-fallback' : 'auto-update',
+      });
+    });
+    const unsubDownloaded = window.api.onUpdateDownloaded(() => {
+      setUpdateState((prev) => ({ ...prev, state: 'downloaded' }));
+    });
+    const unsubNone = window.api.onUpdateNone((payload) => {
+      // D-07 — only surface on manual checks. Startup-mode 'update:none'
+      // events fire harmlessly through this listener but the gate filters
+      // them out. The ref is consumed-and-cleared so a subsequent startup
+      // 'update:none' (e.g. user clicks Check for Updates twice in
+      // sequence) doesn't re-fire the dialog.
+      if (manualCheckPendingRef.current) {
+        manualCheckPendingRef.current = false;
+        setUpdateState({
+          open: true,
+          state: 'none',
+          version: payload.currentVersion,
+          summary: '',
+          variant: 'auto-update',
+        });
+      }
+    });
+    const unsubError = window.api.onUpdateError((payload) => {
+      // D-06 — main itself silent-swallows on startup before sending; this
+      // gate is belt-and-braces (main's autoUpdater.on('error') unconditional
+      // bridge can fire OUTSIDE a checkUpdate call).
+      if (manualCheckPendingRef.current) {
+        manualCheckPendingRef.current = false;
+        setUpdateState({
+          open: true,
+          state: 'none',
+          version: '',
+          summary: `Update check failed: ${payload.message}`,
+          variant: 'auto-update',
+        });
+      }
+    });
+    const unsubMenuCheck = window.api.onMenuCheckForUpdates(() => {
+      manualCheckPendingRef.current = true;
+      void window.api.checkForUpdates();
+    });
+    return () => {
+      unsubAvailable();
+      unsubDownloaded();
+      unsubNone();
+      unsubError();
+      unsubMenuCheck();
+    };
   }, []);
 
   /**
@@ -1294,6 +1407,45 @@ export function AppShell({
       {helpOpen && (
         <HelpDialog open={true} onClose={() => setHelpOpen(false)} />
       )}
+      {/* Phase 12 Plan 01 Task 5 — UpdateDialog mount.
+          State machine driven by the auto-update IPC subscription useEffect
+          above. Variant supplied by main per D-04 (auto-update on
+          macOS/Linux/Windows-IF-spike-PASS; windows-fallback otherwise).
+          Button callbacks:
+            - onDownload: transition to 'downloading' + invoke download IPC.
+            - onRestart: invoke quit-and-install IPC (main defers via
+              setTimeout(0) so the IPC ack returns before quit fires).
+            - onLater: persist dismissedUpdateVersion (D-08) + close.
+            - onOpenReleasePage: open the GitHub Releases page externally
+              (Windows-fallback variant only).
+            - onClose: close (no persistence — same as ESC / overlay click). */}
+      <UpdateDialog
+        open={updateState.open}
+        state={updateState.state}
+        version={updateState.version}
+        summary={updateState.summary}
+        variant={updateState.variant}
+        onDownload={() => {
+          setUpdateState((prev) => ({ ...prev, state: 'downloading' }));
+          void window.api.downloadUpdate();
+        }}
+        onRestart={() => {
+          window.api.quitAndInstallUpdate();
+        }}
+        onLater={() => {
+          // Only persist when there's a real version to remember; the
+          // state='none' "You're up to date" / error paths use Later as a
+          // pure close affordance (no version to suppress).
+          if (updateState.state !== 'none' && updateState.version.length > 0) {
+            window.api.dismissUpdate(updateState.version);
+          }
+          setUpdateState((prev) => ({ ...prev, open: false }));
+        }}
+        onOpenReleasePage={() => {
+          window.api.openExternalUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases');
+        }}
+        onClose={() => setUpdateState((prev) => ({ ...prev, open: false }))}
+      />
       {/* Phase 8 D-143 — SaveQuitDialog mount. Mirrors ConflictDialog mount
           idiom (conditional on null state). Used in three contexts via
           the `reason` discriminator: 'quit' (Cmd+Q on dirty), 'new-skeleton-drop'

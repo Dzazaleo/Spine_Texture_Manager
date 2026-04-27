@@ -57,6 +57,19 @@ beforeEach(() => {
     locateSkeleton: vi.fn(),
     reloadProjectWithSkeleton: vi.fn(),
     loadSkeletonFromFile: vi.fn(),
+    // Phase 12 Plan 01 — auto-update preload surface (UPD-01..UPD-06).
+    // AppShell mounts a useEffect that subscribes to all five on* methods
+    // at first render — every method must be present (returning unsub fn)
+    // or React throws 'is not a function' on the useEffect commit.
+    checkForUpdates: vi.fn(),
+    downloadUpdate: vi.fn(),
+    dismissUpdate: vi.fn(),
+    quitAndInstallUpdate: vi.fn(),
+    onUpdateAvailable: vi.fn(() => () => undefined),
+    onUpdateDownloaded: vi.fn(() => () => undefined),
+    onUpdateNone: vi.fn(() => () => undefined),
+    onUpdateError: vi.fn(() => () => undefined),
+    onMenuCheckForUpdates: vi.fn(() => () => undefined),
   });
 });
 
