@@ -1,0 +1,150 @@
+# Spine Texture Manager — release pipeline
+# Triggers: tag push v*.*.* (creates draft GitHub Release), workflow_dispatch (dry run, no release).
+#
+# Runner image versions (track upstream upgrades deliberately):
+#   ubuntu-latest  → currently ubuntu-24.04 (test + publish jobs)
+#   ubuntu-22.04   → pinned for AppImage build (avoids GLIBC mismatch with electron-builder appimage toolset 1.0.2)
+#   macos-14       → arm64 native (required for sharp's @img/sharp-darwin-arm64 subpackage resolution)
+#   windows-2022   → Windows SDK + signtool present
+#
+# Action SHAs pinned for supply-chain hygiene; bump deliberately, not floating.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION."
+            echo "::error::Run 'npm version <X>' before tagging, or delete the tag and retry."
+            exit 1
+          fi
+          echo "Tag $GITHUB_REF_NAME ↔ package.json $PKG_VERSION — OK"
+
+      - run: npm run typecheck
+      - run: npm run test
+
+  build-mac:
+    needs: test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - name: Build macOS DMG
+        run: npm run build:mac -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: installer-mac
+          path: release/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  build-win:
+    needs: test
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - name: Build Windows NSIS
+        run: npm run build:win -- --publish never
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installer-win
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux:
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - name: Build Linux AppImage
+        run: npm run build:linux -- --publish never
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: installer-linux
+          path: release/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [build-mac, build-win, build-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Download all platform installers
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: ./assets
+
+      - name: List downloaded assets (debug aid)
+        run: ls -la ./assets/
+
+      - name: Render release body from template
+        env:
+          VERSION: ${{ github.ref_name }}
+          TAG: ${{ github.ref_name }}
+          INSTALL_DOC_LINK: https://github.com/${{ github.repository }}/blob/main/README.md
+        run: envsubst < .github/release-template.md > release-body.md
+
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release-body.md
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            assets/*.dmg
+            assets/*.exe
+            assets/*.AppImage
