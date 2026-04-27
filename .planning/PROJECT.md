@@ -16,7 +16,7 @@ Animators ship atlases that are as small as they mathematically can be without v
 
 **Working:** Drop a Spine `.json` or `.stmproj` → Global + Animation Breakdown panels populate → set per-attachment overrides via dialog (% of source dims, capped at 100%) → preview the resulting atlas pack → export an optimized `images/` folder. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs (~80 attachments / 16 animations) interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under the N2.2 contract).
 
-**v1.1 progress:** Phase 10 complete (2026-04-27) — installer build pipeline working: `npm run build:mac/win/linux` produces per-platform installers via electron-builder; macOS `.dmg` ad-hoc-signed (DIST-04), version `1.1.0-rc1` embedded throughout (DIST-07), `sharp` + libvips bundled in `app.asar.unpacked` (DIST-06 verified live with SIMPLE_TEST + Girl fixtures). Windows `.exe` and Linux `.AppImage` configs complete; live builds deferred to Phase 11 CI. Canonical smoke-test recipe at `.planning/phases/10-.../10-SMOKE-TEST.md` doubles as Phase 11 input contract.
+**v1.1 progress:** Phase 10 + Phase 11 complete (2026-04-27). Phase 10 landed the installer build pipeline (`npm run build:mac/win/linux` produces per-platform installers via electron-builder; macOS `.dmg` ad-hoc-signed, version `1.1.0-rc1` embedded throughout, `sharp` + libvips bundled in `app.asar.unpacked` — live-verified against SIMPLE_TEST + Girl fixtures). Phase 11 landed the CI release pipeline (`.github/workflows/release.yml` — tag-triggered, 5 jobs (test → 3 parallel builds → atomic publish), 5 SHA-pinned actions, atomicity-by-construction proven empirically across 4 GHA runs). Live tag-push of `v1.1.0-rc1` produced a draft GitHub Release with all 3 installer assets (`.dmg` arm64 / `.exe` x64 / `.AppImage` x86_64); REL-04 install smoke verified on macOS + Windows (Optimize Assets 153/153 succeeded on both); Linux smoke deferred to Phase 12 tester rounds. v1.1.0-rc1 release kept as draft. Three pre-existing Windows runtime findings (atlas viewer URL bug, file-picker UX, Spine 3.8 safeguard) and three code-review warnings (envsubst allowlist, concurrency semantics, Node version floor) spilled forward as Phase 12 prereqs.
 
 **Tech stack (locked, validated through v1.0):**
 - Electron 41 + electron-vite 5 + electron-builder 26
@@ -97,4 +97,4 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ---
 
-*Last updated: 2026-04-27 — Phase 10 complete (installer build, all 3 platforms)*
+*Last updated: 2026-04-27 — Phase 11 complete (CI release pipeline; v1.1.0-rc1 draft release on GitHub)*
