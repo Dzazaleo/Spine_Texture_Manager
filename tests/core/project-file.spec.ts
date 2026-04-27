@@ -125,18 +125,25 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
   });
 
   it('round-trip relative paths (D-155)', () => {
+    // POSIX-style absolute inputs ('/a/b/...') resolve ambiguously on Windows
+    // (path.parse returns root '/', path.resolve returns 'C:\\…' — different
+    // roots, so relativizePath's Pitfall 4 cross-root guard fires and stores
+    // absolute). Construct platform-correct fixtures via path.resolve so the
+    // test exercises same-directory relativization on both OSes.
+    const basedir = path.resolve('a', 'b');
     const state: AppSessionState = {
-      skeletonPath: '/a/b/SIMPLE.json',
-      atlasPath: '/a/b/SIMPLE.atlas',
-      imagesDir: '/a/b/images',
+      skeletonPath: path.join(basedir, 'SIMPLE.json'),
+      atlasPath: path.join(basedir, 'SIMPLE.atlas'),
+      imagesDir: path.join(basedir, 'images'),
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
     };
-    const file = serializeProjectFile(state, '/a/b/proj.stmproj');
-    // Same directory → './SIMPLE.json'
+    const projPath = path.join(basedir, 'proj.stmproj');
+    const file = serializeProjectFile(state, projPath);
+    // Same directory → './SIMPLE.json' (POSIX) or 'SIMPLE.json' (path.relative output).
     expect(file.skeletonPath.startsWith('.') || file.skeletonPath === 'SIMPLE.json').toBe(true);
     expect(file.skeletonPath.endsWith('SIMPLE.json')).toBe(true);
-    const back = materializeProjectFile(file, '/a/b/proj.stmproj');
+    const back = materializeProjectFile(file, projPath);
     expect(back.summary?.skeletonPath ?? back.projectFilePath).toBeDefined(); // shape lock — see Plan 02
   });
 

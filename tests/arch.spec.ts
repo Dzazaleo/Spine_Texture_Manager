@@ -54,8 +54,10 @@ describe('Portability: no platform-specific code in src/ (D-23)', () => {
     ]);
     const offenders: string[] = [];
     for (const file of files) {
-      if (PLATFORM_CARVE_OUTS.has(file)) continue;
-      if (forbidden.test(readFileSync(file, 'utf8'))) offenders.push(file);
+      // globSync emits backslashes on Windows; normalize so set lookup matches POSIX-form keys.
+      const normalized = file.replace(/\\/g, '/');
+      if (PLATFORM_CARVE_OUTS.has(normalized)) continue;
+      if (forbidden.test(readFileSync(file, 'utf8'))) offenders.push(normalized);
     }
     expect(
       offenders,
