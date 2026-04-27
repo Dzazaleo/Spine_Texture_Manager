@@ -42,6 +42,7 @@ import {
   AtlasNotFoundError,
   AtlasParseError,
   SkeletonJsonNotFoundError,
+  SpineVersionUnsupportedError,
 } from './errors.js';
 
 /**
@@ -82,6 +83,50 @@ export function createStubTextureLoader(): (pageName: string) => Texture {
 }
 
 /**
+ * Phase 12 / Plan 05 (D-21) — F3 Spine version guard.
+ *
+ * Reject Spine JSON exported from versions < 4.2. CLAUDE.md documents
+ * 4.2+ as the hard requirement; spine-core 4.2.x's SkeletonJson cannot
+ * faithfully read 3.x bone-curve / attachment shapes, leading to silent
+ * zero-output runs (Phase 11 §F3 reproduction in
+ * `.planning/phases/11-…/11-WIN-FINDINGS.md`). The Optimize Assets path
+ * reports success while producing zero usable images — F3 makes that
+ * runtime-detectable with an actionable typed error.
+ *
+ * Lenient on 4.3+ per CONTEXT.md Deferred ("4.3+ is not silently
+ * rejected, but it's also not actively supported"); a future phase
+ * can split this into a distinct "untested-version" warning surface.
+ *
+ * Pure string parsing + integer comparison — zero new boundary
+ * crossings (Layer-3 invariant: core/ stays pure TS, no DOM/Electron/
+ * node:fs additions beyond the existing readFileSync site).
+ *
+ * Exported so the predicate's seven decision cases can be unit-tested
+ * independently of fixture loading
+ * (tests/core/loader-version-guard-predicate.spec.ts).
+ *
+ * @param version  the value of `skeleton.spine` from the parsed JSON, or null if absent.
+ * @param skeletonPath  the absolute path to the skeleton JSON (for the error envelope).
+ * @throws SpineVersionUnsupportedError if version is null, malformed, or major.minor < 4.2.
+ */
+export function checkSpineVersion(version: string | null, skeletonPath: string): void {
+  if (version === null) {
+    // Pre-3.7 had no `skeleton.spine` field. Treat as < 4.2 — reject.
+    throw new SpineVersionUnsupportedError('unknown', skeletonPath);
+  }
+  const parts = version.split('.');
+  const major = parseInt(parts[0] ?? '', 10);
+  const minor = parseInt(parts[1] ?? '', 10);
+  if (Number.isNaN(major) || Number.isNaN(minor)) {
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  if (major < 4 || (major === 4 && minor < 2)) {
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  // 4.2.x and 4.3+ pass.
+}
+
+/**
  * Load a Spine 4.2 skeleton JSON plus its atlas, headlessly.
  *
  * @param skeletonPath - Path (absolute or relative to `process.cwd()`) to the `.json` skeleton file.
@@ -101,6 +146,34 @@ export function loadSkeleton(
     jsonText = fs.readFileSync(skeletonPath, 'utf8');
   } catch {
     throw new SkeletonJsonNotFoundError(skeletonPath);
+  }
+
+  // Phase 12 / Plan 05 (D-21) — F3 Spine version guard.
+  // Inspect skeleton.spine BEFORE atlas resolution so 3.x rigs fail fast
+  // with an actionable typed error instead of falling through to spine-core's
+  // SkeletonJson (which silently produces zero-output runs at the sampler
+  // stage — the F3 reproduction in
+  // `.planning/phases/11-…/11-WIN-FINDINGS.md`).
+  //
+  // JSON.parse is hoisted out of the readSkeletonData call below so the
+  // version check + readSkeletonData(parsedJson) share one parse — no
+  // double-parse penalty. parsedJson is typed `unknown` and narrowed step
+  // by step before reading the version field; spine-core's
+  // readSkeletonData accepts unknown-shaped input (it does its own
+  // structural read).
+  const parsedJson: unknown = JSON.parse(jsonText);
+  if (parsedJson !== null && typeof parsedJson === 'object' && 'skeleton' in parsedJson) {
+    const skel = (parsedJson as Record<string, unknown>).skeleton;
+    if (skel !== null && typeof skel === 'object' && 'spine' in (skel as object)) {
+      const spineField = (skel as Record<string, unknown>).spine;
+      checkSpineVersion(typeof spineField === 'string' ? spineField : null, skeletonPath);
+    } else {
+      // skeleton object present but no spine field (pre-3.7 export).
+      checkSpineVersion(null, skeletonPath);
+    }
+  } else {
+    // No skeleton object at all — malformed JSON or wrong file type.
+    checkSpineVersion(null, skeletonPath);
   }
 
   // 2. Resolve atlas path (sibling <basename>.atlas by default)
@@ -133,11 +206,12 @@ export function loadSkeleton(
 
   // 5. Parse skeleton via spine-core's own JSON reader.
   //    `SkeletonJson.readSkeletonData` accepts either a string or a pre-parsed
-  //    object; we parse once with V8's JSON.parse and pass the object so we
-  //    don't force spine-core to re-parse.
+  //    object; we parse once with V8's JSON.parse (hoisted above for the
+  //    Phase 12 F3 version guard) and pass the object so we don't force
+  //    spine-core to re-parse.
   const attachmentLoader = new AtlasAttachmentLoader(atlas);
   const skeletonJson = new SkeletonJson(attachmentLoader);
-  const skeletonData = skeletonJson.readSkeletonData(JSON.parse(jsonText));
+  const skeletonData = skeletonJson.readSkeletonData(parsedJson);
 
   // 6. Build sourceDims map from atlas regions.
   //

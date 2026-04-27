@@ -79,7 +79,10 @@ describe('handleSkeletonLoad (F1-integrated, D-10)', () => {
   it('D-10/F1.4: missing atlas returns {ok: false, error.kind: AtlasNotFoundError}', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-ipc-'));
     const jsonPath = path.join(tmpDir, 'rig.json');
-    fs.writeFileSync(jsonPath, '{}');
+    // Phase 12 Plan 05 / D-21 — skeleton.spine must be >= 4.2 to reach
+    // the atlas-resolution branch (loader's version-guard now fires
+    // first and otherwise produces SpineVersionUnsupportedError).
+    fs.writeFileSync(jsonPath, '{"skeleton":{"spine":"4.2.43"}}');
     try {
       const resp = await handleSkeletonLoad(jsonPath);
       expect(resp.ok).toBe(false);

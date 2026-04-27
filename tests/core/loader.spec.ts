@@ -72,10 +72,14 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
   it('F1.4: throws AtlasNotFoundError when sibling .atlas is absent; searchedPath ends with .atlas', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-'));
     const jsonPath = path.join(tmpDir, 'rig.json');
-    // Minimal JSON: loader reads file text BEFORE it tries to parse the skeleton.
-    // Atlas resolution happens BEFORE skeleton parsing, so an invalid skeleton
-    // here doesn't prevent the AtlasNotFoundError branch from firing.
-    fs.writeFileSync(jsonPath, '{}');
+    // Loader order-of-operations: readFileSync → version-guard → atlas
+    // resolution → skeleton parse. The skeleton.spine field MUST be
+    // present and >= 4.2 (Phase 12 Plan 05 / D-21) for the test to reach
+    // the AtlasNotFoundError branch — otherwise the version-guard fires
+    // first with SpineVersionUnsupportedError. The rest of the JSON
+    // body can stay minimal because spine-core's SkeletonJson runs
+    // AFTER atlas parsing (which fails first here).
+    fs.writeFileSync(jsonPath, '{"skeleton":{"spine":"4.2.43"}}');
     try {
       let caught: unknown;
       try {
@@ -96,7 +100,9 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
   it('F1.4: AtlasNotFoundError carries the skeletonPath context', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-ctx-'));
     const jsonPath = path.join(tmpDir, 'rig.json');
-    fs.writeFileSync(jsonPath, '{}');
+    // Phase 12 Plan 05 / D-21 — skeleton.spine must be >= 4.2 to reach
+    // the atlas-resolution branch (version guard fires first).
+    fs.writeFileSync(jsonPath, '{"skeleton":{"spine":"4.2.43"}}');
     try {
       let caught: unknown;
       try {
@@ -115,7 +121,9 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
   it('Gap-Fix Round 2 Bug #5: AtlasNotFoundError message explains WHY the atlas is required (re-export hint)', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-msg-'));
     const jsonPath = path.join(tmpDir, 'rig.json');
-    fs.writeFileSync(jsonPath, '{}');
+    // Phase 12 Plan 05 / D-21 — skeleton.spine must be >= 4.2 to reach
+    // the atlas-resolution branch (version guard fires first).
+    fs.writeFileSync(jsonPath, '{"skeleton":{"spine":"4.2.43"}}');
     try {
       let caught: unknown;
       try {
