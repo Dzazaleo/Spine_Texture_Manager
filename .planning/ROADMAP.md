@@ -28,7 +28,7 @@
 ### 🚧 v1.1 Distribution (Phases 10–13)
 
 - [x] **Phase 10: Installer build (electron-builder, all 3 platforms)** — Local npm scripts produce Windows `.exe`, macOS `.dmg`, Linux `.AppImage` from existing electron-builder config; `sharp` libvips ships intact. (completed 2026-04-27)
-- [ ] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release. (Plan 11-01 file-authoring wave complete 2026-04-27; Plan 11-02 live verification pending.)
+- [x] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release. (Plan 11-01 file-authoring wave complete 2026-04-27; Plan 11-02 live verification pending.) (completed 2026-04-27)
 - [ ] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen bypasses.
 - [ ] **Phase 13: Crash + error reporting** — Main + renderer unhandled-exception capture with version/OS metadata, source-map upload from CI, opt-out Settings toggle, first-launch consent prompt; PII-redaction floor enforced.
 
@@ -71,7 +71,7 @@
 
 **Plans**: 2 plans
 - [x] 11-01-PLAN.md — Author .github/workflows/release.yml + .github/release-template.md + bake `--publish never` into package.json build:* scripts (Wave 1, autonomous) — completed 2026-04-27, three atomic commits (69c8cc1, eb8a904, c253eb6)
-- [ ] 11-02-PLAN.md — Live verification: push v1.1.0-rc1, capture gh CLI evidence for the 8 falsifiable criteria, workflow_dispatch dry run, atomicity audit, REL-04 install smoke (Wave 2, has checkpoints)
+- [x] 11-02-PLAN.md — Live verification: push v1.1.0-rc1, capture gh CLI evidence for the 8 falsifiable criteria, workflow_dispatch dry run, atomicity audit, REL-04 install smoke (Wave 2, has checkpoints)
 
 ### Phase 12: Auto-update + tester install docs
 
@@ -115,7 +115,7 @@
 |-------|-----------|----------------|--------|-----------|
 | 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
 | 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
-| 11. CI release pipeline | v1.1 | 1/2 | In progress | — |
+| 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
 | 12. Auto-update + install docs | v1.1 | 0/0 | Not started | — |
 | 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
 
