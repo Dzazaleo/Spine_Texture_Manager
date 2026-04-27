@@ -45,11 +45,16 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 ### UPD — Auto-update
 
-- [ ] **UPD-01**: On startup, the app checks the GitHub Releases feed for a newer published version (non-blocking, background).
-- [ ] **UPD-02**: User can manually trigger an update check via a menu item (e.g. Help → Check for Updates).
-- [ ] **UPD-03**: When an update is available, the app prompts the user with version + release-notes summary and an opt-in download.
-- [ ] **UPD-04**: After download, the app prompts the user to restart and apply the update; "Later" defers without nagging on next startup.
-- [ ] **UPD-05**: Auto-update degrades gracefully when offline or when GitHub is unreachable — no crash, no error dialog, no nag loop.
+- [x] **UPD-01
+**: On startup, the app checks the GitHub Releases feed for a newer published version (non-blocking, background).
+- [x] **UPD-02
+**: User can manually trigger an update check via a menu item (e.g. Help → Check for Updates).
+- [x] **UPD-03
+**: When an update is available, the app prompts the user with version + release-notes summary and an opt-in download.
+- [x] **UPD-04
+**: After download, the app prompts the user to restart and apply the update; "Later" defers without nagging on next startup.
+- [x] **UPD-05
+**: Auto-update degrades gracefully when offline or when GitHub is unreachable — no crash, no error dialog, no nag loop.
 - [x] **UPD-06
 **: Auto-update works on macOS and Linux. **Windows note:** electron-updater historically requires code-signed builds on Windows; if unsigned auto-update proves infeasible, ship Windows users a "manual update" path (notify of new release, link to download page) and document the gap.
 
