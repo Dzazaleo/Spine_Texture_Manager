@@ -13,9 +13,18 @@
  * Canvas-pixel assertions are SKIPPED (jsdom returns null from getContext('2d'))
  * — pixel correctness is asserted via tests/core/atlas-preview.spec.ts golden
  * values + a manual checkpoint:human-verify gate. See RESEARCH §Open Question 3.
+ *
+ * Phase 12 Plan 03 (D-19) — F1 atlas-image URL regression tests appended at
+ * the bottom of this file exercise the algorithmic correctness of the
+ * `pathToFileURL → app-image://localhost/<pathname>` URL construction (the
+ * same algorithm running in the new `atlas:resolve-image-url` IPC handler).
+ * Runs in the 12-02 expanded matrix → Windows runner exercises real
+ * pathToFileURL Windows behavior; macOS/Linux runners verify the algorithm
+ * doesn't break on POSIX paths.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { pathToFileURL } from 'node:url';
 import { AtlasPreviewModal } from '../../src/renderer/src/modals/AtlasPreviewModal';
 import type { SkeletonSummary, DisplayRow } from '../../src/shared/types';
 
@@ -309,5 +318,90 @@ describe('AtlasPreviewModal — close interactions (D-81)', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Phase 12 Plan 03 (D-19) — F1 atlas-image URL regression tests.
+ *
+ * The bug: AtlasPreviewModal.tsx:116 used to construct img.src as
+ *   `app-image://localhost${encodeURI(absolutePath)}`
+ *
+ * On Windows, absolutePath = 'C:\\Users\\Leo\\stm\\images\\CIRCLE.png'.
+ * encodeURI preserves ':', so the final URL was
+ *   'app-image://localhostC:%5CUsers%5C…'
+ * which the URL parser interprets with host='localhostc' (lowercased; up to
+ * the first ':') — the protocol handler 404s and the atlas preview shows
+ * only outline rectangles instead of the underlying texture.
+ * RESEARCH §F1 + 11-WIN-FINDINGS §F1: the trailing 'c' on 'localhost' is
+ * the smoking gun (drive-letter `C:` glued onto `localhost`).
+ *
+ * The fix: route URL construction through pathToFileURL().pathname in the
+ * privileged main process via the new `atlas:resolve-image-url` IPC handler
+ * + `window.api.pathToImageUrl` preload bridge. The handler enforces
+ * `windows: true` interpretation when it sees a leading drive-letter so
+ * the URL is correct regardless of which OS hosts the IPC handler.
+ *
+ * These tests exercise the SAME algorithm directly via node:url
+ * pathToFileURL (the IPC handler's body) — algorithmic correctness on
+ * the inputs that hit the bridge in production. CI runs this spec on
+ * the 12-02 expanded matrix [ubuntu-latest, windows-2022, macos-14] so
+ * the Windows runner exercises real pathToFileURL Windows behavior on
+ * top of the explicit { windows: true } simulation.
+ */
+describe('F1 regression — app-image:// URL construction (D-19)', () => {
+  it('Windows-style path: host stays "localhost" (NOT "localhostc"); drive letter goes in pathname', () => {
+    const winPath = 'C:\\Users\\Tester\\stm\\images\\CIRCLE.png';
+    // { windows: true } forces Windows interpretation regardless of dev-host
+    // OS. Same option the IPC handler picks when it detects a drive-letter.
+    const fileUrl = pathToFileURL(winPath, { windows: true });
+    const appImageUrl = `app-image://localhost${fileUrl.pathname}`;
+    const parsed = new URL(appImageUrl);
+
+    // The bug: drive-letter `C` glued onto 'localhost' → host became 'localhostc'.
+    expect(parsed.host).toBe('localhost');
+    expect(parsed.host).not.toMatch(/localhostc/i);
+
+    // Drive-letter ends up in path, not host.
+    expect(parsed.pathname).toMatch(/^\/C:\//);
+  });
+
+  it('POSIX-style path: host="localhost" and pathname is the absolute path verbatim', () => {
+    const posixPath = '/Users/leo/stm/images/CIRCLE.png';
+    const fileUrl = pathToFileURL(posixPath);
+    const appImageUrl = `app-image://localhost${fileUrl.pathname}`;
+    const parsed = new URL(appImageUrl);
+
+    expect(parsed.host).toBe('localhost');
+    expect(parsed.pathname).toBe('/Users/leo/stm/images/CIRCLE.png');
+  });
+
+  it('the buggy concat shape produces a malformed URL on Windows-style input (anti-test pinning the original failure mode)', () => {
+    const winPath = 'C:\\Users\\Tester\\stm\\images\\CIRCLE.png';
+    // Simulate the OLD (buggy) renderer concat — encodeURI preserves ':'.
+    const buggyUrl = `app-image://localhost${encodeURI(winPath)}`;
+
+    // Two possible failure modes for the buggy shape, BOTH of which break
+    // the atlas preview at runtime:
+    //   (a) Permissive parser (Chromium / older Node WHATWG URL) — the ':'
+    //       in the drive letter is treated as a host:port separator and
+    //       host becomes 'localhostc' (lowercased; up to first ':'), which
+    //       is the original Windows runtime smoking gun
+    //       (11-WIN-FINDINGS §F1).
+    //   (b) Strict parser (modern Node WHATWG URL) — the malformed URL
+    //       throws TypeError 'Invalid URL' outright because the path
+    //       starts mid-host without a separator.
+    // Either outcome is sufficient evidence of the bug; the positive
+    // test above proves the fix shape avoids both. The anti-test pair
+    // makes the regression visible if a future refactor accidentally
+    // re-introduces the concat shape.
+    let outcome: 'invalid-url' | 'localhostc-host' | 'looks-fine' = 'looks-fine';
+    try {
+      const buggyParsed = new URL(buggyUrl);
+      if (buggyParsed.host === 'localhostc') outcome = 'localhostc-host';
+    } catch {
+      outcome = 'invalid-url';
+    }
+    expect(outcome).not.toBe('looks-fine');
   });
 });
