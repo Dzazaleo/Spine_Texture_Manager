@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
-status: unknown
+status: ready_to_plan
 last_updated: "2026-04-27T10:12:02.872Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
   completed_plans: 3
-  percent: 100
+  percent: 50
 ---
 
 # State

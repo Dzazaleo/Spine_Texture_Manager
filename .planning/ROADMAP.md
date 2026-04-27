@@ -27,7 +27,7 @@
 
 ### 🚧 v1.1 Distribution (Phases 10–13)
 
-- [ ] **Phase 10: Installer build (electron-builder, all 3 platforms)** — Local npm scripts produce Windows `.exe`, macOS `.dmg`, Linux `.AppImage` from existing electron-builder config; `sharp` libvips ships intact.
+- [x] **Phase 10: Installer build (electron-builder, all 3 platforms)** — Local npm scripts produce Windows `.exe`, macOS `.dmg`, Linux `.AppImage` from existing electron-builder config; `sharp` libvips ships intact. (completed 2026-04-27)
 - [ ] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release.
 - [ ] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen bypasses.
 - [ ] **Phase 13: Crash + error reporting** — Main + renderer unhandled-exception capture with version/OS metadata, source-map upload from CI, opt-out Settings toggle, first-launch consent prompt; PII-redaction floor enforced.
@@ -50,9 +50,9 @@
   5. Linux `.AppImage` build is attempted locally only as a smoke test; failure here is acceptable in this phase (Linux is verified by CI in Phase 11), but the `electron-builder.yml` Linux target configuration is complete and committed.
 
 **Plans**: 3 plans
-- [ ] 10-01-PLAN.md — Version bump (0.0.0 → 1.1.0-rc1) + per-platform npm scripts + build/.gitkeep sentinel (Wave 1)
-- [ ] 10-02-PLAN.md — electron-builder.yml extension: mac ad-hoc + Windows NSIS unsigned + Linux AppImage (Wave 2)
-- [ ] 10-03-PLAN.md — Build macOS .dmg, capture shell assertions, write 10-SMOKE-TEST.md, manual Optimize Assets verification (Wave 3, includes checkpoint)
+- [x] 10-01-PLAN.md — Version bump (0.0.0 → 1.1.0-rc1) + per-platform npm scripts + build/.gitkeep sentinel (Wave 1)
+- [x] 10-02-PLAN.md — electron-builder.yml extension: mac ad-hoc + Windows NSIS unsigned + Linux AppImage (Wave 2)
+- [x] 10-03-PLAN.md — Build macOS .dmg, capture shell assertions, write 10-SMOKE-TEST.md, manual Optimize Assets verification (Wave 3, includes checkpoint)
 
 ### Phase 11: CI release pipeline (GitHub Actions → draft Release)
 
@@ -112,7 +112,7 @@
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
-| 10. Installer build (electron-builder) | v1.1 | 0/3 | Planned | — |
+| 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
 | 11. CI release pipeline | v1.1 | 0/0 | Not started | — |
 | 12. Auto-update + install docs | v1.1 | 0/0 | Not started | — |
 | 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
