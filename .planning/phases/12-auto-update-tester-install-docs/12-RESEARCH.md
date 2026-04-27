@@ -432,6 +432,16 @@ SPIKE OUTCOME (UPD-06 / D-01):
 - Evidence: <one-line gh CLI evidence or DevTools console excerpt>.
 ```
 
+### Recorded Outcome (Plan 12-01 close-out, 2026-04-27)
+
+```
+SPIKE OUTCOME (UPD-06 / D-01):
+- Result: DEFERRED to phase 12.1
+- Windows branch: manual fallback (D-03 variant active by default; SPIKE_PASSED=false on win32)
+- Evidence: 3 live CI runs on 2026-04-27 (25017095851 / 25017351602 / 25017624868) all failed at electron-builder publish race; spike runbook step 5 (install rc2 on Windows) never reached. See deferred-items.md "CI tag-push will fail..." entry for root cause and 12.1 disposition.
+- Date: 2026-04-27
+```
+
 ## electron-updater Configuration
 
 ### `electron-builder.yml` change (Phase 12)
