@@ -47,7 +47,11 @@ import {
 } from '../core/project-file.js';
 import { loadSkeleton } from '../core/loader.js';
 import { buildSummary } from './summary.js';
-import { SkeletonJsonNotFoundError, SpineLoaderError } from '../core/errors.js';
+import {
+  SkeletonJsonNotFoundError,
+  SpineLoaderError,
+  SpineVersionUnsupportedError,
+} from '../core/errors.js';
 // Phase 9 Plan 02 D-190 + D-193 — sampling moved to a worker_threads Worker.
 // project-io.ts no longer imports sampleSkeleton directly; it dispatches
 // through runSamplerInWorker which spawns src/main/sampler-worker.ts and
@@ -88,7 +92,18 @@ import type {
  * Same shape applied to `src/main/ipc.ts:handleSkeletonLoad` for the
  * `LoadResponse` envelope.
  */
-type NonRecoveryKind = Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>;
+// Phase 12 Plan 05 (D-21) — F3 Spine version guard. Also exclude
+// 'SpineVersionUnsupportedError': its envelope arm carries an extra typed
+// field beyond `message` (`detectedVersion`); the dedicated `instanceof
+// SpineVersionUnsupportedError` branches in each catch clause below handle
+// it BEFORE the generic `instanceof SpineLoaderError` branch fires.
+// Excluding it here makes TypeScript verify the generic forwarders cannot
+// accidentally produce the version-error arm without populating its
+// `detectedVersion` field (which would be a runtime bug).
+type NonRecoveryKind = Exclude<
+  SerializableError['kind'],
+  'SkeletonNotFoundOnLoadError' | 'SpineVersionUnsupportedError'
+>;
 
 // ---------------------------------------------------------------------------
 // Save (F9.1, T-08-IO)
@@ -415,6 +430,21 @@ export async function handleProjectOpenFromPath(
         },
       };
     }
+    // Phase 12 / Plan 05 (D-21) — F3 Spine version guard. The
+    // SpineVersionUnsupportedError envelope arm carries `detectedVersion`
+    // beyond the generic `{kind, message}` shape; the NonRecoveryKind cast
+    // below CANNOT produce it. Branch BEFORE the generic SpineLoaderError
+    // forwarder so 3.x-rig project-open paths surface the typed envelope.
+    if (err instanceof SpineVersionUnsupportedError) {
+      return {
+        ok: false,
+        error: {
+          kind: 'SpineVersionUnsupportedError',
+          message: err.message,
+          detectedVersion: err.detectedVersion,
+        },
+      };
+    }
     if (err instanceof SpineLoaderError) {
       // AtlasNotFoundError, AtlasParseError → forward .name verbatim.
       // Phase 8.1 D-158: the SerializableError union's second arm excludes
@@ -650,6 +680,19 @@ export async function handleProjectReloadWithSkeleton(
         },
       };
     }
+    // Phase 12 / Plan 05 (D-21) — F3 Spine version guard. Dedicated branch
+    // for SpineVersionUnsupportedError populates the `detectedVersion` field
+    // on the envelope arm; the NonRecoveryKind cast below cannot.
+    if (err instanceof SpineVersionUnsupportedError) {
+      return {
+        ok: false,
+        error: {
+          kind: 'SpineVersionUnsupportedError',
+          message: err.message,
+          detectedVersion: err.detectedVersion,
+        },
+      };
+    }
     if (err instanceof SpineLoaderError) {
       // Phase 8.1 D-158: narrow to NonRecoveryKind so TypeScript verifies the
       // SpineLoaderError forwarder cannot accidentally produce the
@@ -798,6 +841,20 @@ export async function handleProjectResample(
       return {
         ok: false,
         error: { kind: 'SkeletonJsonNotFoundError', message: err.message },
+      };
+    }
+    // Phase 12 / Plan 05 (D-21) — F3 Spine version guard. Dedicated branch
+    // populates the `detectedVersion` envelope field; the NonRecoveryKind
+    // cast below cannot. Re-sample paths can hit this if the source rig was
+    // regenerated to a 3.x export between project Open and resample.
+    if (err instanceof SpineVersionUnsupportedError) {
+      return {
+        ok: false,
+        error: {
+          kind: 'SpineVersionUnsupportedError',
+          message: err.message,
+          detectedVersion: err.detectedVersion,
+        },
       };
     }
     if (err instanceof SpineLoaderError) {

@@ -42,7 +42,7 @@ import { pathToFileURL } from 'node:url';
 import { access, constants as fsConstants } from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
-import { SpineLoaderError } from '../core/errors.js';
+import { SpineLoaderError, SpineVersionUnsupportedError } from '../core/errors.js';
 import { buildSummary } from './summary.js';
 import { runExport } from './image-worker.js';
 import {
@@ -101,12 +101,29 @@ import type {
 // recovery-payload arm of the SerializableError union without populating its
 // 7 threaded fields (see project-io.ts NonRecoveryKind for the parallel
 // narrowing at the project-open rescue branches).
-type KnownErrorKind = Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>;
+// Phase 12 Plan 05 (D-21) — F3 Spine version guard. Also exclude
+// 'SpineVersionUnsupportedError': its envelope arm carries an extra typed
+// field beyond `message` (`detectedVersion`); the dedicated branch in the
+// catch clause below handles it BEFORE this generic kind-list arm fires.
+// Excluding it here makes TypeScript verify the generic forwarder cannot
+// accidentally produce the version-error arm without populating its
+// `detectedVersion` field (which would be a runtime bug).
+type KnownErrorKind = Exclude<
+  SerializableError['kind'],
+  'SkeletonNotFoundOnLoadError' | 'SpineVersionUnsupportedError'
+>;
 
 const KNOWN_KINDS: ReadonlySet<KnownErrorKind> = new Set<KnownErrorKind>([
   'SkeletonJsonNotFoundError',
   'AtlasNotFoundError',
   'AtlasParseError',
+  // Phase 12 / Plan 05 (D-21) — F3 Spine version guard.
+  // 'SpineVersionUnsupportedError' is INTENTIONALLY NOT in this Set —
+  // it carries an extra typed field (`detectedVersion`) on its envelope
+  // arm and is handled by the dedicated `instanceof
+  // SpineVersionUnsupportedError` branch in the catch clause BEFORE this
+  // generic kind-list arm fires. KnownErrorKind explicitly excludes it
+  // (see the type alias above) so this Set is type-safe by construction.
 ]);
 
 // ---------------------------------------------------------------------------
@@ -329,6 +346,20 @@ export async function handleSkeletonLoad(jsonPath: unknown): Promise<LoadRespons
     const summary = buildSummary(load, sampled, elapsedMs);
     return { ok: true, summary };
   } catch (err) {
+    // Phase 12 / Plan 05 (D-21) — F3 Spine version guard. The
+    // SpineVersionUnsupportedError envelope arm carries one extra typed
+    // field beyond `message` (`detectedVersion`); the generic kind-list
+    // arm below would drop it. Branch BEFORE the generic forwarder.
+    if (err instanceof SpineVersionUnsupportedError) {
+      return {
+        ok: false,
+        error: {
+          kind: 'SpineVersionUnsupportedError',
+          message: err.message,
+          detectedVersion: err.detectedVersion,
+        },
+      };
+    }
     if (err instanceof SpineLoaderError && KNOWN_KINDS.has(err.name as KnownErrorKind)) {
       // T-01-02-02: surface only the error name + message; never any trace.
       return {

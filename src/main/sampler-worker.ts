@@ -60,7 +60,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton, type SamplerOutput } from '../core/sampler.js';
-import { SpineLoaderError } from '../core/errors.js';
+import { SpineLoaderError, SpineVersionUnsupportedError } from '../core/errors.js';
 import type {
   SamplerOutputShape,
   SamplerWorkerData,
@@ -129,14 +129,33 @@ export async function runSamplerJob(params: {
 }
 
 function serializeError(err: unknown): SerializableError {
+  // Phase 12 / Plan 05 (D-21) — F3 Spine version guard. The version-error
+  // envelope arm carries `detectedVersion` beyond `{kind, message}`; the
+  // generic SpineLoaderError forwarder below cannot populate it. Branch
+  // first so 3.x rigs reaching the sampler worker surface the typed
+  // envelope correctly. (Reachable when `runSamplerInWorker` is called
+  // before any main-side version check fires — the worker re-loads the
+  // skeleton path internally per D-193.)
+  if (err instanceof SpineVersionUnsupportedError) {
+    return {
+      kind: 'SpineVersionUnsupportedError',
+      message: err.message,
+      detectedVersion: err.detectedVersion,
+    };
+  }
   if (err instanceof SpineLoaderError) {
     // Forward .name as the discriminator. T-01-02-02 information-disclosure
     // mitigation: only kind + message; never the stack trace. The
     // 'SkeletonNotFoundOnLoadError' arm of SerializableError carries 7
     // recovery fields and is constructed by hand in project-io.ts only —
     // the worker NEVER produces that arm; cast to the non-recovery union.
+    // 'SpineVersionUnsupportedError' is excluded too (handled above) so the
+    // cast remains type-safe under the Phase 12 union extension.
     return {
-      kind: err.name as Exclude<SerializableError['kind'], 'SkeletonNotFoundOnLoadError'>,
+      kind: err.name as Exclude<
+        SerializableError['kind'],
+        'SkeletonNotFoundOnLoadError' | 'SpineVersionUnsupportedError'
+      >,
       message: err.message,
     };
   }

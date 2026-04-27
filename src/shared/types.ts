@@ -539,6 +539,18 @@ export type SerializableError =
         | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1
         | 'Unknown';
       message: string;
+    }
+  | {
+      // Phase 12 / Plan 05 (D-21) — F3 Spine version guard.
+      // Carries `detectedVersion` as an extra typed field beyond `message` so
+      // the renderer/CLI can show the version separately if useful (the
+      // existing `message` already echoes it, but the dedicated field keeps
+      // narrowing precise for future UI surfaces). The IPC forwarder at
+      // src/main/ipc.ts populates this field from
+      // (err as SpineVersionUnsupportedError).detectedVersion.
+      kind: 'SpineVersionUnsupportedError';
+      message: string;
+      detectedVersion: string;
     };
 
 /** Discriminated-union result returned from `ipcMain.handle('skeleton:load', ...)`. */
