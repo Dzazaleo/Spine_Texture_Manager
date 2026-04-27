@@ -1,0 +1,24 @@
+=== DIST-04: macOS ad-hoc signature ===
+Identifier=com.spine.texture-manager
+Signature=adhoc
+TeamIdentifier=not set
+
+=== DIST-07: version embedding in Info.plist ===
+  "CFBundleIdentifier" => "com.spine.texture-manager"
+  "CFBundleShortVersionString" => "1.1.0-rc1"
+  "CFBundleVersion" => "1.1.0-rc1"
+
+=== DIST-06: sharp + libvips in app.asar.unpacked ===
+colour
+sharp-darwin-arm64
+sharp-libvips-darwin-arm64
+
+=== DIST-06: sharp directory in app.asar.unpacked ===
+LICENSE
+install
+lib
+package.json
+src
+
+=== DIST-02 + DIST-07: produced .dmg filename ===
+-rw-r--r--@ 1 leo  staff  124317884 Apr 27 10:57 release/Spine Texture Manager-1.1.0-rc1-arm64.dmg
