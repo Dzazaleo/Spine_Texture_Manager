@@ -20,11 +20,11 @@ const SKELETON_PATH = resolve(
 );
 
 describe('sampler-worker — Wave 1 N2.2 wall-time gate (fixtures/Girl)', () => {
-  // CONTEXT.md authorizes .skipIf(env.CI) if empirical CI variance exceeds
-  // budget; Wave 1 leaves the test active locally + on CI. Promote to
-  // .skipIf(process.env.CI) only after empirical CI variance is observed.
-  // Local `npm run test` is the non-negotiable gate.
-  it(
+  // fixtures/Girl/ is gitignored (licensed third-party rig — see .gitignore L22),
+  // so this test cannot run on CI runners — the fixture file does not exist there.
+  // Per CONTEXT.md authorization, skip on CI. Local `npm run test` remains the
+  // non-negotiable gate.
+  it.skipIf(process.env.CI)(
     'fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json samples in <8000 ms (10000 ms budget, 2000 ms margin) with 1 warm-up run discarded',
     async () => {
       // Warm-up run — JIT compilation + V8 inline-cache stabilization.
