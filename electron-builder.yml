@@ -7,13 +7,20 @@ copyright: Copyright (C) 2026
 # DIST-05: no Windows code-signing keys are present, so the NSIS installer is unsigned.
 # No release-channel block — auto-update wiring is Phase 12 (UPD-01..UPD-06).
 
-# Pitfall 1 belt-and-braces (Phase 11 live-verify finding): explicitly null the
-# publisher so electron-builder skips its provider auto-detect at build-prep time.
-# Without this, even with `--publish never` on the CLI, electron-builder
-# auto-detects `provider: github` from the git remote and aborts with
-# "GitHub Personal Access Token is not set" before the build finishes.
-# Phase 12 will replace `null` with a real provider when auto-update lands.
-publish: null
+# Phase 12 (Plan 12-02): GitHub publish provider declared so electron-builder
+# generates `app-update.yml` into bundled resources/ at build time. Without this
+# block, electron-updater errors at runtime ("app-update.yml is missing") —
+# see RESEARCH §Common Pitfalls (GH issues #8620 + #2667).
+# The `--publish never` CLI suffix on build:mac/build:win/build:linux scripts
+# (Phase 11 D-01 lock) is preserved as belt-and-braces — this YAML block ONLY
+# enables the bundling of `app-update.yml`; it does NOT trigger auto-publish to
+# GitHub at build time. Auto-update detection happens at runtime against the
+# published GitHub Releases feed, populated by .github/workflows/release.yml.
+publish:
+  provider: github
+  owner: Dzazaleo
+  repo: Spine_Texture_Manager
+  releaseType: release
 
 directories:
   output: release
