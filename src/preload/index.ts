@@ -394,6 +394,94 @@ const api: Api = {
   // File→Open success. RESEARCH §Pitfall 7 + 09-CONTEXT.md Settings modal.
   // -------------------------------------------------------------------------
   resampleProject: (args) => ipcRenderer.invoke('project:resample', args),
+
+  // -------------------------------------------------------------------------
+  // Phase 12 Plan 01 — auto-update bridges (UPD-01..UPD-06).
+  //
+  // Five subscribe methods + four invoke/send methods. Every on* method
+  // captures the wrapped listener identity in a local const BEFORE
+  // ipcRenderer.on so the returned unsubscribe targets the SAME reference
+  // (Pitfall 9 — listener-identity preservation; without this, listeners
+  // accumulate and unsubscribe silently fails. Same idiom as Phase 6's
+  // onExportProgress at lines 126-132 and Phase 8.2's onMenu* methods).
+  // -------------------------------------------------------------------------
+
+  /** UPD-02 — Help → Check for Updates manual trigger. Resolves when checkUpdate completes. */
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('update:check-now'),
+
+  /** UPD-03 — UpdateDialog "Download + Restart" click. Opt-in download (autoDownload=false). */
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke('update:download'),
+
+  /** D-08 — UpdateDialog "Later" click. Persists dismissedUpdateVersion. One-way. */
+  dismissUpdate: (version: string): void => {
+    ipcRenderer.send('update:dismiss', version);
+  },
+
+  /** UPD-04 — UpdateDialog "Restart" click after download. One-way; main defers via setTimeout(0). */
+  quitAndInstallUpdate: (): void => {
+    ipcRenderer.send('update:quit-and-install');
+  },
+
+  /** UPD-04 — subscribe to 'update:available'. Pitfall 9 listener-identity. */
+  onUpdateAvailable: (
+    cb: (payload: {
+      version: string;
+      summary: string;
+      variant?: 'auto-update' | 'windows-fallback';
+      fullReleaseUrl: string;
+    }) => void,
+  ) => {
+    const wrapped = (
+      _evt: Electron.IpcRendererEvent,
+      payload: {
+        version: string;
+        summary: string;
+        variant?: 'auto-update' | 'windows-fallback';
+        fullReleaseUrl: string;
+      },
+    ) => cb(payload);
+    ipcRenderer.on('update:available', wrapped);
+    return () => {
+      ipcRenderer.removeListener('update:available', wrapped);
+    };
+  },
+
+  /** UPD-04 — subscribe to 'update:downloaded'. Pitfall 9 listener-identity. */
+  onUpdateDownloaded: (cb: (payload: { version: string }) => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, payload: { version: string }) => cb(payload);
+    ipcRenderer.on('update:downloaded', wrapped);
+    return () => {
+      ipcRenderer.removeListener('update:downloaded', wrapped);
+    };
+  },
+
+  /** UPD-02 — subscribe to 'update:none'. Renderer filters by manualCheckPendingRef. */
+  onUpdateNone: (cb: (payload: { currentVersion: string }) => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, payload: { currentVersion: string }) =>
+      cb(payload);
+    ipcRenderer.on('update:none', wrapped);
+    return () => {
+      ipcRenderer.removeListener('update:none', wrapped);
+    };
+  },
+
+  /** UPD-02 — subscribe to 'update:error'. Renderer filters by manualCheckPendingRef. */
+  onUpdateError: (cb: (payload: { message: string }) => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, payload: { message: string }) => cb(payload);
+    ipcRenderer.on('update:error', wrapped);
+    return () => {
+      ipcRenderer.removeListener('update:error', wrapped);
+    };
+  },
+
+  /** D-07 — subscribe to Help → Check for Updates menu click. Pitfall 9 listener-identity. */
+  onMenuCheckForUpdates: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:check-for-updates-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:check-for-updates-clicked', wrapped);
+    };
+  },
 };
 
 if (process.contextIsolated) {

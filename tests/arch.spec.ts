@@ -37,8 +37,24 @@ describe('Portability: no platform-specific code in src/ (D-23)', () => {
   it('no process.platform / os.platform / macOS-only BrowserWindow chrome', () => {
     const files = globSync('src/{main,preload,renderer}/**/*.{ts,tsx}');
     const forbidden = /process\.platform|os\.platform\(\)|titleBarStyle:\s*['"]hiddenInset['"]|trafficLightPosition|vibrancy:|visualEffectState/;
+    // Phase 12 Plan 01 carve-out (CONTEXT D-04): auto-update.ts is the
+    // ONLY load-bearing platform-branching surface in v1.1 — the Windows
+    // unsigned-NSIS spike outcome (Task 6) routes the Windows branch to
+    // either the full auto-update path OR the manual-fallback notice. D-04
+    // explicitly contracts: "macOS and Linux always take the full auto-update
+    // path (download + apply). Windows is the only platform where the spike
+    // result can route to the fallback. The two paths must be implemented
+    // under one cohesive code surface (per-platform branching at the
+    // update-flow boundary, not duplicated dialogs/menus)." The branch
+    // lives in deliverUpdateAvailable's variant-routing constant + IPC
+    // payload field — main is the single source of truth, renderer never
+    // derives the variant from process.platform.
+    const PLATFORM_CARVE_OUTS = new Set<string>([
+      'src/main/auto-update.ts',
+    ]);
     const offenders: string[] = [];
     for (const file of files) {
+      if (PLATFORM_CARVE_OUTS.has(file)) continue;
       if (forbidden.test(readFileSync(file, 'utf8'))) offenders.push(file);
     }
     expect(

@@ -54,6 +54,19 @@ import {
   handleProjectResample,
 } from './project-io.js';
 import { getSamplerWorkerHandle } from './sampler-worker-bridge.js';
+// Phase 12 Plan 01 Task 4 — auto-update IPC bridge (UPD-01..UPD-06).
+//
+// auto-update.ts imports `getMainWindow` from `./index.js`, which means an
+// eager `import { ... } from './auto-update.js'` here creates the same
+// load-time cycle the Phase 8.2 menu-wiring already documents above
+// (`ipc.ts → auto-update.ts → index.ts → recent.ts → app.getPath('userData')`).
+// vitest specs that target handlers UNRELATED to auto-update (e.g.
+// ipc-export.spec.ts) mock `electron` minimally and don't stub `protocol` /
+// `app.getPath`, so eager evaluation aborts the spec before any test runs.
+//
+// We follow the established pattern: dynamic `await import('./auto-update.js')`
+// inside the channel handlers below. The first call to any of the four
+// auto-update channels triggers the module load on demand.
 // Phase 8.2 D-181 — menu state surface lives in src/main/index.ts. We
 // dereference applyMenu / setCurrentMenuState / getMainWindow via dynamic
 // `await import('./index.js')` INSIDE the 'menu:notify-state' handler body
@@ -135,6 +148,13 @@ const SHELL_OPEN_EXTERNAL_ALLOWED: ReadonlySet<string> = new Set<string>([
   'https://esotericsoftware.com/spine-runtimes',
   'https://esotericsoftware.com/spine-api-reference',
   'https://en.esotericsoftware.com/spine-json-format',
+  // Phase 12 Plan 01 (D-09 + D-18 option (b)) — the Releases _index_ page is
+  // the stable URL surface for the UpdateDialog "View full release notes" link
+  // AND the Windows-fallback "Open Release Page" button. We intentionally do
+  // NOT add per-tag URLs (which would require pattern support); the user
+  // navigates one click further to the specific release. INSTALL.md URL is
+  // added by Plan 12-06 — DO NOT add it here.
+  'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
 ]);
 
 /**
@@ -599,6 +619,44 @@ export function registerIpcHandlers(): void {
       // shell.openExternal can throw on platforms where the default browser
       // is misconfigured. Silent — one-way channel; nothing to return.
     }
+  });
+
+  // Phase 12 Plan 01 — auto-update IPC surface (UPD-01..UPD-06).
+  //
+  // Four channels:
+  //   - 'update:check-now' (invoke): Help → Check for Updates manual trigger.
+  //     Forwards to checkUpdate(true); on rejection main bridges 'update:error'.
+  //   - 'update:download' (invoke): UpdateDialog "Download + Restart" click.
+  //     Opt-in download (UPD-03 — autoDownload=false in auto-update.ts).
+  //   - 'update:dismiss' (one-way send): UpdateDialog "Later" click.
+  //     Persists dismissedUpdateVersion via D-08 atomic-write to
+  //     update-state.json. Trust-boundary typeof guard mirrors
+  //     'shell:open-external' (line 612-613) — non-string / empty payload
+  //     silently dropped.
+  //   - 'update:quit-and-install' (one-way send): UpdateDialog "Restart"
+  //     click after download. quitAndInstallUpdate uses Pattern H
+  //     setTimeout(0) deferral so this IPC ack returns to the renderer
+  //     BEFORE autoUpdater.quitAndInstall fires (synchronous quit).
+  ipcMain.handle('update:check-now', async () => {
+    const { checkUpdate } = await import('./auto-update.js');
+    return checkUpdate(true);
+  });
+  ipcMain.handle('update:download', async () => {
+    const { downloadUpdate } = await import('./auto-update.js');
+    return downloadUpdate();
+  });
+  ipcMain.on('update:dismiss', (_evt, version) => {
+    if (typeof version !== 'string' || version.length === 0) return;
+    void (async () => {
+      const { dismissUpdate } = await import('./auto-update.js');
+      await dismissUpdate(version);
+    })();
+  });
+  ipcMain.on('update:quit-and-install', () => {
+    void (async () => {
+      const { quitAndInstallUpdate } = await import('./auto-update.js');
+      quitAndInstallUpdate();
+    })();
   });
 
   // Phase 8 — project file IPC channels (D-140..D-156). Six invoke channels

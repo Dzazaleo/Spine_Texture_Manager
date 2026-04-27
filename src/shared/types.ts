@@ -896,4 +896,48 @@ export interface Api {
    * holds these values from the prior Open success.
    */
   resampleProject: (args: ResampleArgs) => Promise<OpenResponse>;
+
+  // -------------------------------------------------------------------------
+  // Phase 12 Plan 01 — auto-update bridges (UPD-01..UPD-06).
+  //
+  // Five subscribe methods (Pitfall 9 listener-identity preservation in
+  // src/preload/index.ts) + four invoke/send methods. Main is the single
+  // source of truth for the variant routing (D-04 Windows-fallback): the
+  // renderer never derives 'auto-update' vs 'windows-fallback' from
+  // process.platform — it consumes the variant field as supplied by main.
+  // -------------------------------------------------------------------------
+
+  /** UPD-02 — Help → Check for Updates manual trigger. Resolves when checkUpdate completes. */
+  checkForUpdates: () => Promise<void>;
+
+  /** UPD-03 — UpdateDialog "Download + Restart" click. Opt-in download. */
+  downloadUpdate: () => Promise<void>;
+
+  /** D-08 — UpdateDialog "Later" click. Persists dismissedUpdateVersion. One-way. */
+  dismissUpdate: (version: string) => void;
+
+  /** UPD-04 — UpdateDialog "Restart" click after download. One-way; main defers via setTimeout(0). */
+  quitAndInstallUpdate: () => void;
+
+  /** UPD-04 — subscribe to 'update:available'. Returns unsubscribe (Pitfall 9). */
+  onUpdateAvailable: (
+    cb: (payload: {
+      version: string;
+      summary: string;
+      variant?: 'auto-update' | 'windows-fallback';
+      fullReleaseUrl: string;
+    }) => void,
+  ) => () => void;
+
+  /** UPD-04 — subscribe to 'update:downloaded'. Returns unsubscribe. */
+  onUpdateDownloaded: (cb: (payload: { version: string }) => void) => () => void;
+
+  /** UPD-02 — subscribe to 'update:none'. Renderer filters by manualCheckPendingRef. */
+  onUpdateNone: (cb: (payload: { currentVersion: string }) => void) => () => void;
+
+  /** UPD-02 — subscribe to 'update:error'. Renderer filters by manualCheckPendingRef. */
+  onUpdateError: (cb: (payload: { message: string }) => void) => () => void;
+
+  /** D-07 — subscribe to Help → Check for Updates menu click. Returns unsubscribe. */
+  onMenuCheckForUpdates: (cb: () => void) => () => void;
 }

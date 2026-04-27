@@ -65,7 +65,7 @@ export type UpdateDialogState = 'available' | 'downloading' | 'downloaded' | 'no
 
 /**
  * D-04 variant routing. main is the single source of truth for `variant` —
- * the renderer never derives this from `process.platform` (process.platform
+ * the renderer never derives this from the OS platform (the platform global
  * is unavailable to the sandboxed renderer anyway).
  */
 export type UpdateDialogVariant = 'auto-update' | 'windows-fallback';
