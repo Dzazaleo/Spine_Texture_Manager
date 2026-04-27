@@ -482,6 +482,24 @@ const api: Api = {
       ipcRenderer.removeListener('menu:check-for-updates-clicked', wrapped);
     };
   },
+
+  // -------------------------------------------------------------------------
+  // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
+  //
+  // Returns Promise<string> via main-process IPC; pathToFileURL runs in main
+  // (privileged context — renderer is sandboxed and has no node:url). Renderer
+  // awaits the result before assigning img.src in AtlasPreviewModal.tsx.
+  // RESEARCH Open Question 1 was pre-resolved at plan time: the IPC-invoke
+  // variant ships unconditionally (no synchronous preload variant) so the
+  // bridge works regardless of preload sandbox state.
+  //
+  // Layer-3 invariant (renderer): renderer MUST NOT import node:url directly
+  // — every absolute-path → app-image:// URL conversion goes through this
+  // bridge so the (well-tested, single-source-of-truth) main-side handler
+  // owns the cross-platform `pathToFileURL` semantics.
+  // -------------------------------------------------------------------------
+  pathToImageUrl: (absolutePath: string): Promise<string> =>
+    ipcRenderer.invoke('atlas:resolve-image-url', absolutePath),
 };
 
 if (process.contextIsolated) {

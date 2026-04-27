@@ -940,4 +940,19 @@ export interface Api {
 
   /** D-07 — subscribe to Help → Check for Updates menu click. Returns unsubscribe. */
   onMenuCheckForUpdates: (cb: () => void) => () => void;
+
+  // -------------------------------------------------------------------------
+  // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
+  //
+  // Returns Promise<string> resolving to a well-formed `app-image://localhost/<pathname>`
+  // URL. Main-process (privileged) `pathToFileURL` constructs the URL so the
+  // Windows drive-letter glue bug (`'localhostc/'` 404) cannot recur.
+  //
+  // Renderer Layer-3 invariant: never construct `app-image://` URLs by string
+  // concat — always go through this bridge so cross-platform path semantics
+  // live in the single main-side handler (RESEARCH §F1 audit verified
+  // AtlasPreviewModal.tsx:116 was the only renderer site doing the
+  // bug-prone concat; that call site is rewritten to await this bridge).
+  // -------------------------------------------------------------------------
+  pathToImageUrl: (absolutePath: string) => Promise<string>;
 }

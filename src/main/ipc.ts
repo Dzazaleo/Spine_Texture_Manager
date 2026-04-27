@@ -38,6 +38,7 @@
  */
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { access, constants as fsConstants } from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
@@ -657,6 +658,54 @@ export function registerIpcHandlers(): void {
       const { quitAndInstallUpdate } = await import('./auto-update.js');
       quitAndInstallUpdate();
     })();
+  });
+
+  // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
+  //
+  // Renderer cannot use node:url (sandboxed; no Node modules at runtime),
+  // and naive concat (`app-image://localhost${absolutePath}`) glues the
+  // Windows drive-letter `C:` onto 'localhost' to produce host
+  // 'localhostc' — the URL parser treats everything up to the first ':'
+  // as the host, lower-cases it, and the protocol handler 404s.
+  // RESEARCH §F1 + 11-WIN-FINDINGS §F1: 'localhostc/' was the smoking gun.
+  //
+  // Main resolves the absolute filesystem path to an `app-image://localhost/<pathname>`
+  // URL via pathToFileURL().pathname (POSIX-style path with a leading '/'
+  // on every platform; on Windows the drive letter ends up inside the
+  // pathname segment, NOT the host). The renderer awaits this bridge
+  // before assigning img.src in AtlasPreviewModal.tsx.
+  //
+  // Cross-platform input detection: pathToFileURL's default behavior
+  // is platform-dependent — on macOS/Linux it interprets `C:\…` as a
+  // POSIX-relative path (treating ':' and '\' as path chars and
+  // prepending cwd), which is wrong if a Windows-authored .stmproj is
+  // ever opened on a non-Windows host. Detect the leading drive-letter
+  // pattern (`[A-Za-z]:`) and pass `{ windows: true }` so the URL is
+  // shaped correctly regardless of which OS runs the IPC handler. The
+  // converse (POSIX path on Windows) is not a concern for the F1 fix
+  // because absolute POSIX paths starting with '/' do not contain ':'
+  // and pathToFileURL handles them correctly under either flag set on
+  // recent Node versions.
+  //
+  // typeof===string guard mirrors the 'update:dismiss' precedent above
+  // (line 649). Empty-string return on bad input is consistent with the
+  // renderer's "set img.src to '' → broken-image icon" fallback. Threat
+  // T-12-03-04 (spoofing): the scheme + host are fixed literals controlled
+  // by main; renderer-supplied input only contributes to the pathname.
+  ipcMain.handle('atlas:resolve-image-url', (_evt, absolutePath: unknown): string => {
+    if (typeof absolutePath !== 'string' || absolutePath.length === 0) return '';
+    try {
+      // Drive-letter detection: `C:\…` or `c:/…` → force Windows interpretation.
+      const isWindowsPath = /^[A-Za-z]:[\\/]/.test(absolutePath);
+      const fileUrl = isWindowsPath
+        ? pathToFileURL(absolutePath, { windows: true })
+        : pathToFileURL(absolutePath);
+      return `app-image://localhost${fileUrl.pathname}`;
+    } catch {
+      // pathToFileURL throws synchronously on bad input (e.g., relative
+      // paths). T-12-03-03 mitigation: swallow → empty string fallback.
+      return '';
+    }
   });
 
   // Phase 8 — project file IPC channels (D-140..D-156). Six invoke channels
