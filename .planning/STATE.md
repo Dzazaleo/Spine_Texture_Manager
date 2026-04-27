@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
 status: unknown
-last_updated: "2026-04-27T10:40:31.182Z"
+last_updated: "2026-04-27T11:22:44.174Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
+  total_plans: 5
   completed_plans: 3
-  percent: 100
+  percent: 60
 ---
 
 # State
@@ -85,6 +85,6 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continues fr
 - Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard).
 - Phase 8.2 inserted after Phase 8.1 (2026-04-26): File-menu surface + Cmd+O accelerator gating fix; bundled with native File menu items.
 
-**Planned Phase:** 10 (Installer build (electron-builder, all 3 platforms)) — 3 plans — 2026-04-27T09:38:47.054Z
+**Planned Phase:** 11 (CI release pipeline (GitHub Actions → draft Release)) — 2 plans — 2026-04-27T11:22:44.171Z
 
 **Closed Phase:** 10 (Installer build) — 3/3 plans complete — 2026-04-27T10:08:45Z. Plan 10-01 (build-foundation: version 1.1.0-rc1 + per-platform npm scripts), Plan 10-02 (3-platform electron-builder.yml with mac.identity:'-' + asarUnpack sharp/@img), Plan 10-03 (live macOS .dmg + shell assertions + 10-SMOKE-TEST.md recipe + user-approved manual Optimize Assets smoke). Phase 10 contract DIST-01..DIST-07 closed; cross-platform live verification (Windows EXE, Linux AppImage) handed to Phase 11 CI.
