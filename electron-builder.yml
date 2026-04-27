@@ -2,9 +2,10 @@ appId: com.spine.texture-manager
 productName: Spine Texture Manager
 copyright: Copyright (C) 2026
 
-# D-04: unsigned build. No afterPack / publish / notarize keys.
-# D-02 + D-24: macOS-only target in this phase. Windows enablement is additive
-# (add a `win:` block in a later phase); deliberately omitted here.
+# v1.1 Phase 10: ad-hoc macOS, unsigned NSIS, AppImage Linux.
+# DIST-04: mac single-quoted dash identity locks ad-hoc signing (was implicit on Apple Silicon in v1.0).
+# DIST-05: no Windows code-signing keys are present, so the NSIS installer is unsigned.
+# No release-channel block — auto-update wiring is Phase 12 (UPD-01..UPD-06).
 
 directories:
   output: release
@@ -37,11 +38,41 @@ asarUnpack:
   - "**/node_modules/sharp/**/*"
   - "**/node_modules/@img/**/*"
 
+# DIST-02, DIST-04: macOS arm64 .dmg, ad-hoc signed.
 mac:
   category: public.app-category.developer-tools
   target:
-    - dmg
+    - target: dmg
+      arch: arm64
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
   artifactName: ${productName}-${version}-${arch}.${ext}
 
 dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# DIST-01, DIST-05: Windows x64 NSIS, unsigned.
+# Intentionally NO Windows code-signing keys ⇒ unsigned NSIS installer.
+win:
+  target:
+    - target: nsis
+      arch: x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# DIST-03: Linux x64 AppImage. Best-effort local build; CI is the canonical surface (Phase 11).
+linux:
+  target:
+    - target: AppImage
+      arch: x64
+  category: Development
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+appImage:
   artifactName: ${productName}-${version}-${arch}.${ext}
