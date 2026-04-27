@@ -16,6 +16,8 @@ Animators ship atlases that are as small as they mathematically can be without v
 
 **Working:** Drop a Spine `.json` or `.stmproj` → Global + Animation Breakdown panels populate → set per-attachment overrides via dialog (% of source dims, capped at 100%) → preview the resulting atlas pack → export an optimized `images/` folder. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs (~80 attachments / 16 animations) interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under the N2.2 contract).
 
+**v1.1 progress:** Phase 10 complete (2026-04-27) — installer build pipeline working: `npm run build:mac/win/linux` produces per-platform installers via electron-builder; macOS `.dmg` ad-hoc-signed (DIST-04), version `1.1.0-rc1` embedded throughout (DIST-07), `sharp` + libvips bundled in `app.asar.unpacked` (DIST-06 verified live with SIMPLE_TEST + Girl fixtures). Windows `.exe` and Linux `.AppImage` configs complete; live builds deferred to Phase 11 CI. Canonical smoke-test recipe at `.planning/phases/10-.../10-SMOKE-TEST.md` doubles as Phase 11 input contract.
+
 **Tech stack (locked, validated through v1.0):**
 - Electron 41 + electron-vite 5 + electron-builder 26
 - TypeScript (strict) + React 19 + Tailwind v4 (`@theme inline`)
@@ -95,4 +97,4 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ---
 
-*Last updated: 2026-04-27 — v1.1 Distribution milestone started*
+*Last updated: 2026-04-27 — Phase 10 complete (installer build, all 3 platforms)*
