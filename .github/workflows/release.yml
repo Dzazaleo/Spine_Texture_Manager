@@ -26,7 +26,12 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-14]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
@@ -36,7 +41,8 @@ jobs:
       - run: npm ci
 
       - name: Verify tag matches package.json version
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && matrix.os == 'ubuntu-latest'
+        shell: bash
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -67,7 +73,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: installer-mac
-          path: release/*.dmg
+          path: |
+            release/*.dmg
+            release/latest-mac.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -86,7 +94,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: installer-win
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -105,7 +115,9 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: installer-linux
-          path: release/*.AppImage
+          path: |
+            release/*.AppImage
+            release/latest-linux.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -148,3 +160,6 @@ jobs:
             assets/*.dmg
             assets/*.exe
             assets/*.AppImage
+            assets/latest.yml
+            assets/latest-mac.yml
+            assets/latest-linux.yml
