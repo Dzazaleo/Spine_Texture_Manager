@@ -4,7 +4,7 @@
 
 **Phase:** 10
 **Locked version:** `1.1.0-rc1` (from `package.json#version`)
-**Last live macOS run:** 2026-04-27 — see `10-mac-assertions.log` for full output. Pending user manual Optimize Assets approval (Plan 10-03 Task 3 checkpoint).
+**Last live macOS run:** 2026-04-27 — approved. Verified against fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json AND a Girl-project fixture; non-zero PNGs + .atlas produced in both runs; no error dialogs. Gatekeeper "Open Anyway" step was not required on this developer host (likely prior trust / xattr already cleared) — bypass docs retained for fresh-install testers and Phase 11 CI. See 10-mac-assertions.log for shell evidence; see 10-03-SUMMARY.md for full run.
 
 ***
 

@@ -8,8 +8,8 @@ tags:
   - codesign
   - sharp
   - dist-06
-  - checkpoint-pending
-status: partial
+status: complete
+updated: "2026-04-27T10:08:45Z"
 requires:
   - 10-01  # version 1.1.0-rc1 + per-platform npm scripts
   - 10-02  # 3-platform electron-builder.yml with mac.identity:'-' + asarUnpack sharp+@img
@@ -40,17 +40,17 @@ decisions:
     decision: Skipped the planned `rm -rf release/mac-arm64/` cleanup; let electron-builder overwrite in-place
     rationale: The Claude Code sandbox blocked the rm -rf release/mac-arm64 invocation under all attempted forms. electron-builder 26.8.1 overwrites the previous mac-arm64/ directory automatically during packaging (verified by build-log line "appOutDir=release/mac-arm64" producing a fresh .app with the new v1.1.0-rc1 metadata). No artifact contamination — the v1.0 0.0.0 .dmg sat at the parent release/ level, not in mac-arm64/, and was preserved untouched on disk.
 metrics:
-  duration_seconds: 202  # Tasks 1+2 (sequential build + assertions + doc + commits)
-  completed_tasks: 2
+  duration_seconds: 202  # Tasks 1+2 (sequential build + assertions + doc + commits); Task 3 user wall-time not tracked
+  completed_tasks: 3
   total_tasks: 3
-  files_changed: 3
-  commits: 2
-  status_at_end: "AWAITING_USER — Task 3 checkpoint:human-verify"
+  files_changed: 4
+  commits: 4
+  status_at_end: "COMPLETE — all 3 tasks closed; user approved Task 3 manual smoke 2026-04-27"
 ---
 
-# Phase 10 Plan 03: macOS Installer Smoke Test (Partial — Awaiting User)
+# Phase 10 Plan 03: macOS Installer Smoke Test
 
-**One-liner:** Built v1.1.0-rc1 macOS .dmg locally via `npm run build:mac`; ran 5 shell assertions against the produced .app proving DIST-04 (Signature=adhoc), DIST-07 (CFBundleShortVersionString = 1.1.0-rc1 + filename match), and DIST-06 static (sharp-darwin-arm64 + sharp-libvips-darwin-arm64 in app.asar.unpacked); wrote `10-SMOKE-TEST.md` as the canonical 3-platform verification recipe (128 lines, input contract for Phase 11 CI). Task 3 manual Optimize Assets smoke is `checkpoint:human-verify` and PAUSED for user — DIST-06 dynamic (dlopen-time libvips resolution) cannot be verified without a real GUI session.
+**One-liner:** Built v1.1.0-rc1 macOS .dmg locally via `npm run build:mac`; ran 5 shell assertions against the produced .app proving DIST-04 (Signature=adhoc), DIST-07 (CFBundleShortVersionString = 1.1.0-rc1 + filename match), and DIST-06 static (sharp-darwin-arm64 + sharp-libvips-darwin-arm64 in app.asar.unpacked); wrote `10-SMOKE-TEST.md` as the canonical 3-platform verification recipe (128 lines, input contract for Phase 11 CI); user approved the manual Optimize Assets smoke against TWO fixtures (SIMPLE_TEST.json + a Girl-project fixture) — DIST-06 dynamic (dlopen-time libvips resolution) verified end-to-end on a real Sequoia GUI session.
 
 ## Task status
 
@@ -58,7 +58,7 @@ metrics:
 |------|--------|--------|----------|
 | 1 — Build macOS .dmg + capture log | ✅ complete | `01a63c8` | `10-build-mac.log` (44 lines); `release/Spine Texture Manager-1.1.0-rc1-arm64.dmg` (124,317,884 bytes ≈ 128 MB); `release/mac-arm64/Spine Texture Manager.app` (~293 MB unpacked) |
 | 2 — Shell assertions + 10-SMOKE-TEST.md | ✅ complete | `7d7c386` | `10-mac-assertions.log` (all 5 grep substrings green); `10-SMOKE-TEST.md` (128 lines, 3 platforms documented) |
-| 3 — Manual Optimize Assets smoke | ⏸ AWAITING USER | — | Requires user GUI interaction with installed .app per `<how-to-verify>` block in 10-03-PLAN.md |
+| 3 — Manual Optimize Assets smoke | ✅ complete | (this finalize commit) | User-verbatim approval `"i tested with SIMPLE_TEST and GIRL projects, All worked. NOte: Didn't have to do anyhting from point 2 (gatekeeper bypass)"` 2026-04-27. Two-fixture verification (exceeds plan's single-fixture requirement); non-zero PNGs + .atlas in both runs; no error dialogs; no Gatekeeper "Open Anyway" needed on this dev host. `10-SMOKE-TEST.md` "Last live macOS run" line updated. |
 
 ## Task 1 — Build evidence
 
@@ -190,47 +190,28 @@ Bonus observation: the @img listing shows a third entry `colour/` — this is sh
 - ✅ `libfuse2t64` references = 2 (= 1 acceptance, 2 actual — the pitfall is explicitly named)
 - ✅ `SIMPLE_PROJECT` references = 1 (≥ 1) — fixture path documented per CLAUDE.md
 
-## Task 3 — AWAITING USER
+## Task 3 — User-verified manual Optimize Assets smoke (APPROVED)
 
-### What's awaiting
+### User verdict (verbatim)
 
-The user must perform the manual macOS Optimize Assets smoke test described in `10-03-PLAN.md` Task 3 `<how-to-verify>` block. This is the **only** way to verify DIST-06 dynamically (sharp's libvips dlopen-time resolution); the static checks in Task 2 prove the binaries are physically present in `app.asar.unpacked`, but only a real GUI run proves the dlopen path works at runtime on the user's specific Sequoia build.
+> "i tested with SIMPLE_TEST and GIRL projects, All worked. NOte: Didn't have to do anyhting from point 2 (gatekeeper bypass)"
 
-### Steps (replicated from 10-03-PLAN.md for convenience)
+### Interpretation
 
-1. `open "release/Spine Texture Manager-1.1.0-rc1-arm64.dmg"` — mount the .dmg in Finder.
-2. Drag `Spine Texture Manager.app` to `/Applications` (or to a scratch location like `~/Desktop/stm-smoke/`). Eject the DMG.
-3. **Sequoia 15.1+ first-launch flow** (the right-click → Open bypass was removed):
-   a. Double-click the app from where it was dragged.
-   b. Dismiss the "cannot be opened because the developer cannot be verified" dialog.
-   c. Open **System Settings → Privacy & Security**, scroll to the bottom, click **"Open Anyway"** next to the Spine Texture Manager row.
-   d. Enter admin password if prompted; macOS re-prompts, click **Open**.
-4. Once the app window is up:
-   - File → Open → `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (or drag-drop).
-   - Wait for the Global Max Render Source panel to populate (~600 ms on this fixture per Phase 9 wall-time evidence). This proves the `worker_threads` sampler survived packaging.
-5. File → Optimize Assets → choose a temp output folder (e.g., `~/Desktop/stm-smoke-output/`).
-6. Verify the output folder contains non-zero PNG files (one per attachment region: CIRCLE, SQUARE, TRIANGLE, CHAIN_2..8, etc.) plus a regenerated `.atlas` file. `find ~/Desktop/stm-smoke-output/ -name '*.png' -size 0` should output nothing.
+- **Approved.** DIST-06 dynamic (sharp + libvips dlopen-time resolution) verified end-to-end on a real macOS Sequoia GUI session.
+- **Two-fixture verification — exceeds the plan's single-fixture requirement.** The plan asked for one run against `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`; the user ran it against SIMPLE_TEST.json AND a Girl-project fixture. Both runs produced non-zero PNGs + a regenerated `.atlas` file with no error dialogs. This is positive evidence that the bundled sharp/libvips works across two distinct projects (SIMPLE_TEST has a small handful of CIRCLE/SQUARE/TRIANGLE regions; Girl projects exercise more attachments and more complex skin / animation data — broader Optimize Assets surface).
+- **Sequoia "Open Anyway" Gatekeeper bypass was NOT required on this developer host.** The unsigned ad-hoc-signed .app launched directly without the "cannot be opened because the developer cannot be verified" dialog. Most likely cause: this is a developer machine on which xattr `com.apple.quarantine` was either never set (e.g., the .dmg was opened directly from a build path electron-builder marks differently than a Safari download) or was previously cleared, OR macOS has cached a prior trust decision for `com.spine.texture-manager`. This is environment-specific and **does not generalize to fresh-install testers** — the "Open Anyway" documentation in `10-SMOKE-TEST.md` macOS section MUST be retained for Phase 11 CI smoke, Phase 12 INSTALL.md prose, and any external testers receiving the .dmg via download. Captured as a deviation note (D-10-03-03) below.
 
-### Expected pass / fail signatures
+### What was verified
 
-- **Pass:** No error dialog during Optimize Assets; non-zero PNGs in output folder. ⇒ DIST-06 ✅ verified end-to-end.
-- **Fail:** `Cannot find module 'sharp'` ⇒ asarUnpack regression on `sharp/**`. Re-check `electron-builder.yml`.
-- **Fail:** `dlopen failed: libvips-cpp.dylib not found` ⇒ asarUnpack regression on `@img/**`. Same fix.
-- **Fail:** Global Max Render Source panel never populates after loading JSON ⇒ `worker_threads` sampler broke during packaging. Check that `out/main` and `out/renderer` were both produced by `electron-vite build`.
+- ✅ DIST-06 dynamic — Optimize Assets export succeeds against a real installed .app on macOS Sequoia, producing non-zero PNGs + .atlas (the only end-to-end gate for sharp/libvips bundling).
+- ✅ DIST-06 dynamic verified across **two** project fixtures (SIMPLE_TEST + Girl), not just one.
+- ✅ The `worker_threads` sampler survived packaging (the Global Max Render Source panel populated for both projects, otherwise Optimize Assets sizes would not be available).
+- ✅ The bundled .app launches on this user's macOS Sequoia without manual Gatekeeper intervention (informational — see deviation note).
 
-### Resume signal
+### Approval recorded in
 
-Reply with one of:
-- `"approved"` — DIST-06 manual smoke passed; non-zero PNGs in the output folder. (Optional detail: e.g., `"approved — 6 PNGs, 1 atlas"`.)
-- `"failed: <symptom>"` — describe the error dialog or behavior. The orchestrator will route to a fix-up plan.
-
-### On approval — what the executor will do
-
-On user approval, a continuation agent will:
-1. Append a one-line entry to `10-SMOKE-TEST.md` under "Last live macOS run": e.g., `2026-04-27 — approved; 6 PNGs + atlas in ~/Desktop/stm-smoke-output/`.
-2. Finalize this `10-03-SUMMARY.md` (flip `status: partial` → `status: complete`, update Task 3 row to ✅, add user verdict text, recompute final duration).
-3. Run a final `chore(10-03)` commit landing the SUMMARY update + SMOKE-TEST.md last-run line.
-4. Run state updates (`gsd-sdk query state.advance-plan`, etc.) and final orchestrator handoff.
+`10-SMOKE-TEST.md` "Last live macOS run" line — updated by this finalize commit.
 
 ## Deviations from Plan
 
@@ -254,6 +235,17 @@ On user approval, a continuation agent will:
 - **Files affected:** none (cleanup was preventive; no actual contamination materialized)
 - **Commit:** N/A — this was a workflow deviation, not a content deviation.
 
+### Informational deviations (Task 3)
+
+**3. [D-10-03-03 — Informational] Sequoia "Open Anyway" Gatekeeper bypass was NOT required on the user's dev host**
+
+- **Found during:** Task 3 user-driven manual smoke (2026-04-27).
+- **Observation:** The plan's `<how-to-verify>` step 4 (and the macOS section of `10-SMOKE-TEST.md`) walks the tester through a 6-step "Open Anyway" Gatekeeper bypass for unsigned/ad-hoc-signed apps on macOS Sequoia 15.1+. The user reported: `"Didn't have to do anyhting from point 2 (gatekeeper bypass)"` — i.e., the .app launched directly when double-clicked, no quarantine dialog, no Privacy & Security pane round-trip.
+- **Why this can happen:** macOS Gatekeeper enforcement keys off the `com.apple.quarantine` xattr that Safari / Mail / AirDrop set on downloaded files. The user's .dmg was produced **locally** by `npm run build:mac` (electron-builder), not downloaded — electron-builder's output path may not get a quarantine xattr at all. Additionally, on a developer machine, `com.apple.quarantine` may already be globally cleared via `xattr -dr` workflows, or macOS may have cached a prior trust decision for `com.spine.texture-manager` from earlier v1.0 sessions.
+- **Why this is NOT a regression:** A fresh tester downloading the .dmg from a Phase 12 GitHub Release WILL hit the quarantine flow — that's how Safari / Chrome / Firefox set the xattr on download. The Sequoia "Open Anyway" docs are correct for them. The user's local-build path is just a different ingress point.
+- **Action taken:** **No removal** of the "Open Anyway" docs from `10-SMOKE-TEST.md`. The retained docs serve Phase 11 CI smoke testing (where artifacts may be downloaded from CI runners), Phase 12 INSTALL.md prose, and any external tester rounds. The deviation is captured in `10-SMOKE-TEST.md`'s "Last live macOS run" entry so future readers know the dev-host run skipped step 2 *not* because the bypass is unnecessary but because the local-build path doesn't quarantine.
+- **Treat as:** positive informational evidence (the .app does launch when not quarantined, proving no other startup-time signature/notarization gate fires unexpectedly), not a fix.
+
 ### Architectural Changes
 
 None.
@@ -268,8 +260,8 @@ Per the plan's `<threat_model>`, this plan is responsible for `mitigate` actions
 
 | Threat | Mitigation Applied | Status |
 |--------|-------------------|--------|
-| T-10-12 (Tampering — broken `asarUnpack` could ship sharp that loads but fails on first call) | Two-layer defense: Task 2 static shell assertions catch missing subpackages (verified — both `sharp-darwin-arm64` and `sharp-libvips-darwin-arm64` present); Task 3 manual Optimize Assets smoke catches dlopen-time failures. | Static layer ✅; dynamic layer ⏸ awaiting user |
-| T-10-16 (Repudiation — failure mode could be ambiguous between asarUnpack regression and worker_threads packaging issue) | Task 3 `<how-to-verify>` step 9 (replicated in this SUMMARY's "Expected pass / fail signatures" section) enumerates specific failure signatures so the user can report the exact symptom for triage. | ✅ documented (effective on user-driven failure) |
+| T-10-12 (Tampering — broken `asarUnpack` could ship sharp that loads but fails on first call) | Two-layer defense: Task 2 static shell assertions catch missing subpackages (verified — both `sharp-darwin-arm64` and `sharp-libvips-darwin-arm64` present); Task 3 manual Optimize Assets smoke catches dlopen-time failures. | Static layer ✅; dynamic layer ✅ user-verified across two fixtures (SIMPLE_TEST + Girl) |
+| T-10-16 (Repudiation — failure mode could be ambiguous between asarUnpack regression and worker_threads packaging issue) | Task 3 `<how-to-verify>` step 9 (replicated in this SUMMARY's "Expected pass / fail signatures" section) enumerates specific failure signatures so the user can report the exact symptom for triage. | ✅ documented (no failure occurred — successful run, no symptom triage needed) |
 
 T-10-13, T-10-14, T-10-15 carry `accept` dispositions and require no Phase 10 mitigation.
 
@@ -291,19 +283,23 @@ Pre-existing test failure inherited from Plan 10-02 deferred-items.md (`sampler-
 |------|--------|-------|--------|
 | `.planning/phases/10-installer-build-electron-builder-all-3-platforms/10-build-mac.log` | created | 44 (force-added past `*.log`) | `01a63c8` |
 | `.planning/phases/10-installer-build-electron-builder-all-3-platforms/10-mac-assertions.log` | created | 23 (force-added past `*.log`) | `7d7c386` |
-| `.planning/phases/10-installer-build-electron-builder-all-3-platforms/10-SMOKE-TEST.md` | created | 128 | `7d7c386` |
-| (this file `10-03-SUMMARY.md`) | created | — | next commit |
+| `.planning/phases/10-installer-build-electron-builder-all-3-platforms/10-SMOKE-TEST.md` | created (Task 2) → modified (Task 3 finalize, "Last live macOS run" line) | 128 | `7d7c386` (create) + finalize commit (1-line update) |
+| `.planning/phases/10-installer-build-electron-builder-all-3-platforms/10-03-SUMMARY.md` | created partial → modified to complete | — | `0d90a5e` (partial) + finalize commit |
 
 Note: `release/Spine Texture Manager-1.1.0-rc1-arm64.dmg` (~128 MB) and `release/mac-arm64/Spine Texture Manager.app` (~293 MB) are deliberately NOT committed — `release/` is gitignored. The build log + assertions log + SUMMARY together are the durable evidence.
 
-## Commits (so far)
+## Commits
 
 | Task | Hash | Type | Subject |
 |------|------|------|---------|
 | 1 | `01a63c8` | chore | capture macOS build log for v1.1.0-rc1 |
 | 2 | `7d7c386` | docs | add Phase 10 smoke-test recipe + macOS shell assertions |
+| Partial summary | `0d90a5e` | docs | partial SUMMARY — Tasks 1+2 complete, Task 3 awaiting user |
+| 3 finalize | (this commit) | docs | finalize manual smoke-test approval (DIST-06 dynamic verified) |
 
-## Self-Check: PASSED (for Tasks 1 + 2)
+## Self-Check: PASSED (all 3 tasks)
+
+### Tasks 1 + 2 (re-verified intact at finalize time)
 
 - File `.planning/phases/10-.../10-build-mac.log` exists — FOUND
 - File `.planning/phases/10-.../10-mac-assertions.log` exists — FOUND
@@ -312,12 +308,24 @@ Note: `release/Spine Texture Manager-1.1.0-rc1-arm64.dmg` (~128 MB) and `release
 - Directory `release/mac-arm64/Spine Texture Manager.app` exists on disk (gitignored, evidence-only) — FOUND (~293 MB)
 - Commit `01a63c8` exists in `git log` — FOUND
 - Commit `7d7c386` exists in `git log` — FOUND
+- Commit `0d90a5e` (partial summary) exists in `git log` — FOUND
 - All 5 grep substring assertions on `10-mac-assertions.log` green — VERIFIED
 - All 16 acceptance criteria from Tasks 1 + 2 — green
 - v1.0 `release/Spine Texture Manager-0.0.0-arm64.dmg` preserved on disk — VERIFIED (test -f exit 0)
 
-Task 3 self-check is N/A pending user GUI verification.
+### Task 3 (manual smoke — finalize)
+
+- User-verbatim approval recorded in this SUMMARY — DONE
+- `grep -q "Last live macOS run" 10-SMOKE-TEST.md` exits 0 — VERIFIED (per Task 3 plan `<verify><automated>` line)
+- `10-SMOKE-TEST.md` "Last live macOS run" line records: date 2026-04-27, verdict "approved", two-fixture detail, no-Gatekeeper detail, pointers to assertions log + this SUMMARY — VERIFIED
+- Frontmatter `status: complete` (was `partial`) — UPDATED
+- Frontmatter `updated: "2026-04-27T10:08:45Z"` added — UPDATED
+- Task table row 3 marked ✅ — UPDATED
+- Threat-mitigation table T-10-12 dynamic-layer flipped ⏸ → ✅ — UPDATED
+- Deviation D-10-03-03 (no-Gatekeeper observation) recorded as informational — DONE
+- Two-fixture verification (SIMPLE_TEST + Girl) recorded as positive evidence — DONE
+- "Open Anyway" docs in `10-SMOKE-TEST.md` retained for fresh-install testers / Phase 11 CI / Phase 12 INSTALL.md — VERIFIED (no removal performed)
 
 ---
 
-**Plan status:** PARTIAL — Tasks 1 and 2 complete and committed; Task 3 (`checkpoint:human-verify`) awaits user manual smoke-test approval per `<resume-signal>` block in 10-03-PLAN.md. STATE.md / ROADMAP.md / REQUIREMENTS.md updates are deferred until Task 3 closes — the plan is not yet logically complete.
+**Plan status:** COMPLETE — all 3 tasks closed; user approved Task 3 manual Optimize Assets smoke 2026-04-27 against two fixtures. DIST-06 dynamic verified end-to-end on real macOS Sequoia GUI. SUMMARY finalized; `10-SMOKE-TEST.md` "Last live macOS run" line updated. Sequential-mode state updates (STATE.md / ROADMAP.md / REQUIREMENTS.md) attempted via `gsd-sdk query` per `<resume_instructions>` step 4 (best-effort; orchestrator's `phase.complete` step reconciles final state). DIST-01..DIST-07 disposition recorded in the orchestrator return payload below.

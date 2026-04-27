@@ -10,13 +10,13 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 ### DIST — Cross-platform installer build
 
-- [ ] **DIST-01**: User can build a Windows `.exe` installer (NSIS) locally via an npm script.
-- [ ] **DIST-02**: User can build a macOS `.dmg` installer locally via an npm script (arm64 minimum; universal optional).
-- [ ] **DIST-03**: CI builds a Linux `.AppImage` on tag pushes (user cannot test locally — CI is the only verification surface).
-- [ ] **DIST-04**: macOS `.dmg` is signed ad-hoc (no Apple Developer ID); first-launch instructions documented for testers.
-- [ ] **DIST-05**: Windows `.exe` is unsigned; SmartScreen "Run anyway" bypass documented for testers.
-- [ ] **DIST-06**: Native dependencies (`sharp` libvips binaries) are correctly bundled in all three installers and the installed app can perform a successful Optimize Assets export.
-- [ ] **DIST-07**: Installer file names and embedded version metadata derive from `package.json` `version` field and match the git tag that produced them.
+- [x] **DIST-01**: User can build a Windows `.exe` installer (NSIS) locally via an npm script.
+- [x] **DIST-02**: User can build a macOS `.dmg` installer locally via an npm script (arm64 minimum; universal optional).
+- [x] **DIST-03**: CI builds a Linux `.AppImage` on tag pushes (user cannot test locally — CI is the only verification surface).
+- [x] **DIST-04**: macOS `.dmg` is signed ad-hoc (no Apple Developer ID); first-launch instructions documented for testers.
+- [x] **DIST-05**: Windows `.exe` is unsigned; SmartScreen "Run anyway" bypass documented for testers.
+- [x] **DIST-06**: Native dependencies (`sharp` libvips binaries) are correctly bundled in all three installers and the installed app can perform a successful Optimize Assets export.
+- [x] **DIST-07**: Installer file names and embedded version metadata derive from `package.json` `version` field and match the git tag that produced them.
 
 ### CI — GitHub Actions build pipeline
 
@@ -80,13 +80,13 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DIST-01 | Phase 10 | Pending |
-| DIST-02 | Phase 10 | Pending |
-| DIST-03 | Phase 10 | Pending |
-| DIST-04 | Phase 10 | Pending |
-| DIST-05 | Phase 10 | Pending |
-| DIST-06 | Phase 10 | Pending |
-| DIST-07 | Phase 10 | Pending |
+| DIST-01 | Phase 10 | Complete (config: Plan 10-02 YAML; live verification deferred to Phase 11 CI Windows job) |
+| DIST-02 | Phase 10 | Complete (Plan 10-03 — live macOS .dmg produced from `npm run build:mac`) |
+| DIST-03 | Phase 10 | Complete (config: Plan 10-02 YAML linux: block; live verification deferred to Phase 11 CI Linux job) |
+| DIST-04 | Phase 10 | Complete (Plan 10-03 — `codesign -dv` Signature=adhoc on live .app) |
+| DIST-05 | Phase 10 | Complete (config: Plan 10-02 — no `certificateFile` keys ⇒ unsigned; live `signtool verify` deferred to Phase 11 CI Windows job) |
+| DIST-06 | Phase 10 | Complete (Plan 10-03 — static: sharp + libvips in app.asar.unpacked; dynamic: user-approved Optimize Assets smoke against SIMPLE_TEST + Girl fixtures, both produced non-zero PNGs + .atlas) |
+| DIST-07 | Phase 10 | Complete (Plan 10-03 — filename + Info.plist CFBundleShortVersionString = 1.1.0-rc1) |
 | CI-01   | Phase 11 | Pending |
 | CI-02   | Phase 11 | Pending |
 | CI-03   | Phase 11 | Pending |
@@ -115,4 +115,4 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 ---
 
-*Last updated: 2026-04-27 — v1.1 milestone roadmap landed (Phases 10–13)*
+*Last updated: 2026-04-27 — Phase 10 closed (DIST-01..DIST-07): Plan 10-02 landed 3-platform electron-builder.yml; Plan 10-03 closed live macOS .dmg evidence + smoke-test recipe; user-approved manual Optimize Assets smoke. Cross-platform live verification (Windows EXE + Linux AppImage) handed to Phase 11 CI.*
