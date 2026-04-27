@@ -27,9 +27,16 @@
  *   - Dblclick: same hit-test → props.onJumpToAttachment(region.attachmentName).
  *
  * Image cache: hoisted into useRef per Pitfall 4 (no module-scope leaks).
- *   <img> sources are 'app-image://<encodeURI(absolutePath)>' URLs
- *   (Plan 03 protocol). Combined onerror + naturalWidth===0 detection
- *   per Pitfall 5 (CSP block edge case).
+ *   <img> sources are app-image:// URLs constructed in main via
+ *   `window.api.pathToImageUrl(absolutePath)` (Phase 12 Plan 03 D-19 — F1
+ *   Windows fix). The bridge returns Promise<string>, so img.src is set
+ *   inside a .then() callback after the bridge resolves; the existing
+ *   onload/onerror callbacks fire when the resulting <img> finishes
+ *   loading. Combined onerror + naturalWidth===0 detection per Pitfall 5
+ *   (CSP block edge case). Renderer must NOT construct the URL inline —
+ *   naive concat (`app-image://localhost${path}`) glues Windows drive
+ *   letters onto the host, producing 'localhostc' 404s
+ *   (11-WIN-FINDINGS §F1).
  *
  * Tailwind v4 literal-class discipline (RESEARCH Pitfall 3 + 8): every
  * className is a string literal or clsx with literal branches.
@@ -113,7 +120,29 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
       missingPathsRef.current.add(absolutePath);
       setImageCacheVersion((v) => v + 1);
     };
-    img.src = `app-image://localhost${encodeURI(absolutePath)}`;
+    // Phase 12 Plan 03 (D-19) — F1 Windows-runtime fix.
+    //
+    // The previous shape (renderer-side string concat of an app-image
+    // URL with the encodeURI'd absolutePath) produced a malformed URL
+    // on Windows: encodeURI preserves ':', so the drive letter `C:` got
+    // glued onto 'localhost' and the URL parser saw host='localhostc'
+    // (lowercased; up to first ':') — the protocol handler 404'd and
+    // the atlas preview only showed outline rectangles instead of the
+    // underlying texture (11-WIN-FINDINGS §F1). See the buggy-shape
+    // anti-test at tests/renderer/atlas-preview-modal.spec.tsx
+    // §"F1 regression" for the pinned failure mode.
+    //
+    // The bridge returns Promise<string> (RESEARCH Open Question 1 was
+    // pre-resolved at plan time → IPC-invoke variant unconditionally).
+    // We can't make loadImage itself async without cascading to many call
+    // sites, so .then() sets img.src after the bridge resolves; the
+    // existing onload/onerror callbacks fire whenever the <img> finishes
+    // loading the bytes. The HTMLImageElement is returned synchronously
+    // and inserted into the cache so concurrent callers reuse the same
+    // <img> instance regardless of which one's bridge resolves first.
+    void window.api.pathToImageUrl(absolutePath).then((url) => {
+      img.src = url;
+    });
     imageCacheRef.current.set(absolutePath, img);
     return img;
   }, []);

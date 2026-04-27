@@ -22,13 +22,37 @@
  * pathToFileURL Windows behavior; macOS/Linux runners verify the algorithm
  * doesn't break on POSIX paths.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { pathToFileURL } from 'node:url';
 import { AtlasPreviewModal } from '../../src/renderer/src/modals/AtlasPreviewModal';
 import type { SkeletonSummary, DisplayRow } from '../../src/shared/types';
 
 afterEach(cleanup);
+
+// Phase 12 Plan 03 (D-19) — F1 fix: AtlasPreviewModal.tsx now calls
+// `window.api.pathToImageUrl(absolutePath)` (Promise<string>) before
+// assigning img.src, so the test environment needs a window.api stub
+// or every render hits "TypeError: Cannot read properties of undefined".
+// The stub returns a string that mirrors the production main-side handler
+// shape (`app-image://localhost/<pathname>`) — jsdom can't actually fetch
+// the URL but img.src assignment + the existing onload/onerror callbacks
+// are exercised. Minimal surface: only `pathToImageUrl` is used by this
+// modal; other api methods stay undefined and any future test additions
+// can extend the stub. Pattern mirrors tests/renderer/save-load.spec.tsx
+// (vi.stubGlobal('api', { ... })) and tests/renderer/help-dialog.spec.tsx.
+beforeEach(() => {
+  vi.stubGlobal('api', {
+    pathToImageUrl: vi.fn(async (absolutePath: string) => {
+      const fileUrl = pathToFileURL(absolutePath);
+      return `app-image://localhost${fileUrl.pathname}`;
+    }),
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * Build a fully-populated DisplayRow for synthetic tests. Every numeric field
