@@ -88,7 +88,13 @@
   4. On Windows, the auto-update path either works end-to-end with the unsigned build (verified during plan-phase spike) **or** the documented manual-update fallback path is wired: a non-blocking notification surfaces in the app pointing to the latest GitHub Release page, with no nag loop and no crash.
   5. The repo root contains an `INSTALL.md` that walks a non-developer through download → install → first launch on each of the three OSes, including the macOS Gatekeeper right-click-Open bypass and the Windows SmartScreen "More info → Run anyway" flow.
 
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 12-01-PLAN.md — Auto-update wiring (electron-updater + UpdateDialog + Help menu + Later persistence + Windows fallback) including [BLOCKING] spike (Wave 2, has checkpoint)
+- [ ] 12-02-PLAN.md — GHA latest*.yml feed publication + electron-builder.yml publish flip + CI test-matrix expansion to 3 OSes (Wave 1, autonomous)
+- [ ] 12-03-PLAN.md — F1 atlas-image URL Windows fix at AtlasPreviewModal.tsx:116 via pathToFileURL bridge (Wave 2, autonomous)
+- [ ] 12-04-PLAN.md — F2 file-picker UX fix in AppShell.tsx pickOutputDir defaultPath derivation (Wave 2, autonomous)
+- [ ] 12-05-PLAN.md — F3 Spine 4.2 version guard in src/core/loader.ts + SpineVersionUnsupportedError typed envelope (Wave 2, autonomous)
+- [ ] 12-06-PLAN.md — INSTALL.md authoring + 4 linking surfaces + screenshot capture (Wave 3, has checkpoint)
 **UI hint**: yes
 
 ### Phase 13: Crash + error reporting
@@ -116,7 +122,7 @@
 | 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
 | 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
 | 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
-| 12. Auto-update + install docs | v1.1 | 0/0 | Not started | — |
+| 12. Auto-update + install docs | v1.1 | 0/6 | Planned     | — |
 | 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
 
 ## Deferred (post-v1.1)
