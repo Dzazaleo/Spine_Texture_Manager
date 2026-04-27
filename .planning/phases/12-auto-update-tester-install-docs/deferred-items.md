@@ -48,3 +48,27 @@ correctness gate the workflow's `test` job actually enforces.
 - Reverted `package.json` from `1.1.0-rc2` → `1.1.0-rc1` (rc2 never produced a complete artifact set and is not a published version).
 - Reverted `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` env additions on build-mac/build-win/build-linux (the additions were the proximate cause of the upload race).
 - Kept Windows-portability test fixes in `tests/arch.spec.ts` and `tests/core/project-file.spec.ts` (these are real bugs surfaced by Plan 12-02's D-22 matrix expansion — independent of the publish issue).
+
+## INSTALL.md screenshots deferred to phase 12.1
+
+**Discovered:** Plan 12-06 Task 1 BLOCKING checkpoint (2026-04-27).
+
+**Resume signal:** `partial: none` — user decided, with full context, to skip captures and ship INSTALL.md text-first today.
+
+**Symptom:** All 4 documented INSTALL.md screenshot slots ship as 1×1 transparent PNG placeholders (`docs/install-images/{macos-gatekeeper-open-anyway, windows-smartscreen-more-info, windows-smartscreen-run-anyway, linux-libfuse2-error}.png`, 67 bytes each, valid PNG per `file`). INSTALL.md text-substitutes each with an italic _"(Screenshot pending — capture during phase 12.1 with first real tester install on rc2.)"_ line BUT keeps the markdown image reference (`![alt](docs/install-images/<name>.png)`) so future replacement is a binary-only swap — INSTALL.md needs no edits.
+
+**Root cause / why deferred:**
+
+1. **Dev machine cannot reproduce a fresh tester's first-launch Gatekeeper experience on macOS.** macOS trusts locally-built apps even when the quarantine extended attribute is set (Gatekeeper's signed-developer cache + `xattr` interaction); only a downloaded-from-the-internet binary triggers the dialog state captured in the screenshot.
+2. **Windows installer doesn't yet exist** as a publishable artifact. The CI publish-race (electron-builder 26.x `--publish never` does NOT prevent per-artifact GitHub publisher upload when `publish: github` in YAML, see entry above) blocks `v1.1.0-rc2` from being published with full 3-OS artifacts. Without a downloadable .exe, no SmartScreen "More info → Run anyway" sequence to capture.
+3. **Linux AppImage `libfuse2` error** requires a fresh Ubuntu 24.04 install without `libfuse2t64` pre-installed. Practical to capture, but capturing 1 of 4 with the others deferred makes a fragmented set; a clean batch during 12.1's tester rounds (when rc2 ships) gives the strongest provenance ("captured by the user during the first real install").
+
+**Where the natural capture moment lives:** **Phase 12.1.** Once the publish-race fix lands (3 architectural options enumerated in the entry above), `v1.1.0-rc2` publishes with a complete 3-OS artifact set and feed files. The first tester to install rc2 on each OS captures the bypass dialog at the bypass moment — strongest possible signal for a tester-cookbook screenshot. The phase 12.1 spike runbook can include "capture screenshots while you're already on the test box" as a side task, costing ~5 minutes per OS.
+
+**What ships today (Plan 12-06 closure):**
+- INSTALL.md exists at repo root with full cookbook structure (139 lines, 3 OS sections, libfuse2 paragraph, Help → Check for Updates section, Reporting issues section). Text-functional for testers RIGHT NOW even without screenshots — the steps + bypass copy + troubleshooting are exhaustive.
+- 4 placeholder PNGs satisfy the Task 5 integration test's existence + magic-bytes assertions. The same test will continue to pass when real captures replace them (any valid PNG ≥ 67 bytes passes).
+- All 4 in-app linking surfaces (D-16) wire correctly to INSTALL.md URL — testers landing on the GitHub repo OR opening the Help menu OR clicking through HelpDialog have an unambiguous path to the cookbook.
+- The Phase 11 → Phase 12 documentation seam closes: `${INSTALL_DOC_LINK}` placeholder is now filled with the real INSTALL.md URL (was a README.md placeholder).
+
+**Disposition:** Phase 12.1 will (a) land the publish-race fix, (b) publish v1.1.0-rc2 with full installers, (c) execute the Spike Runbook on Windows for UPD-06 strict-bar verification, (d) capture all 4 screenshots during the same tester round and replace the placeholder PNGs in `docs/install-images/`. INSTALL.md text-substitute lines stay in place as fallback documentation even after real screenshots land (defense-in-depth — if GitHub renderer ever fails to load an image, the italic line still tells the tester what they should be seeing).

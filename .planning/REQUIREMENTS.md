@@ -39,7 +39,8 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 **: Each published GitHub Release has installer assets attached for Windows, macOS, and Linux.
 - [x] **REL-02
 **: Each release body follows a documented release-notes template (summary / new in this version / known issues / install instructions link).
-- [ ] **REL-03**: Repo root contains `INSTALL.md` with per-OS install steps, including Gatekeeper bypass (macOS) and SmartScreen bypass (Windows) walkthroughs.
+- [x] **REL-03
+**: Repo root contains `INSTALL.md` with per-OS install steps, including Gatekeeper bypass (macOS) and SmartScreen bypass (Windows) walkthroughs.
 - [x] **REL-04
 **: A non-developer tester can download the appropriate installer from a GitHub Release page, install it, and launch the app — with no `git`, no Node.js, no build step.
 
@@ -110,7 +111,7 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 | CI-06   | Phase 11 | Complete (Plan 11-02 — workflow_dispatch run 24994622845 produced 3 artifacts on the run summary, publish skipped, no new draft release; criterion #7) |
 | REL-01  | Phase 11 | Complete (Plan 11-02 — gh release view v1.1.0-rc1 shows 3 assets sorted: .dmg arm64 / .exe x64 / .AppImage x86_64, all containing 1.1.0-rc1 literal; criterion #5) |
 | REL-02  | Phase 11 | Complete (Plan 11-02 — body has all 4 REL-02 sections + Tag footer (5 ## headings), 0 unrendered ${VERSION}/${TAG}/${INSTALL_DOC_LINK} placeholders, v1.1.0-rc1 literal × 3; envsubst rendered cleanly; criterion #6) |
-| REL-03  | Phase 12 | Pending (INSTALL.md authoring is Phase 12 territory; some content already drafted in .github/release-template.md install-bullets) |
+| REL-03  | Phase 12 | Complete (Plan 12-06 — 139-line cookbook INSTALL.md at repo root with 3 OS sections + libfuse2/libfuse2t64 caveat per D-15 + auto-update + Reporting issues sections; 4 placeholder PNGs at docs/install-images/ deferred to phase 12.1 with rationale in deferred-items.md; all 4 documented linking surfaces wired per D-16/D-17/D-18; release-template inline OS bullets pruned; greenfield tests/integration/install-md.spec.ts gates URL consistency across all 4 surfaces) |
 | REL-04  | Phase 11 | Complete-with-deferrals (Plan 11-02 — macOS install + launch + Optimize Assets verified; Windows install + launch + Optimize Assets verified on Spine 4.2 input (153/153 in 10.7s); 3 pre-existing Windows runtime findings spilled to Phase 12 via 11-WIN-FINDINGS.md; Linux smoke explicitly deferred to Phase 12 tester rounds with rationale) |
 | UPD-01  | Phase 12 | Pending |
 | UPD-02  | Phase 12 | Pending |
