@@ -24,6 +24,7 @@
     "@esotericsoftware/spine-core": "^4.2.0",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@tanstack/react-virtual": "^3.13.24",
+    "electron-updater": "^6.8.3",
     "maxrects-packer": "^2.7.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
