@@ -20,17 +20,25 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 ### CI — GitHub Actions build pipeline
 
-- [ ] **CI-01**: Pushing a git tag matching `v*.*.*` (e.g. `v1.1.0`) automatically triggers the release-build workflow.
-- [ ] **CI-02**: The workflow builds Windows, macOS, and Linux installers in parallel jobs.
-- [ ] **CI-03**: The workflow runs the full vitest suite before producing installer artifacts; test failure aborts the release.
-- [ ] **CI-04**: Successful jobs upload installer artifacts to a draft GitHub Release for the triggering tag.
-- [ ] **CI-05**: A failed platform build prevents publication of the release (no partial / missing-asset releases).
-- [ ] **CI-06**: The workflow can also be invoked manually (`workflow_dispatch`) for off-tag dry runs.
+- [x] **CI-01
+**: Pushing a git tag matching `v*.*.*` (e.g. `v1.1.0`) automatically triggers the release-build workflow.
+- [x] **CI-02
+**: The workflow builds Windows, macOS, and Linux installers in parallel jobs.
+- [x] **CI-03
+**: The workflow runs the full vitest suite before producing installer artifacts; test failure aborts the release.
+- [x] **CI-04
+**: Successful jobs upload installer artifacts to a draft GitHub Release for the triggering tag.
+- [x] **CI-05
+**: A failed platform build prevents publication of the release (no partial / missing-asset releases).
+- [x] **CI-06
+**: The workflow can also be invoked manually (`workflow_dispatch`) for off-tag dry runs.
 
 ### REL — Release distribution channel
 
-- [ ] **REL-01**: Each published GitHub Release has installer assets attached for Windows, macOS, and Linux.
-- [ ] **REL-02**: Each release body follows a documented release-notes template (summary / new in this version / known issues / install instructions link).
+- [x] **REL-01
+**: Each published GitHub Release has installer assets attached for Windows, macOS, and Linux.
+- [x] **REL-02
+**: Each release body follows a documented release-notes template (summary / new in this version / known issues / install instructions link).
 - [ ] **REL-03**: Repo root contains `INSTALL.md` with per-OS install steps, including Gatekeeper bypass (macOS) and SmartScreen bypass (Windows) walkthroughs.
 - [ ] **REL-04**: A non-developer tester can download the appropriate installer from a GitHub Release page, install it, and launch the app — with no `git`, no Node.js, no build step.
 
@@ -87,14 +95,14 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 | DIST-05 | Phase 10 | Complete (config: Plan 10-02 — no `certificateFile` keys ⇒ unsigned; live `signtool verify` deferred to Phase 11 CI Windows job) |
 | DIST-06 | Phase 10 | Complete (Plan 10-03 — static: sharp + libvips in app.asar.unpacked; dynamic: user-approved Optimize Assets smoke against SIMPLE_TEST + Girl fixtures, both produced non-zero PNGs + .atlas) |
 | DIST-07 | Phase 10 | Complete (Plan 10-03 — filename + Info.plist CFBundleShortVersionString = 1.1.0-rc1) |
-| CI-01   | Phase 11 | Pending |
-| CI-02   | Phase 11 | Pending |
-| CI-03   | Phase 11 | Pending |
-| CI-04   | Phase 11 | Pending |
-| CI-05   | Phase 11 | Pending |
-| CI-06   | Phase 11 | Pending |
-| REL-01  | Phase 11 | Pending |
-| REL-02  | Phase 11 | Pending |
+| CI-01   | Phase 11 | File-authoring complete (Plan 11-01 — release.yml `on: push.tags: ['v*.*.*']`); live tag-fire verification deferred to Plan 11-02 |
+| CI-02   | Phase 11 | File-authoring complete (Plan 11-01 — three parallel build-{mac,win,linux} jobs each with `needs: test`, native runner pins macos-14/windows-2022/ubuntu-22.04); live concurrent-runner verification deferred to Plan 11-02 |
+| CI-03   | Phase 11 | File-authoring complete (Plan 11-01 — `test` job runs `npm ci` + version guard + `npm run typecheck` + `npm run test`; build jobs gated by `needs: test`); live test-gate verification deferred to Plan 11-02 |
+| CI-04   | Phase 11 | File-authoring complete (Plan 11-01 — publish job uses `softprops/action-gh-release@v2.6.2` SHA-pinned, `draft: true`, three asset-glob lines for .dmg/.exe/.AppImage); live draft-release verification deferred to Plan 11-02 |
+| CI-05   | Phase 11 | File-authoring complete (Plan 11-01 — atomicity gate via `publish.needs: [build-mac, build-win, build-linux]` + `if-no-files-found: error` × 3 + `fail_on_unmatched_files: true` × 1); live atomicity audit deferred to Plan 11-02 |
+| CI-06   | Phase 11 | File-authoring complete (Plan 11-01 — `workflow_dispatch:` trigger present + `publish.if:` excludes non-tag pushes); live dry-run verification deferred to Plan 11-02 |
+| REL-01  | Phase 11 | File-authoring complete (Plan 11-01 — softprops `files:` block lists assets/*.dmg, *.exe, *.AppImage); live three-asset attachment verification deferred to Plan 11-02 |
+| REL-02  | Phase 11 | File-authoring complete (Plan 11-01 — .github/release-template.md with four `##` sections + envsubst placeholders + envsubst step in publish job); live body-rendering verification deferred to Plan 11-02 |
 | REL-03  | Phase 12 | Pending |
 | REL-04  | Phase 11 | Pending |
 | UPD-01  | Phase 12 | Pending |
