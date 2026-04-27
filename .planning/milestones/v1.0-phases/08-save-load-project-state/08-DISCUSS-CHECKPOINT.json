@@ -1,0 +1,35 @@
+{
+  "phase": "8",
+  "phase_name": "Save/Load project state",
+  "timestamp": "2026-04-25T23:10:00.000Z",
+  "areas_completed": ["Save UX & entry points", "State scope"],
+  "areas_remaining": ["Stale-data handling", "File location/format/versioning"],
+  "decisions": {
+    "Save UX & entry points": [
+      {"question": "Where should Save / Load live in the UI?", "answer": "Toolbar buttons + Cmd/Ctrl+S+O"},
+      {"question": "Save behavior — explicit, automatic, or hybrid?", "answer": "Explicit Save / Save As only"},
+      {"question": "How does the user load a saved project?", "answer": "Open button + drag-drop the project file onto DropZone"},
+      {"question": "When does the app prompt to save unsaved changes?", "answer": "Prompt on app close + on new-skeleton-drop"}
+    ],
+    "State scope": [
+      {"question": "Extra state beyond F9.1 essentials", "answer": "Last-used outDir + sort column/direction. Documentation builder is a future feature — reserve schema slot."},
+      {"question": "Persist samplingHz now (Phase 9 owns Settings UI)", "answer": "Yes — nullable field, default 120 if absent"},
+      {"question": "Collapse / search / scroll / focus / selection state", "answer": "Defer all to Phase 9"},
+      {"question": "Schema preparation for future doc-builder", "answer": "Reserve top-level `documentation: {}` slot now, empty"},
+      {"question": "Doc-builder scope", "answer": "Future phase, captured as Deferred"}
+    ]
+  },
+  "deferred_ideas": [
+    "Documentation builder feature: tracklists, mix time, skin descriptions, authoring UI. Phase 8 reserves top-level `documentation: {}` slot in project file so this phase ships without re-touching the v1 schema.",
+    "Window size / position persistence (app-global, not per-project) — Phase 9.",
+    "Active tab / collapse state / search query / scroll position / focus / selection persistence — Phase 9 polish.",
+    "Hybrid auto-save scratch file for crash recovery — Phase 9 if requested."
+  ],
+  "canonical_refs": [
+    ".planning/REQUIREMENTS.md §F9",
+    ".planning/ROADMAP.md §Phase 8",
+    ".planning/phases/04-scale-overrides/04-CONTEXT.md (D-73, D-74, D-91)",
+    ".planning/phases/06-optimize-assets-image-export/06-CONTEXT.md (D-10 IPC envelope)",
+    ".planning/phases/01-electron-react-scaffold/01-CONTEXT.md (DropZone, Tailwind tokens)"
+  ]
+}

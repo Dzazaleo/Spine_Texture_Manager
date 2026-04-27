@@ -32,13 +32,24 @@ Animators ship atlases that are as small as they mathematically can be without v
 - SEED-002 dims-badge + override-math cap (canonical vs source mismatch)
 - Phase-0 scale-overshoot debug session (`investigating`; v1.0 ships current behavior)
 
-## Next Milestone Goals
+## Current Milestone: v1.1 Distribution
 
-To be defined by `/gsd-new-milestone`. Likely candidates from the deferred list:
-- **Distribution** — sign + notarize macOS `.dmg` and produce signed Windows `.exe`.
-- **Atlas-less mode** (SEED-001) — drop a Spine JSON + sibling `images/` folder without an `.atlas`; recover region dims from PNG metadata.
-- **Spine 4.3+ support** (F1.5) — versioned loader adapters; gracefully reject `.json` from versions the runtime can't parse.
-- **Phase-0 scale-overshoot** root-cause fix — sampler formula refinement (RC1 hypothesis: AABB/source inflates by rotation factor).
+**Goal:** Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases with auto-update, so the app can be distributed to testers without `git clone` / Node toolchain.
+
+**Target features:**
+- **Cross-platform installer build** — electron-builder targets: Windows `.exe` (NSIS), macOS `.dmg` (universal or arm64+x64), Linux `.AppImage`. User cannot test Linux locally — Linux build must be CI-only with reasonable defaults.
+- **GitHub Actions CI build pipeline** — tag-triggered workflow (`v*.*.*`) that builds all 3 platforms in parallel and uploads artifacts to a draft GitHub Release.
+- **GitHub Releases distribution channel** — releases published with installer assets attached, release-notes template, tester-facing install instructions for each OS (including Gatekeeper / SmartScreen workarounds).
+- **Auto-update via electron-updater** — wired to GitHub Releases feed; check-on-startup + on-demand "Check for Updates" menu item; graceful UX when update unavailable / network offline.
+- **Signing posture (Phase 1, no paid certs):** ad-hoc signing on macOS (testers right-click → Open the first time); unsigned Windows (SmartScreen "More info → Run anyway"); AppImage on Linux needs no signing. Document the bypass steps in release notes.
+- **Tester-facing install docs** — short per-OS install guide bundled in the release description and a stable `INSTALL.md` in repo root.
+
+**Key context / constraints:**
+- User cannot test Linux locally — reliance on CI build success + AppImage's portability.
+- Apple Developer ID and Windows EV cert are explicitly out of scope for v1.1 (cost / time). Will revisit after tester feedback.
+- App-Store / Microsoft Store distribution is out of scope.
+- electron-updater on Windows historically required code-signed builds; need to verify whether unsigned + GitHub Releases path works (research / spike during plan-phase).
+- Existing v1.0 capabilities must remain shippable — no scope creep into UI improvements or Documentation Builder (deferred to v1.2+).
 
 ## Primary user
 
@@ -84,4 +95,4 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ---
 
-*Last updated: 2026-04-26 after v1.0 milestone close*
+*Last updated: 2026-04-27 — v1.1 Distribution milestone started*
