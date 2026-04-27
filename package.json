@@ -14,9 +14,9 @@
     "cli": "tsx scripts/cli.ts",
     "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
-    "build:mac": "electron-vite build && electron-builder --mac dmg",
-    "build:win": "electron-vite build && electron-builder --win nsis",
-    "build:linux": "electron-vite build && electron-builder --linux AppImage",
+    "build:mac": "electron-vite build && electron-builder --mac dmg --publish never",
+    "build:win": "electron-vite build && electron-builder --win nsis --publish never",
+    "build:linux": "electron-vite build && electron-builder --linux AppImage --publish never",
     "build:dry": "electron-vite build && electron-builder --mac dmg --dir",
     "preview": "electron-vite preview"
   },
