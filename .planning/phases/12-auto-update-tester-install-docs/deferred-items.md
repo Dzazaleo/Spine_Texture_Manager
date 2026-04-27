@@ -22,3 +22,29 @@ mix unrelated cleanup into a CI-release-pipeline plan.
 
 **Note:** The `npm run test` (vitest) suite is fully green (331 passing) — this is the
 correctness gate the workflow's `test` job actually enforces.
+
+## CI tag-push will fail until electron-builder auto-publish race is resolved (deferred to phase 12.1)
+
+**Discovered:** Plan 12-01 spike attempt (live CI runs 25017095851 / 25017351602 / 25017624868 on 2026-04-27).
+
+**Symptom:** With `electron-builder.yml` `publish: github` (Plan 12-02 D-11/D-12 wiring), `--publish never` on the CLI does NOT prevent electron-builder's GitHub publisher from auto-publishing artifacts during the build step. Two failure modes observed:
+
+1. **No `GH_TOKEN` in build env** → `Error: GitHub Personal Access Token is not set` thrown by publisher constructor before any artifact is built (build-mac/build-win/build-linux all fail).
+2. **`GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` provided to build env** → publisher constructor succeeds, but electron-builder auto-uploads `.AppImage`/`.exe`/`.dmg`/`latest*.yml` to a fresh GitHub Release during each parallel build job. Artifacts race; the second/third uploader hits HTTP 422 from GitHub (asset name conflict). Bypasses our atomic `softprops/action-gh-release` publish step entirely.
+
+**Root cause:** Known electron-builder 26.x behavior — `--publish never` suppresses the post-build `publish()` invocation but does NOT prevent per-artifact `PublishManager.artifactCreatedWithoutExplicitPublishConfig` from constructing publishers (which need the token) and uploading individual artifacts as they're emitted. Pitfall 1 manifests at a different layer than Phase 11 anticipated.
+
+**Why deferred to phase 12.1:**
+- Plan 12-01 auto-update CODE is complete and correct (377 tests pass, both spike-PASS and Windows-fallback branches wired under one cohesive surface per D-04).
+- The fix requires architectural choice between (a) static `app-update.yml` via `extraResources` + `publish: null` YAML revert, (b) `--config.publish=null` CLI override, (c) build-time afterPack hook that writes `app-update.yml` + manually computes `latest*.yml` SHA-512/size. Each has trade-offs.
+- Solving it RIGHT belongs in the same phase as the spike runbook execution (12.1) — both depend on a working tag-push CI flow.
+- v1.1.0-rc1 (Phase 11 build) remains the publishable artifact set. Auto-update on macOS/Linux requires a v1.1.0-rc2 to exist as a release with `latest-mac.yml`/`latest-linux.yml` feed files — also deferred to 12.1.
+
+**Disposition:** Phase 12.1 will pick a fix approach, validate locally, run a fresh tag-push CI, then execute the Windows-spike runbook (UPD-06 / D-01 / D-02) for real. Until then, do NOT push tags — the workflow will fail and pollute releases.
+
+**Cleanup performed (2026-04-27):**
+- Deleted polluted `v1.1.0-rc2` GitHub release (was missing macOS DMG due to upload race).
+- Deleted `v1.1.0-rc2` tag locally and on origin.
+- Reverted `package.json` from `1.1.0-rc2` → `1.1.0-rc1` (rc2 never produced a complete artifact set and is not a published version).
+- Reverted `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` env additions on build-mac/build-win/build-linux (the additions were the proximate cause of the upload race).
+- Kept Windows-portability test fixes in `tests/arch.spec.ts` and `tests/core/project-file.spec.ts` (these are real bugs surfaced by Plan 12-02's D-22 matrix expansion — independent of the publish issue).
