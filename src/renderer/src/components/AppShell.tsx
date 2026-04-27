@@ -977,12 +977,23 @@ export function AppShell({
       manualCheckPendingRef.current = true;
       void window.api.checkForUpdates();
     });
+    // Phase 12 Plan 06 (D-16.3) — Help → Installation Guide… opens the
+    // INSTALL.md page externally. URL literal MUST match the
+    // SHELL_OPEN_EXTERNAL_ALLOWED Set entry in src/main/ipc.ts AND
+    // HelpDialog's INSTALL_DOC_URL constant byte-for-byte (D-18 exact-string
+    // allow-list compares strings by value; mismatches are silently dropped).
+    // URL-consistency across all 4 surfaces is gated by
+    // tests/integration/install-md.spec.ts.
+    const unsubMenuInstall = window.api.onMenuInstallationGuide(() => {
+      window.api.openExternalUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/blob/main/INSTALL.md');
+    });
     return () => {
       unsubAvailable();
       unsubDownloaded();
       unsubNone();
       unsubError();
       unsubMenuCheck();
+      unsubMenuInstall();
     };
   }, []);
 

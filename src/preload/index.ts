@@ -483,6 +483,23 @@ const api: Api = {
     };
   },
 
+  /**
+   * Phase 12 Plan 06 (D-16.3) — subscribe to Help → Installation Guide… menu
+   * click. Mirrors onMenuCheckForUpdates byte-for-byte (channel name only
+   * differs). Renderer (AppShell) calls window.api.openExternalUrl with the
+   * INSTALL.md URL on fire; URL routes through SHELL_OPEN_EXTERNAL_ALLOWED
+   * allow-list. Pitfall 9 listener-identity preservation: wrapped const
+   * captured BEFORE ipcRenderer.on so the unsubscribe closure references the
+   * SAME identity that removeListener compares by reference.
+   */
+  onMenuInstallationGuide: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:installation-guide-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:installation-guide-clicked', wrapped);
+    };
+  },
+
   // -------------------------------------------------------------------------
   // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
   //

@@ -70,6 +70,7 @@ beforeEach(() => {
     onUpdateNone: vi.fn(() => () => undefined),
     onUpdateError: vi.fn(() => () => undefined),
     onMenuCheckForUpdates: vi.fn(() => () => undefined),
+    onMenuInstallationGuide: vi.fn(() => () => undefined),
   });
 });
 

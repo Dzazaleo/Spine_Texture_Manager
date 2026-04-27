@@ -68,6 +68,13 @@ export interface HelpDialogProps {
 const SPINE_RUNTIMES_URL = 'https://esotericsoftware.com/spine-runtimes';
 const SPINE_API_REF_URL = 'https://esotericsoftware.com/spine-api-reference';
 const SPINE_JSON_FORMAT_URL = 'https://en.esotericsoftware.com/spine-json-format';
+// Phase 12 Plan 06 (D-16.4) — INSTALL.md cookbook URL. Must match
+// SHELL_OPEN_EXTERNAL_ALLOWED in src/main/ipc.ts AND AppShell.tsx's
+// onMenuInstallationGuide handler argument byte-for-byte (D-18 exact-string
+// allow-list). URL-consistency across all 4 surfaces (this file, ipc.ts,
+// AppShell.tsx, .github/workflows/release.yml) is gated by
+// tests/integration/install-md.spec.ts.
+const INSTALL_DOC_URL = 'https://github.com/Dzazaleo/Spine_Texture_Manager/blob/main/INSTALL.md';
 
 export function HelpDialog(props: HelpDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -122,6 +129,24 @@ export function HelpDialog(props: HelpDialogProps) {
             the peak world-space render scale for every attachment, across
             every animation and skin. Use it to right-size textures per-asset
             before atlas export.
+          </p>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="text-sm font-semibold text-fg mb-2">
+            Install instructions
+          </h3>
+          <p className="text-xs text-fg-muted leading-relaxed">
+            For per-OS install steps and first-launch bypass walkthroughs
+            (Gatekeeper / SmartScreen / libfuse2),{' '}
+            <button
+              type="button"
+              className="underline text-accent hover:text-fg"
+              onClick={openLink(INSTALL_DOC_URL)}
+            >
+              see INSTALL.md
+            </button>{' '}
+            on the project repo.
           </p>
         </section>
 

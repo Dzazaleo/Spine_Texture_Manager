@@ -953,6 +953,15 @@ export interface Api {
   /** D-07 — subscribe to Help → Check for Updates menu click. Returns unsubscribe. */
   onMenuCheckForUpdates: (cb: () => void) => () => void;
 
+  /**
+   * Phase 12 Plan 06 (D-16.3) — subscribe to Help → Installation Guide… menu
+   * click. Returns unsubscribe. Renderer (AppShell) calls openExternalUrl
+   * with the INSTALL.md URL on fire; URL routes through
+   * SHELL_OPEN_EXTERNAL_ALLOWED allow-list. Pitfall 9 listener-identity
+   * preservation lives in src/preload/index.ts.
+   */
+  onMenuInstallationGuide: (cb: () => void) => () => void;
+
   // -------------------------------------------------------------------------
   // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
   //

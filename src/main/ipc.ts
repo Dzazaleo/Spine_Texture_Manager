@@ -170,9 +170,17 @@ const SHELL_OPEN_EXTERNAL_ALLOWED: ReadonlySet<string> = new Set<string>([
   // the stable URL surface for the UpdateDialog "View full release notes" link
   // AND the Windows-fallback "Open Release Page" button. We intentionally do
   // NOT add per-tag URLs (which would require pattern support); the user
-  // navigates one click further to the specific release. INSTALL.md URL is
-  // added by Plan 12-06 — DO NOT add it here.
+  // navigates one click further to the specific release.
   'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+  // Phase 12 Plan 06 (D-16.4 + D-18 option b) — INSTALL.md URL on main is
+  // the stable URL surface for the in-app "Installation Guide…" Help menu
+  // item AND HelpDialog's "Install instructions" inline link. Same exact-
+  // string allow-list pattern as the Releases-index URL; no regex/prefix.
+  // The literal MUST match HelpDialog.tsx's INSTALL_DOC_URL constant and
+  // AppShell.tsx's onMenuInstallationGuide handler argument byte-for-byte
+  // (Set.has compares strings by value). Drift across the 3 surfaces is
+  // gated by tests/integration/install-md.spec.ts URL-consistency check.
+  'https://github.com/Dzazaleo/Spine_Texture_Manager/blob/main/INSTALL.md',
 ]);
 
 /**

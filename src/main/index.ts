@@ -290,6 +290,17 @@ export async function buildAppMenu(
           label: 'Check for Updates…',
           click: () => mainWindow?.webContents.send('menu:check-for-updates-clicked'),
         },
+        // Phase 12 Plan 06 Task 4 — Help → Installation Guide… (D-16.3).
+        // Unconditionally enabled (Pattern G + T-09-05-MENU-02 — Help items
+        // are always available regardless of AppState). No accelerator.
+        // Optional-chain on mainWindow per T-08.2-02-01 (closed-window
+        // null-safety; renderer subscribes via window.api.onMenuInstallationGuide
+        // and calls window.api.openExternalUrl(INSTALL_DOC_URL) when it
+        // fires — URL routes through SHELL_OPEN_EXTERNAL_ALLOWED allow-list).
+        {
+          label: 'Installation Guide…',
+          click: () => mainWindow?.webContents.send('menu:installation-guide-clicked'),
+        },
       ],
     },
   ];

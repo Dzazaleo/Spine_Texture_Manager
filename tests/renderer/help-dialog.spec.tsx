@@ -48,15 +48,17 @@ describe('HelpDialog — Wave 5 (Claude Discretion: in-app help)', () => {
     });
   });
 
-  it('opens with role=dialog labelled "Documentation"; renders 7 canonical sections', () => {
+  it('opens with role=dialog labelled "Documentation"; renders 8 canonical sections', () => {
     render(<HelpDialog open={true} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: /documentation/i });
     expect(dialog).toBeTruthy();
-    // 7 sections — each has a numbered heading (1. … 7.). Verify the
-    // exact count to lock the canonical list (CONTEXT.md Claude's
-    // Discretion + RESEARCH §Recommendations #15).
+    // 8 sections — 7 numbered (1. … 7.) plus the Phase 12 Plan 06 (D-16.4)
+    // unnumbered "Install instructions" section inserted between 1 and 2 as
+    // the in-app surface pointing testers at INSTALL.md. Verify the exact
+    // count to lock the canonical list (CONTEXT.md Claude's Discretion +
+    // RESEARCH §Recommendations #15).
     const sections = dialog.querySelectorAll('section');
-    expect(sections.length).toBe(7);
+    expect(sections.length).toBe(8);
     // Section 7 load-bearing wording — must align with sampler.ts:41-44 +
     // Plan 09-06 rig-info tooltip per CLAUDE.md fact #1. The em-dash
     // (U+2014) is used in the source; the test asserts the substrings
