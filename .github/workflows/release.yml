@@ -144,7 +144,7 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
           TAG: ${{ github.ref_name }}
-          INSTALL_DOC_LINK: https://github.com/${{ github.repository }}/blob/main/README.md
+          INSTALL_DOC_LINK: https://github.com/${{ github.repository }}/blob/main/INSTALL.md
         run: envsubst < .github/release-template.md > release-body.md
 
       - name: Create draft GitHub Release
