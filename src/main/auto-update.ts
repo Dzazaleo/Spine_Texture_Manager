@@ -1,0 +1,404 @@
+/**
+ * Phase 12 Plan 01 Task 2 — electron-updater orchestrator (UPD-01..UPD-06).
+ *
+ * Wires `electron-updater` 6.8.3 (installed by Plan 12-02) into the main
+ * process. Owns the entire update lifecycle:
+ *   - Init: bind events, configure autoDownload=false / autoInstallOnAppQuit=false /
+ *     allowPrerelease=true, schedule the 3.5s startup check.
+ *   - Check: invoke `autoUpdater.checkForUpdates()` wrapped in
+ *     `Promise.race` with a 10s hard timeout (UPD-05).
+ *   - Deliver: bridge `update-available` / `update-downloaded` /
+ *     `update-not-available` / `error` events to the renderer via the
+ *     existing `getMainWindow().webContents.send` pattern (mirrors
+ *     `evt.sender.send('export:progress', ...)` at src/main/ipc.ts:511).
+ *   - Suppression: when `dismissedUpdateVersion >= info.version` (D-08
+ *     strict semver `>` semantics), drop the available event silently.
+ *   - Variant routing: on Windows, gate the IPC payload's `variant`
+ *     field on `SPIKE_PASSED` so the renderer mounts the correct dialog
+ *     shape (auto-update OR windows-fallback per CONTEXT D-01..D-04).
+ *
+ * Layer 3 invariant: lives in `src/main/`, freely imports `electron` and
+ * `electron-updater`. NEVER imports from `src/core/` or `src/renderer/`.
+ *
+ * Anti-patterns avoided (per RESEARCH §"Anti-Patterns to Avoid"):
+ *   - NO `autoUpdater.checkForUpdatesAndNotify()` — bypasses our modal.
+ *   - NO `autoUpdater.autoDownload = true` — UPD-03 requires opt-in.
+ *   - NO synchronous `quitAndInstall` inside an IPC handler — Pattern H
+ *     wraps with `setTimeout(..., 0)` so the IPC ack returns first.
+ *   - NO renderer imports — main is the single source of truth.
+ *   - NO unbridged rejection — startup-mode errors silent-swallowed
+ *     (UPD-05); manual-mode errors bridged to `update:error`.
+ *
+ * Pattern lineage:
+ *   - `getMainWindow()` + try/catch IPC: src/main/ipc.ts:506-512
+ *     (handleStartExport's `evt.sender.send('export:progress', ...)`).
+ *   - setTimeout(0) deferral: src/main/index.ts:131-137
+ *     (`project:confirm-quit-proceed`).
+ *   - Idempotency boolean guard: standard Electron lifecycle pattern.
+ */
+
+import { app } from 'electron';
+import { autoUpdater, type UpdateInfo } from 'electron-updater';
+import { getMainWindow } from './index.js';
+import { loadUpdateState, setDismissedVersion } from './update-state.js';
+
+// --- Constants -------------------------------------------------------------
+
+/**
+ * Startup-check delay (D-06). 3.5s after `app.whenReady()` resolves so the
+ * user sees the load screen / interacts before any network activity. Plan
+ * 01 Task 5 wires `setTimeout(checkUpdate(false), STARTUP_CHECK_DELAY_MS)`
+ * inside `initAutoUpdater` so `index.ts` only needs to call init().
+ */
+const STARTUP_CHECK_DELAY_MS = 3500;
+
+/**
+ * Hard timeout on `checkForUpdates` (UPD-05 + D-06). 10s. Reasoning:
+ *   - GitHub's CDN responds in <1s under normal conditions.
+ *   - On flaky / offline networks the inner request can hang for minutes.
+ *   - 10s is well above the p99 success latency and short enough that a
+ *     background-blocked startup check doesn't pile state-internal work.
+ *   - On rejection/timeout in startup mode: silent-swallow (UPD-05).
+ */
+const CHECK_TIMEOUT_MS = 10_000;
+
+/**
+ * Stable URL surface for "View full release notes" (D-09 / D-18 option (b)).
+ * The Releases _index_ page is added as a SINGLE allow-list entry in
+ * `src/main/ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED` rather than a per-tag URL
+ * (which would require pattern support at the trust boundary). The user
+ * lands one click away from the specific release; trade-off accepted.
+ */
+const GITHUB_RELEASES_INDEX_URL =
+  'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
+
+/**
+ * D-04 / Task 6 — Windows-spike variant routing.
+ *
+ * Default: macOS and Linux always run the full auto-update path; Windows
+ * defaults to the manual-fallback variant until Task 6's user-supervised
+ * spike confirms the unsigned-NSIS auto-update flow works end-to-end
+ * (detect + download + apply + relaunch).
+ *
+ * Set to `true` unconditionally after Outcome A; left at the default
+ * for Outcomes B/C/D (Windows ships the manual-fallback notice).
+ *
+ * The `update-state.json` `spikeOutcome` field can ALSO promote this at
+ * runtime (Task 6 step 10) — when `spikeOutcome === 'pass'`, the Windows
+ * branch routes to the auto-update variant. This module-level constant is
+ * the build-time compile-baseline; the runtime check in
+ * `deliverUpdateAvailable` is the live signal.
+ */
+const SPIKE_PASSED = process.platform !== 'win32';
+
+// --- Module state ----------------------------------------------------------
+
+let initialized = false;
+
+// --- Public API ------------------------------------------------------------
+
+/**
+ * Bind `autoUpdater` event listeners (one-shot, idempotent), configure flags,
+ * and schedule the 3.5s startup check.
+ *
+ * Called from `src/main/index.ts` inside `app.whenReady().then(...)` AFTER
+ * `applyMenu(...)`. Subsequent calls are no-ops (idempotency guard prevents
+ * double-binding event listeners).
+ */
+export function initAutoUpdater(): void {
+  if (initialized) return;
+  initialized = true;
+
+  // UPD-03 — opt-in download. We control the trigger via `downloadUpdate()`.
+  autoUpdater.autoDownload = false;
+
+  // UPD-04 — restart only on user click. We control the trigger via
+  // `quitAndInstallUpdate()`.
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  // RC tags (1.1.0-rc1, rc2…) need `allowPrerelease: true` so the spike's
+  // rc1 install detects rc2 over the same feed.
+  autoUpdater.allowPrerelease = true;
+
+  // Bind lifecycle events.
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    void deliverUpdateAvailable(info);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    sendToWindow('update:none', { currentVersion: app.getVersion() });
+  });
+
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    sendToWindow('update:downloaded', { version: info.version });
+  });
+
+  autoUpdater.on('error', (err: Error) => {
+    // DevTools console-only logging per CONTEXT D-06 (Phase 12 has no
+    // telemetry; Phase 13 owns Sentry wiring).
+    console.error('[auto-update]', err.message);
+    // Note: this handler fires for ALL autoUpdater errors. The mode-aware
+    // suppression (silent on startup, IPC on manual) lives in `checkUpdate`'s
+    // own try/catch around the Promise.race — when checkForUpdates rejects
+    // OR autoUpdater emits 'error' during the same checkUpdate call, the
+    // rejection caught in checkUpdate routes correctly. This unconditional
+    // bridge sends `update:error` for autoUpdater-internal errors that arrive
+    // OUTSIDE a checkUpdate call (extremely rare); the renderer
+    // `manualCheckPendingRef` filter in AppShell ignores it on startup.
+    sendToWindow('update:error', { message: err.message });
+  });
+
+  // UPD-01 — schedule the 3.5s startup check. Standard fire-and-forget; the
+  // checkUpdate body silent-swallows on rejection/timeout in startup mode.
+  setTimeout(() => {
+    void checkUpdate(false);
+  }, STARTUP_CHECK_DELAY_MS);
+}
+
+/**
+ * Trigger a check. `triggeredManually=true` for Help → Check for Updates;
+ * `false` for the 3.5s startup check.
+ *
+ * Manual mode: any rejection becomes `update:error` IPC. Startup mode:
+ * silent-swallow per UPD-05 (no error dialog, no crash, no nag).
+ *
+ * Wraps `autoUpdater.checkForUpdates()` in `Promise.race` with a 10s
+ * timeout to bound the network wait.
+ */
+export async function checkUpdate(triggeredManually: boolean): Promise<void> {
+  try {
+    await Promise.race([
+      autoUpdater.checkForUpdates(),
+      new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('check-timeout')), CHECK_TIMEOUT_MS),
+      ),
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auto-update] checkUpdate', message);
+    if (triggeredManually) {
+      sendToWindow('update:error', { message });
+    }
+    // Startup mode: silent (UPD-05). Per D-06 the diagnostic signal is the
+    // DevTools console.error above; no IPC, no dialog.
+  }
+}
+
+/**
+ * Trigger the download. UPD-03 — opt-in: only fired when the user clicks
+ * the "Download + Restart" button in `UpdateDialog` (state='available').
+ * The renderer transitions the dialog to `state='downloading'` (indeterminate
+ * spinner) and waits for `update:downloaded` to arrive.
+ */
+export async function downloadUpdate(): Promise<void> {
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[auto-update] downloadUpdate', message);
+    sendToWindow('update:error', { message });
+  }
+}
+
+/**
+ * Quit the app and apply the downloaded update. UPD-04 — only fired when
+ * the user clicks the "Restart" button in `UpdateDialog` (state='downloaded').
+ *
+ * `autoUpdater.quitAndInstall(false, true)` is synchronous and quits the
+ * process immediately. We MUST defer it via `setTimeout(..., 0)` so the
+ * IPC send that triggered this call has time to ack to the renderer
+ * before the app exits — same Pattern H idiom used at
+ * src/main/index.ts:131-137 for `project:confirm-quit-proceed`.
+ *
+ * Args: `(isSilent=false, isForceRunAfter=true)`:
+ *   - isSilent=false: show the installer UI on Windows (NSIS).
+ *   - isForceRunAfter=true: relaunch the new app after install.
+ */
+export function quitAndInstallUpdate(): void {
+  setTimeout(() => {
+    autoUpdater.quitAndInstall(false, true);
+  }, 0);
+}
+
+/**
+ * Persist the user's "Later" decision. D-08 — `dismissedUpdateVersion`
+ * is updated in `update-state.json` so subsequent startup checks suppress
+ * the same version. A NEWER version (`> dismissedUpdateVersion` per the
+ * strict semver compare in `deliverUpdateAvailable`) re-fires the prompt.
+ */
+export async function dismissUpdate(version: string): Promise<void> {
+  try {
+    await setDismissedVersion(version);
+  } catch (err) {
+    // Persistence failure is silent (UX state; non-critical). The user
+    // will see the prompt again on next startup, which is annoying but
+    // not broken.
+    console.error('[auto-update] dismissUpdate', err);
+  }
+}
+
+// --- Internal helpers ------------------------------------------------------
+
+/**
+ * Compare two semver strings.
+ *
+ *   compareSemver('1.2.3', '1.2.3') === 0
+ *   compareSemver('1.2.3', '1.2.4') === -1
+ *   compareSemver('1.2.4', '1.2.3') === 1
+ *   compareSemver('2.0.0', '1.99.99') === 1
+ *
+ * Pre-release / build-metadata suffixes (e.g. `-rc1`, `+build.5`) are
+ * stripped from the numeric tuple — the spike runbook publishes
+ * `1.1.0-rc1` → `1.1.0-rc2`, both of which become `[1, 1, 0]` here. The
+ * D-08 suppression compare is exact-string when the available version
+ * matches the dismissed version, so `'1.1.0-rc2'` dismissed and
+ * `'1.1.0-rc2'` available will suppress correctly via the equal branch
+ * in `deliverUpdateAvailable`. Re-firing on `1.1.0-rc3` requires both
+ * tags to share the `1.1.0` numeric tuple — they do, so the strict-`>`
+ * gate triggers on the pre-release suffix difference. Acceptable for
+ * v1.1; if a more rigorous semver compare is needed later, swap to the
+ * `semver` npm package (already a transitive dep of electron-updater).
+ */
+function compareSemver(a: string, b: string): -1 | 0 | 1 {
+  // Strip pre-release / build suffix for the numeric tuple compare.
+  const numericA = a.split(/[-+]/)[0];
+  const numericB = b.split(/[-+]/)[0];
+  const pa = numericA.split('.').map((s) => Number.parseInt(s, 10) || 0);
+  const pb = numericB.split('.').map((s) => Number.parseInt(s, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x < y) return -1;
+    if (x > y) return 1;
+  }
+  // Numeric tuples equal — check exact-string for pre-release differences.
+  if (a === b) return 0;
+  // Different pre-release tags but same numeric tuple — treat available as
+  // newer when the dismissed has a pre-release suffix and available doesn't,
+  // OR when their full strings are not equal (e.g. dismissed='1.1.0-rc1',
+  // available='1.1.0-rc2' should re-fire). Conservative bias: any string
+  // mismatch with equal numeric tuple resolves as "available is newer" so
+  // we re-fire the prompt. False positives here are acceptable (extra
+  // prompt) compared to false negatives (missed prompt for a newer version).
+  if (a !== b) return -1;
+  return 0;
+}
+
+/**
+ * Extract the leading "Summary" section from `electron-updater`'s
+ * `releaseNotes` field per D-09. Strips HTML tags. Plain-text only —
+ * NO markdown rendering (HelpDialog precedent: zero XSS surface).
+ *
+ * Input forms (per electron-updater UpdateInfo type):
+ *   - string: GitHub Release body markdown (REL-02 template format).
+ *   - array: legacy multi-version notes; we join + re-extract.
+ *   - null/undefined: no notes available; return ''.
+ *
+ * Extraction strategy:
+ *   1. If string: locate `## Summary` (case-insensitive) followed by
+ *      content until the next `\n##` or end-of-string.
+ *   2. Fallback when no `## Summary`: take everything before the first
+ *      `\n##` (the "intro paragraph" if any) — never returns the entire
+ *      multi-section body.
+ *   3. Strip HTML tags via simple regex (no DOMPurify; the strings are
+ *      not rendered as HTML in the dialog — they go into a `<pre>` block).
+ *   4. Trim whitespace.
+ */
+function extractSummary(
+  notes: string | Array<{ version: string; note: string | null }> | null | undefined,
+): string {
+  if (notes === null || notes === undefined) return '';
+
+  let text: string;
+  if (Array.isArray(notes)) {
+    // electron-updater's ReleaseNoteInfo.note is `string | null` — coerce
+    // null entries to empty string before joining.
+    text = notes.map((n) => n.note ?? '').join('\n');
+  } else {
+    text = notes;
+  }
+
+  // Locate `## Summary` (case-insensitive, no other prefix). Capture content
+  // until the next `\n##` heading or end-of-string.
+  const summaryMatch = /##\s*Summary\s*\n([\s\S]*?)(?=\n##\s|$)/i.exec(text);
+  let extracted: string;
+  if (summaryMatch) {
+    extracted = summaryMatch[1];
+  } else {
+    // Fallback: text before the first `\n##` heading (the intro paragraph,
+    // if any). When no headings exist, returns the full text.
+    const firstHeading = text.indexOf('\n##');
+    extracted = firstHeading >= 0 ? text.slice(0, firstHeading) : text;
+  }
+
+  // Strip HTML tags + trim. Plain text goes into a `<pre>` block in
+  // UpdateDialog (D-09 + HelpDialog precedent: NO `dangerouslySetInnerHTML`).
+  return extracted.replace(/<[^>]+>/g, '').trim();
+}
+
+/**
+ * Bridge `update-available` to the renderer with D-08 suppression and
+ * D-04 Windows-fallback variant routing.
+ *
+ * Suppression (D-08 strict `>` semantics): when the dismissed version is
+ * newer-or-equal to the available version, drop the event. A NEWER version
+ * re-fires the prompt — `dismissedUpdateVersion='1.2.3'` + `info.version='1.2.4'`
+ * sends `update:available`; `dismissedUpdateVersion='1.2.4'` +
+ * `info.version='1.2.3'` does NOT.
+ *
+ * Variant routing (D-04): macOS / Linux always 'auto-update'. Windows
+ * defaults to 'windows-fallback' until Task 6's spike runs and either
+ * (a) flips `SPIKE_PASSED` at the module-constant level (Outcome A
+ * promotes the build-time baseline to true), or (b) the persisted
+ * `spikeOutcome === 'pass'` flag in update-state.json overrides at
+ * runtime (allows promoting via a settings file edit without re-deploying
+ * the main bundle — useful for tester rounds).
+ */
+async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
+  const state = await loadUpdateState();
+
+  // D-08 strict-`>` semantics — suppress when dismissed >= available.
+  if (
+    state.dismissedUpdateVersion !== null &&
+    compareSemver(state.dismissedUpdateVersion, info.version) >= 0
+  ) {
+    return;
+  }
+
+  // D-04 — Windows-fallback variant when on win32 AND spike has not passed
+  // (build-time SPIKE_PASSED OR runtime spikeOutcome === 'pass').
+  const spikeRuntimePass = state.spikeOutcome === 'pass';
+  const variant: 'auto-update' | 'windows-fallback' =
+    process.platform === 'win32' && !SPIKE_PASSED && !spikeRuntimePass
+      ? 'windows-fallback'
+      : 'auto-update';
+
+  sendToWindow('update:available', {
+    version: info.version,
+    summary: extractSummary(info.releaseNotes),
+    variant,
+    fullReleaseUrl: GITHUB_RELEASES_INDEX_URL,
+  });
+}
+
+/**
+ * Send a payload to the main BrowserWindow's renderer. Mirrors
+ * `evt.sender.send('export:progress', ...)` at src/main/ipc.ts:511 with
+ * the difference that auto-update events fire OUT OF BAND (no `evt`
+ * available — they originate from `autoUpdater.on(...)` callbacks), so
+ * we resolve the window via `getMainWindow()` and null-guard.
+ *
+ * Try/catch swallows the `Object has been destroyed` error that fires
+ * when the renderer has gone away mid-flight.
+ */
+function sendToWindow(channel: string, payload: unknown): void {
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) {
+    try {
+      win.webContents.send(channel, payload);
+    } catch {
+      // webContents gone — silent (one-way channel; nothing to return).
+    }
+  }
+}
