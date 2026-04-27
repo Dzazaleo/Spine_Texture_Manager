@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
 status: unknown
-last_updated: "2026-04-27T11:33:49.189Z"
+last_updated: "2026-04-27T11:58:03.143Z"
 progress:
   total_phases: 4
   completed_phases: 1
@@ -29,6 +29,7 @@ Phase 11 — CI release pipeline (GitHub Actions → draft Release). Plan 11-01 
 ## Last completed
 
 Plan 11-01 (CI file-authoring wave) — 2026-04-27. Three atomic commits land the entire Phase-11 file-authoring contract:
+
 1. `69c8cc1` chore — package.json `build:mac`/`build:win`/`build:linux` scripts now end with `--publish never` (Pitfall 1 / GH_TOKEN auto-publish defense; `build:dry` untouched).
 2. `eb8a904` feat — `.github/release-template.md` (27 lines, 4 REL-02 `##` sections + Tag footer; envsubst placeholders `${VERSION}` / `${TAG}` / `${INSTALL_DOC_LINK}`; three platform install bullets with macOS Gatekeeper "Open Anyway", Windows SmartScreen "Run anyway", Linux `chmod +x` + `libfuse2t64`).
 3. `c253eb6` feat — `.github/workflows/release.yml` (150 lines, 5 jobs: test ⇒ 3 parallel builds ⇒ atomic publish; 5 SHA-pinned third-party actions; tag↔package.json version guard with `::error::` annotations; `if-no-files-found: error` × 3 + `fail_on_unmatched_files: true` × 1 for CI-05 atomicity; `--publish never` belt-and-braces in build invocations; `CSC_IDENTITY_AUTO_DISCOVERY: false` on macOS for Pitfall 7; envsubst-rendered release body with VERSION/TAG/INSTALL_DOC_LINK env vars; `prerelease: contains(github.ref_name, '-')` auto-flags `-rc1`).
