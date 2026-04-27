@@ -329,4 +329,93 @@ Combined with the **two failed runs** earlier in Task 2 (24993716580 and 2499407
 
 ## REL-04 install smoke (Task 5)
 
-_pending Task 5_
+REL-04 is the requirement that "a non-developer tester can download the appropriate installer from a GitHub Release page, install it, and launch the app — with no `git`, no Node.js, no build step." For Phase 11 closure the maintainer performs the install smoke first; broader tester rounds happen in Phase 12+ once INSTALL.md (REL-03) lands and tester distribution begins.
+
+Installers downloaded via `gh release download v1.1.0-rc1 --pattern '*.dmg' --pattern '*.exe' --pattern '*.AppImage'` from the run 24994332338 draft release. SHA256 captured for audit:
+
+```
+4ad147fcf74d25c61bb36023f7a2ffadbc19acbcab682ca09f11d998859a268b  Spine.Texture.Manager-1.1.0-rc1-arm64.dmg
+f625fe4fff6451276cb694e4a54fed18dac88d7455f10782d75f16247929d32c  Spine.Texture.Manager-1.1.0-rc1-x64.exe
+0a37cce70b9ddca21ca61515d161425462e8b09270b5ef31e9374493ca983c7a  Spine.Texture.Manager-1.1.0-rc1-x86_64.AppImage
+```
+
+### macOS (Apple Silicon arm64) — PASS
+
+Maintainer host: macOS arm64 (developer's primary).
+
+- Mounted `Spine.Texture.Manager-1.1.0-rc1-arm64.dmg`.
+- Dragged `Spine Texture Manager.app` → `/Applications`.
+- **Gatekeeper did not block on first launch.** Investigation: the `.dmg` was downloaded via `gh release download` (CLI), which does NOT set the `com.apple.quarantine` xattr. Real testers downloading via Safari/Chrome from the published Release page **will** hit the documented "Open Anyway" path; the REL-02 install-instruction surface remains correct.
+- Loaded `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`.
+- Optimize Assets → produced output without errors. User confirmation: _"app launched immediately, optimise step done. No problems at all"_.
+
+Auto-captured post-install verifications:
+
+```bash
+$ defaults read "/Applications/Spine Texture Manager.app/Contents/Info.plist" CFBundleShortVersionString
+1.1.0-rc1                                # ✓ DIST-07 — version string matches tag
+
+$ codesign -dv "/Applications/Spine Texture Manager.app" 2>&1 | grep -E '^(Identifier|Format|Signature)'
+Identifier=com.spine.texture-manager     # ✓ matches electron-builder.yml appId
+Format=app bundle with Mach-O thin (arm64)
+Signature=adhoc                          # ✓ DIST-04 — ad-hoc signed (single-quoted dash identity)
+
+$ xattr -l "/Applications/Spine Texture Manager.app" | grep com.apple.quarantine
+(no quarantine xattr — gh CLI doesn't set it; browser downloads will)
+
+$ test -d "/Applications/Spine Texture Manager.app/Contents/Resources/app.asar.unpacked/node_modules/sharp"
+✓ sharp unpacked (DIST-06)
+$ test -d "/Applications/Spine Texture Manager.app/Contents/Resources/app.asar.unpacked/node_modules/@img"
+✓ @img/sharp-darwin-arm64 unpacked (DIST-06)
+```
+
+### Windows (x64 NSIS) — PASS WITH CAVEATS
+
+Maintainer host: Windows 11 x64.
+
+- Downloaded `Spine.Texture.Manager-1.1.0-rc1-x64.exe`, ran NSIS installer, walked through default flow.
+- App installed and launched cleanly.
+- Loaded a Spine 4.2 fixture (`TQORW_SYMBOLS.json`); skeleton summary printed in console with platform-correct Windows paths (`C:\\Users\\LeonardoCunha\\Desktop\\stm\\TQORW_SYMBOLS.json`) — confirms Electron file IO works on Windows.
+- **Optimize Assets — PASS**: 153 of 153 attachments succeeded in 10.7s. Output PNGs written to the chosen output folder.
+
+```
+[Spine Texture Manager] Loaded skeleton summary:
+  skeletonPath: 'C:\\Users\\LeonardoCunha\\Desktop\\stm\\TQORW_SYMBOLS.json'
+  atlasPath:    'C:\\Users\\LeonardoCunha\\Desktop\\stm\\TQORW_SYMBOLS.atlas'
+  bones, slots, attachments populated
+...
+Export complete — 153 of 153 succeeded   (10.7s)
+```
+
+#### Pre-existing Windows runtime findings (NOT Phase 11 CI bugs — surfaced because Phase 11 produced the first Windows install ever)
+
+These three findings are runtime defects in the **app**, not the **CI release pipeline**. Phase 11's contract is the release pipeline; these are filed as Phase 12 prerequisites (must be fixed before tester rounds begin) or 9.x polish. Captured here for traceability since REL-04 was the surface that exposed them.
+
+| # | Finding | Severity | Phase to fix |
+|---|---------|----------|--------------|
+| F1 | **Atlas Preview broken on Windows.** Console shows `GET app-image://localhostc/ 404 (Not Found)`. The `localhostc` literal (note the trailing `c`) suggests a path-concatenation bug where Windows path separator characters leak into the custom URL scheme. Atlas rectangles render but the underlying images do not. macOS atlas preview works fine. | medium | Phase 12 prereq (atlas viewer is REL-03 user-facing) |
+| F2 | **File-picker UX confusion on Windows.** When prompting for output location, the dialog defaults to a folder name of `images` (presumably the placeholder/suggested filename). Windows' native file picker interprets this as "open existing folder named images" → shows "This file doesn't exist. Create the file?" → if user clicks Yes, gets "The folder name is not valid". Workaround: click "New folder", type a name, click "Export Here". macOS doesn't surface this. **User suggestion:** the export step should only warn if it would overwrite existing files; the default-folder-name UX needs a Windows-aware redesign. | low/UX | Phase 12 polish |
+| F3 | **No safeguard for Spine 3.8 rigs.** Loading a 3.8 JSON appears to succeed (skeleton loads, optimizer runs to completion) but produces no usable output — every attachment silently fails. The app should refuse 3.8 input at load time with a clear "Spine 4.2+ required" error rather than running through and silently producing nothing. | medium/UX | 9.x or 12 polish |
+
+Captured into `.planning/phases/11-ci-release-pipeline-github-actions-draft-release/11-WIN-FINDINGS.md` so the items don't get lost when Phase 11 archives.
+
+#### Verdict for Windows
+
+The **CI release pipeline contract is met**: the `.exe` was built by GHA, downloaded from a draft release page, installed via NSIS without git/Node, and the app's primary workflow (Optimize Assets) works correctly on Spine 4.2 input. REL-04 install-and-launch is verified. The three findings above are app runtime / UX issues, not pipeline issues — they would have existed regardless of how the installer was built.
+
+### Linux (x64 AppImage) — DEFERRED
+
+Maintainer does not have a Linux host immediately available. AppImage binary was built, signed by GHA's `if-no-files-found: error` gate (138 MB), and downloaded successfully — so the **CI side of REL-04 for Linux is verified by construction** (criteria #5 confirmed all 3 assets present). The runtime smoke (chmod +x → AppImage launch → Optimize Assets) is **deferred to Phase 12 tester rounds**, when broader tester distribution begins per REL-03 / INSTALL.md and at least one tester with a Linux box is engaged.
+
+Per Plan 02 acceptance criteria: "Acceptable to defer Linux smoke to Phase 12 tester rounds IF the maintainer lacks a Linux host AND the user explicitly chooses to defer; the deferral and rationale must be documented in this section." Both conditions are met.
+
+### Disposition of v1.1.0-rc1 release
+
+**Kept as draft.** Tester distribution is Phase 12 territory; flipping the draft to published is deferred until INSTALL.md (REL-03) lands and tester rounds begin. The draft remains visible to maintainers via `gh release view v1.1.0-rc1` and downloadable via `gh release download` for ongoing internal smoke testing.
+
+### Acceptance — Task 5
+
+- [x] **REL-04 macOS** — install + launch + Optimize Assets verified; CFBundleShortVersionString = 1.1.0-rc1; Signature = adhoc; sharp + @img unpacked (DIST-04, DIST-06, DIST-07).
+- [x] **REL-04 Windows** — install + launch + Optimize Assets verified (153/153 in 10.7s on Spine 4.2 fixture); three pre-existing app/UX runtime findings documented for Phase 12.
+- [x] **REL-04 Linux** — explicitly deferred to Phase 12 tester rounds with documented rationale (no Linux host immediately available; CI-side artifact production verified).
+- [x] **Disposition** — v1.1.0-rc1 release kept as draft for Phase 12 tester coordination.

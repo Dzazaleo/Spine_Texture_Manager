@@ -40,7 +40,8 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 - [x] **REL-02
 **: Each release body follows a documented release-notes template (summary / new in this version / known issues / install instructions link).
 - [ ] **REL-03**: Repo root contains `INSTALL.md` with per-OS install steps, including Gatekeeper bypass (macOS) and SmartScreen bypass (Windows) walkthroughs.
-- [ ] **REL-04**: A non-developer tester can download the appropriate installer from a GitHub Release page, install it, and launch the app — with no `git`, no Node.js, no build step.
+- [x] **REL-04
+**: A non-developer tester can download the appropriate installer from a GitHub Release page, install it, and launch the app — with no `git`, no Node.js, no build step.
 
 ### UPD — Auto-update
 
@@ -95,16 +96,16 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 | DIST-05 | Phase 10 | Complete (config: Plan 10-02 — no `certificateFile` keys ⇒ unsigned; live `signtool verify` deferred to Phase 11 CI Windows job) |
 | DIST-06 | Phase 10 | Complete (Plan 10-03 — static: sharp + libvips in app.asar.unpacked; dynamic: user-approved Optimize Assets smoke against SIMPLE_TEST + Girl fixtures, both produced non-zero PNGs + .atlas) |
 | DIST-07 | Phase 10 | Complete (Plan 10-03 — filename + Info.plist CFBundleShortVersionString = 1.1.0-rc1) |
-| CI-01   | Phase 11 | File-authoring complete (Plan 11-01 — release.yml `on: push.tags: ['v*.*.*']`); live tag-fire verification deferred to Plan 11-02 |
-| CI-02   | Phase 11 | File-authoring complete (Plan 11-01 — three parallel build-{mac,win,linux} jobs each with `needs: test`, native runner pins macos-14/windows-2022/ubuntu-22.04); live concurrent-runner verification deferred to Plan 11-02 |
-| CI-03   | Phase 11 | File-authoring complete (Plan 11-01 — `test` job runs `npm ci` + version guard + `npm run typecheck` + `npm run test`; build jobs gated by `needs: test`); live test-gate verification deferred to Plan 11-02 |
-| CI-04   | Phase 11 | File-authoring complete (Plan 11-01 — publish job uses `softprops/action-gh-release@v2.6.2` SHA-pinned, `draft: true`, three asset-glob lines for .dmg/.exe/.AppImage); live draft-release verification deferred to Plan 11-02 |
-| CI-05   | Phase 11 | File-authoring complete (Plan 11-01 — atomicity gate via `publish.needs: [build-mac, build-win, build-linux]` + `if-no-files-found: error` × 3 + `fail_on_unmatched_files: true` × 1); live atomicity audit deferred to Plan 11-02 |
-| CI-06   | Phase 11 | File-authoring complete (Plan 11-01 — `workflow_dispatch:` trigger present + `publish.if:` excludes non-tag pushes); live dry-run verification deferred to Plan 11-02 |
-| REL-01  | Phase 11 | File-authoring complete (Plan 11-01 — softprops `files:` block lists assets/*.dmg, *.exe, *.AppImage); live three-asset attachment verification deferred to Plan 11-02 |
-| REL-02  | Phase 11 | File-authoring complete (Plan 11-01 — .github/release-template.md with four `##` sections + envsubst placeholders + envsubst step in publish job); live body-rendering verification deferred to Plan 11-02 |
-| REL-03  | Phase 12 | Pending |
-| REL-04  | Phase 11 | Pending |
+| CI-01   | Phase 11 | Complete (Plan 11-02 — live tag push of v1.1.0-rc1 fired workflow run 24994332338 within 3 s of push; criterion #1) |
+| CI-02   | Phase 11 | Complete (Plan 11-02 — run 24994332338 build-{mac,win,linux} all share startedAt 2026-04-27T12:14:29Z, concurrent on macos-14 / windows-2022 / ubuntu-22.04; criterion #2) |
+| CI-03   | Phase 11 | Complete (Plan 11-02 — run 24994332338 test.completedAt 12:14:27Z precedes min(build-*.startedAt) 12:14:29Z by 2 s; vitest gates builds; criterion #2 partial + criterion #3) |
+| CI-04   | Phase 11 | Complete (Plan 11-02 — run 24994332338 produced draft release v1.1.0-rc1 via SHA-pinned softprops/action-gh-release@v2.6.2; gh release view returns isDraft true with 3 assets; criterion #4) |
+| CI-05   | Phase 11 | Complete (Plan 11-02 — atomicity proven on TWO failed runs: 24993716580 (test failed) and 24994071839 (all 3 builds failed) both correctly skipped publish, gh release list returned []; static audit confirms publish.needs/if + if-no-files-found:error×3 + fail_on_unmatched_files:true; criteria #5 + #8) |
+| CI-06   | Phase 11 | Complete (Plan 11-02 — workflow_dispatch run 24994622845 produced 3 artifacts on the run summary, publish skipped, no new draft release; criterion #7) |
+| REL-01  | Phase 11 | Complete (Plan 11-02 — gh release view v1.1.0-rc1 shows 3 assets sorted: .dmg arm64 / .exe x64 / .AppImage x86_64, all containing 1.1.0-rc1 literal; criterion #5) |
+| REL-02  | Phase 11 | Complete (Plan 11-02 — body has all 4 REL-02 sections + Tag footer (5 ## headings), 0 unrendered ${VERSION}/${TAG}/${INSTALL_DOC_LINK} placeholders, v1.1.0-rc1 literal × 3; envsubst rendered cleanly; criterion #6) |
+| REL-03  | Phase 12 | Pending (INSTALL.md authoring is Phase 12 territory; some content already drafted in .github/release-template.md install-bullets) |
+| REL-04  | Phase 11 | Complete-with-deferrals (Plan 11-02 — macOS install + launch + Optimize Assets verified; Windows install + launch + Optimize Assets verified on Spine 4.2 input (153/153 in 10.7s); 3 pre-existing Windows runtime findings spilled to Phase 12 via 11-WIN-FINDINGS.md; Linux smoke explicitly deferred to Phase 12 tester rounds with rationale) |
 | UPD-01  | Phase 12 | Pending |
 | UPD-02  | Phase 12 | Pending |
 | UPD-03  | Phase 12 | Pending |
