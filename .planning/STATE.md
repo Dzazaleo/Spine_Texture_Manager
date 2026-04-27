@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
 status: unknown
-last_updated: "2026-04-27T16:05:04.594Z"
+last_updated: "2026-04-27T17:42:25.051Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
+  total_plans: 11
   completed_plans: 5
-  percent: 100
+  percent: 45
 ---
 
 # State
@@ -101,3 +101,5 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continues fr
 **Active Phase:** 11 (CI release pipeline (GitHub Actions → draft Release)) — 1/2 plans complete — Plan 11-01 closed 2026-04-27T11:31:02Z (file-authoring wave: greenfield .github/workflows/release.yml + .github/release-template.md + package.json `--publish never` bake-in; three atomic commits 69c8cc1, eb8a904, c253eb6; CI-01..CI-06, REL-01, REL-02 file-level closed); Plan 11-02 (live verification: tag-push of v1.1.0-rc1, gh-CLI evidence capture, workflow_dispatch dry run, atomicity audit, REL-04 install smoke) pending.
 
 **Closed Phase:** 10 (Installer build) — 3/3 plans complete — 2026-04-27T10:08:45Z. Plan 10-01 (build-foundation: version 1.1.0-rc1 + per-platform npm scripts), Plan 10-02 (3-platform electron-builder.yml with mac.identity:'-' + asarUnpack sharp/@img), Plan 10-03 (live macOS .dmg + shell assertions + 10-SMOKE-TEST.md recipe + user-approved manual Optimize Assets smoke). Phase 10 contract DIST-01..DIST-07 closed; cross-platform live verification (Windows EXE, Linux AppImage) handed to Phase 11 CI.
+
+**Planned Phase:** 12 (auto-update-tester-install-docs) — 6 plans — 2026-04-27T17:42:25.046Z
