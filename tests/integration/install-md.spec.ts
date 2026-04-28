@@ -125,6 +125,30 @@ describe('REL-03: docs/install-images/ screenshot directory', () => {
       expect(statSync(full).size).toBeGreaterThanOrEqual(pngMagic.length);
     }
   });
+
+  // Plan 12.1-06 soft-gate (≥ 5KB) — catches accidental re-commits of the
+  // 67-byte 1×1 placeholders. Real captures are 100KB-1MB. Linux libfuse2
+  // capture deferred to v1.1.1 (lima/multipass on Apple Silicon Sequoia
+  // hit blockers; placeholder stays in tree until a real Ubuntu 24.04
+  // host or x86_64 VM produces the screenshot).
+  test('Each real-captured screenshot is ≥ 5KB (soft-gate against placeholder regression)', () => {
+    const realCaptures = [
+      'docs/install-images/macos-gatekeeper-open-anyway.png',
+      'docs/install-images/windows-smartscreen-more-info.png',
+      'docs/install-images/windows-smartscreen-run-anyway.png',
+    ];
+    const MIN_BYTES = 5 * 1024; // 5 KB
+    for (const rel of realCaptures) {
+      const full = resolve(REPO_ROOT, rel);
+      const size = statSync(full).size;
+      expect(
+        size,
+        `${rel} is ${size} bytes; expected ≥ ${MIN_BYTES} bytes (real capture). 67-byte 1×1 placeholder regression?`,
+      ).toBeGreaterThanOrEqual(MIN_BYTES);
+    }
+  });
+
+  test.todo('Linux libfuse2 PNG deferred to v1.1.1 — capture on real Ubuntu 24.04 host or x86_64 VM');
 });
 
 describe('REL-03: 4 INSTALL.md linking surfaces', () => {

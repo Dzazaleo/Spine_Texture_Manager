@@ -16,19 +16,37 @@ Pre-built installers are published to GitHub Releases for each tagged version. T
 
 **Note:** This build is signed ad-hoc, not with an Apple Developer ID. The first launch requires a one-time Gatekeeper bypass. The app behaves normally afterward — open from Applications, Launchpad, or Spotlight.
 
-### Steps
+### Steps (macOS 15 Sequoia and later)
 
 1. Download `Spine-Texture-Manager-<version>-arm64.dmg` from the Releases page.
 2. Double-click the downloaded `.dmg`. macOS mounts the disk image and shows a Finder window with the app icon next to an Applications folder shortcut.
 3. Drag **Spine Texture Manager.app** into **Applications**.
-4. Open **Applications** in Finder. **Right-click** (or Control-click) the app icon. Choose **Open** from the context menu. (Double-clicking does NOT work on first launch — that's the Gatekeeper restriction.)
-5. macOS shows: _"App cannot be opened because the developer cannot be verified."_ Click **Open Anyway** (or **Open** depending on macOS version):
+4. Open **Applications** in Finder and double-click **Spine Texture Manager**. macOS shows a Gatekeeper warning:
 
-   ![Gatekeeper Open Anyway dialog](docs/install-images/macos-gatekeeper-open-anyway.png)
+   _"Apple could not verify 'Spine Texture Manager.app' is free of malware that may harm your Mac or compromise your privacy."_ with **Move to Trash** / **Done** buttons.
 
-   _(Screenshot pending — capture during phase 12.1 with first real tester install on rc2.)_
+   ![Gatekeeper warning dialog](docs/install-images/macos-gatekeeper-open-anyway.png)
 
-6. The app launches. Future launches work normally — double-click from Applications, Spotlight (`Cmd+Space` → type "Spine Texture Manager"), or Launchpad.
+   Click **Done** to dismiss. **Do NOT click "Move to Trash"**.
+
+5. Open **System Settings → Privacy & Security**. Scroll down to the **Security** section. You'll see:
+
+   _"Spine Texture Manager.app" was blocked to protect your Mac._
+
+   Click **Open Anyway** next to it. macOS asks for your Mac password or Touch ID — confirm.
+
+6. A second confirmation dialog appears with an actual **Open** button. Click **Open**. The app launches.
+
+7. Future launches work normally — double-click from Applications, Spotlight (`Cmd+Space` → type "Spine Texture Manager"), or Launchpad. The Gatekeeper bypass is one-time per binary.
+
+### Older macOS versions (14 Sonoma and earlier)
+
+The right-click bypass path may still work as a one-step alternative on macOS 14 and earlier:
+
+1. **Right-click** (or Control-click) the app icon in Applications. Choose **Open** from the context menu.
+2. macOS shows: _"App cannot be opened because the developer cannot be verified."_ Click **Open Anyway** (or **Open**, depending on the exact macOS version).
+
+If the right-click path doesn't show an "Open Anyway" option, fall back to the System Settings flow above (it works on every macOS version that supports the app).
 
 ### Troubleshooting
 
@@ -37,8 +55,6 @@ Pre-built installers are published to GitHub Releases for each tagged version. T
   ```bash
   xattr -cr "/Applications/Spine Texture Manager.app"
   ```
-
-- **System Settings → Privacy & Security alternative**: if the right-click → Open path is unavailable on your macOS version, open **System Settings → Privacy & Security**, scroll to the bottom, and click **Open Anyway** next to the Spine Texture Manager row.
 
 ---
 
@@ -49,17 +65,13 @@ Pre-built installers are published to GitHub Releases for each tagged version. T
 ### Steps
 
 1. Download `Spine-Texture-Manager-<version>-x64.exe` from the Releases page.
-2. Double-click the downloaded `.exe`. Windows SmartScreen shows: _"Microsoft Defender SmartScreen prevented an unrecognized app from starting."_
+2. Double-click the downloaded `.exe`. Windows SmartScreen shows: _"Microsoft Defender SmartScreen prevented an unrecognized app from starting."_ The dialog has a **More info** link and a **Don't run** button.
 
    ![SmartScreen More info](docs/install-images/windows-smartscreen-more-info.png)
 
-   _(Screenshot pending — capture during phase 12.1 with first real tester install on rc2.)_
-
-3. Click **More info**. The dialog expands to show "Publisher: Unknown publisher" and a **Run anyway** button.
+3. Click **More info**. The dialog expands to show "Publisher: Unknown publisher", the application file name, and a **Run anyway** button.
 
    ![SmartScreen Run anyway](docs/install-images/windows-smartscreen-run-anyway.png)
-
-   _(Screenshot pending — capture during phase 12.1 with first real tester install on rc2.)_
 
 4. Click **Run anyway**. The NSIS installer launches.
 5. Follow the installer prompts. The default install location (`%LOCALAPPDATA%\Programs\Spine Texture Manager`) is per-user — no admin rights required.
@@ -105,7 +117,7 @@ Pre-built installers are published to GitHub Releases for each tagged version. T
 
    ![Linux libfuse2 error](docs/install-images/linux-libfuse2-error.png)
 
-   _(Screenshot pending — capture during phase 12.1 with first real tester install on rc2.)_
+   _(Screenshot deferred to v1.1.1 — placeholder until a real Ubuntu 24.04 capture lands.)_
 
 4. Launch:
 
