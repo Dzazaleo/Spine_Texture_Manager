@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1.1
 milestone_name: Polish (Phase 12.1 carry-forwards)
 status: in_progress
-last_updated: "2026-04-28T22:40:00.000Z"
+last_updated: "2026-04-28T22:50:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 14
-  percent: 88
+  completed_plans: 15
+  percent: 94
 ---
 
 # State
@@ -20,7 +20,7 @@ v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; 
 
 ## Current phase
 
-**Phase 13 — v1.1.1 polish — IN PROGRESS 3/5 plans complete 2026-04-28.** Closes 4 carry-forwards from Phase 12.1's `passed_partial` verification: Windows menu-bar autoHideMenuBar cosmetic (CLOSED 13-01), Windows About-panel SemVer cosmetic (CLOSED 13-01), CLAUDE.md release-tag conventions (CLOSED 13-02), version bump 1.1.0 → 1.1.1 (CLOSED 13-03 commit `612ba60`), 13-VERIFICATION.md authoring + 12.1-VERIFICATION.md PRESERVE-HISTORY flip (13-04 pending), v1.1.1 publication (13-05 pending). Live UAT (Linux runbook + auto-update lifecycle) split to a future Phase 13.1 per CONTEXT D-01.
+**Phase 13 — v1.1.1 polish: Phase 12.1 carry-forwards — CLOSED 4/5 plans complete 2026-04-28 at code/docs level.** v1.1.1 tag push + 6-asset GitHub Release publish pending Plan 13-05 (autonomous: false; user-confirmation gate before the irreversible push). All 3 carry-forward todos from 12.1's `passed_partial` close (rc-channel naming convention, Windows menu-bar autoHideMenuBar, Windows About panel SemVer) RESOLVED at code/docs level via Plans 13-01 + 13-02; version bump 1.1.0 → 1.1.1 landed by Plan 13-03 unblocking Plan 13-05's tag push; verification + state surface authored by Plan 13-04 (greenfield 13-VERIFICATION.md mirrors 12.1-VERIFICATION.md shape; PRESERVE-HISTORY flips on 12.1-VERIFICATION.md Anti-Patterns #1/#3/#4 + Gaps Summary). Live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) split to Phase 13.1 per CONTEXT D-01 — Phase 13.1 will be inserted via `/gsd-insert-phase 13.1` once Plan 13-05 closes.
 
 **Carry-forwards to v1.1.1** (documented in 12.1-VERIFICATION.md ## Gaps Summary + standalone todos):
 
@@ -29,13 +29,34 @@ v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; 
 - Windows menu-bar-hidden-by-default cosmetic — **CLOSED 13-01 commit `202c506`**
 - Windows About panel cosmetic — **CLOSED 13-01 commit `202c506`**
 
+**Carry-forwards to Phase 13.1** (documented in 13-VERIFICATION.md ## Gaps Summary):
+
+- Linux runbook execution + libfuse2 PNG capture (no Linux host this round — same blocker as 12.1)
+- macOS / Windows v1.1.0 → v1.1.1 auto-update lifecycle UAT (canonical user path; rc-channel bug does NOT affect final → final auto-update via electron-updater 6.x's `currentChannel === null` code branch)
+- Live verification of cosmetic Windows fixes from Plan 13-01 (menu bar visible by default + About panel reads SemVer `1.1.1`)
+- Windows windows-fallback variant live observation (deferred until v1.1.2 ships)
+
 ## Current plan
 
-13-04-PLAN.md (next; greenfield 13-VERIFICATION.md authoring + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates, Wave 3, autonomous).
+13-05-PLAN.md (next; tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout per D-03, Wave 4, autonomous: false — has BLOCKING checkpoints before tag push and before Release publish).
 
 ## Last completed
 
-Plan 13-03 (Wave 2 — package.json + package-lock.json version bump 1.1.0 → 1.1.1) — 2026-04-28. Single atomic task commit `612ba60` lands the single-concern release-engineering bump (D-Discretion #4 + 12.1-02 precedent: version bumps are their own concern, separate from code/docs/CI/VERIFICATION concerns):
+Plan 13-04 (Wave 3 — greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates) — 2026-04-28. Single atomic commit covering 4 file changes — proven 12.1-08 close-out shape (commit `b4ed03f`) mapped to Phase 13:
+
+1. `.planning/phases/13-v1-1-1-polish-phase-12-1-carry-forwards/13-VERIFICATION.md` (greenfield) — frontmatter mirror of 12.1-VERIFICATION.md shape with `status: passed_partial` (T-6 v1.1.1 publication PENDING Plan 13-05; all other rows VERIFIED with commit SHAs from Plans 13-01 / 13-02 / 13-03). `score:` field enumerates 4/4 carry-forwards closed at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md, plus Gaps Summary polish-todos rc-channel naming + autoHideMenuBar + About-panel SemVer) plus v1.1.1 publication status (PENDING Plan 05 — owned by Plan 13-05 with user-confirmation gates before the irreversible push). Body mirrors 12.1-VERIFICATION.md's 12-section order (title + Phase Goal block + Verified/Status/Re-verification + Goal Achievement + Observable Truths + Required Artifacts + Key Link Verification + Behavioral Spot-Checks + Requirements Coverage + Anti-Patterns Found + Human Verification Required + Gaps Summary + trailing footer). Observable Truths table has 6 rows (T-1..T-6) — T-1 through T-5 VERIFIED with evidence (grep counts, node -p readbacks, vitest delta, commit SHAs `566ed8e` / `202c506` / `612ba60`); T-6 (v1.1.1 tag pushed + 6-asset GitHub Release atomic publish) PENDING. Behavioral Spot-Checks table has 22 rows of grep / node -p / readback commands. Gaps Summary forward-points to Phase 13.1 for Linux runbook + auto-update lifecycle UAT + cosmetic Windows fix live verification + windows-fallback variant observation; documents v1.1.1 publication-pending state for Plan 13-05.
+
+2. `.planning/phases/12.1-installer-auto-update-live-verification/12.1-VERIFICATION.md` — APPEND-only PRESERVE-HISTORY flips (analog: 12.1-08 commit `b4ed03f` flipping 12-VERIFICATION.md `human_verification:` array entries; 13-04 applies the markdown-prose variant). 4 surfaces gain APPEND-only annotations: Anti-Pattern #1 (rc-channel naming) → `**RESOLVED in Phase 13 — see resolved/ todo and CLAUDE.md `## Release tag conventions` (Plan 13-02 commit `566ed8e`). Workflow-level regex guard at .github/workflows/release.yml:43-54 deferred to v1.2+ per CONTEXT D-05.**`; Anti-Pattern #3 (Windows menu hidden) → `**RESOLVED in Phase 13 — autoHideMenuBar flipped to false at src/main/index.ts:339 (unconditional per D-06; macOS no-ops the flag). Source-grep regression test added at tests/main/index-options.spec.ts (Plan 13-01 commit `202c506`). Live verification deferred to Phase 13.1 per D-07.**`; Anti-Pattern #4 (Windows About SemVer) → `**RESOLVED in Phase 13 — app.setAboutPanelOptions(...) shipped inside app.whenReady() at src/main/index.ts (unconditional per D-06; Electron no-ops unsupported per-platform fields). Source-grep regression test added (Plan 13-01 commit `202c506`). Live verification deferred to Phase 13.1 per D-07.**`; Gaps Summary polish-todos block → `**Phase 13 closure update (2026-04-28):** rc-channel naming convention (CLAUDE.md docs landed via Plan 13-02 commit 566ed8e), autoHideMenuBar (Plan 13-01 commit 202c506), and About-panel setAboutPanelOptions (Plan 13-01 commit 202c506) all RESOLVED at the code/docs level — 3 todos moved to .planning/todos/resolved/ via git mv (88%-style rename similarity preserved). Linux libfuse2 PNG + macOS / Windows live auto-update lifecycle UAT deferred to Phase 13.1 per CONTEXT D-01. v1.1.1 tag push + 6-asset GitHub Release publish owned by Plan 13-05.` PRESERVE-HISTORY discipline: frontmatter `status: passed_partial` + `score:` UNCHANGED; trailing footer `_Verified: 2026-04-28T21:30:00Z_` UNCHANGED; original "Captured as v1.1.1 polish todo `.../pending/...`" sentences preserved verbatim (the historical record showing the deferral round-trip 12.1 captured → 13 closed); other 12.1-VERIFICATION.md sections (Goal Achievement, Observable Truths, Required Artifacts, Key Link Verification, Behavioral Spot-Checks, Requirements Coverage, Human Verification Required, Anti-Pattern #2 Sequoia UX) UNCHANGED byte-for-byte.
+
+3. `.planning/STATE.md` — frontmatter `last_updated:` bumped to 2026-04-28T22:50:00Z; `progress.completed_plans: 14 → 15`; `progress.percent: 88 → 94`. `## Current phase` rewritten to lead with "Phase 13 — v1.1.1 polish: Phase 12.1 carry-forwards — CLOSED 4/5 plans complete 2026-04-28 at code/docs level." citing Plans 13-01..04 closures + Plan 13-05 pending. New "Carry-forwards to Phase 13.1" sub-block enumerates 4 deferred items (Linux runbook, auto-update lifecycle UAT, cosmetic Windows fix live verification, windows-fallback variant). `## Current plan` advanced from 13-04-PLAN.md to 13-05-PLAN.md. `## Last completed` prepended with this Plan 13-04 entry; existing Plan 13-03 entry demoted to second position via `Prior:` prefix.
+
+4. `.planning/ROADMAP.md` — Phase 13 row at lines ~161-176 updated: Plan 13-04 checkbox flipped from `[ ]` to `[x]` with completion note (single atomic commit covering 4 file changes; the proven 12.1-08 close-out shape mapped to Phase 13). Progress table row at line ~109 updated from `3/5 In progress | —` to `4/5 In progress (Plan 13-05 pending) | —`. Milestones header at lines 3-7 gains a new `🚧 **v1.1.1 patch**` bullet documenting Phase 13 4/5 plans complete + Plan 13-05 publication pending.
+
+Single atomic commit (mirrors 12.1-08 close-out shape): `docs(13-04): author 13-VERIFICATION.md + flip 12.1-VERIFICATION.md PRESERVE-HISTORY + STATE/ROADMAP closure`. 4 files staged individually (no `git add .` / `git add -A`); hook-validated commit (no `--no-verify`); Co-Authored-By footer per project convention. Vitest unchanged (455/455 — docs-only commit, no code surfaces touched); typecheck:web unchanged (clean).
+
+Forward references: once Plan 13-05 closes, follow-up edits flip 13-VERIFICATION.md frontmatter `status: passed_partial → passed` + T-6 row from PENDING to VERIFIED + STATE.md `## Current phase` from "CLOSED 4/5 at code/docs level" to "CLOSED 5/5 fully closed" + ROADMAP.md Phase 13 row from `4/5 In progress` to `5/5 Complete | <date>` + ROADMAP.md Milestones bullet from `🚧 **v1.1.1 patch**` to `✅ **v1.1.1 patch**`.
+
+Prior: Plan 13-03 (Wave 2 — package.json + package-lock.json version bump 1.1.0 → 1.1.1) — 2026-04-28. Single atomic task commit `612ba60` lands the single-concern release-engineering bump (D-Discretion #4 + 12.1-02 precedent: version bumps are their own concern, separate from code/docs/CI/VERIFICATION concerns): Single atomic task commit `612ba60` lands the single-concern release-engineering bump (D-Discretion #4 + 12.1-02 precedent: version bumps are their own concern, separate from code/docs/CI/VERIFICATION concerns):
 
 1. `package.json` line 3 — `"version": "1.1.0"` → `"version": "1.1.1"`.
 2. `package-lock.json` line 3 (top-level `version`) — same flip; line 9 (`packages.""` `version`) — same flip. Both lockfile sites synchronized to 1.1.1 satisfying the npm-canonical lockfile invariant (package.json and package-lock.json `version` fields byte-equal).

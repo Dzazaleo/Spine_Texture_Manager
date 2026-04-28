@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 0–9 + 08.1 + 08.2 (shipped 2026-04-26) — full archive at [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Distribution** — Phases 10–12 + 12.1 (shipped 2026-04-28; v1.1.0 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.0; 4 carry-forwards to v1.1.1 documented in 12.1-VERIFICATION.md)
+- 🚧 **v1.1.1 patch** — Phase 13 (4/5 plans complete; Plan 13-05 tag push + Release publish pending; all 4 Phase 12.1 carry-forwards closed at code/docs level via Plans 13-01 + 13-02 + 13-03; verification + state surface authored by Plan 13-04; v1.1.1 publication imminent)
 
 ## Phases
 
@@ -106,7 +107,7 @@
 | 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
-| 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 3/5 | In progress | — |
+| 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 4/5 | In progress (Plan 13-05 pending) | — |
 
 ## Deferred (post-v1.1)
 
@@ -172,5 +173,5 @@ Plans:
 - [x] 13-01-PLAN.md — Cosmetic Windows fixes in src/main/index.ts (autoHideMenuBar flip + setAboutPanelOptions block) + 2 git mv todos pending → resolved + source-grep regression spec (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `202c506` (4 files: 1 M src/main/index.ts + 1 A tests/main/index-options.spec.ts + 2 R todos pending → resolved with `## Resolved` appends; rename similarities 82% / 85%); D-07 Claude's Discretion adopted (~30 LoC source-grep regression spec mirrors F2 pattern); 455/455 vitest passing (was 453; +2 new); typecheck:web clean; live verification on packaged v1.1.1 Windows install deferred to Phase 13.1 per CONTEXT D-07
 - [x] 13-02-PLAN.md — CLAUDE.md `## Release tag conventions` section (D-05 docs-only fix) + 1 git mv todo pending → resolved (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `566ed8e` (2 files: 1 M CLAUDE.md adding 11-line section at L23–L33 between `## Critical non-obvious facts` and `## Test fixture`, heading count 7 → 8; 1 R `pending/2026-04-28-electron-updater-prerelease-channel-mismatch.md` → `resolved/` with `## Resolved` append, 87% rename similarity); 455/455 vitest unchanged (docs-only); 3 of 3 v1.1.1-polish carry-forwards now CLOSED at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md)
 - [x] 13-03-PLAN.md — package.json + package-lock.json version bump 1.1.0 → 1.1.1 (Wave 2, autonomous; single-concern atomic commit per D-Discretion #4 / 12.1-02 precedent) — completed 2026-04-28, single atomic commit `612ba60` (2 files: 1 M package.json line 3 + 1 M package-lock.json lines 3 + 9; 3 ins / 3 del); mechanism `npm version 1.1.1 --no-git-tag-version` (PATTERNS.md canonical); shape mirrors 12.1-02 precedent (commits `d532c34`, `0dd573b`, `1eadd68`); single-concern guard verified (no src/, tests/, CLAUDE.md, .planning/, or .github/ files in commit); 455/455 vitest unchanged from 13-02 baseline (release-engineering commit, no code surfaces touched); typecheck:web clean; CI tag-version-guard at `.github/workflows/release.yml:43-54` now accepts `v1.1.1` tag (Plan 13-05 unblocked)
-- [ ] 13-04-PLAN.md — Greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates (Wave 3, autonomous)
+- [x] 13-04-PLAN.md — Greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates (Wave 3, autonomous) — completed 2026-04-28, single atomic commit covering 4 file changes (proven 12.1-08 close-out shape `b4ed03f` mapped to Phase 13: 1 A 13-VERIFICATION.md greenfield with 6 `### ` body sections + 22-row Behavioral Spot-Checks table + Gaps Summary forward-pointing to Phase 13.1; 1 M 12.1-VERIFICATION.md APPEND-only PRESERVE-HISTORY flips on Anti-Pattern #1/#3/#4 + Gaps Summary polish-todos block, frontmatter `status: passed_partial` + trailing footer `_Verified: 2026-04-28T21:30:00Z_` UNCHANGED; 1 M STATE.md frontmatter + ## Current phase + ## Last completed; 1 M ROADMAP.md Phase 13 block + Progress table row + Milestones bullet); 13-VERIFICATION.md `status: passed_partial` reflecting v1.1.1 publication PENDING Plan 05 with T-6 row marked PENDING for follow-up flip; 455/455 vitest unchanged (docs-only commit); typecheck:web clean
 - [ ] 13-05-PLAN.md — Tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout (Wave 4, has BLOCKING checkpoints)
