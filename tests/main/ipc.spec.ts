@@ -270,7 +270,13 @@ describe('Phase 12 Plan 03 (D-19) — atlas:resolve-image-url F1 fix', () => {
     expect(ipcMainHandleHandlers.has('atlas:resolve-image-url')).toBe(true);
   });
 
-  it('POSIX absolute path resolves to app-image://localhost/<pathname>', async () => {
+  // Skip on Windows: pathToFileURL('/Users/...') interprets the leading '/' as
+  // drive-relative and prepends the current drive letter, so the round-trip
+  // assertion `pathname === '/Users/leo/stm/images/CIRCLE.png'` fails on
+  // Windows runners (becomes '/D:/Users/leo/...'). Production correctness for
+  // Windows is covered by the adjacent 'Windows-style path' test (which uses
+  // an explicit C:\...-shape literal).
+  it.skipIf(process.platform === 'win32')('POSIX absolute path resolves to app-image://localhost/<pathname>', async () => {
     registerIpcHandlers();
     const handler = ipcMainHandleHandlers.get('atlas:resolve-image-url')!;
     const result = await handler({} as unknown, '/Users/leo/stm/images/CIRCLE.png');

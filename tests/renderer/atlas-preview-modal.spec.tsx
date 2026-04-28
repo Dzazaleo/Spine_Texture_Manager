@@ -390,7 +390,12 @@ describe('F1 regression — app-image:// URL construction (D-19)', () => {
     expect(parsed.pathname).toMatch(/^\/C:\//);
   });
 
-  it('POSIX-style path: host="localhost" and pathname is the absolute path verbatim', () => {
+  // Skip on Windows: pathToFileURL of a leading-'/' path is drive-relative on
+  // Windows and prepends the runner's drive (e.g. 'D:'), making the
+  // pathname assertion fail. The Windows F1 fix (drive-letter-in-pathname
+  // not in host) is verified by the adjacent 'Windows-style' test, which
+  // uses an explicit C:\... literal.
+  it.skipIf(process.platform === 'win32')('POSIX-style path: host="localhost" and pathname is the absolute path verbatim', () => {
     const posixPath = '/Users/leo/stm/images/CIRCLE.png';
     const fileUrl = pathToFileURL(posixPath);
     const appImageUrl = `app-image://localhost${fileUrl.pathname}`;

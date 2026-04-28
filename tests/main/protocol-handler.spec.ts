@@ -66,7 +66,12 @@ vi.mock('../../src/main/auto-update.js', () => ({
 import { appImageUrlToPath } from '../../src/main/index.js';
 
 describe('debug/windows-atlas-images-404 — appImageUrlToPath', () => {
-  it('round-trips a POSIX absolute path through pathToFileURL → app-image:// → fs path', () => {
+  // Skip on Windows: pathToFileURL('/Users/...') treats the leading '/' as
+  // drive-relative on Windows and prepends the current drive (e.g. 'D:'),
+  // so the round-trip equality assertion fails. POSIX-path semantics are
+  // tested here; Windows-shape path semantics are covered by the adjacent
+  // 'Windows-shape URL' tests below (which use { windows: true } explicitly).
+  it.skipIf(process.platform === 'win32')('round-trips a POSIX absolute path through pathToFileURL → app-image:// → fs path', () => {
     const posixPath = '/Users/leo/stm/images/CIRCLE.png';
     // Mirror src/main/ipc.ts:atlas:resolve-image-url POSIX branch.
     const fileUrl = pathToFileURL(posixPath);
@@ -129,7 +134,13 @@ describe('debug/windows-atlas-images-404 — appImageUrlToPath', () => {
     }
   });
 
-  it('decodes percent-encoded path components (spaces, ampersand, unicode)', () => {
+  // Skip on Windows: same root cause as the POSIX round-trip test above —
+  // pathToFileURL of a leading-'/' path on Windows is drive-relative. The
+  // percent-decoding behavior under test (RFC 3986 spaces / & / unicode)
+  // is platform-agnostic and exercised by the 'failing URL pasted from the
+  // user's Windows DevTools console' test below (which uses an
+  // already-encoded Windows-shape URL literal).
+  it.skipIf(process.platform === 'win32')('decodes percent-encoded path components (spaces, ampersand, unicode)', () => {
     // `pathToFileURL` percent-encodes spaces, `&`, and non-ASCII per RFC
     // 3986. `fileURLToPath` MUST decode them back. Confirmed-failing URL
     // from the bug report contains `&` (in `SYMBOLS_&_TITLES` directory).
