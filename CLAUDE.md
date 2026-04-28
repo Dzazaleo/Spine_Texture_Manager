@@ -20,6 +20,17 @@ Desktop app (Electron + TypeScript + React) that reads Spine 4.2+ skeleton JSON 
 5. **`core/` is pure TypeScript, no DOM.** Headless-testable in Node via vitest. The UI is a consumer.
 6. **Default sampler rate: 120 Hz.** Configurable in Settings. Rationale: above typical game render cadence (60 Hz), catches sub-frame peaks on easing curves, still fast.
 
+## Release tag conventions
+
+Prerelease tags MUST use **dot-separated** number suffixes:
+
+- ✅ `v1.2.0-rc.1` — semver parses as `["rc", 1]`; electron-updater 6.x channel-match works.
+- ❌ `v1.2.0-rc1`  — semver parses as `["rc1"]` (single opaque token); rc1 → rc2 auto-update silently fails.
+
+Rationale: `electron-updater@6.x`'s GitHub provider compares prerelease tokens as channel names; `"rc1" === "rc2"` is `false`, so an installed `v1.2.0-rc1` cannot detect `v1.2.0-rc2`. Final → final and final → prerelease paths are unaffected.
+
+See `.planning/todos/resolved/2026-04-28-electron-updater-prerelease-channel-mismatch.md` for the full root cause walkthrough.
+
 ## Test fixture
 
 `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (+ `.atlas`, `.png`). Contains CIRCLE/SQUARE/TRIANGLE regions, `CHAIN_2..8` bone chain, `SQUARE2` pre-scaled bone, and a `TransformConstraint` on `SQUARE`. Golden tests drive from this.

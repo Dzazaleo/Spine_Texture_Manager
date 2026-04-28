@@ -71,3 +71,9 @@ With this naming, `semver.prerelease("1.2.0-rc.2")` returns `["rc", 2]` — chan
 
 - `2026-04-28-windows-menu-bar-hidden-by-default-alt-reveals.md` — autoHideMenuBar at src/main/index.ts:339
 - `2026-04-28-windows-about-panel-shows-1.1.0.0-not-semver.md` — about-panel cosmetic display
+
+---
+
+## Resolved
+
+2026-04-28 — Phase 13 Plan 02: CLAUDE.md gained a `## Release tag conventions` section between `## Critical non-obvious facts` and `## Test fixture` documenting `v1.2.0-rc.1` ✅ vs `v1.2.0-rc1` ❌ with one-line rationale (electron-updater 6.x channel-name comparison; semver prerelease parser semantics) and a cross-link back to this resolved todo. Workflow-level regex guard at `.github/workflows/release.yml:43-54` intentionally deferred to v1.2+ per D-05 — CLAUDE.md docs are sufficient for a single-developer project, and the next prerelease cycle (if any) will adopt the dot-form naturally. Existing rc-shaped tags (`v1.1.0-rc1` / `-rc2` / `-rc3`) stay as-is in release history; no rewrite, no force-push.
