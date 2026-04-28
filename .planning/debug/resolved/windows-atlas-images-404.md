@@ -252,10 +252,17 @@ calls `appImageUrlToPath(request.url)` instead of
   (Phase 12 Plan 03 §F1 fix tests + atlas preview modal F1 regression
   + menu spec — all green; F1 renderer/IPC contract still upheld).
 - `npx vitest run` (full suite) → **438 passed / 1 skipped / 1 todo**.
-- Runtime verification on Windows: deferred to next packaged Windows
-  build (user can re-run the failing repro: launch app on Windows →
-  open atlas viewer → confirm images render and DevTools console is
-  free of 404s).
+- Runtime verification on Windows (2026-04-28): user re-cloned to
+  `C:\Users\LeonardoCunha\Desktop\WORKTEMP\Spine_Texture_Manager`,
+  ran `npm ci` + `npm run dev`, opened the atlas viewer, and
+  confirmed images render correctly with no 404 errors in DevTools
+  console. **Fix verified live on Windows.**
+- Note: `npm run build` (full electron-builder package) failed on
+  the user's Windows box for an unrelated reason — the `winCodeSign`
+  archive contains macOS dylib symlinks that require either Admin
+  rights or Developer Mode to extract. Not a regression of this fix;
+  not a blocker for this debug session. Tracked separately if a
+  packaged Windows build is needed.
 
 ### Files changed
 
