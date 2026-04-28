@@ -34,3 +34,9 @@ Test surface: no automated test surface affected (BrowserWindow constructor opti
 - Discovered during Phase 12.1 Plan 12.1-05 Step 1 (rc2 install on Windows, 2026-04-28)
 - Related: D-04 (windows-fallback variant — relies on Help → Check for Updates being reachable)
 - Related: D-16 (Installation Guide menu surface)
+
+---
+
+## Resolved
+
+2026-04-28 — Phase 13 Plan 01: `src/main/index.ts` line 339 `autoHideMenuBar: true` flipped to `autoHideMenuBar: false` (unconditional, no platform branch per D-06; macOS ignores the flag — verified via Electron docs). Windows + Linux menu bar now visible by default; Help → Check for Updates / Installation Guide reachable without Alt-press for non-developer testers. Live verification on a packaged v1.1.1 Windows install deferred to Phase 13.1 per CONTEXT D-07.

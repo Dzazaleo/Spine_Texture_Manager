@@ -42,3 +42,9 @@ Optional refinement: if we ever want a richer About dialog (icon, description, c
 - Discovered during Phase 12.1 Plan 12.1-05 Step 1 (rc2 install on Windows, 2026-04-28)
 - Related: D-04 (Windows windows-fallback variant — testers need to know which rc they're on)
 - Sibling: 2026-04-28-windows-menu-bar-hidden-by-default-alt-reveals.md (same testing round, same v1.1.1 polish bucket)
+
+---
+
+## Resolved
+
+2026-04-28 — Phase 13 Plan 01: `src/main/index.ts` gained `app.setAboutPanelOptions({ applicationName: 'Spine Texture Manager', applicationVersion: app.getVersion() })` as the first statement inside `app.whenReady()` (unconditional per D-06; Electron no-ops unsupported per-platform fields). Windows About panel will read SemVer `1.1.1` instead of win32 FileVersion 4-component padding `1.1.1.0`. Live verification on a packaged v1.1.1 Windows install deferred to Phase 13.1 per CONTEXT D-07.

@@ -336,7 +336,7 @@ function createWindow(): void {
     width: 1280,
     height: 800,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       // Preload is emitted as CJS (`.cjs`) per electron.vite.config.ts. Sandbox
       // mode (pinned below) requires a CommonJS preload; an ESM preload under
@@ -405,6 +405,19 @@ export function appImageUrlToPath(appImageUrl: string): string {
 }
 
 app.whenReady().then(() => {
+  // Phase 13 — Windows About-panel SemVer fix (carry-forward from 12.1
+  // Anti-Pattern #4). Without this, the Windows About dialog reads the
+  // win32 FileVersion 4-component padded form (`1.1.1.0`) instead of the
+  // SemVer string (`1.1.1`). app.getVersion() reads from package.json at
+  // runtime so this stays in sync with the version field automatically.
+  // No-op on Windows for fields macOS doesn't support and vice versa, so
+  // a single unconditional call configures both platforms (D-06: no
+  // platform-conditional branching).
+  app.setAboutPanelOptions({
+    applicationName: 'Spine Texture Manager',
+    applicationVersion: app.getVersion(),
+  });
+
   // Phase 7 D-133 amendment: register the app-image:// protocol handler.
   // Renderer constructs URLs as `app-image://<absolutePath>` (the path
   // already starts with '/' on macOS — encodeURI in the renderer to handle
