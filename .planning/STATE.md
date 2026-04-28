@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
 status: unknown
-last_updated: "2026-04-28T14:39:01.866Z"
+last_updated: "2026-04-28T15:00:24.995Z"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -215,4 +215,4 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continues fr
 
 **Closed Phase:** 10 (Installer build) — 3/3 plans complete — 2026-04-27T10:08:45Z. Plan 10-01 (build-foundation: version 1.1.0-rc1 + per-platform npm scripts), Plan 10-02 (3-platform electron-builder.yml with mac.identity:'-' + asarUnpack sharp/@img), Plan 10-03 (live macOS .dmg + shell assertions + 10-SMOKE-TEST.md recipe + user-approved manual Optimize Assets smoke). Phase 10 contract DIST-01..DIST-07 closed; cross-platform live verification (Windows EXE, Linux AppImage) handed to Phase 11 CI.
 
-**Planned Phase:** 12.1 (installer-auto-update-live-verification) — 8 plans — 2026-04-28T13:59:13.410Z
+**Planned Phase:** 12.1 (installer-auto-update-live-verification) — 8 plans — 2026-04-28T15:00:24.987Z
