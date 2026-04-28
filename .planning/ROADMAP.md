@@ -106,6 +106,7 @@
 | 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
+| 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 1/5 | In progress | — |
 
 ## Deferred (post-v1.1)
 
@@ -156,3 +157,20 @@ Plans:
 - [x] 12.1-06-PLAN.md — INSTALL.md PNG cleanup + Sequoia Gatekeeper rewrite + size soft-gate test in install-md.spec.ts (Wave 4; commit `33cf7b3`)
 - [x] 12.1-07-PLAN.md — README `## Building on Windows` section + winCodeSign todo move pending → resolved (Wave 4; commit `ad6d9bf`)
 - [x] 12.1-08-PLAN.md — 12-VERIFICATION.md back-fold flip + greenfield 12.1-VERIFICATION.md + STATE/ROADMAP closure updates (Wave 5; this commit)
+
+### Phase 13: v1.1.1 polish — Phase 12.1 carry-forwards
+
+**Goal:** Land the code- and docs-side changes that close out Phase 12.1's carry-forward backlog (rc-channel naming convention via CLAUDE.md docs; Windows menu-bar `autoHideMenuBar: false` flip; Windows About-panel `setAboutPanelOptions` SemVer block; 3 todo files moved pending → resolved; package.json bump 1.1.0 → 1.1.1), then tag and publish v1.1.1 final as a maintenance release. Live-verification work (Linux UAT runbook, libfuse2 PNG capture, macOS / Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) is split into a follow-up Phase 13.1 so v1.1.1 can ship without being host-blocked on Linux.
+
+**Requirements**: None new. Phase 13 closes ZERO new requirement IDs (per CONTEXT.md §canonical_refs — polish round, not a new requirement surface). 12.1's `passed_partial` carry-forwards are closed at code/docs level; live-UAT closure deferred to Phase 13.1.
+
+**Depends on:** Phase 12.1 (4 carry-forwards landed via 12.1-VERIFICATION.md `## Anti-Patterns Found` + `## Gaps Summary` polish todos)
+
+**Plans:** 5 plans
+
+Plans:
+- [x] 13-01-PLAN.md — Cosmetic Windows fixes in src/main/index.ts (autoHideMenuBar flip + setAboutPanelOptions block) + 2 git mv todos pending → resolved + source-grep regression spec (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `202c506` (4 files: 1 M src/main/index.ts + 1 A tests/main/index-options.spec.ts + 2 R todos pending → resolved with `## Resolved` appends; rename similarities 82% / 85%); D-07 Claude's Discretion adopted (~30 LoC source-grep regression spec mirrors F2 pattern); 455/455 vitest passing (was 453; +2 new); typecheck:web clean; live verification on packaged v1.1.1 Windows install deferred to Phase 13.1 per CONTEXT D-07
+- [ ] 13-02-PLAN.md — CLAUDE.md `## Release tag conventions` section (D-05 docs-only fix) + 1 git mv todo pending → resolved (Wave 1, autonomous)
+- [ ] 13-03-PLAN.md — package.json + package-lock.json version bump 1.1.0 → 1.1.1 (Wave 2, autonomous; single-concern atomic commit per D-Discretion #4 / 12.1-02 precedent)
+- [ ] 13-04-PLAN.md — Greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates (Wave 3, autonomous)
+- [ ] 13-05-PLAN.md — Tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout (Wave 4, has BLOCKING checkpoints)
