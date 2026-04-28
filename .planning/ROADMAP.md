@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 0–9 + 08.1 + 08.2 (shipped 2026-04-26) — full archive at [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
-- 🚧 **v1.1 Distribution** — Phases 10–13 (in progress)
+- 🚧 **v1.1 Distribution** — Phases 10–12 (in progress)
 
 ## Phases
 
@@ -25,12 +25,11 @@
 
 </details>
 
-### 🚧 v1.1 Distribution (Phases 10–13)
+### 🚧 v1.1 Distribution (Phases 10–12)
 
 - [x] **Phase 10: Installer build (electron-builder, all 3 platforms)** — Local npm scripts produce Windows `.exe`, macOS `.dmg`, Linux `.AppImage` from existing electron-builder config; `sharp` libvips ships intact. (completed 2026-04-27)
 - [x] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release. (Plan 11-01 file-authoring wave complete 2026-04-27; Plan 11-02 live verification pending.) (completed 2026-04-27)
 - [x] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen / libfuse2 bypasses + 4 in-app + CI linking surfaces. Live UPD-06 strict-bar Windows-spike runbook deferred to phase 12.1 due to electron-builder 26.x publish race; INSTALL.md screenshots deferred to same phase 12.1 round (manual-fallback variant ships LIVE on Windows by default; INSTALL.md text-functional today with placeholder PNGs).
-- [ ] **Phase 13: Crash + error reporting** — Main + renderer unhandled-exception capture with version/OS metadata, source-map upload from CI, opt-out Settings toggle, first-launch consent prompt; PII-redaction floor enforced.
 
 ## Phase Details
 
@@ -97,24 +96,6 @@
 - [x] 12-06-PLAN.md — INSTALL.md authoring + 4 linking surfaces (Wave 3, had BLOCKING screenshot checkpoint) — completed 2026-04-27, five atomic task commits (0c77242 chore — 4 placeholder 1×1 PNGs at docs/install-images/, 9112671 docs — author 139-line INSTALL.md cookbook with per-OS install + bypass walkthroughs + libfuse2/libfuse2t64 caveat per D-15, 3048af0 ci — release.yml INSTALL_DOC_LINK env var flipped to blob/main/INSTALL.md + release-template.md inline OS bullets pruned to single link per D-17, a6c4c1e feat — wire 4 INSTALL.md linking surfaces per D-16 + D-18 (greenfield README.md ## Installing section + SHELL_OPEN_EXTERNAL_ALLOWED 5th allow-list entry + new "Installation Guide…" Help submenu item + new onMenuInstallationGuide preload bridge + AppShell useEffect subscriber + HelpDialog INSTALL_DOC_URL constant + section between Section 1 and Section 2; Rule 1 deviations contained to test files: HelpDialog spec section count 7→8 + rig-info-tooltip + save-load specs add onMenuInstallationGuide stub), f6f509f test — greenfield tests/integration/install-md.spec.ts (project's first tests/integration/ file; 18 test() blocks asserting INSTALL.md content + 4-surface wiring + URL consistency byte-for-byte across all 4 surfaces — the regression gate for T-12-06-01 / T-12-06-04); Task 1 BLOCKING screenshot checkpoint resolved via `partial: none` resume signal (user decided to skip captures and ship text-first today, defer real captures to phase 12.1 with first real tester install on rc2; rationale in deferred-items.md "INSTALL.md screenshots deferred to phase 12.1" entry); REL-03 closed in REQUIREMENTS.md; 433/433 vitest passing (was 415; +18 new integration); typecheck:web clean
 **UI hint**: yes
 
-### Phase 13: Crash + error reporting
-
-**Goal**: When a tester hits an unhandled exception or unhandled promise rejection in either Electron process, a sanitized stack trace with app version and OS metadata reaches a crash-reporting backend so the bug can be triaged from the trace rather than from the screenshot. User has a clear opt-out and a first-launch consent prompt; PII redaction (file paths, project content, image bytes) is enforced before any payload leaves the machine.
-
-**Depends on**: Phase 11 (CI release build must upload production source maps to the crash-reporting backend so traces resolve to original TypeScript).
-
-**Requirements**: TEL-01, TEL-02, TEL-03, TEL-04, TEL-05, TEL-06, TEL-07
-
-**Success Criteria** (what must be TRUE):
-  1. Triggering a deliberate unhandled exception in the main process (e.g. via a hidden debug menu or a one-shot test build) produces an event in the crash-reporting backend dashboard tagged with the correct app version, OS + arch, and a stack trace that resolves to original TypeScript source files (not minified bundle offsets).
-  2. Triggering a deliberate unhandled exception **and** an unhandled promise rejection in the renderer process produces two events in the same backend with the same metadata fidelity.
-  3. Inspecting any captured event payload shows zero user file paths (no `/Users/<name>/...` substrings, no project filenames), zero Spine project JSON content, and zero atlas image bytes — the redaction floor holds.
-  4. First launch of a freshly installed build presents a one-time consent prompt explaining what is and isn't collected with Accept / Decline buttons; declining sets the disabled state, and subsequent launches do not re-prompt.
-  5. Toggling crash reporting off in Edit → Preferences causes the crash-reporting client to make zero network requests on subsequent crashes (verified by network-trace inspection or backend silence); default state for v1.1 tester builds is opt-out (enabled by default), revisit-flagged for any future public release.
-
-**Plans**: TBD
-**UI hint**: yes
-
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -123,7 +104,6 @@
 | 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
 | 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
-| 13. Crash + error reporting | v1.1 | 0/0 | Not started | — |
 
 ## Deferred (post-v1.1)
 
@@ -141,7 +121,8 @@ Out-of-scope for v1.1, candidates for future milestones:
 - Windows EV code-signing certificate ($200–400/yr).
 - Mac App Store / Microsoft Store / Snap Store / Flatpak distribution.
 - Linux `.deb` / `.rpm` packages.
-- Feature-usage analytics beyond crash reporting.
+- Crash + error reporting (Sentry or equivalent). Removed from v1.1 scope 2026-04-28 — testers can copy/paste error dialogs for the volume v1.1 expects; revisit at v1.2 if tester base grows or anonymous crash-trace volume justifies the SaaS dependency + consent UX overhead.
+- Feature-usage analytics.
 - Delta updates / staged rollouts.
 - UI improvements (deferred to v1.2 — should be informed by tester feedback).
 - Documentation Builder feature (deferred to v1.2+).

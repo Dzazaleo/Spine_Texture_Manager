@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
-status: unknown
-last_updated: "2026-04-28T08:40:50.699Z"
+status: phase_descoped
+last_updated: "2026-04-28T09:50:00.000Z"
 progress:
-  total_phases: 4
+  total_phases: 3
   completed_phases: 3
   total_plans: 11
   completed_plans: 11
@@ -19,6 +19,8 @@ progress:
 v1.1 — Distribution
 
 ## Current phase
+
+**Phase 13 (Crash + error reporting) DESCOPED 2026-04-28** — removed from v1.1 scope after cost/value review concluded the SaaS dependency + consent UX + PII-redaction floor + CI source-map upload were not justified for the single-digit v1.1 tester pool. TEL-01..TEL-07 moved to Future Requirements (`TEL-future`) for v1.2 reconsideration. v1.1 milestone scope now closes at Phases 10–12 + the 12.1 deferred items.
 
 Phase 12 — auto-update + tester install docs — **CLOSED 6/6 plans complete 2026-04-27**. Wave 1 (Plan 12-02 — CI delivery surface for electron-updater) complete. Wave 2 COMPLETE: Plan 12-01 (auto-update wiring; BLOCKING Task 6 Windows-unsigned spike DEFERRED to phase 12.1, manual-fallback variant ships LIVE on Windows). Plan 12-03 (F1 atlas-image Windows fix). Plan 12-04 (F2 file-picker UX fix). Plan 12-05 (F3 Spine 4.2 version guard at loader.ts). Wave 3 COMPLETE: Plan 12-06 (REL-03 INSTALL.md cookbook + 4-surface linking). Phase 11 (CI release pipeline) closed 2/2 plans.
 

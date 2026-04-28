@@ -59,25 +59,14 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 - [x] **UPD-06
 **: Auto-update works on macOS and Linux. **Windows note:** electron-updater historically requires code-signed builds on Windows; if unsigned auto-update proves infeasible, ship Windows users a "manual update" path (notify of new release, link to download page) and document the gap.
 
-### TEL — Crash + error reporting
-
-> Vendor neutral; Sentry is the recommended default but the specific provider is locked at plan-phase. Goal: when a tester says "it broke," we have the stack trace, app version, and OS — not just the screenshot.
-
-- [ ] **TEL-01**: Unhandled exceptions in the main process are captured and sent to a crash-reporting backend (Sentry or equivalent) along with app version, OS + arch, and stack trace.
-- [ ] **TEL-02**: Unhandled exceptions and unhandled promise rejections in the renderer process are captured and sent with the same metadata.
-- [ ] **TEL-03**: Production source maps are uploaded to the crash-reporting backend during the CI release build so stack traces resolve to original TypeScript sources.
-- [ ] **TEL-04**: Crash reports do **not** include user file paths, Spine project content, atlas image data, or any identifying user information beyond what's necessary to triage a bug.
-- [ ] **TEL-05**: User can disable crash reporting in Settings (Edit → Preferences). When disabled, the crash-reporting client makes zero network requests.
-- [ ] **TEL-06**: First launch shows a one-time consent prompt explaining what is and isn't collected, with Accept / Decline buttons. Decline sets the disabled state from TEL-05.
-- [ ] **TEL-07**: Crash reporting is opt-out by default for tester builds (per user direction; revisit before any public/store release).
-
 ## Out of Scope (v1.1)
 
 - Apple Developer ID code-signing + notarization ($99/yr; revisit after tester feedback).
 - Windows EV code-signing certificate ($200–400/yr; revisit after tester feedback).
 - Mac App Store, Microsoft Store, Snap Store, Flatpak distribution.
 - Linux `.deb` / `.rpm` packages (AppImage only for v1.1).
-- Custom telemetry / analytics beyond crash + error reporting (e.g. feature-usage tracking) — out of scope; only crash/exception capture per TEL-01..07.
+- **Crash + error reporting (Sentry or equivalent).** Removed from v1.1 scope 2026-04-28 — Phase 13 was descoped after a cost/value review concluded that for the single-digit v1.1 tester pool, copy/paste of the system error dialog is sufficient and the SaaS dependency + consent UX + PII-redaction floor + CI source-map upload are not worth the implementation cost. Revisit at v1.2 if tester volume grows or if specific crash classes prove untraceable from screenshots. See deferred TEL-future entries below.
+- Custom telemetry / feature-usage analytics.
 - Delta updates / staged rollouts.
 - UI improvements (deferred to v1.2 — should be informed by tester feedback).
 - Documentation Builder feature (deferred to v1.2+).
@@ -89,6 +78,14 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 
 - **DIST-future**: Code-signed + notarized macOS distribution (Apple Developer ID).
 - **DIST-future**: Code-signed Windows distribution (EV cert).
+- **TEL-future**: Crash + error reporting (Sentry or equivalent). Originally TEL-01..TEL-07 in v1.1 / Phase 13; descoped 2026-04-28. Reconsider at v1.2 once tester volume or untraceable crash classes justify the SaaS + consent + redaction overhead. Original requirements preserved here for future reference:
+  - Main-process unhandled exceptions captured with version + OS/arch + stack.
+  - Renderer-process unhandled exceptions + unhandled promise rejections captured with same metadata.
+  - Production source maps uploaded to the backend from CI release builds so traces resolve to TypeScript.
+  - Hard PII-redaction floor: no user file paths, no Spine project content, no atlas image bytes.
+  - Edit → Preferences opt-out toggle that fully silences network requests when off.
+  - First-launch consent prompt with Accept/Decline.
+  - Opt-out default for tester builds, revisit-flagged for any public/store release.
 - **TEL-future**: Feature-usage analytics (which panels / dialogs are used most) once tester base grows and a privacy posture is settled.
 - **DIST-future**: Linux `.deb` / Flatpak / Snap targets if Linux user base materializes.
 
@@ -119,16 +116,9 @@ Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases wit
 | UPD-04  | Phase 12 | Complete |
 | UPD-05  | Phase 12 | Complete |
 | UPD-06  | Phase 12 | Complete (Plan 12-02 — CI delivery surface for electron-updater: feed publication + electron-builder publish:github + 3-OS test matrix; runtime auto-update via Plan 12-01) |
-| TEL-01  | Phase 13 | Pending |
-| TEL-02  | Phase 13 | Pending |
-| TEL-03  | Phase 13 | Pending |
-| TEL-04  | Phase 13 | Pending |
-| TEL-05  | Phase 13 | Pending |
-| TEL-06  | Phase 13 | Pending |
-| TEL-07  | Phase 13 | Pending |
 
-**Coverage**: 30/30 requirements mapped (DIST 7 → P10, CI 6 + REL 3 → P11, UPD 6 + REL 1 → P12, TEL 7 → P13). No orphans, no double-mappings.
+**Coverage**: 23/23 v1.1 requirements mapped (DIST 7 → P10, CI 6 + REL 3 → P11, UPD 6 + REL 1 → P12). No orphans, no double-mappings. TEL-01..TEL-07 descoped from v1.1 on 2026-04-28; preserved in Future Requirements for v1.2 reconsideration.
 
 ---
 
-*Last updated: 2026-04-27 — Phase 12 Plan 02 closed (UPD-06): CI delivery surface for electron-updater landed — electron-updater@^6.8.3 runtime dep, electron-builder.yml publish flipped to GitHub provider, release.yml test job expanded to 3-OS matrix with fail-fast, per-platform latest*.yml feed publication wired into draft GitHub Releases. Plan 12-01 (auto-update runtime wiring) and remaining Phase 12 plans pending.*
+*Last updated: 2026-04-28 — Phase 13 (Crash + error reporting) descoped from v1.1. TEL-01..TEL-07 removed from active requirements; preserved in Future Requirements as TEL-future for v1.2 reconsideration. Out-of-scope section updated to note the cost/value rationale (single-digit tester pool, copy/paste error dialog sufficient, SaaS+consent+redaction overhead not justified at this volume). v1.1 milestone scope now closes at Phases 10–12 (all complete + 12.1 deferred items).*
