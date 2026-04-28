@@ -126,3 +126,24 @@ Out-of-scope for v1.1, candidates for future milestones:
 - Delta updates / staged rollouts.
 - UI improvements (deferred to v1.2 — should be informed by tester feedback).
 - Documentation Builder feature (deferred to v1.2+).
+
+### Phase 12.1: Installer + auto-update live verification (INSERTED)
+
+**Goal:** Close the v1.1 distribution surface end-to-end: a tagged release publishes successfully via CI without the electron-builder 26.x publish race; an installed Windows / macOS / Linux app detects a newer published release and walks the user through update-or-fallback; INSTALL.md ships with real screenshots of Gatekeeper / SmartScreen / libfuse2 dialogs captured during the same tester round; and the local Windows `npm run build` papercut (winCodeSign symlink extract) is documented with a Developer-Mode prerequisite. Closes the 9 `human_needed` items in 12-VERIFICATION.md so v1.1 can be archived as fully verified.
+
+**Success criteria:**
+1. CI publish-race fix landed — a `v1.1.0-rc2` (or successor) tag push produces a complete GitHub Release with all 3 installers + all 3 `latest*.yml` feed files attached atomically (no missing-asset / partial-publish state).
+2. macOS auto-update happy path verified live — a packaged `v1.1.0-rc2` install detects a published `v1.1.0-rc3`, downloads + relaunches into the new version on user click; "Later" suppresses re-prompt for that version on next startup.
+3. Linux auto-update happy path verified live — same as macOS via AppImage + `latest-linux.yml`.
+4. Windows manual-fallback verified live — a packaged Windows install opens UpdateDialog in `windows-fallback` variant when a newer release is published; "Open Release Page" button opens the GitHub Releases page in the system browser; no nag loop, no modal interruption.
+5. Offline + "no newer version" + first-launch dialogs eyeballed — UPD-05 (offline silent-swallow), UPD-02 ("You're up to date"), Gatekeeper "Open Anyway" (macOS), SmartScreen "More info → Run anyway" (Windows), libfuse2t64 error (Ubuntu 24.04) — all match INSTALL.md wording.
+6. INSTALL.md screenshots captured — 4 binary-only PNG swaps replace the 1×1 placeholders at `docs/install-images/`; no markdown changes required (per Plan 12-06 design).
+7. Windows local-build papercut documented — README or CONTRIBUTING gains a "Building on Windows" section covering the `winCodeSign-2.6.0.7z` symlink extract failure on default Windows installs, with the Developer-Mode workaround steps and the `--dir` shortcut for unsigned local test builds.
+8. 12-VERIFICATION.md `human_needed` items flipped to `passed` (or explicitly carried over to v1.2 with rationale).
+
+**Requirements**: UPD-06 (live verification), REL-03 (live screenshots), and the 9 `human_needed` items from 12-VERIFICATION.md.
+**Depends on:** Phase 12 (installer + auto-update code surface — all in tree, untested live).
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 12.1 to break down)

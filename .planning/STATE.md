@@ -202,6 +202,8 @@ Carried from v1.0 milestone close (2026-04-26):
 
 v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continues from v1.0 (last phase: 9; next phase starts at 10). Roadmap landed 2026-04-27 with Phases 10–13.
 
+- Phase 12.1 inserted after Phase 12 (2026-04-28): Installer + auto-update live verification — close v1.1 distribution surface end-to-end (CI publish-race fix, live UPD-06 spike, INSTALL.md screenshots, Windows build doc, close 9 `human_needed` items in 12-VERIFICATION.md) (URGENT — INSERTED).
+
 ### v1.0 Roadmap Evolution (preserved)
 
 - Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard).
