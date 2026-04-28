@@ -1,0 +1,4 @@
+provider: github
+owner: Dzazaleo
+repo: Spine_Texture_Manager
+updaterCacheDirName: spine-texture-manager-updater

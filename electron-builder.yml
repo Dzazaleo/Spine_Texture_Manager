@@ -7,20 +7,19 @@ copyright: Copyright (C) 2026
 # DIST-05: no Windows code-signing keys are present, so the NSIS installer is unsigned.
 # No release-channel block — auto-update wiring is Phase 12 (UPD-01..UPD-06).
 
-# Phase 12 (Plan 12-02): GitHub publish provider declared so electron-builder
-# generates `app-update.yml` into bundled resources/ at build time. Without this
-# block, electron-updater errors at runtime ("app-update.yml is missing") —
-# see RESEARCH §Common Pitfalls (GH issues #8620 + #2667).
-# The `--publish never` CLI suffix on build:mac/build:win/build:linux scripts
-# (Phase 11 D-01 lock) is preserved as belt-and-braces — this YAML block ONLY
-# enables the bundling of `app-update.yml`; it does NOT trigger auto-publish to
-# GitHub at build time. Auto-update detection happens at runtime against the
-# published GitHub Releases feed, populated by .github/workflows/release.yml.
-publish:
-  provider: github
-  owner: Dzazaleo
-  repo: Spine_Texture_Manager
-  releaseType: release
+# Phase 12.1 (Plan 12.1-01): revert Phase 12's `publish: github` block (it
+# caused per-artifact upload race in CI — see 12.1-RESEARCH.md §Summary +
+# §Pitfall 1 + deferred-items.md "CI tag-push will fail" entry).
+# Static app-update.yml under build/ is bundled via extraResources to satisfy
+# electron-updater's runtime requirement that the file exists in resources/
+# (CITED: electron.build/auto-update + GH issues #8620 + #2667 + #4233).
+# softprops/action-gh-release@v2.6.2 at release.yml:151 remains the SINGLE
+# upload surface — uploads all 6 assets (3 installers + 3 latest*.yml) atomically.
+publish: null
+
+extraResources:
+  - from: build/app-update.yml
+    to: app-update.yml
 
 directories:
   output: release
