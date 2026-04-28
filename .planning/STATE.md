@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Distribution
-status: milestone_complete
-last_updated: "2026-04-28T21:35:00Z"
+status: unknown
+last_updated: "2026-04-28T21:08:15.034Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 11
+  completed_plans: 11
   percent: 100
 ---
 
@@ -23,6 +23,7 @@ v1.1 — Distribution
 **Phase 12.1 — Installer + auto-update live verification — CLOSED 8/8 plans complete 2026-04-28.** v1.1 Distribution milestone is fully verified end-to-end (Phases 10 + 11 + 12 + 12.1). v1.1.0 final release published at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.0 with 6-asset atomicity validated by 3 successful CI runs (rc2, rc3, v1.1.0). Repo flipped to public. Manual upgrade path (rc2 → v1.1.0) verified live on macOS + Windows. Phase 13 (Crash + error reporting) remains DESCOPED to v1.2.
 
 **Carry-forwards to v1.1.1** (documented in 12.1-VERIFICATION.md ## Gaps Summary + standalone todos in `.planning/todos/pending/`):
+
 - Linux runbook + libfuse2 PNG capture (no Linux host this round; lima/multipass on Apple Silicon Sequoia hit blockers)
 - rc → rc auto-update lifecycle (electron-updater@6.x channel-matching bug — `semver.prerelease("1.1.0-rc2") = ["rc2"]` opaque token; bug only affects rc → rc, not final → final)
 - Windows menu-bar-hidden-by-default cosmetic (autoHideMenuBar at index.ts:339)
@@ -207,6 +208,7 @@ Carried from v1.0 milestone close (2026-04-26):
 v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continues from v1.0 (last phase: 9; next phase starts at 10). Roadmap landed 2026-04-27 with Phases 10–13.
 
 - Phase 12.1 inserted after Phase 12 (2026-04-28): Installer + auto-update live verification — close v1.1 distribution surface end-to-end (CI publish-race fix, live UPD-06 spike, INSTALL.md screenshots, Windows build doc, close 9 `human_needed` items in 12-VERIFICATION.md) (URGENT — INSERTED).
+- Phase 13 added: v1.1.1 polish — Phase 12.1 carry-forwards (2026-04-28). Patch release landing 4 carry-forward todos from Phase 12.1's passed_partial close (rc.N tag-convention doc, Windows menu-bar fix, Windows About-panel SemVer fix, optional Linux libfuse2 PNG). Tags v1.1.1; live-validates the v1.1.0 → v1.1.1 auto-update lifecycle (closes 12.1's deferred SC-2 / SC-4 via the `currentChannel === null` non-prerelease code path).
 
 ### v1.0 Roadmap Evolution (preserved)
 
