@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1.1
 milestone_name: Polish (Phase 12.1 carry-forwards)
 status: in_progress
-last_updated: "2026-04-28T23:30:00.000Z"
+last_updated: "2026-04-28T23:35:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 16
-  completed_plans: 12
-  percent: 75
+  completed_plans: 13
+  percent: 81
 ---
 
 # State
@@ -20,22 +20,33 @@ v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; 
 
 ## Current phase
 
-**Phase 13 — v1.1.1 polish — IN PROGRESS 1/5 plans complete 2026-04-28.** Closes 4 carry-forwards from Phase 12.1's `passed_partial` verification: Windows menu-bar autoHideMenuBar cosmetic (CLOSED 13-01), Windows About-panel SemVer cosmetic (CLOSED 13-01), CLAUDE.md release-tag conventions (13-02 pending), version bump 1.1.0 → 1.1.1 (13-03 pending), 13-VERIFICATION.md authoring + 12.1-VERIFICATION.md PRESERVE-HISTORY flip (13-04 pending), v1.1.1 publication (13-05 pending). Live UAT (Linux runbook + auto-update lifecycle) split to a future Phase 13.1 per CONTEXT D-01.
+**Phase 13 — v1.1.1 polish — IN PROGRESS 2/5 plans complete 2026-04-28.** Closes 4 carry-forwards from Phase 12.1's `passed_partial` verification: Windows menu-bar autoHideMenuBar cosmetic (CLOSED 13-01), Windows About-panel SemVer cosmetic (CLOSED 13-01), CLAUDE.md release-tag conventions (CLOSED 13-02), version bump 1.1.0 → 1.1.1 (13-03 pending), 13-VERIFICATION.md authoring + 12.1-VERIFICATION.md PRESERVE-HISTORY flip (13-04 pending), v1.1.1 publication (13-05 pending). Live UAT (Linux runbook + auto-update lifecycle) split to a future Phase 13.1 per CONTEXT D-01.
 
 **Carry-forwards to v1.1.1** (documented in 12.1-VERIFICATION.md ## Gaps Summary + standalone todos):
 
 - Linux runbook + libfuse2 PNG capture (deferred to Phase 13.1 — no host this round)
-- rc → rc auto-update lifecycle docs (13-02 will land CLAUDE.md `## Release tag conventions` section per D-05)
+- rc → rc auto-update lifecycle docs — **CLOSED 13-02 commit `566ed8e`** (CLAUDE.md `## Release tag conventions` section per D-05; workflow-level regex guard deferred to v1.2+)
 - Windows menu-bar-hidden-by-default cosmetic — **CLOSED 13-01 commit `202c506`**
 - Windows About panel cosmetic — **CLOSED 13-01 commit `202c506`**
 
 ## Current plan
 
-13-02-PLAN.md (next; CLAUDE.md `## Release tag conventions` section + 1 git mv pending → resolved for the rc-channel-mismatch todo).
+13-03-PLAN.md (next; package.json + package-lock.json version bump 1.1.0 → 1.1.1, single-concern atomic commit per D-Discretion item 4 / 12.1-02 precedent).
 
 ## Last completed
 
-Plan 13-01 (Wave 1 — Windows cosmetic carry-forwards) — 2026-04-28. Single atomic task commit `202c506` closes 2 of 3 v1.1.1 polish carry-forwards (Anti-Patterns #3 + #4 in 12.1-VERIFICATION.md):
+Plan 13-02 (Wave 1 — CLAUDE.md release-tag conventions docs + rc-channel-mismatch todo move) — 2026-04-28. Single atomic task commit `566ed8e` closes 1 of 3 v1.1.1 polish carry-forwards (Anti-Pattern #1 in 12.1-VERIFICATION.md):
+
+1. `CLAUDE.md` — new `## Release tag conventions` section inserted at L23–L33 (between `## Critical non-obvious facts` at L14 and `## Test fixture` which shifted from L23 to L34). 11-line block: heading + 1-sentence orienting line + ✅ `v1.2.0-rc.1` example (semver parses as `["rc", 1]`; channel-match works) + ❌ `v1.2.0-rc1` example (semver parses as `["rc1"]` opaque token; rc1 → rc2 silently fails) + 1-line rationale citing electron-updater@6.x GitHub-provider channel-name comparison + 1 cross-link to the resolved root-cause walkthrough todo. Tone matches existing `## Folder conventions (do not misread)` precedent — terse imperative-mood opener + bulleted factual statements + inline backticks. CLAUDE.md heading count went 7 → 8 top-level `## ` sections.
+2. `git mv .planning/todos/pending/2026-04-28-electron-updater-prerelease-channel-mismatch.md` → `.planning/todos/resolved/` (87% similarity per `git diff --find-renames` default; plan predicted 88% — close enough). The moved file gained a `## Resolved` section appended below the existing `## Sibling todos from same testing round` block (PRESERVE-HISTORY discipline; original Problem / Solution / Verification path / Cross-references / Sibling todos sections preserved byte-for-byte). The `## Resolved` block documents: the CLAUDE.md docs landing (location + section name + cross-link target), the deliberate workflow-guard deferral rationale (D-05: workflow-level regex guard at `.github/workflows/release.yml:43-54` deferred to v1.2+ as overkill for a single-developer project), and the migration cliff posture (existing rc-shaped tags `v1.1.0-rc1` / `-rc2` / `-rc3` stay as-is in release history; no rewrite, no force-push).
+
+Single atomic commit covering both file changes per CONTEXT D-05 + 12.1-07 ad6d9bf precedent (cross-link target valid at commit time because `git mv` lands in the same atomic commit). No edits to `.github/workflows/release.yml`, `src/main/index.ts`, `package.json`, `package-lock.json`, or any verification doc (all out-of-scope for this plan).
+
+Acceptance verification: 455/455 vitest passing unchanged (docs-only commit; no code surfaces touched); commit `566ed8e` covers 2 file changes (1 M CLAUDE.md + 1 R todo rename) in a single atomic operation with hook-validated commit (no `--no-verify`); `git log --diff-filter=D --name-only HEAD~1 HEAD` empty (rename detected as R, not D+A); `git log --diff-filter=R --name-status -1 -- .planning/todos/` shows `R087` rename score. All automated acceptance gates from PLAN §<verify><automated> passed (8 individual `grep`/`[`-test conjunctions including section-count = 8, dot-form + no-dot examples present, electron-updater rationale present, cross-link to `resolved/` present, pending/ gone, resolved/ present, `## Resolved` heading present, `Phase 13 Plan 02` attribution present).
+
+Forward references: Plan 13-04 will cite commit `566ed8e` in `12.1-VERIFICATION.md` Anti-Pattern #1 in-place flip annotation (PRESERVE-HISTORY pattern, analog: 12.1-08 commit `b4ed03f`) alongside Plan 13-01's commit `202c506` for Anti-Patterns #3 + #4. Future v1.2+ prerelease cycle (if any) will adopt the dot-form naturally by reading the new CLAUDE.md `## Release tag conventions` section.
+
+Prior: Plan 13-01 (Wave 1 — Windows cosmetic carry-forwards) — 2026-04-28. Single atomic task commit `202c506` closes 2 of 3 v1.1.1 polish carry-forwards (Anti-Patterns #3 + #4 in 12.1-VERIFICATION.md):
 
 1. `src/main/index.ts:339` — `autoHideMenuBar: true` → `false` (unconditional, no platform branch per D-06; macOS no-ops the flag, Electron no-ops unsupported per-platform fields). Windows + Linux menu bar now visible by default; Help → Check for Updates / Installation Guide reachable without Alt-press for non-developer testers.
 2. `src/main/index.ts` `app.whenReady()` — new `app.setAboutPanelOptions({ applicationName: 'Spine Texture Manager', applicationVersion: app.getVersion() })` block as the FIRST statement inside the callback, BEFORE `protocol.handle('app-image', ...)`. Windows About panel will read SemVer (`1.1.1`) instead of win32 FileVersion 4-component padding (`1.1.1.0`). macOS unaffected (Info.plist CFBundleShortVersionString already preserves SemVer natively).
