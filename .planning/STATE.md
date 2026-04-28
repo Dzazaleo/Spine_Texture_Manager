@@ -191,6 +191,7 @@ Carried from v1.0 milestone close (2026-04-26):
 |----------|------|--------|-------------|
 | debug | phase-0-scale-overshoot | investigating | Carried; not in v1.1 scope (sampling formula refinement) |
 | todo | 2026-04-24-phase-4-code-review-follow-up (ui) | pending | Carried; not in v1.1 scope |
+| todo | 2026-04-28-windows-packaged-build-fails-on-wincodesign-symlink-extract (tooling) | pending | Captured 2026-04-28; environmental, npm run dev unaffected |
 | seed | SEED-001-atlas-less-mode | dormant | Post-MVP by design |
 | seed | SEED-002-dims-badge-override-cap | dormant | Post-MVP by design |
 | uat_gap | Phase 07 07-HUMAN-UAT.md | signed-off | Stale flag (0 pending) |
