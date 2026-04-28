@@ -26,6 +26,7 @@
 import { app, BrowserWindow, protocol, ipcMain, Menu, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { registerIpcHandlers } from './ipc.js';
 import { loadRecent, clearRecent } from './recent.js';
 // Phase 12 Plan 01 Task 5 — auto-update boot wiring (UPD-01, D-06).
@@ -380,6 +381,29 @@ function createWindow(): void {
   }
 }
 
+/**
+ * Convert an `app-image://localhost/<pathname>` URL back to a platform-correct
+ * filesystem path. Inverse of the `pathToFileURL` call in
+ * `src/main/ipc.ts:atlas:resolve-image-url`.
+ *
+ * Exported for unit-testability — see `tests/main/protocol-handler.spec.ts`
+ * (debug/windows-atlas-images-404 regression).
+ *
+ * Implementation note: `fileURLToPath` only accepts `file:` URLs, so we rewrite
+ * the scheme on the fly. The path/host/query are otherwise identical between
+ * `app-image://localhost/...` and `file://localhost/...`.
+ *
+ * Round-trips:
+ *   POSIX   `/Users/leo/x.png`        → `app-image://localhost/Users/leo/x.png`
+ *           → `/Users/leo/x.png` ✓
+ *   Windows `C:\\Users\\Tester\\x.png` → `app-image://localhost/C:/Users/Tester/x.png`
+ *           → `C:\\Users\\Tester\\x.png` ✓ (on Windows runtime)
+ */
+export function appImageUrlToPath(appImageUrl: string): string {
+  const fileUrl = appImageUrl.replace(/^app-image:/, 'file:');
+  return fileURLToPath(fileUrl);
+}
+
 app.whenReady().then(() => {
   // Phase 7 D-133 amendment: register the app-image:// protocol handler.
   // Renderer constructs URLs as `app-image://<absolutePath>` (the path
@@ -392,10 +416,20 @@ app.whenReady().then(() => {
   // findUnusedAttachments. Defense-in-depth path-prefix allow-list is a
   // future polish (RESEARCH §Security Domain V5 row).
   protocol.handle('app-image', async (request) => {
-    const url = new URL(request.url);
-    // Path is the URL pathname; explicitly decode for robustness against
-    // double-encoding when the renderer applies encodeURI on absolute paths.
-    const filePath = decodeURIComponent(url.pathname);
+    // debug/windows-atlas-images-404 (2026-04-28):
+    //   `decodeURIComponent(new URL(request.url).pathname)` returned a
+    //   POSIX-shaped string on every platform — fine on macOS where the
+    //   pathname IS the disk path (`/Users/leo/...`), but broken on
+    //   Windows where pathToFileURL('C:\\...').pathname is `/C:/...`
+    //   and `fs.readFile('/C:/Users/...')` fails ENOENT (the leading `/`
+    //   in front of the drive letter is not a valid Windows fs path).
+    //   The empty catch swallowed the ENOENT and returned 404, hiding
+    //   the bug. `fileURLToPath` is the cross-platform-correct inverse
+    //   of `pathToFileURL`: it strips the leading `/` and replaces `/`
+    //   with `\\` on Windows, leaves POSIX paths verbatim on macOS/Linux.
+    //   `app-image:` is not a `file:` scheme, so we rewrite it before
+    //   calling `fileURLToPath` (which only accepts `file:`).
+    const filePath = appImageUrlToPath(request.url);
     try {
       const data = await readFile(filePath);
       const ext = filePath.toLowerCase().split('.').pop() ?? '';
