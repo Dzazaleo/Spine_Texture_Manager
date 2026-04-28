@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0 MVP** — Phases 0–9 + 08.1 + 08.2 (shipped 2026-04-26) — full archive at [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
-- 🚧 **v1.1 Distribution** — Phases 10–12 (in progress)
+- ✅ **v1.1 Distribution** — Phases 10–12 + 12.1 (shipped 2026-04-28; v1.1.0 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.0; 4 carry-forwards to v1.1.1 documented in 12.1-VERIFICATION.md)
 
 ## Phases
 
@@ -25,11 +25,12 @@
 
 </details>
 
-### 🚧 v1.1 Distribution (Phases 10–12)
+### ✅ v1.1 Distribution (Phases 10–12 + 12.1) — SHIPPED 2026-04-28
 
 - [x] **Phase 10: Installer build (electron-builder, all 3 platforms)** — Local npm scripts produce Windows `.exe`, macOS `.dmg`, Linux `.AppImage` from existing electron-builder config; `sharp` libvips ships intact. (completed 2026-04-27)
 - [x] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release. (Plan 11-01 file-authoring wave complete 2026-04-27; Plan 11-02 live verification pending.) (completed 2026-04-27)
-- [x] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen / libfuse2 bypasses + 4 in-app + CI linking surfaces. Live UPD-06 strict-bar Windows-spike runbook deferred to phase 12.1 due to electron-builder 26.x publish race; INSTALL.md screenshots deferred to same phase 12.1 round (manual-fallback variant ships LIVE on Windows by default; INSTALL.md text-functional today with placeholder PNGs).
+- [x] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen / libfuse2 bypasses + 4 in-app + CI linking surfaces. Live UPD-06 strict-bar Windows-spike runbook deferred to phase 12.1 due to electron-builder 26.x publish race; INSTALL.md screenshots deferred to same phase 12.1 round (manual-fallback variant ships LIVE on Windows by default; INSTALL.md text-functional today with placeholder PNGs). (completed 2026-04-27)
+- [x] **Phase 12.1: Installer + auto-update live verification (INSERTED)** — D-10 publish-race fix landed (`scripts/emit-latest-yml.mjs` post-build synthesizer + `electron-builder.yml` `publish: null`); validated by 3 successful CI runs (rc2 / rc3 / v1.1.0) each producing complete 6-asset GitHub Releases atomically. v1.1.0 final published. INSTALL.md updated with macOS Sequoia Gatekeeper UX + 3 real screenshots (1 Linux PNG deferred to v1.1.1). README `## Building on Windows` section landed (winCodeSign symlink papercut documented). 4 carry-forwards to v1.1.1: Linux runbook, rc → rc auto-update lifecycle (electron-updater channel-matching bug), Windows menu-bar autoHideMenuBar cosmetic, About panel cosmetic. (completed 2026-04-28)
 
 ## Phase Details
 
@@ -104,6 +105,7 @@
 | 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
 | 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
+| 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
 
 ## Deferred (post-v1.1)
 
@@ -143,7 +145,14 @@ Out-of-scope for v1.1, candidates for future milestones:
 
 **Requirements**: UPD-06 (live verification), REL-03 (live screenshots), and the 9 `human_needed` items from 12-VERIFICATION.md.
 **Depends on:** Phase 12 (installer + auto-update code surface — all in tree, untested live).
-**Plans:** 0 plans
+**Plans:** 8 plans (all complete 2026-04-28)
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 12.1 to break down)
+- [x] 12.1-01-PLAN.md — D-10 publish-race fix: `scripts/emit-latest-yml.mjs` post-build synthesizer + `electron-builder.yml` `publish: null` + `package.json` build:* chains + 11 vitest schema-correctness tests (Wave 1; commit `d805313`)
+- [x] 12.1-02-PLAN.md — Tag rc2 + rc3 + v1.1.0 final supervision; greenfield 12.1-HUMAN-UAT scaffold; 3 successful CI runs each producing 6-asset Releases (Wave 2)
+- [x] 12.1-03-PLAN.md — macOS HUMAN-UAT runbook: rc2 install verified, Sequoia Gatekeeper PNG captured (154 KB), Help → About reads `1.1.0-rc2`, smoke test passed; live rc → rc auto-update lifecycle deferred to v1.1.1 (electron-updater channel bug); manual upgrade rc2 → v1.1.0 verified ✓ (Wave 3)
+- [x] 12.1-04-PLAN.md — Linux AppImage HUMAN-UAT runbook DEFERRED to v1.1.1 (no host this round; lima/multipass blockers on Apple Silicon Sequoia) (Wave 3)
+- [x] 12.1-05-PLAN.md — Windows HUMAN-UAT runbook: rc2 install verified, both SmartScreen PNGs captured (1.1 MB each, distinct content), runtime SemVer matches; live windows-fallback notice deferred to v1.1.1; manual upgrade rc2 → v1.1.0 verified ✓ (Wave 3)
+- [x] 12.1-06-PLAN.md — INSTALL.md PNG cleanup + Sequoia Gatekeeper rewrite + size soft-gate test in install-md.spec.ts (Wave 4; commit `33cf7b3`)
+- [x] 12.1-07-PLAN.md — README `## Building on Windows` section + winCodeSign todo move pending → resolved (Wave 4; commit `ad6d9bf`)
+- [x] 12.1-08-PLAN.md — 12-VERIFICATION.md back-fold flip + greenfield 12.1-VERIFICATION.md + STATE/ROADMAP closure updates (Wave 5; this commit)
