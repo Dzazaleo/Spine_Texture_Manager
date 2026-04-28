@@ -41,3 +41,9 @@ ERROR: Cannot create symbolic link : A required privilege is not held by the cli
 Recommendation: do (a) first (low cost, high value), then evaluate (b) only if the workaround proves friction-heavy in practice.
 
 Out of scope for this todo: the Windows atlas 404 bug itself (already fixed in `ec16b2f` and verified live).
+
+---
+
+## Resolved
+
+2026-04-28 — Phase 12.1 Plan 07: README.md gained a `## Building on Windows` section between `## Commands (developer)` and `## Reporting issues` covering the 3 documented workarounds (Developer Mode / Run as Administrator / `--dir` shortcut). Verbatim error excerpt + Solution-section content moved into README.md. `npm run dev` remains unaffected — only packaged builds need the workaround.

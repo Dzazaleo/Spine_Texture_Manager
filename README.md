@@ -29,6 +29,41 @@ For developers (build from source): clone the repo, `npm install`, `npm run dev`
 - `npm run build` — production build
 - `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` — CLI table dump
 
+## Building on Windows
+
+`npm run build` packages installers via `electron-builder`, which downloads `winCodeSign-2.6.0.7z` to its cache. This archive contains macOS dylib symlinks; extracting them on Windows requires either Administrator privileges or **Developer Mode** enabled.
+
+### One-time setup (recommended)
+
+1. Open **Settings → Privacy & Security → For developers**.
+2. Toggle **Developer Mode** ON. (Grants the current user permission to create symbolic links without elevation.)
+3. Restart the terminal.
+
+After this, `npm run build:win` runs as your normal user.
+
+### Quick path: skip signing entirely
+
+For unsigned local test builds (no installer, just a runnable directory):
+
+```powershell
+npx electron-builder --win --x64 --dir
+```
+
+This sidesteps the `winCodeSign` cache extraction. Output is at `release/win-unpacked/` — run `Spine Texture Manager.exe` directly.
+
+### Alternative: run as Administrator
+
+If Developer Mode is disabled by your IT policy, run the terminal as Administrator instead. `winCodeSign` extracts under elevated privileges and the build proceeds.
+
+### What the error looks like
+
+```
+ERROR: Cannot create symbolic link : A required privilege is not held by the client. :
+  C:\Users\<you>\AppData\Local\electron-builder\Cache\winCodeSign\<id>\darwin\10.12\lib\libcrypto.dylib
+```
+
+`npm run dev` is unaffected — only packaged builds need this.
+
 ## Reporting issues
 
 Open an issue at [github.com/Dzazaleo/Spine_Texture_Manager/issues](https://github.com/Dzazaleo/Spine_Texture_Manager/issues). For installation problems, see [INSTALL.md](INSTALL.md) Troubleshooting sections first.
