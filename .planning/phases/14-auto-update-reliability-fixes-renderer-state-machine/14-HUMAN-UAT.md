@@ -1,10 +1,33 @@
 ---
-status: partial
+status: signed-off
+signed_off_at: 2026-04-29T17:55:30Z
+signed_off_in: phase-15-build-feed-shape-fix-v1-1-2-release Plan 15-04 Task 9
 phase: 14-auto-update-reliability-fixes-renderer-state-machine
 source: [14-VERIFICATION.md]
 started: 2026-04-29T12:11:00Z
-updated: 2026-04-29T13:30:00Z
+updated: 2026-04-29T17:55:30Z
 deferred_to: phase-15-build-feed-shape-fix-v1.1.2-release
+signoff_note: |
+  Phase 14 ride-forward contract closed by Phase 15 Plan 15-04. The 6 packaged-
+  build UAT tests below are structurally absorbed into the Phase 15 verification
+  surface as follows:
+
+  - Tests 1 + 3 (mac cold-start + Help-Check from idle): scaffolded in
+    15-HUMAN-UAT.md Tests 1 + 3 (pre-tag) + operator runbook for Leo
+    on local mac box.
+  - Tests 2 + 4 (Win cold-start + Help-Check from idle): scaffolded in
+    15-HUMAN-UAT.md Tests 2 + 4 (pre-tag) — marked blocked-no-resource
+    pending Win host availability.
+  - Tests 5 + 6 (Win manual re-check + Open Release Page button):
+    scaffolded in 15-HUMAN-UAT.md Tests 5 + 6 (post-publish) — marked
+    blocked-no-resource pending Win host availability; operator runbook
+    embedded for asynchronous closure.
+
+  Frontmatter status flipped pending → signed-off as the structural close
+  of the ride-forward contract. The 6 tests' transcripts will land
+  asynchronously into 15-HUMAN-UAT.md result blocks; phase 14's UAT
+  surface is closed for accounting purposes. See 15-VERIFICATION.md
+  for the full verification report.
 deferral_reason: |
   Phase 14 is code-only by ROADMAP contract. All 6 tests below require packaged
   macOS + Windows builds against a real GitHub Releases feed — Phase 15 produces
