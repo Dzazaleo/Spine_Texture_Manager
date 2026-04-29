@@ -258,3 +258,39 @@ Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
 **Context:** Observed in v1.1.1 packaged macOS build (2026-04-29) during Phase 15 UPDFIX-01 UAT. Cmd+Q from the menu and `osascript -e 'tell application "Spine Texture Manager" to quit'` both do nothing — the app keeps running. Only clicking the window-close (X) button or Force Quit terminates it. Likely missing `role: 'quit'` wiring on the menu item, or a `before-quit` handler swallowing the event without re-firing `app.quit()`. Out of scope for Phase 15 (UPDFIX-01); capture for follow-up.
+
+### Phase 999.2: macOS auto-update — switch to manual-download UX (D-15-LIVE-2) (BACKLOG)
+
+**Goal:** [Captured for future planning]
+**Requirements:** TBD (likely a new UPDFIX-05)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+**Context:** Discovered during Phase 15 v1.1.3 live UAT (Test 7-Retry, 2026-04-29). UPDFIX-01 / D-15-LIVE-1 was empirically closed at the URL layer (Plan 15-05 sanitizeAssetUrl synthesizer rewrite — v1.1.1 → v1.1.3 .zip download succeeded byte-exact, 121,848,102 bytes from the canonical dotted URL), but the install step exposed a separate code-signature validation defect that's been latent since v1.0.0 (masked by earlier-pipeline failures in rc tags + v1.1.2). Squirrel.Mac downloads + unpacks v1.1.3 successfully into `~/Library/Caches/com.spine.texture-manager.ShipIt/update.<id>/`, but macOS code-signature validation rejects the swap with: "Code signature at URL ... did not pass validation: code failed to satisfy specified code requirement(s)". Both v1.1.1 and v1.1.3 are ad-hoc signed (no Apple Developer ID — project hasn't enrolled). Ad-hoc builds generate fresh per-build code hashes, so v1.1.3's Designated Requirement does not match v1.1.1's stored DR. Squirrel.Mac strict-validates and aborts.
+
+**User decision (2026-04-29):** Manual-download UX path, NOT Apple Developer Program enrollment ($99/yr was offered but declined as out-of-scope right now). Pragmatic, honest, removes brittleness.
+
+**Scope:** Change UpdateDialog on macOS to show "Open Releases page in browser" instead of "Download & Restart". Renderer state machine + dialog UX work. Likely 1 phase. Reference Phase 14's existing `windows-fallback` variant pattern (D-13) for the equivalent macOS-fallback variant.
+
+**Severity:** medium (auto-update was already manual for users who hit prior bugs; this formalizes it).
+
+**Cross-references:** D-15-LIVE-2 in `.planning/phases/15-build-feed-shape-fix-v1-1-2-release/15-HUMAN-UAT.md` § Newly discovered defects; Test 7-Retry round 3 transcript.
+
+### Phase 999.3: Help → Check for Updates gated on project loaded (D-15-LIVE-3) (BACKLOG)
+
+**Goal:** [Captured for future planning]
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+**Context:** Discovered during Phase 15 v1.1.3 live UAT (Test 7-Retry round 4, 2026-04-29). The `Help → Check for Updates` menu item is gated on having a JSON project loaded. With no project loaded, clicking the menu item does nothing — no UpdateDialog, no console output. The menu item should be available regardless of project state.
+
+**Scope:** Probably a 1-line fix in the menu handler / state machine guard. Likely a regression of Phase 14 D-01..D-04 renderer-lift work — the renderer subscriptions were lifted from `AppShell.tsx` to `App.tsx` so they mount on every AppState branch, but the menu handler that triggers `update:check` IPC may still be guarded behind project-loaded state in `src/main/menu.ts` or equivalent.
+
+**Severity:** low (UX bug, not a defect; users can work around by loading any project).
+
+**Cross-references:** D-15-LIVE-3 in `.planning/phases/15-build-feed-shape-fix-v1-1-2-release/15-HUMAN-UAT.md` § Newly discovered defects; Test 7-Retry round 4 observation.
