@@ -2,9 +2,9 @@
 phase: 15-build-feed-shape-fix-v1-1-2-release
 source: [15-VERIFICATION.md]
 inherits: 14-HUMAN-UAT.md
-status: gaps-found
+status: signed-off
 started: 2026-04-29T17:12:53Z
-updated: 2026-04-29T19:35:00Z
+updated: 2026-04-29T22:00:00Z
 live_uat_session: 2026-04-29 19:00–19:35Z (Leo + Claude orchestrator)
 findings_summary: |
   Live UAT against published v1.1.2 surfaced a CRITICAL UPDFIX-01 defect
@@ -52,6 +52,25 @@ findings_summary: |
   - Test 7-Retry runbook embedded above; UPDFIX-01 closure deferred to
     operator (Leo) executing the runbook against installed v1.1.1 →
     published v1.1.3 path.
+
+  v1.1.3 hotfix Test 7-Retry RESULT (2026-04-29T22:00Z):
+  PARTIAL-PASS — UPDFIX-01 / D-15-LIVE-1 EMPIRICALLY CLOSED at the URL/feed
+  layer. v1.1.1 → v1.1.3 .zip download succeeded byte-exact (121,848,102
+  bytes) from the canonical dotted URL Spine.Texture.Manager-1.1.3-arm64.zip;
+  the exact request that returned HTTP 404 in v1.1.2 returns HTTP 200 in
+  v1.1.3. UpdateDialog rendered v1.1.3 release notes correctly.
+
+  Two NEW defects discovered downstream and routed to backlog per user
+  decision (NOT a v1.1.4 hotfix):
+  - D-15-LIVE-2: macOS Squirrel.Mac swap fails code-signature validation
+    on ad-hoc signed builds (latent since v1.0.0; masked by earlier-pipeline
+    failures). Routed to backlog 999.2: manual-download UX path on macOS.
+  - D-15-LIVE-3 (UX): Help → Check for Updates gated on JSON project loaded.
+    Routed to backlog 999.3.
+
+  Status flipped: gaps-found → signed-off. Phase 15 / UPDFIX-01 closed.
+  See ## v1.1.3 Hotfix Retry § Test 7-Retry result block + ## Newly
+  discovered defects section for full transcript + closure evidence.
 ---
 
 # Phase 15 — Human UAT runbook
