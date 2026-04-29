@@ -5,6 +5,7 @@
 - ✅ **v1.0 MVP** — Phases 0–9 + 08.1 + 08.2 (shipped 2026-04-26) — full archive at [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - ✅ **v1.1 Distribution** — Phases 10–12 + 12.1 (shipped 2026-04-28; v1.1.0 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.0; 4 carry-forwards to v1.1.1 documented in 12.1-VERIFICATION.md)
 - ✅ **v1.1.1 patch** — Phase 13 (5/5 plans complete; shipped 2026-04-29; v1.1.1 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1; D-10 publish-race fix verified clean across 4 successful CI runs total: rc2 / rc3 / v1.1.0 / v1.1.1; live UAT — Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation — carries forward to Phase 13.1 documented in 13-VERIFICATION.md ## Gaps Summary)
+- 🚧 **v1.1.2 Auto-update fixes** — Phases 14–15 (in progress — started 2026-04-29; hotfix milestone scoping four post-release auto-update defects observed live on shipped v1.1.1: mac `ZIP file not provided` on Download & Restart; Windows notification appears once with no Download button and never reappears on re-check; auto-check on startup not firing on either OS; manual `Help → Check for Updates` stays silent on macOS until a project file is loaded. Phase 13.1 — live UAT carry-forwards from v1.1.1 — remains separately tracked, NOT part of v1.1.2)
 
 ## Phases
 
@@ -32,6 +33,15 @@
 - [x] **Phase 11: CI release pipeline (GitHub Actions → draft Release)** — Tag-triggered workflow runs vitest then builds all 3 platforms in parallel and uploads installer assets to a draft GitHub Release. (Plan 11-01 file-authoring wave complete 2026-04-27; Plan 11-02 live verification pending.) (completed 2026-04-27)
 - [x] **Phase 12: Auto-update + tester install docs** — `electron-updater` wired to GitHub Releases feed (startup + on-demand check, restart-prompt UX, offline-graceful, Windows fallback path); `INSTALL.md` with Gatekeeper / SmartScreen / libfuse2 bypasses + 4 in-app + CI linking surfaces. Live UPD-06 strict-bar Windows-spike runbook deferred to phase 12.1 due to electron-builder 26.x publish race; INSTALL.md screenshots deferred to same phase 12.1 round (manual-fallback variant ships LIVE on Windows by default; INSTALL.md text-functional today with placeholder PNGs). (completed 2026-04-27)
 - [x] **Phase 12.1: Installer + auto-update live verification (INSERTED)** — D-10 publish-race fix landed (`scripts/emit-latest-yml.mjs` post-build synthesizer + `electron-builder.yml` `publish: null`); validated by 3 successful CI runs (rc2 / rc3 / v1.1.0) each producing complete 6-asset GitHub Releases atomically. v1.1.0 final published. INSTALL.md updated with macOS Sequoia Gatekeeper UX + 3 real screenshots (1 Linux PNG deferred to v1.1.1). README `## Building on Windows` section landed (winCodeSign symlink papercut documented). 4 carry-forwards to v1.1.1: Linux runbook, rc → rc auto-update lifecycle (electron-updater channel-matching bug), Windows menu-bar autoHideMenuBar cosmetic, About panel cosmetic. (completed 2026-04-28)
+
+### ✅ v1.1.1 patch (Phase 13) — SHIPPED 2026-04-29
+
+- [x] **Phase 13: v1.1.1 polish — Phase 12.1 carry-forwards** — Code- + docs-side changes closing 12.1's carry-forward backlog (rc-channel naming via CLAUDE.md docs; Windows menu-bar `autoHideMenuBar: false` flip; Windows About-panel `setAboutPanelOptions` SemVer block; 3 todo files moved pending → resolved; package.json bump 1.1.0 → 1.1.1) + tag push + CI watch + 6-asset GitHub Release publish. v1.1.1 final published 2026-04-29. Live-verification work (Linux UAT runbook, libfuse2 PNG capture, macOS / Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) split into a follow-up Phase 13.1 so v1.1.1 could ship without being host-blocked. (completed 2026-04-29)
+
+### 🚧 v1.1.2 Auto-update fixes (Phases 14–15) — IN PROGRESS
+
+- [ ] **Phase 14: Auto-update reliability fixes (renderer + state machine)** — Code-only fixes in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them. Restores the missing/regressed startup auto-check (UPDFIX-03), fixes the renderer-subscription race that silences manual `Help → Check for Updates` before any project loads (UPDFIX-04), and fixes the Windows UpdateDialog variant-selection + dismissal-persistence + re-check state machine so the Download (or windows-fallback "Open Release Page") button reliably surfaces and re-presents on subsequent checks (UPDFIX-02). No tag, no CI run, no publish in this phase — Phase 15 owns the live release.
+- [ ] **Phase 15: Build/feed shape fix + v1.1.2 release** — Reconciles what `electron-builder` produces and what `scripts/emit-latest-yml.mjs` (the 12.1-D-10 synthesizer) emits with what `electron-updater@6.8.3` actually consumes per platform: macOS requires a `.zip` artifact alongside the `.dmg` advertised in `latest-mac.yml` (Squirrel.Mac swaps via zip — root cause of "ZIP file not provided"); Windows NSIS `.exe` + `.blockmap` + `latest.yml` shape verified live; Linux `.AppImage` + `latest-linux.yml` opportunistically. Then bumps `package.json` 1.1.1 → 1.1.2, tags `v1.1.2`, watches CI, publishes the resulting Release. UPDFIX-01 is verified by an installed v1.1.1 client successfully detecting + downloading + applying v1.1.2 from the real published feed on macOS + Windows.
 
 ## Phase Details
 
@@ -98,39 +108,6 @@
 - [x] 12-06-PLAN.md — INSTALL.md authoring + 4 linking surfaces (Wave 3, had BLOCKING screenshot checkpoint) — completed 2026-04-27, five atomic task commits (0c77242 chore — 4 placeholder 1×1 PNGs at docs/install-images/, 9112671 docs — author 139-line INSTALL.md cookbook with per-OS install + bypass walkthroughs + libfuse2/libfuse2t64 caveat per D-15, 3048af0 ci — release.yml INSTALL_DOC_LINK env var flipped to blob/main/INSTALL.md + release-template.md inline OS bullets pruned to single link per D-17, a6c4c1e feat — wire 4 INSTALL.md linking surfaces per D-16 + D-18 (greenfield README.md ## Installing section + SHELL_OPEN_EXTERNAL_ALLOWED 5th allow-list entry + new "Installation Guide…" Help submenu item + new onMenuInstallationGuide preload bridge + AppShell useEffect subscriber + HelpDialog INSTALL_DOC_URL constant + section between Section 1 and Section 2; Rule 1 deviations contained to test files: HelpDialog spec section count 7→8 + rig-info-tooltip + save-load specs add onMenuInstallationGuide stub), f6f509f test — greenfield tests/integration/install-md.spec.ts (project's first tests/integration/ file; 18 test() blocks asserting INSTALL.md content + 4-surface wiring + URL consistency byte-for-byte across all 4 surfaces — the regression gate for T-12-06-01 / T-12-06-04); Task 1 BLOCKING screenshot checkpoint resolved via `partial: none` resume signal (user decided to skip captures and ship text-first today, defer real captures to phase 12.1 with first real tester install on rc2; rationale in deferred-items.md "INSTALL.md screenshots deferred to phase 12.1" entry); REL-03 closed in REQUIREMENTS.md; 433/433 vitest passing (was 415; +18 new integration); typecheck:web clean
 **UI hint**: yes
 
-## Progress
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
-| 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
-| 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
-| 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
-| 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
-| 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
-
-## Deferred (post-v1.1)
-
-Carried from v1.0:
-- Adaptive bisection refinement around candidate peaks (for pathological easing curves).
-- `.skel` binary loader support.
-- Spine 4.3+ versioned loader adapter.
-- Aspect-ratio anomaly flag (when `scaleX != scaleY` at peak).
-- In-app atlas re-packing (writing a new `.atlas` file).
-- SEED-001 atlas-less mode; SEED-002 dims-badge override-cap.
-- Phase-0 scale-overshoot RC investigation.
-
-Out-of-scope for v1.1, candidates for future milestones:
-- Apple Developer ID code-signing + notarization ($99/yr).
-- Windows EV code-signing certificate ($200–400/yr).
-- Mac App Store / Microsoft Store / Snap Store / Flatpak distribution.
-- Linux `.deb` / `.rpm` packages.
-- Crash + error reporting (Sentry or equivalent). Removed from v1.1 scope 2026-04-28 — testers can copy/paste error dialogs for the volume v1.1 expects; revisit at v1.2 if tester base grows or anonymous crash-trace volume justifies the SaaS dependency + consent UX overhead.
-- Feature-usage analytics.
-- Delta updates / staged rollouts.
-- UI improvements (deferred to v1.2 — should be informed by tester feedback).
-- Documentation Builder feature (deferred to v1.2+).
-
 ### Phase 12.1: Installer + auto-update live verification (INSERTED)
 
 **Goal:** Close the v1.1 distribution surface end-to-end: a tagged release publishes successfully via CI without the electron-builder 26.x publish race; an installed Windows / macOS / Linux app detects a newer published release and walks the user through update-or-fallback; INSTALL.md ships with real screenshots of Gatekeeper / SmartScreen / libfuse2 dialogs captured during the same tester round; and the local Windows `npm run build` papercut (winCodeSign symlink extract) is documented with a Developer-Mode prerequisite. Closes the 9 `human_needed` items in 12-VERIFICATION.md so v1.1 can be archived as fully verified.
@@ -170,8 +147,85 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [x] 13-01-PLAN.md — Cosmetic Windows fixes in src/main/index.ts (autoHideMenuBar flip + setAboutPanelOptions block) + 2 git mv todos pending → resolved + source-grep regression spec (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `202c506` (4 files: 1 M src/main/index.ts + 1 A tests/main/index-options.spec.ts + 2 R todos pending → resolved with `## Resolved` appends; rename similarities 82% / 85%); D-07 Claude's Discretion adopted (~30 LoC source-grep regression spec mirrors F2 pattern); 455/455 vitest passing (was 453; +2 new); typecheck:web clean; live verification on packaged v1.1.1 Windows install deferred to Phase 13.1 per CONTEXT D-07
-- [x] 13-02-PLAN.md — CLAUDE.md `## Release tag conventions` section (D-05 docs-only fix) + 1 git mv todo pending → resolved (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `566ed8e` (2 files: 1 M CLAUDE.md adding 11-line section at L23–L33 between `## Critical non-obvious facts` and `## Test fixture`, heading count 7 → 8; 1 R `pending/2026-04-28-electron-updater-prerelease-channel-mismatch.md` → `resolved/` with `## Resolved` append, 87% rename similarity); 455/455 vitest unchanged (docs-only); 3 of 3 v1.1.1-polish carry-forwards now CLOSED at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md)
-- [x] 13-03-PLAN.md — package.json + package-lock.json version bump 1.1.0 → 1.1.1 (Wave 2, autonomous; single-concern atomic commit per D-Discretion #4 / 12.1-02 precedent) — completed 2026-04-28, single atomic commit `612ba60` (2 files: 1 M package.json line 3 + 1 M package-lock.json lines 3 + 9; 3 ins / 3 del); mechanism `npm version 1.1.1 --no-git-tag-version` (PATTERNS.md canonical); shape mirrors 12.1-02 precedent (commits `d532c34`, `0dd573b`, `1eadd68`); single-concern guard verified (no src/, tests/, CLAUDE.md, .planning/, or .github/ files in commit); 455/455 vitest unchanged from 13-02 baseline (release-engineering commit, no code surfaces touched); typecheck:web clean; CI tag-version-guard at `.github/workflows/release.yml:43-54` now accepts `v1.1.1` tag (Plan 13-05 unblocked)
-- [x] 13-04-PLAN.md — Greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates (Wave 3, autonomous) — completed 2026-04-28, single atomic commit covering 4 file changes (proven 12.1-08 close-out shape `b4ed03f` mapped to Phase 13: 1 A 13-VERIFICATION.md greenfield with 6 `### ` body sections + 22-row Behavioral Spot-Checks table + Gaps Summary forward-pointing to Phase 13.1; 1 M 12.1-VERIFICATION.md APPEND-only PRESERVE-HISTORY flips on Anti-Pattern #1/#3/#4 + Gaps Summary polish-todos block, frontmatter `status: passed_partial` + trailing footer `_Verified: 2026-04-28T21:30:00Z_` UNCHANGED; 1 M STATE.md frontmatter + ## Current phase + ## Last completed; 1 M ROADMAP.md Phase 13 block + Progress table row + Milestones bullet); 13-VERIFICATION.md `status: passed_partial` reflecting v1.1.1 publication PENDING Plan 05 with T-6 row marked PENDING for follow-up flip; 455/455 vitest unchanged (docs-only commit); typecheck:web clean
-- [x] 13-05-PLAN.md — Tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout (Wave 4, autonomous: false — completed 2026-04-29; v1.1.1 final published at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1; CI workflow run [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) succeeded in ~4m07s with 6-asset atomic publish via D-10 publish-race fix architecture; user passed all 3 BLOCKING checkpoint gates: pre-flight-verify → tag-push-confirm → publish-confirm; doc-flip follow-up commit covers 13-VERIFICATION.md frontmatter status passed_partial → passed + T-6 row PENDING → VERIFIED, STATE.md ## Current phase 4/5 → 5/5 + ## Current plan 13-05 → none, ROADMAP.md Plan 13-05 [ ] → [x] + Progress table 4/5 In progress → 5/5 Complete + Milestones 🚧 → ✅ v1.1.1 patch)
+- [x] 13-01-PLAN.md — Cosmetic Windows fixes in src/main/index.ts (autoHideMenuBar flip + setAboutPanelOptions block) + 2 git mv todos pending → resolved + source-grep regression spec (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `202c506`
+- [x] 13-02-PLAN.md — CLAUDE.md `## Release tag conventions` section (D-05 docs-only fix) + 1 git mv todo pending → resolved (Wave 1, autonomous) — completed 2026-04-28, single atomic commit `566ed8e`
+- [x] 13-03-PLAN.md — package.json + package-lock.json version bump 1.1.0 → 1.1.1 (Wave 2, autonomous; single-concern atomic commit per 12.1-02 precedent) — completed 2026-04-28, single atomic commit `612ba60`
+- [x] 13-04-PLAN.md — Greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates (Wave 3, autonomous) — completed 2026-04-28
+- [x] 13-05-PLAN.md — Tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout (Wave 4, autonomous: false — completed 2026-04-29; v1.1.1 final published at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1)
+
+### Phase 14: Auto-update reliability fixes (renderer + state machine)
+
+**Goal:** Restore reliable auto-update notification + check behavior on every cold start and on every manual `Help → Check for Updates` click on **both** macOS and Windows, regardless of whether a project file has been loaded yet, and ensure dismissing the notification does not permanently suppress it. Code-only phase touching the auto-update orchestrator + update-state persistence + UpdateDialog renderer + the IPC channels between them; no tag, no CI run, no publish (Phase 15 owns the live release surface).
+
+**Depends on:** Phase 13 (v1.1.1 baseline shipped — the code surface in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` is the regression target; defects are observed live on shipped v1.1.1).
+
+**Requirements**: UPDFIX-02, UPDFIX-03, UPDFIX-04
+
+**Success Criteria** (what must be TRUE):
+  1. On macOS, clicking `Help → Check for Updates` immediately after launch (BEFORE any `.json` / `.stmproj` is loaded) returns visible feedback within ~10 s — either an "Update available" notification, a "You're up to date" notice, or a graceful offline message. No silent void waiting on a project load. (UPDFIX-04)
+  2. On Windows, the same manual-check behavior holds — feedback appears within ~10 s pre-load, identical to macOS (UPDFIX-04).
+  3. On every cold start of v1.1.1+ on **both** macOS and Windows, the app fires `autoUpdater.checkForUpdates()` automatically within ~3-5 s of `app.whenReady()`, silently when no update or offline, surfacing the UpdateDialog when an update is available (UPDFIX-03; UPD-05 silent-swallow contract preserved — no error dialogs).
+  4. On Windows, when an update is available, the UpdateDialog reliably opens with a working **Download** button (or the windows-fallback "Open Release Page" button if the auto-install path is intentionally disabled per the existing `SPIKE_PASSED` policy at `src/main/auto-update.ts:92`). Variant selection is deterministic and matches the platform contract from Phase 12 D-04 (UPDFIX-02).
+  5. After dismissing a Windows update notification ("Later"), clicking `Help → Check for Updates` again while the same newer version is still published re-opens the notification (does NOT permanently suppress) — `dismissedUpdateVersion` semantics from Phase 12 D-08 are preserved for *subsequent startup checks only*, not for *manual on-demand checks* (UPDFIX-02).
+
+**Plans**: TBD
+
+**UI hint**: yes
+
+### Phase 15: Build/feed shape fix + v1.1.2 release
+
+**Goal:** Reconcile what `electron-builder` produces, what `scripts/emit-latest-yml.mjs` (the 12.1-D-10 synthesizer) emits, and what `electron-updater@6.8.3` actually consumes per platform — so an installed v1.1.1 client can detect, download, and relaunch into v1.1.2 end-to-end on **both** macOS and Windows. Then bump `package.json` 1.1.1 → 1.1.2, tag `v1.1.2`, watch CI, and publish the resulting Release through the existing CI release pipeline (the proven 12.1-D-10 architecture: `release.yml` + `softprops/action-gh-release@v2.6.2` + `scripts/emit-latest-yml.mjs`). UPDFIX-01 is verified live against the real published feed.
+
+**Depends on:** Phase 14 (renderer/state-machine fixes must land first so the Windows Download button reliably surfaces — otherwise UPDFIX-01's Windows download path cannot be live-verified; mac path is verifiable independently but bundling the verifications into one rc cycle is operationally simpler).
+
+**Requirements**: UPDFIX-01
+
+**Success Criteria** (what must be TRUE):
+  1. CI run for the `v1.1.2` tag completes successfully and publishes a 6-asset GitHub Release (`.dmg` + `.zip` (NEW for macOS auto-update) + `latest-mac.yml` + `.exe` + `.blockmap` + `latest.yml` + `.AppImage` + `latest-linux.yml`; final asset count depends on whether the macOS `.zip` ships as a 7th asset or replaces another — locked during plan-phase against electron-updater 6.8.3 feed schema). All 3 `latest*.yml` feed files reference real published asset URLs with valid sha512 + size fields.
+  2. An installed packaged v1.1.1 macOS client, with the network on, detects v1.1.2 in the GitHub Releases feed, opens UpdateDialog, downloads + relaunches successfully on user click — **no `ZIP file not provided` error**.
+  3. An installed packaged v1.1.1 Windows client (relying on Phase 14's UpdateDialog visibility fixes), with the network on, detects v1.1.2 in the GitHub Releases feed, opens UpdateDialog with a working Download button (or windows-fallback Open Release Page per `SPIKE_PASSED`), and the download path completes without missing-asset / hash-mismatch / download-failure errors.
+  4. v1.1.2 is published as a non-prerelease final tag (`isDraft: false`, `isPrerelease: false`) and is reachable at `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.2`. Linux is opportunistically verified if a host is available; otherwise documented as a Phase 13.1 / v1.2 carry-forward (does NOT block v1.1.2 publication, mirroring Phase 13's posture).
+  5. Existing v1.1 / v1.1.1 distribution surface contracts (DIST-01..07, CI-01..06, REL-01..04) are unchanged — no regression in the build/CI/publish pipeline outside the targeted feed-shape fix; the 12.1-D-10 publish-race fix architecture continues to produce atomic 6-asset (or 7-asset if `.zip` adds) Releases.
+
+**Plans**: TBD
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 0–9 + 08.1, 08.2 | v1.0 | 62/62 | Complete (archived) | 2026-04-26 |
+| 10. Installer build (electron-builder) | v1.1 | 3/3 | Complete    | 2026-04-27 |
+| 11. CI release pipeline | v1.1 | 2/2 | Complete    | 2026-04-27 |
+| 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
+| 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
+| 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
+| 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 0/TBD | Not started | — |
+| 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 0/TBD | Not started | — |
+
+## Deferred (post-v1.1)
+
+Carried from v1.0:
+- Adaptive bisection refinement around candidate peaks (for pathological easing curves).
+- `.skel` binary loader support.
+- Spine 4.3+ versioned loader adapter.
+- Aspect-ratio anomaly flag (when `scaleX != scaleY` at peak).
+- In-app atlas re-packing (writing a new `.atlas` file).
+- SEED-001 atlas-less mode; SEED-002 dims-badge override-cap.
+- Phase-0 scale-overshoot RC investigation.
+
+Out-of-scope for v1.1, candidates for future milestones:
+- Apple Developer ID code-signing + notarization ($99/yr).
+- Windows EV code-signing certificate ($200–400/yr).
+- Mac App Store / Microsoft Store / Snap Store / Flatpak distribution.
+- Linux `.deb` / `.rpm` packages.
+- Crash + error reporting (Sentry or equivalent). Removed from v1.1 scope 2026-04-28 — testers can copy/paste error dialogs for the volume v1.1 expects; revisit at v1.2 if tester base grows or anonymous crash-trace volume justifies the SaaS dependency + consent UX overhead.
+- Feature-usage analytics.
+- Delta updates / staged rollouts.
+- UI improvements (deferred to v1.2 — should be informed by tester feedback).
+- Documentation Builder feature (deferred to v1.2+).
+
+Out-of-scope for v1.1.2 specifically (carried into v1.2+ or separately tracked):
+- Phase 13.1 live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation; cosmetic Windows fix UX confirmation; Windows windows-fallback variant live observation). Pending host availability; separately tracked, not part of v1.1.2's fix surface.
+- New auto-update features (delta updates, staged rollouts, custom update channels).
+- Code-signing posture changes (Apple Developer ID, Windows EV cert).
+- UI improvements outside the UpdateDialog state machine.

@@ -41,11 +41,13 @@ Carried forward from v1.1 unchanged:
 
 ## Traceability
 
-(Populated by the roadmapper.)
+(Populated by the roadmapper 2026-04-29.)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UPDFIX-01   | TBD   | Pending |
-| UPDFIX-02   | TBD   | Pending |
-| UPDFIX-03   | TBD   | Pending |
-| UPDFIX-04   | TBD   | Pending |
+| UPDFIX-01   | 15    | Pending |
+| UPDFIX-02   | 14    | Pending |
+| UPDFIX-03   | 14    | Pending |
+| UPDFIX-04   | 14    | Pending |
+
+**Coverage:** 4/4 requirements mapped to exactly one phase. UPDFIX-02 + UPDFIX-03 + UPDFIX-04 cluster in Phase 14 (renderer/state-machine code surface in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them — code-only, no tag/CI/publish). UPDFIX-01 lands in Phase 15 (build/feed-shape fix in `electron-builder.yml` + `scripts/emit-latest-yml.mjs` + `release.yml` artifact upload list, then `package.json` bump 1.1.1 → 1.1.2 + tag push + CI watch + 6-asset (or 7-asset if `.zip` adds) Release publish via the existing 12.1-D-10 publish-race fix architecture). Phase 15 depends on Phase 14 — Windows Download button visibility (UPDFIX-02) is a prerequisite for live-verifying UPDFIX-01's Windows download path against the real published feed.
