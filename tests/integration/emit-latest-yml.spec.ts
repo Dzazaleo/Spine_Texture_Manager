@@ -39,10 +39,12 @@ let tempDir: string;
 let fixtureInstallerPath: string;
 let fixtureInstallerSize: number;
 let fixtureInstallerSha512: string;
+let fixtureZipPath: string;
+let fixtureZipSha512: string;
 let outputYamlPath: string;
 
 beforeAll(() => {
-  // Build a self-contained temp project: temp/release/<fixture>.dmg + temp/package.json.
+  // Build a self-contained temp project: temp/release/<fixture>.dmg + .zip + temp/package.json.
   tempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-'));
   const releaseDir = join(tempDir, 'release');
   mkdirSync(releaseDir, { recursive: true });
@@ -54,6 +56,17 @@ beforeAll(() => {
   writeFileSync(fixtureInstallerPath, fixtureBuf);
   fixtureInstallerSize = statSync(fixtureInstallerPath).size;
   fixtureInstallerSha512 = createHash('sha512').update(fixtureBuf).digest('base64');
+
+  // Phase 15 D-04 — also create a .zip fixture for the dual-installer mac path.
+  // After D-03 mac REQUIRES both .dmg + .zip in release/. Independent random
+  // buffer keeps the .zip's sha512 distinct from the .dmg's so existing
+  // assertions stay strict (fixtureInstallerSha512 still matches the .dmg only;
+  // fixtureZipSha512 matches the .zip — used by the legacy top-level mirror
+  // assertion that now points at files[0] = the .zip per Phase 15 D-02).
+  const fixtureZipBuf = randomBytes(4096);
+  fixtureZipPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip');
+  writeFileSync(fixtureZipPath, fixtureZipBuf);
+  fixtureZipSha512 = createHash('sha512').update(fixtureZipBuf).digest('base64');
 
   // Sibling package.json so the script can read `version` from cwd. Use a
   // distinct version string so accidental cross-pollination from the real
@@ -102,32 +115,46 @@ describe('emit-latest-yml.mjs (D-10) — schema correctness', () => {
     expect(Array.isArray(doc.files)).toBe(true);
     const files = doc.files as Array<Record<string, unknown>>;
     expect(files.length).toBeGreaterThanOrEqual(1);
-    expect(files[0].url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 D-04: find-by-extension shape (forward-compat with future
+    // PLATFORM_MAP.mac.extRegexes ordering changes; .dmg is no longer
+    // guaranteed at files[0] — see Phase 15 D-02 dual-installer mac case).
+    const dmgEntry = files.find((f) => (f.url as string).endsWith('.dmg'));
+    expect(dmgEntry?.url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
   });
 
   test('files[0].sha512 matches the fixture installer hash exactly (base64)', () => {
     const doc = yaml.load(readFileSync(outputYamlPath, 'utf8')) as Record<string, unknown>;
     const files = doc.files as Array<Record<string, unknown>>;
-    expect(files[0].sha512).toBe(fixtureInstallerSha512);
-    expect(files[0].sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
+    // Phase 15 D-04: find-by-extension shape (.dmg's sha512 lives wherever the
+    // .dmg entry sits in files[]; current ordering puts .zip first so the .dmg
+    // is at files[1], but assert by url-suffix match for forward-compat).
+    const dmgEntry = files.find((f) => (f.url as string).endsWith('.dmg'));
+    expect(dmgEntry?.sha512).toBe(fixtureInstallerSha512);
+    expect(dmgEntry?.sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
   });
 
   test('files[0].size matches the fixture installer byte size exactly', () => {
     const doc = yaml.load(readFileSync(outputYamlPath, 'utf8')) as Record<string, unknown>;
     const files = doc.files as Array<Record<string, unknown>>;
-    expect(files[0].size).toBe(fixtureInstallerSize);
-    expect(typeof files[0].size).toBe('number');
-    expect(files[0].size).toBeGreaterThan(0);
+    // Phase 15 D-04: find-by-extension shape (.dmg byte size matches the
+    // fixture buffer regardless of files[] ordering).
+    const dmgEntry = files.find((f) => (f.url as string).endsWith('.dmg'));
+    expect(dmgEntry?.size).toBe(fixtureInstallerSize);
+    expect(typeof dmgEntry?.size).toBe('number');
+    expect(dmgEntry?.size as number).toBeGreaterThan(0);
   });
 
   test('legacy top-level path mirrors files[0].url (electron-updater <6 backward compat)', () => {
     const doc = yaml.load(readFileSync(outputYamlPath, 'utf8')) as Record<string, unknown>;
-    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 D-02: on mac, files[0] is now the .zip (per PLATFORM_MAP.mac
+    // extRegexes ordering); legacy top-level path mirrors files[0] = the .zip.
+    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.zip');
   });
 
   test('legacy top-level sha512 mirrors files[0].sha512 (electron-updater <6 backward compat)', () => {
     const doc = yaml.load(readFileSync(outputYamlPath, 'utf8')) as Record<string, unknown>;
-    expect(doc.sha512).toBe(fixtureInstallerSha512);
+    // Phase 15 D-02: legacy top-level sha512 mirrors files[0].sha512 = .zip's hash.
+    expect(doc.sha512).toBe(fixtureZipSha512);
   });
 
   test('releaseDate parses as a valid ISO 8601 timestamp', () => {
@@ -149,5 +176,107 @@ describe('emit-latest-yml.mjs (D-10) — error handling', () => {
     expect(() => {
       execFileSync('node', [SCRIPT_PATH, '--platform=bogus'], { stdio: 'pipe' });
     }).toThrow();
+  });
+});
+
+describe('emit-latest-yml.mjs (Phase 15 D-04) — dual-installer mac case', () => {
+  let dualTempDir: string;
+  let dualOutputYamlPath: string;
+  let dualZipSha512: string;
+  let dualDmgSha512: string;
+  let dualZipSize: number;
+  let dualDmgSize: number;
+
+  beforeAll(() => {
+    dualTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-dual-'));
+    const releaseDir = join(dualTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+
+    // Two independent random buffers — distinct sha512 confirms files[0] vs files[1] don't collapse.
+    const dmgBuf = randomBytes(4096);
+    const zipBuf = randomBytes(4096);
+    const dmgPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.dmg');
+    const zipPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip');
+    // Phase 15 RESEARCH §A3 regression gate: also write a .zip.blockmap to assert
+    // the end-anchored regex `/\.zip$/i` excludes it. Smaller buffer (2048 vs 4096)
+    // makes it visually obvious this is NOT the real .zip if a maintainer ever
+    // weakens the regex (e.g. drops the `$` anchor).
+    const blockmapPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip.blockmap');
+    writeFileSync(dmgPath, dmgBuf);
+    writeFileSync(zipPath, zipBuf);
+    writeFileSync(blockmapPath, randomBytes(2048));
+    dualDmgSha512 = createHash('sha512').update(dmgBuf).digest('base64');
+    dualZipSha512 = createHash('sha512').update(zipBuf).digest('base64');
+    dualDmgSize = statSync(dmgPath).size;
+    dualZipSize = statSync(zipPath).size;
+
+    writeFileSync(
+      join(dualTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+
+    dualOutputYamlPath = join(releaseDir, 'latest-mac.yml');
+
+    execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: dualTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (dualTempDir && existsSync(dualTempDir)) rmSync(dualTempDir, { recursive: true, force: true });
+  });
+
+  test('files[] has 2 entries with .zip first AND excludes .zip.blockmap', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files.length).toBe(2);
+    expect(files[0].url).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+    expect(files[1].url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 RESEARCH §A3 regression gate: the end-anchored regex `/\.zip$/i`
+    // must NOT match `.zip.blockmap`. The fixture above writes one; this assertion
+    // locks the anchor as a regression gate (a future maintainer dropping the `$`
+    // would surface a 3rd entry here and fail the test).
+    expect(files.every((f) => !(f.url as string).includes('.blockmap'))).toBe(true);
+  });
+
+  test('legacy top-level path + sha512 mirror files[0] (the .zip)', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(doc.path).toBe(files[0].url);
+    expect(doc.sha512).toBe(files[0].sha512);
+    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+  });
+
+  test('both files[] entries have valid base64 sha512 + correct size', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[0].sha512).toBe(dualZipSha512);
+    expect(files[1].sha512).toBe(dualDmgSha512);
+    expect(files[0].sha512).not.toBe(files[1].sha512);
+    expect(files[0].sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
+    expect(files[1].sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
+    expect(files[0].size).toBe(dualZipSize);
+    expect(files[1].size).toBe(dualDmgSize);
+    expect(files[0].size).toBeGreaterThan(0);
+    expect(files[1].size).toBeGreaterThan(0);
+  });
+});
+
+describe('emit-latest-yml.mjs (Phase 15 D-04) — fail-fast when .zip missing on mac', () => {
+  test('exits non-zero when release/ has only .dmg and no .zip', () => {
+    const onlyDmgDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-onlydmg-'));
+    const releaseDir = join(onlyDmgDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.dmg'), randomBytes(4096));
+    writeFileSync(join(onlyDmgDir, 'package.json'), JSON.stringify({ name: 'f', version: '9.9.9' }), 'utf8');
+    expect(() => {
+      execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+        env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: onlyDmgDir },
+        stdio: 'pipe',
+      });
+    }).toThrow();
+    rmSync(onlyDmgDir, { recursive: true, force: true });
   });
 });
