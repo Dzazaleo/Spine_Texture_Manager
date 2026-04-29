@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { AppShell } from './components/AppShell';
+import { UpdateDialog, type UpdateDialogState, type UpdateDialogVariant } from './modals/UpdateDialog';
 import type {
   SkeletonSummary,
   SerializableError,
@@ -69,6 +70,35 @@ export type AppState =
 
 export function App() {
   const [state, setState] = useState<AppState>({ status: 'idle' });
+
+  // Phase 14 Plan 03 (D-02) — UpdateDialog lifecycle, LIFTED from AppShell.
+  // App.tsx is the always-mounted root, so subscriptions run on every AppState
+  // branch (idle / loading / loaded / projectLoaded / projectLoadFailed / error).
+  // Pre-Phase-14 these lived in AppShell which mounted only on `loaded` /
+  // `projectLoaded` — that meant startup auto-check (UPDFIX-03) and pre-load
+  // manual check (UPDFIX-04) fired into the void with no subscriber.
+  const [updateState, setUpdateState] = useState<{
+    open: boolean;
+    state: UpdateDialogState;
+    version: string;
+    summary: string;
+    variant: UpdateDialogVariant;
+  }>({
+    open: false,
+    state: 'available',
+    version: '',
+    summary: '',
+    variant: 'auto-update',
+  });
+
+  // D-07 — only show "you're up to date" / error on MANUAL checks. Startup
+  // checks fire 'update:none' and 'update:error' too, but the renderer
+  // suppresses those mounts via this ref. Set to true when the user clicks
+  // Help → Check for Updates, consumed-and-cleared by the next 'update:none'
+  // / 'update:error' event. Plain useRef so the value persists across
+  // useEffect cleanups without triggering re-renders. LIFTED from
+  // AppShell.tsx:181.
+  const manualCheckPendingRef = useRef<boolean>(false);
 
   const handleLoadStart = useCallback((fileName: string) => {
     setState({ status: 'loading', fileName });
@@ -292,6 +322,112 @@ export function App() {
     }
   }, [state.status]);
 
+  /**
+   * Phase 14 Plan 03 (D-02 + D-03) — auto-update IPC subscriptions, LIFTED
+   * from AppShell.tsx. App.tsx renders unconditionally on every AppState
+   * branch, so this useEffect runs once on first render and the 5 subscribers
+   * survive every state transition. Closes UPDFIX-03 + UPDFIX-04 root cause:
+   * pre-lift, the subscribers lived in AppShell which only mounted on
+   * `loaded` / `projectLoaded` — startup auto-check at 3.5s fired into the
+   * void on every cold start, and `Help → Check for Updates` from idle
+   * silently swallowed the response.
+   *
+   * Five channels (UPD-01..UPD-06 + Phase 12 D-04 + D-05 + D-07):
+   *   - 'update:available'  → mount UpdateDialog with version + summary +
+   *     variant supplied by main (D-04 — main is single source of truth).
+   *   - 'update:downloaded' → transition state from 'downloading' to
+   *     'downloaded'; UpdateDialog flips Download+Restart → Restart button.
+   *   - 'update:none'       → ONLY surface "You're up to date" on manual
+   *     checks (D-07); startup checks silent (manualCheckPendingRef gate).
+   *   - 'update:error'      → ONLY surface error on manual checks
+   *     (mirrors update:none; main itself silent-swallows on startup
+   *     before sending update:error per UPD-05).
+   *   - 'menu:check-for-updates-clicked' → set manualCheckPendingRef and
+   *     invoke checkForUpdates (Help → Check for Updates path).
+   *
+   * Phase 14 D-03 addition: after attaching all 5 subscribers, invoke
+   * window.api.requestPendingUpdate() ONCE to recover from the late-mount
+   * race where main fired 'update-available' BEFORE this effect committed
+   * (e.g., 3.5s startup check resolving before React hydration finished).
+   * If main has a sticky payload, hydrate updateState as if 'update:available'
+   * had just fired — UpdateDialog mounts and the user sees the prompt they
+   * would otherwise have missed.
+   */
+  useEffect(() => {
+    const unsubAvailable = window.api.onUpdateAvailable((payload) => {
+      setUpdateState({
+        open: true,
+        state: 'available',
+        version: payload.version,
+        summary: payload.summary,
+        variant: payload.variant === 'windows-fallback' ? 'windows-fallback' : 'auto-update',
+      });
+    });
+    const unsubDownloaded = window.api.onUpdateDownloaded(() => {
+      setUpdateState((prev) => ({ ...prev, state: 'downloaded' }));
+    });
+    const unsubNone = window.api.onUpdateNone((payload) => {
+      // D-07 — only surface on manual checks. Startup-mode 'update:none'
+      // events fire harmlessly through this listener but the gate filters
+      // them out.
+      if (manualCheckPendingRef.current) {
+        manualCheckPendingRef.current = false;
+        setUpdateState({
+          open: true,
+          state: 'none',
+          version: payload.currentVersion,
+          summary: '',
+          variant: 'auto-update',
+        });
+      }
+    });
+    const unsubError = window.api.onUpdateError((payload) => {
+      // D-06 — main itself silent-swallows on startup before sending; this
+      // gate is belt-and-braces (main's autoUpdater.on('error') unconditional
+      // bridge can fire OUTSIDE a checkUpdate call).
+      if (manualCheckPendingRef.current) {
+        manualCheckPendingRef.current = false;
+        setUpdateState({
+          open: true,
+          state: 'none',
+          version: '',
+          summary: `Update check failed: ${payload.message}`,
+          variant: 'auto-update',
+        });
+      }
+    });
+    const unsubMenuCheck = window.api.onMenuCheckForUpdates(() => {
+      manualCheckPendingRef.current = true;
+      void window.api.checkForUpdates();
+    });
+
+    // Phase 14 D-03 — late-mount sticky-slot recovery. Main may have fired
+    // 'update-available' BEFORE the 5 subscribers above attached (e.g., the
+    // 3.5s startup check resolving before React hydration committed). Pull
+    // the sticky payload once on mount; if non-null, hydrate updateState
+    // exactly as if 'update:available' had just been received. Wrapped in
+    // void Promise to avoid a useEffect-async-fn anti-pattern.
+    void window.api.requestPendingUpdate().then((payload) => {
+      if (payload !== null) {
+        setUpdateState({
+          open: true,
+          state: 'available',
+          version: payload.version,
+          summary: payload.summary,
+          variant: payload.variant === 'windows-fallback' ? 'windows-fallback' : 'auto-update',
+        });
+      }
+    });
+
+    return () => {
+      unsubAvailable();
+      unsubDownloaded();
+      unsubNone();
+      unsubError();
+      unsubMenuCheck();
+    };
+  }, []);
+
   return (
     <DropZone
       onLoad={handleLoad}
@@ -387,6 +523,40 @@ export function App() {
           </p>
         </div>
       )}
+      {/* Phase 14 Plan 03 — UpdateDialog mount, LIFTED from AppShell.tsx.
+          Renders as a sibling of the 6 AppState-branch JSX blocks above.
+          Visible on EVERY branch (idle / loading / loaded / projectLoaded
+          / projectLoadFailed / error) via the z-50 overlay in UpdateDialog
+          itself. State machine driven by the auto-update IPC subscription
+          useEffect above. Variant supplied by main per D-04 (auto-update on
+          macOS/Linux/Windows-IF-spike-PASS; windows-fallback otherwise). */}
+      <UpdateDialog
+        open={updateState.open}
+        state={updateState.state}
+        version={updateState.version}
+        summary={updateState.summary}
+        variant={updateState.variant}
+        onDownload={() => {
+          setUpdateState((prev) => ({ ...prev, state: 'downloading' }));
+          void window.api.downloadUpdate();
+        }}
+        onRestart={() => {
+          window.api.quitAndInstallUpdate();
+        }}
+        onLater={() => {
+          // Only persist when there's a real version to remember; the
+          // state='none' "You're up to date" / error paths use Later as a
+          // pure close affordance (no version to suppress).
+          if (updateState.state !== 'none' && updateState.version.length > 0) {
+            window.api.dismissUpdate(updateState.version);
+          }
+          setUpdateState((prev) => ({ ...prev, open: false }));
+        }}
+        onOpenReleasePage={() => {
+          window.api.openExternalUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases');
+        }}
+        onClose={() => setUpdateState((prev) => ({ ...prev, open: false }))}
+      />
     </DropZone>
   );
 }
