@@ -195,7 +195,13 @@ Plans:
   4. v1.1.2 is published as a non-prerelease final tag (`isDraft: false`, `isPrerelease: false`) and is reachable at `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.2`. Linux is opportunistically verified if a host is available; otherwise documented as a Phase 13.1 / v1.2 carry-forward (does NOT block v1.1.2 publication, mirroring Phase 13's posture).
   5. Existing v1.1 / v1.1.1 distribution surface contracts (DIST-01..07, CI-01..06, REL-01..04) are unchanged — no regression in the build/CI/publish pipeline outside the targeted feed-shape fix; the 12.1-D-10 publish-race fix architecture continues to produce atomic 6-asset (or 7-asset if `.zip` adds) Releases.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — Build config + version bump (electron-builder.yml mac.target zip + package.json bare CLI flags + 1.1.1→1.1.2) (Wave 1, autonomous)
+- [ ] 15-02-PLAN.md — Synthesizer dual-installer mac extension + 4 new vitest assertions (Wave 1, autonomous; TDD RED→GREEN→docs)
+- [ ] 15-03-PLAN.md — release.yml CI extension + greenfield build-scripts.spec.ts (Wave 1, autonomous)
+- [ ] 15-04-PLAN.md — v1.1.2 release engineering: tag push + CI watch + 7-asset GitHub Release publish + D-10 split UAT (Wave 2, autonomous: false — 3 BLOCKING checkpoints)
 
 ## Progress
 
@@ -208,7 +214,7 @@ Plans:
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
 | 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
 | 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 6/6 | Complete (verified — live-OS UAT deferred to Phase 15 per 14-HUMAN-UAT.md) | 2026-04-29 |
-| 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 0/TBD | Not started | — |
+| 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 0/4 | Planned (4 plans created 2026-04-29; Wave 1 = 15-01/02/03 parallel; Wave 2 = 15-04 sequential autonomous: false) | — |
 
 ## Deferred (post-v1.1)
 
