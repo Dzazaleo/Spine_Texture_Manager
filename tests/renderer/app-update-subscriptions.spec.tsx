@@ -131,11 +131,10 @@ describe('Phase 14 — App.tsx update-subscription lift', () => {
 
   it('(14-j) App.tsx mount calls requestPendingUpdate exactly once (D-03 late-mount hook)', () => {
     render(<App />);
-    // RED gate: assertion intentionally inverted — App.tsx Plan 14-03 calls
-    // requestPendingUpdate ONCE on mount; this RED variant claims zero calls
-    // to satisfy the TDD red gate. Flipped to toHaveBeenCalledTimes(1) in
-    // the GREEN commit.
-    expect(requestPendingUpdateMock).toHaveBeenCalledTimes(0);
+    // App.tsx Plan 14-03 lifted useEffect invokes requestPendingUpdate once
+    // on mount to recover from the late-mount race where main fired
+    // 'update-available' BEFORE React's effect committed.
+    expect(requestPendingUpdateMock).toHaveBeenCalledTimes(1);
   });
 
   it('(14-k) UpdateDialog mounts on update:available event regardless of AppState (idle)', () => {
