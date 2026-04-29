@@ -81,6 +81,21 @@ vi.mock('../../src/main/sampler-worker-bridge.js', () => ({
   runSamplerInWorker: vi.fn(),
 }));
 
+// Phase 14 Plan 01 — auto-update.ts is dynamically imported inside the
+// 'update:request-pending' (and other update:*) handlers. Stub the surface
+// so the handler bodies can be exercised without booting the real
+// electron-updater module. getPendingUpdateInfo's return value is controlled
+// per-test via getPendingUpdateInfoMock.mockReturnValueOnce(...).
+const getPendingUpdateInfoMock = vi.hoisted(() => vi.fn(() => null));
+vi.mock('../../src/main/auto-update.js', () => ({
+  getPendingUpdateInfo: getPendingUpdateInfoMock,
+  clearPendingUpdateInfo: vi.fn(),
+  checkUpdate: vi.fn().mockResolvedValue(undefined),
+  downloadUpdate: vi.fn().mockResolvedValue(undefined),
+  dismissUpdate: vi.fn().mockResolvedValue(undefined),
+  quitAndInstallUpdate: vi.fn(),
+}));
+
 // Import AFTER all vi.mock() blocks so module-load side effects (electron's
 // app.on, ipcMain.on, protocol.registerSchemesAsPrivileged) hit the mocks.
 import { registerIpcHandlers } from '../../src/main/ipc.js';
@@ -312,5 +327,55 @@ describe('Phase 12 Plan 03 (D-19) — atlas:resolve-image-url F1 fix', () => {
     expect(await handler({} as unknown, undefined)).toBe('');
     expect(await handler({} as unknown, '')).toBe('');
     expect(await handler({} as unknown, { path: '/foo' })).toBe('');
+  });
+});
+
+/**
+ * Phase 14 Plan 01 D-03 — `update:request-pending` IPC channel.
+ *
+ * Late-mount renderer re-delivery channel. Renderer App.tsx invokes once on
+ * mount; handler returns the sticky `update-available` payload (overwritten
+ * on each newer version; cleared by renderer-driven dismiss/download flows),
+ * or null on first launch / no pending update.
+ *
+ * Cases:
+ *   1. handler is registered on ipcMain.handle.
+ *   2. handler returns the value of getPendingUpdateInfo() from auto-update.js.
+ *   3. existing 4 update:* handlers are still registered (no regression).
+ */
+describe('Phase 14 Plan 01 D-03 — update:request-pending', () => {
+  it('update:request-pending handler is registered on ipcMain.handle', async () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('update:request-pending')).toBe(true);
+  });
+
+  it('handler returns null when getPendingUpdateInfo() returns null', async () => {
+    getPendingUpdateInfoMock.mockReturnValueOnce(null);
+    registerIpcHandlers();
+    const handler = ipcMainHandleHandlers.get('update:request-pending')!;
+    const result = await handler({} as unknown);
+    expect(result).toBeNull();
+  });
+
+  it('handler returns the payload when getPendingUpdateInfo() returns one', async () => {
+    const payload = {
+      version: '1.2.3',
+      summary: 'Fix bug.',
+      variant: 'auto-update' as const,
+      fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+    };
+    getPendingUpdateInfoMock.mockReturnValueOnce(payload);
+    registerIpcHandlers();
+    const handler = ipcMainHandleHandlers.get('update:request-pending')!;
+    const result = await handler({} as unknown);
+    expect(result).toEqual(payload);
+  });
+
+  it('existing 4 update channels still register (no regression)', async () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('update:check-now')).toBe(true);
+    expect(ipcMainHandleHandlers.has('update:download')).toBe(true);
+    expect(ipcMainOnHandlers.has('update:dismiss')).toBe(true);
+    expect(ipcMainOnHandlers.has('update:quit-and-install')).toBe(true);
   });
 });
