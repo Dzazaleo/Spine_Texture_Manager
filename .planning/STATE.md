@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1.2
 milestone_name: Auto-update fixes
 status: unknown
-last_updated: "2026-04-29T09:32:04.636Z"
+last_updated: "2026-04-29T10:01:00.675Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -168,4 +168,4 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continued fr
 
 **Closed Phase:** 10 (Installer build) — 3/3 plans complete — 2026-04-27T10:08:45Z. DIST-01..DIST-07 closed.
 
-**Planned Phase:** 15 (Build/feed shape fix + v1.1.2 release) — TBD plans — depends on Phase 14 close.
+**Planned Phase:** 14 (auto-update-reliability-fixes-renderer-state-machine) — 5 plans — 2026-04-29T10:01:00.672Z
