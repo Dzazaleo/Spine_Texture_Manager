@@ -42,6 +42,18 @@ import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import { getMainWindow } from './index.js';
 import { loadUpdateState, setDismissedVersion } from './update-state.js';
 
+// Phase 14 D-03 — shared payload shape for `update:available` and the new
+// `update:request-pending` sticky-slot read channel. Identical to what
+// sendToWindow('update:available', ...) already pushes today; defined as an
+// exported alias so the sticky slot, the new handler, and the renderer-side
+// preload bridge all reference the same single source of truth.
+export type UpdateAvailablePayload = {
+  version: string;
+  summary: string;
+  variant: 'auto-update' | 'windows-fallback';
+  fullReleaseUrl: string;
+};
+
 // --- Constants -------------------------------------------------------------
 
 /**
@@ -95,6 +107,29 @@ const SPIKE_PASSED = process.platform !== 'win32';
 
 let initialized = false;
 
+// Phase 14 D-03 — sticky slot for the latest 'update-available' payload.
+// Cleared on user dismiss/download trigger (renderer drives via the existing
+// `update:dismiss` IPC + Phase 14 Plan 03 download-click handler that calls
+// clearPendingUpdateInfo()); overwritten by every newer `update:available`
+// event. Returned by `update:request-pending` for late-mounting renderers
+// per D-Discretion-2 (in-memory only — rebuilt on every cold start).
+let pendingUpdateInfo: UpdateAvailablePayload | null = null;
+
+// Phase 14 D-08 (Option a — thread-trigger). The trigger context for the
+// in-flight `autoUpdater.checkForUpdates()` call. Set at the top of
+// `checkUpdate()` BEFORE `Promise.race` begins; consumed by
+// `deliverUpdateAvailable` to gate the dismissedUpdateVersion suppression
+// (manual = skip suppression per D-05 asymmetric rule; startup/null = apply
+// Phase 12 D-08 strict-`>` suppression verbatim).
+//
+// Why a module-level let-binding instead of a parameter: `update-available`
+// fires asynchronously inside `autoUpdater.on(...)` — the originating
+// `checkForUpdates()` Promise has already resolved by then, so the event
+// handler cannot be passed the trigger via call frame. The slot is the
+// least-invasive way to thread context across the async boundary; same
+// shape as `mainWindowRef` at src/main/index.ts:74 (lazy module-scope ref).
+let lastCheckTrigger: 'manual' | 'startup' | null = null;
+
 // --- Public API ------------------------------------------------------------
 
 /**
@@ -109,6 +144,8 @@ export function initAutoUpdater(): void {
   if (initialized) return;
   initialized = true;
 
+  console.info('[auto-update] initAutoUpdater: entry');
+
   // UPD-03 — opt-in download. We control the trigger via `downloadUpdate()`.
   autoUpdater.autoDownload = false;
 
@@ -122,14 +159,23 @@ export function initAutoUpdater(): void {
 
   // Bind lifecycle events.
   autoUpdater.on('update-available', (info: UpdateInfo) => {
+    console.info(
+      `[auto-update] event: update-available, version=${info.version}`,
+    );
     void deliverUpdateAvailable(info);
   });
 
   autoUpdater.on('update-not-available', () => {
+    console.info(
+      `[auto-update] event: update-not-available, currentVersion=${app.getVersion()}`,
+    );
     sendToWindow('update:none', { currentVersion: app.getVersion() });
   });
 
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    console.info(
+      `[auto-update] event: update-downloaded, version=${info.version}`,
+    );
     sendToWindow('update:downloaded', { version: info.version });
   });
 
@@ -151,6 +197,7 @@ export function initAutoUpdater(): void {
   // UPD-01 — schedule the 3.5s startup check. Standard fire-and-forget; the
   // checkUpdate body silent-swallows on rejection/timeout in startup mode.
   setTimeout(() => {
+    console.info('[auto-update] startup-check: setTimeout fired');
     void checkUpdate(false);
   }, STARTUP_CHECK_DELAY_MS);
 }
@@ -166,6 +213,18 @@ export function initAutoUpdater(): void {
  * timeout to bound the network wait.
  */
 export async function checkUpdate(triggeredManually: boolean): Promise<void> {
+  // Phase 14 D-08 — record trigger context for `deliverUpdateAvailable` to
+  // consume when the asynchronous `update-available` event fires. The slot
+  // is sticky across the Promise.race boundary; it is NOT reset in finally
+  // because `update-available` may arrive AFTER `checkForUpdates()` resolves
+  // (electron-updater fires events as side effects of the resolved Promise).
+  // The next checkUpdate() call overwrites it; that ordering is correct
+  // because at most one check is in flight at a time (no internal concurrency).
+  lastCheckTrigger = triggeredManually ? 'manual' : 'startup';
+  console.info(
+    `[auto-update] checkUpdate: trigger=${lastCheckTrigger}, version=${app.getVersion()}`,
+  );
+
   try {
     await Promise.race([
       autoUpdater.checkForUpdates(),
@@ -173,6 +232,9 @@ export async function checkUpdate(triggeredManually: boolean): Promise<void> {
         setTimeout(() => reject(new Error('check-timeout')), CHECK_TIMEOUT_MS),
       ),
     ]);
+    console.info(
+      `[auto-update] checkUpdate: race-resolved trigger=${lastCheckTrigger}`,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[auto-update] checkUpdate', message);
@@ -235,6 +297,31 @@ export async function dismissUpdate(version: string): Promise<void> {
     // not broken.
     console.error('[auto-update] dismissUpdate', err);
   }
+}
+
+/**
+ * Phase 14 D-03 — return the latest sticky update-available payload, or null.
+ *
+ * Renderer App.tsx calls this once on its update-subscription useEffect mount
+ * (via `window.api.requestPendingUpdate()`) to handle the late-subscribe edge
+ * case where main fired `update-available` BEFORE the renderer's React effect
+ * committed (e.g., the 3.5s startup check resolving before React hydration
+ * finishes). Returns null on first launch / no update.
+ */
+export function getPendingUpdateInfo(): UpdateAvailablePayload | null {
+  return pendingUpdateInfo;
+}
+
+/**
+ * Phase 14 D-03 — empty the sticky slot.
+ *
+ * Called by the renderer-side dismiss/download paths (Plan 03) so that a
+ * subsequent `update:request-pending` invoke does not re-deliver a payload
+ * the user has already acknowledged. Idempotent — safe to call when slot
+ * is already null.
+ */
+export function clearPendingUpdateInfo(): void {
+  pendingUpdateInfo = null;
 }
 
 // --- Internal helpers ------------------------------------------------------
@@ -358,11 +445,22 @@ function extractSummary(
 async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
   const state = await loadUpdateState();
 
-  // D-08 strict-`>` semantics — suppress when dismissed >= available.
+  // Phase 14 D-05 — asymmetric dismissal rule. Manual checks ALWAYS re-present
+  // even when dismissedUpdateVersion >= available; the user explicitly clicked
+  // Help → Check for Updates and expects feedback. Startup/null preserve the
+  // Phase 12 D-08 strict-`>` suppression verbatim.
+  const triggerSnapshot = lastCheckTrigger;
+  const isManual = triggerSnapshot === 'manual';
   if (
+    !isManual &&
     state.dismissedUpdateVersion !== null &&
     compareSemver(state.dismissedUpdateVersion, info.version) >= 0
   ) {
+    console.info(
+      `[auto-update] deliverUpdateAvailable: SUPPRESSED, ` +
+        `trigger=${triggerSnapshot}, dismissed=${state.dismissedUpdateVersion}, ` +
+        `available=${info.version}`,
+    );
     return;
   }
 
@@ -374,12 +472,24 @@ async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
       ? 'windows-fallback'
       : 'auto-update';
 
-  sendToWindow('update:available', {
+  const payload: UpdateAvailablePayload = {
     version: info.version,
     summary: extractSummary(info.releaseNotes),
     variant,
     fullReleaseUrl: GITHUB_RELEASES_INDEX_URL,
-  });
+  };
+
+  // Phase 14 D-03 — populate sticky slot BEFORE sendToWindow so a renderer
+  // mounting between this assignment and the IPC ack can still pick it up
+  // via `update:request-pending`.
+  pendingUpdateInfo = payload;
+
+  console.info(
+    `[auto-update] deliverUpdateAvailable: DELIVERED, ` +
+      `trigger=${triggerSnapshot}, variant=${variant}, version=${info.version}`,
+  );
+
+  sendToWindow('update:available', payload);
 }
 
 /**
