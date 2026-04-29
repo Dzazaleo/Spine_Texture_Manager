@@ -119,7 +119,9 @@ describe('emit-latest-yml.mjs (D-10) — schema correctness', () => {
     // PLATFORM_MAP.mac.extRegexes ordering changes; .dmg is no longer
     // guaranteed at files[0] — see Phase 15 D-02 dual-installer mac case).
     const dmgEntry = files.find((f) => (f.url as string).endsWith('.dmg'));
-    expect(dmgEntry?.url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 Plan 05 (D-15-LIVE-1): synthesizer must rewrite the spaced local
+    // filename to GitHub-canonical dotted form before emitting it as the url field.
+    expect(dmgEntry?.url).toBe('Spine.Texture.Manager-9.9.9-arm64.dmg');
   });
 
   test('files[0].sha512 matches the fixture installer hash exactly (base64)', () => {
@@ -148,7 +150,9 @@ describe('emit-latest-yml.mjs (D-10) — schema correctness', () => {
     const doc = yaml.load(readFileSync(outputYamlPath, 'utf8')) as Record<string, unknown>;
     // Phase 15 D-02: on mac, files[0] is now the .zip (per PLATFORM_MAP.mac
     // extRegexes ordering); legacy top-level path mirrors files[0] = the .zip.
-    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+    // Phase 15 Plan 05 (D-15-LIVE-1): the .zip's url is rewritten to dots by
+    // sanitizeAssetUrl(); top-level path inherits that rewrite via files[0].url.
+    expect(doc.path).toBe('Spine.Texture.Manager-9.9.9-arm64.zip');
   });
 
   test('legacy top-level sha512 mirrors files[0].sha512 (electron-updater <6 backward compat)', () => {
@@ -232,8 +236,11 @@ describe('emit-latest-yml.mjs (Phase 15 D-04) — dual-installer mac case', () =
     const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
     const files = doc.files as Array<Record<string, unknown>>;
     expect(files.length).toBe(2);
-    expect(files[0].url).toBe('Spine Texture Manager-9.9.9-arm64.zip');
-    expect(files[1].url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 Plan 05 (D-15-LIVE-1): every emitted url is GitHub-canonical (dots).
+    // Local fixture filenames in release/ keep spaces (electron-builder unchanged);
+    // sanitizeAssetUrl() rewrites url field at emit time.
+    expect(files[0].url).toBe('Spine.Texture.Manager-9.9.9-arm64.zip');
+    expect(files[1].url).toBe('Spine.Texture.Manager-9.9.9-arm64.dmg');
     // Phase 15 RESEARCH §A3 regression gate: the end-anchored regex `/\.zip$/i`
     // must NOT match `.zip.blockmap`. The fixture above writes one; this assertion
     // locks the anchor as a regression gate (a future maintainer dropping the `$`
@@ -246,7 +253,9 @@ describe('emit-latest-yml.mjs (Phase 15 D-04) — dual-installer mac case', () =
     const files = doc.files as Array<Record<string, unknown>>;
     expect(doc.path).toBe(files[0].url);
     expect(doc.sha512).toBe(files[0].sha512);
-    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+    // Phase 15 Plan 05 (D-15-LIVE-1): legacy path mirrors files[0].url which is
+    // already the dotted form post-sanitizeAssetUrl().
+    expect(doc.path).toBe('Spine.Texture.Manager-9.9.9-arm64.zip');
   });
 
   test('both files[] entries have valid base64 sha512 + correct size', () => {
@@ -278,5 +287,237 @@ describe('emit-latest-yml.mjs (Phase 15 D-04) — fail-fast when .zip missing on
       });
     }).toThrow();
     rmSync(onlyDmgDir, { recursive: true, force: true });
+  });
+});
+
+// =============================================================================
+// Phase 15 Plan 05 — files[].url GitHub-canonical name (no spaces;
+// UPDFIX-01 hotfix; D-15-LIVE-1 regression guard)
+// =============================================================================
+//
+// Why these tests exist:
+//
+//   D-15-LIVE-1 surfaced in live UAT 2026-04-29T19:30Z (Test 7, macOS): HTTP 404
+//   on Squirrel.Mac swap. Three sides saw three different filenames:
+//     - Local filename:        Spine Texture Manager-1.1.2-arm64.zip (SPACES)
+//     - GitHub stored name:    Spine.Texture.Manager-1.1.2-arm64.zip (DOTS)
+//     - electron-updater req:  Spine-Texture-Manager-1.1.2-arm64.zip (DASHES)
+//
+//   GitHub Releases auto-renames spaces → dots on upload; electron-updater 6.x
+//   sanitizes spaces in url → dashes when constructing the request URL. The
+//   synthesizer must emit url in the GitHub-canonical (DOT) form so all three
+//   sides agree.
+//
+//   These assertions guard the synthesizer-output side of the URL contract:
+//   every files[].url AND legacy top-level path: emitted by
+//   scripts/emit-latest-yml.mjs MUST contain NO literal spaces, on ALL 3
+//   platforms (mac dual-installer; win; linux). The test runs on the existing
+//   3-OS CI matrix per release.yml — re-introduction of spaces fails CI BEFORE
+//   tag push.
+//
+// Each test below carries the comment:
+//   // D-15-LIVE-1 regression guard — do not delete without re-architecting
+//   // the URL contract.
+// =============================================================================
+
+describe('emit-latest-yml.mjs (Phase 15 Plan 05) — files[].url GitHub-canonical name (no spaces; UPDFIX-01 hotfix; D-15-LIVE-1 regression guard)', () => {
+  // -- mac dual-installer fixture (mirrors the Phase 15 D-04 dual-installer
+  //    setup; spaced local filenames; new tests assert dotted url emit)
+  let macTempDir: string;
+  let macOutputYamlPath: string;
+
+  beforeAll(() => {
+    macTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-p15p05-mac-'));
+    const releaseDir = join(macTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    // FIXTURE FILENAMES KEEP SPACES — this mirrors what electron-builder
+    // produces locally (productName = "Spine Texture Manager"). The test
+    // asserts the synthesizer rewrites the spaced filenames to dotted urls.
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.dmg'), randomBytes(4096));
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip'), randomBytes(4096));
+    writeFileSync(
+      join(macTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+    macOutputYamlPath = join(releaseDir, 'latest-mac.yml');
+    execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: macTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (macTempDir && existsSync(macTempDir)) rmSync(macTempDir, { recursive: true, force: true });
+  });
+
+  test('mac files[0].url (.zip) is GitHub-canonical dotted form with NO spaces', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    const doc = yaml.load(readFileSync(macOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[0].url).toBe('Spine.Texture.Manager-9.9.9-arm64.zip');
+    expect(files[0].url as string).not.toMatch(/ /);
+  });
+
+  test('mac files[1].url (.dmg) is GitHub-canonical dotted form with NO spaces', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    const doc = yaml.load(readFileSync(macOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[1].url).toBe('Spine.Texture.Manager-9.9.9-arm64.dmg');
+    expect(files[1].url as string).not.toMatch(/ /);
+  });
+
+  test('mac top-level path mirrors files[0].url AND contains no spaces', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    const doc = yaml.load(readFileSync(macOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(doc.path).toBe(files[0].url);
+    expect(doc.path as string).not.toMatch(/ /);
+    expect(doc.path).toBe('Spine.Texture.Manager-9.9.9-arm64.zip');
+  });
+
+  // -- win fixture (single-installer; spaced local filename; dotted url)
+  let winTempDir: string;
+  let winOutputYamlPath: string;
+
+  beforeAll(() => {
+    winTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-p15p05-win-'));
+    const releaseDir = join(winTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-x64.exe'), randomBytes(4096));
+    writeFileSync(
+      join(winTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+    winOutputYamlPath = join(releaseDir, 'latest.yml');
+    execFileSync('node', [SCRIPT_PATH, '--platform=win'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: winTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (winTempDir && existsSync(winTempDir)) rmSync(winTempDir, { recursive: true, force: true });
+  });
+
+  test('win files[0].url (.exe) is GitHub-canonical dotted form with NO spaces', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    const doc = yaml.load(readFileSync(winOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[0].url).toBe('Spine.Texture.Manager-9.9.9-x64.exe');
+    expect(files[0].url as string).not.toMatch(/ /);
+    expect(doc.path as string).not.toMatch(/ /);
+  });
+
+  // -- linux fixture (single-installer; spaced local filename; dotted url)
+  let linuxTempDir: string;
+  let linuxOutputYamlPath: string;
+
+  beforeAll(() => {
+    linuxTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-p15p05-linux-'));
+    const releaseDir = join(linuxTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-x86_64.AppImage'), randomBytes(4096));
+    writeFileSync(
+      join(linuxTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+    linuxOutputYamlPath = join(releaseDir, 'latest-linux.yml');
+    execFileSync('node', [SCRIPT_PATH, '--platform=linux'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: linuxTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (linuxTempDir && existsSync(linuxTempDir)) rmSync(linuxTempDir, { recursive: true, force: true });
+  });
+
+  test('linux files[0].url (.AppImage) is GitHub-canonical dotted form with NO spaces', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    const doc = yaml.load(readFileSync(linuxOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[0].url).toBe('Spine.Texture.Manager-9.9.9-x86_64.AppImage');
+    expect(files[0].url as string).not.toMatch(/ /);
+    expect(doc.path as string).not.toMatch(/ /);
+  });
+
+  test('universal regex invariant — every files[].url on every platform matches GitHub-canonical shape', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    //
+    // Asserts every emitted files[].url:
+    //   1. contains NO literal spaces
+    //   2. matches /^[A-Za-z0-9.+/_=-]+\.(zip|dmg|exe|AppImage)$/ — the conservative
+    //      character set of every legitimate installer filename across our 3 platforms.
+    //
+    // Iterates all 3 platforms' parsed YAML to lock the invariant universally.
+    const yamlShapeRegex = /^[A-Za-z0-9.+/_=-]+\.(zip|dmg|exe|AppImage)$/;
+    const allYamls = [macOutputYamlPath, winOutputYamlPath, linuxOutputYamlPath];
+    for (const ymlPath of allYamls) {
+      const doc = yaml.load(readFileSync(ymlPath, 'utf8')) as Record<string, unknown>;
+      const files = doc.files as Array<Record<string, unknown>>;
+      for (const f of files) {
+        const url = f.url as string;
+        expect(url).not.toMatch(/ /);
+        expect(url).toMatch(yamlShapeRegex);
+      }
+      // top-level path mirrors files[0].url; same invariant.
+      expect(doc.path as string).not.toMatch(/ /);
+      expect(doc.path as string).toMatch(yamlShapeRegex);
+    }
+  });
+
+  // -- multi-space negative test fixture (TWO consecutive spaces in source
+  //    → TWO consecutive dots in url; deterministic 1:1 substitution NOT
+  //    multi-space-collapse)
+  let multiSpaceTempDir: string;
+  let multiSpaceOutputYamlPath: string;
+
+  beforeAll(() => {
+    multiSpaceTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-p15p05-multi-'));
+    const releaseDir = join(multiSpaceTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    // TWO consecutive spaces between each word — locks the deterministic 1:1
+    // per-char rewrite. A future maintainer using `.replace(/\s+/g, '.')`
+    // (multi-space-collapse) would produce 'Multi.Space.Name-...' and fail this
+    // assertion. GitHub's actual rename behavior is per-character.
+    writeFileSync(join(releaseDir, 'Multi  Space  Name-9.9.9-arm64.dmg'), randomBytes(4096));
+    writeFileSync(join(releaseDir, 'Multi  Space  Name-9.9.9-arm64.zip'), randomBytes(4096));
+    writeFileSync(
+      join(multiSpaceTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+    multiSpaceOutputYamlPath = join(releaseDir, 'latest-mac.yml');
+    execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: multiSpaceTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (multiSpaceTempDir && existsSync(multiSpaceTempDir)) rmSync(multiSpaceTempDir, { recursive: true, force: true });
+  });
+
+  test('multi-space negative test — deterministic 1:1 per-char rewrite (NOT multi-space-collapse)', () => {
+    // D-15-LIVE-1 regression guard — do not delete without re-architecting the URL contract.
+    //
+    // Source filename has TWO consecutive spaces between each word; GitHub's
+    // actual rename produces TWO consecutive dots (verified empirically against
+    // v1.1.2's published assets). A maintainer who uses `.replace(/\s+/g, '.')`
+    // (collapsing whitespace) would produce 'Multi.Space.Name-...' (single dots)
+    // and diverge from GitHub's behavior — re-introducing the 3-name mismatch class.
+    const doc = yaml.load(readFileSync(multiSpaceOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    // .zip first per Phase 15 D-02 ordering
+    expect(files[0].url).toBe('Multi..Space..Name-9.9.9-arm64.zip');
+    expect(files[1].url).toBe('Multi..Space..Name-9.9.9-arm64.dmg');
+    // No spaces preserved anywhere in the rewrite.
+    expect(files[0].url as string).not.toMatch(/ /);
+    expect(files[1].url as string).not.toMatch(/ /);
+    // top-level path mirrors files[0].url
+    expect(doc.path).toBe('Multi..Space..Name-9.9.9-arm64.zip');
   });
 });
