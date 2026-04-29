@@ -168,7 +168,7 @@ Plans:
   4. On Windows, when an update is available, the UpdateDialog reliably opens with a working **Download** button (or the windows-fallback "Open Release Page" button if the auto-install path is intentionally disabled per the existing `SPIKE_PASSED` policy at `src/main/auto-update.ts:92`). Variant selection is deterministic and matches the platform contract from Phase 12 D-04 (UPDFIX-02).
   5. After dismissing a Windows update notification ("Later"), clicking `Help → Check for Updates` again while the same newer version is still published re-opens the notification (does NOT permanently suppress) — `dismissedUpdateVersion` semantics from Phase 12 D-08 are preserved for *subsequent startup checks only*, not for *manual on-demand checks* (UPDFIX-02).
 
-**Plans**: 5 plans
+**Plans**: 6 plans
 
 Plans:
 - [x] 14-01-PLAN.md — Main-side: trigger-aware suppression (D-05/D-08), sticky pending-update slot (D-03), structured logging (D-09/D-10), `update:request-pending` IPC handler, SHELL allow-list re-verification (D-12) (Wave 1, autonomous) — complete 2026-04-29
@@ -176,6 +176,7 @@ Plans:
 - [x] 14-03-PLAN.md — Renderer lift: move 5 update subscriptions + `updateState` + `manualCheckPendingRef` + `<UpdateDialog>` from AppShell to App.tsx; add late-mount sticky-slot fetch (D-01..D-04) (Wave 2, autonomous) — complete 2026-04-29
 - [x] 14-04-PLAN.md — Vitest specs: `tests/main/auto-update-dismissal.spec.ts` (asymmetric rule + sticky slot, 10+ assertions) + `tests/renderer/app-update-subscriptions.spec.tsx` (App.tsx subscription lift + late-mount hydration, 7+ assertions) (Wave 3, type: tdd) — complete 2026-04-29
 - [x] 14-05-PLAN.md — Integration spec: `tests/integration/auto-update-shell-allow-list.spec.ts` URL-consistency gate across App.tsx + ipc.ts SHELL_OPEN_EXTERNAL_ALLOWED + auto-update.ts GITHUB_RELEASES_INDEX_URL + whole-suite regression check (Wave 3, autonomous) — complete 2026-04-29
+- [x] 14-06-PLAN.md — Gap closure for WR-01 / G-1: wire `clearPendingUpdateInfo()` into `update:download` + `update:dismiss` IPC handlers + 2 regression assertions ((14-l)/(14-m)) in `tests/main/auto-update-dismissal.spec.ts` (gap_closure, autonomous) — complete 2026-04-29 (commits `01ce40f` + `6aaee2f`)
 
 **UI hint**: yes
 
