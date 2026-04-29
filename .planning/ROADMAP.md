@@ -243,3 +243,16 @@ Out-of-scope for v1.1.2 specifically (carried into v1.2+ or separately tracked):
 - New auto-update features (delta updates, staged rollouts, custom update channels).
 - Code-signing posture changes (Apple Developer ID, Windows EV cert).
 - UI improvements outside the UpdateDialog state machine.
+
+## Backlog
+
+### Phase 999.1: App quit broken — Cmd+Q and AppleScript do not terminate (BACKLOG)
+
+**Goal:** [Captured for future planning]
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+**Context:** Observed in v1.1.1 packaged macOS build (2026-04-29) during Phase 15 UPDFIX-01 UAT. Cmd+Q from the menu and `osascript -e 'tell application "Spine Texture Manager" to quit'` both do nothing — the app keeps running. Only clicking the window-close (X) button or Force Quit terminates it. Likely missing `role: 'quit'` wiring on the menu item, or a `before-quit` handler swallowing the event without re-firing `app.quit()`. Out of scope for Phase 15 (UPDFIX-01); capture for follow-up.
