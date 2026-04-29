@@ -616,7 +616,7 @@ CLAUDE.md establishes the following Phase-15-relevant directives:
 
 **Empty rows mean:** all other claims in this research were verified by direct source-code reading or cited from authoritative docs.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 None remaining at the locked-decision level. All 6 questions in the original brief are answered with HIGH or HIGH/MEDIUM confidence per source-code verification. The 4-plan structure is recommended; planner has discretion on the optional 5th-plan split if Plan 15-04 grows beyond 12 tasks.
 
