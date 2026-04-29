@@ -151,3 +151,105 @@ describe('emit-latest-yml.mjs (D-10) — error handling', () => {
     }).toThrow();
   });
 });
+
+describe('emit-latest-yml.mjs (Phase 15 D-04) — dual-installer mac case', () => {
+  let dualTempDir: string;
+  let dualOutputYamlPath: string;
+  let dualZipSha512: string;
+  let dualDmgSha512: string;
+  let dualZipSize: number;
+  let dualDmgSize: number;
+
+  beforeAll(() => {
+    dualTempDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-dual-'));
+    const releaseDir = join(dualTempDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+
+    // Two independent random buffers — distinct sha512 confirms files[0] vs files[1] don't collapse.
+    const dmgBuf = randomBytes(4096);
+    const zipBuf = randomBytes(4096);
+    const dmgPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.dmg');
+    const zipPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip');
+    // Phase 15 RESEARCH §A3 regression gate: also write a .zip.blockmap to assert
+    // the end-anchored regex `/\.zip$/i` excludes it. Smaller buffer (2048 vs 4096)
+    // makes it visually obvious this is NOT the real .zip if a maintainer ever
+    // weakens the regex (e.g. drops the `$` anchor).
+    const blockmapPath = join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.zip.blockmap');
+    writeFileSync(dmgPath, dmgBuf);
+    writeFileSync(zipPath, zipBuf);
+    writeFileSync(blockmapPath, randomBytes(2048));
+    dualDmgSha512 = createHash('sha512').update(dmgBuf).digest('base64');
+    dualZipSha512 = createHash('sha512').update(zipBuf).digest('base64');
+    dualDmgSize = statSync(dmgPath).size;
+    dualZipSize = statSync(zipPath).size;
+
+    writeFileSync(
+      join(dualTempDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', version: '9.9.9-test' }, null, 2),
+      'utf8',
+    );
+
+    dualOutputYamlPath = join(releaseDir, 'latest-mac.yml');
+
+    execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+      env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: dualTempDir },
+      stdio: 'pipe',
+    });
+  });
+
+  afterAll(() => {
+    if (dualTempDir && existsSync(dualTempDir)) rmSync(dualTempDir, { recursive: true, force: true });
+  });
+
+  test('files[] has 2 entries with .zip first AND excludes .zip.blockmap', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files.length).toBe(2);
+    expect(files[0].url).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+    expect(files[1].url).toBe('Spine Texture Manager-9.9.9-arm64.dmg');
+    // Phase 15 RESEARCH §A3 regression gate: the end-anchored regex `/\.zip$/i`
+    // must NOT match `.zip.blockmap`. The fixture above writes one; this assertion
+    // locks the anchor as a regression gate (a future maintainer dropping the `$`
+    // would surface a 3rd entry here and fail the test).
+    expect(files.every((f) => !(f.url as string).includes('.blockmap'))).toBe(true);
+  });
+
+  test('legacy top-level path + sha512 mirror files[0] (the .zip)', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(doc.path).toBe(files[0].url);
+    expect(doc.sha512).toBe(files[0].sha512);
+    expect(doc.path).toBe('Spine Texture Manager-9.9.9-arm64.zip');
+  });
+
+  test('both files[] entries have valid base64 sha512 + correct size', () => {
+    const doc = yaml.load(readFileSync(dualOutputYamlPath, 'utf8')) as Record<string, unknown>;
+    const files = doc.files as Array<Record<string, unknown>>;
+    expect(files[0].sha512).toBe(dualZipSha512);
+    expect(files[1].sha512).toBe(dualDmgSha512);
+    expect(files[0].sha512).not.toBe(files[1].sha512);
+    expect(files[0].sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
+    expect(files[1].sha512).toMatch(/^[A-Za-z0-9+/=]{64,}$/);
+    expect(files[0].size).toBe(dualZipSize);
+    expect(files[1].size).toBe(dualDmgSize);
+    expect(files[0].size).toBeGreaterThan(0);
+    expect(files[1].size).toBeGreaterThan(0);
+  });
+});
+
+describe('emit-latest-yml.mjs (Phase 15 D-04) — fail-fast when .zip missing on mac', () => {
+  test('exits non-zero when release/ has only .dmg and no .zip', () => {
+    const onlyDmgDir = mkdtempSync(join(tmpdir(), 'emit-latest-yml-onlydmg-'));
+    const releaseDir = join(onlyDmgDir, 'release');
+    mkdirSync(releaseDir, { recursive: true });
+    writeFileSync(join(releaseDir, 'Spine Texture Manager-9.9.9-arm64.dmg'), randomBytes(4096));
+    writeFileSync(join(onlyDmgDir, 'package.json'), JSON.stringify({ name: 'f', version: '9.9.9' }), 'utf8');
+    expect(() => {
+      execFileSync('node', [SCRIPT_PATH, '--platform=mac'], {
+        env: { ...process.env, EMIT_LATEST_YML_REPO_ROOT_OVERRIDE: onlyDmgDir },
+        stdio: 'pipe',
+      });
+    }).toThrow();
+    rmSync(onlyDmgDir, { recursive: true, force: true });
+  });
+});
