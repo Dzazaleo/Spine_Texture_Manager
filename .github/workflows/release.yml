@@ -75,6 +75,7 @@ jobs:
           name: installer-mac
           path: |
             release/*.dmg
+            release/*.zip
             release/latest-mac.yml
           if-no-files-found: error
           retention-days: 14
@@ -158,6 +159,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             assets/*.dmg
+            assets/*.zip
             assets/*.exe
             assets/*.AppImage
             assets/latest.yml
