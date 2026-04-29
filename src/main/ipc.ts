@@ -682,13 +682,39 @@ export function registerIpcHandlers(): void {
     return checkUpdate(true);
   });
   ipcMain.handle('update:download', async () => {
-    const { downloadUpdate } = await import('./auto-update.js');
+    // Phase 14 Plan 06 — clear the sticky 'update-available' slot BEFORE delegating
+    // to electron-updater's downloadUpdate. The user just clicked "Download +
+    // Restart" so the dialog will close on its next state transition; clearing the
+    // slot here ensures any in-session remount of the renderer (HMR / StrictMode
+    // dev cycle / future "Reset session" affordance / future vitest unmount path)
+    // does NOT re-hydrate updateState from a payload the user has already actioned.
+    // Closes Phase 14 Plan 03 must-have truth #11 (defense-in-depth slot clear)
+    // and gap WR-01 from 14-VERIFICATION.md. Per CONTEXT.md D-Discretion-2 the
+    // slot is in-memory only — no disk write to flush.
+    const { downloadUpdate, clearPendingUpdateInfo } = await import('./auto-update.js');
+    clearPendingUpdateInfo();
     return downloadUpdate();
   });
   ipcMain.on('update:dismiss', (_evt, version) => {
     if (typeof version !== 'string' || version.length === 0) return;
     void (async () => {
-      const { dismissUpdate } = await import('./auto-update.js');
+      // Phase 14 Plan 06 — clear the sticky 'update-available' slot BEFORE delegating
+      // to dismissUpdate (which persists `dismissedUpdateVersion` to disk). The user
+      // just clicked "Later" so the dialog will close immediately; clearing the slot
+      // here ensures any in-session remount of the renderer does NOT re-hydrate
+      // updateState from a payload the user has already actioned. Order matters:
+      // clearPendingUpdateInfo first (synchronous module-state mutation, cannot
+      // throw), then await dismissUpdate (async disk write that COULD throw — the
+      // existing dismissUpdate body catches its own errors at auto-update.ts:236
+      // and logs, so even on persistence failure the in-memory slot is correctly
+      // empty). Closes Phase 14 Plan 03 must-have truth #11 + gap WR-01.
+      //
+      // The trust-boundary guard on the previous line (typeof string + non-empty)
+      // STAYS in place — malformed inbound `version` short-circuits BEFORE both
+      // side-effects, so the slot is NOT cleared on garbage input. Mirrors the
+      // existing safety posture (no mutation on bad inbound payload).
+      const { dismissUpdate, clearPendingUpdateInfo } = await import('./auto-update.js');
+      clearPendingUpdateInfo();
       await dismissUpdate(version);
     })();
   });
