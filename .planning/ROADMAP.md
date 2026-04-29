@@ -207,7 +207,7 @@ Plans:
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
 | 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
-| 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 5/5 | Complete    | 2026-04-29 |
+| 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 6/6 | Complete (verified — live-OS UAT deferred to Phase 15 per 14-HUMAN-UAT.md) | 2026-04-29 |
 | 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 0/TBD | Not started | — |
 
 ## Deferred (post-v1.1)

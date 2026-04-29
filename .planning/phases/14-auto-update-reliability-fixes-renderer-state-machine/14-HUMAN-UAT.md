@@ -3,12 +3,26 @@ status: partial
 phase: 14-auto-update-reliability-fixes-renderer-state-machine
 source: [14-VERIFICATION.md]
 started: 2026-04-29T12:11:00Z
-updated: 2026-04-29T12:11:00Z
+updated: 2026-04-29T13:30:00Z
+deferred_to: phase-15-build-feed-shape-fix-v1.1.2-release
+deferral_reason: |
+  Phase 14 is code-only by ROADMAP contract. All 6 tests below require packaged
+  macOS + Windows builds against a real GitHub Releases feed — Phase 15 produces
+  those builds and is the natural verification surface.
+
+  /gsd-verify-work 14 invoked 2026-04-29; user chose option "skip UAT, auto-transition"
+  on the basis that (a) 5/5 code-level truths are verified in 14-VERIFICATION.md,
+  (b) the WR-01 / G-1 sticky-slot gap was closed by Plan 14-06 at the code level,
+  and (c) the 6 live-OS tests below are by-design Phase 15 work, not Phase 14.
+
+  This file rides forward into Phase 15 as the live-build UAT contract for
+  UPDFIX-02 / UPDFIX-03 / UPDFIX-04 — do NOT re-run /gsd-verify-work 14;
+  instead, run /gsd-verify-work 15 once Phase 15 ships packaged installers.
 ---
 
 ## Current Test
 
-[awaiting human testing — packaged builds land in Phase 15]
+[deferred to Phase 15 — 6 live-OS tests require packaged builds; see deferral_reason in frontmatter]
 
 ## Tests
 
