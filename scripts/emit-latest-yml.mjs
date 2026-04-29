@@ -34,6 +34,25 @@
  *   1 — installer missing in release/, OR multiple installers match (force
  *       single-installer commitment), OR SHA-512/size compute failed
  *   2 — bad argv (missing --platform=, unknown platform value)
+ *
+ * Phase 15 D-03 extension (2026-04-29):
+ * - mac platform now auto-detects BOTH .dmg AND .zip in release/.
+ * - The .zip is required by electron-updater 6.x's MacUpdater for the
+ *   Squirrel.Mac swap on Download & Restart (root cause of the
+ *   `ZIP file not provided` / `ERR_UPDATER_ZIP_FILE_NOT_FOUND` error
+ *   observed live on v1.1.1 macOS clients).
+ * - latest-mac.yml emits a 2-entry files[] with .zip first per D-02; the
+ *   legacy top-level path/sha512 fields mirror files[0] for older
+ *   electron-updater clients (defensive forward-compat).
+ * - win + linux platforms remain single-installer single-entry (byte-identical
+ *   to v1.1.0 / v1.1.1 feed shape — DIST-* / CI-* / REL-* contracts preserved).
+ * - The end-anchored regex `/\.zip$/i` correctly excludes the
+ *   `.zip.blockmap` side-effect that electron-builder 26.x produces
+ *   unconditionally on mac/zip target (no opt-out flag exists per
+ *   app-builder-lib/out/macPackager.js:86).
+ * - Phase 15 EXTENDS the 12.1-D-10 publish-race-fix architecture above;
+ *   does NOT revert it. The synthesizer remains the single source of feed
+ *   emission; electron-builder.yml `publish: null` posture is preserved.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync, readdirSync, renameSync, writeFileSync, existsSync } from 'node:fs';
