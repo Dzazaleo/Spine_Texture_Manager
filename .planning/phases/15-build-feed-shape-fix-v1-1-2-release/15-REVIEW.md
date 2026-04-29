@@ -1,8 +1,9 @@
 ---
 phase: 15-build-feed-shape-fix-v1-1-2-release
 reviewed: 2026-04-29T00:00:00Z
+reviewed_supplement: 2026-04-29T22:30:00Z
 depth: standard
-files_reviewed: 6
+files_reviewed: 9
 files_reviewed_list:
   - electron-builder.yml
   - package.json
@@ -10,11 +11,14 @@ files_reviewed_list:
   - tests/integration/emit-latest-yml.spec.ts
   - .github/workflows/release.yml
   - tests/integration/build-scripts.spec.ts
+  - scripts/emit-latest-yml.mjs (Plan 15-05 sanitizeAssetUrl helper + 2 call sites)
+  - tests/integration/emit-latest-yml.spec.ts (Plan 15-05 new describe block + updated existing assertions)
+  - tests/integration/build-scripts.spec.ts (Plan 15-06 version bump assertion 1.1.2 → 1.1.3)
 findings:
   critical: 0
   warning: 2
-  info: 4
-  total: 6
+  info: 7
+  total: 9
 status: issues_found
 ---
 
@@ -22,7 +26,7 @@ status: issues_found
 
 **Reviewed:** 2026-04-29
 **Depth:** standard
-**Files Reviewed:** 6
+**Files Reviewed:** 6 (initial) + 3 (hotfix supplement) = 9
 **Status:** issues_found
 
 ## Summary
@@ -126,3 +130,158 @@ This requires threading `platform` into `findInstallers` (currently called from 
 _Reviewed: 2026-04-29_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+---
+
+## Hotfix Supplement — Plans 15-05 + 15-06 (v1.1.3)
+
+**Reviewed:** 2026-04-29T22:30:00Z
+**Depth:** standard
+**Files reviewed (this supplement):** 3
+- `scripts/emit-latest-yml.mjs` (sanitizeAssetUrl helper + 2 call sites — Plan 15-05)
+- `tests/integration/emit-latest-yml.spec.ts` (new "Phase 15 Plan 05" describe block + 5 updated existing assertions — Plan 15-05)
+- `tests/integration/build-scripts.spec.ts` (1-line bump 1.1.2 → 1.1.3 — Plan 15-06 commit `95b76eb`)
+
+**Out-of-scope (verified, no findings):**
+- `package.json` (single-line `version` bump)
+- `package-lock.json` (npm-managed dual `version` field bump)
+
+### Summary
+
+Plan 15-05 lands the v1.1.3 hotfix for D-15-LIVE-1: a `sanitizeAssetUrl()` synthesizer helper that rewrites local-filename spaces to dots in emitted `files[].url` and the legacy top-level `path:` mirror, so the published `latest-mac.yml` agrees byte-for-byte with GitHub's auto-renamed asset names. The fix is a single-line transformation `name.replace(/ /g, '.')` with extensive (35-line) JSDoc rationale. Plan 15-06 ships the v1.1.3 release; the only code-side change in Plan 15-06's surface is a 1-line bump of a hardcoded version assertion in `build-scripts.spec.ts`.
+
+The hotfix code surface is tight, well-documented, and the test coverage (7 new assertions across 3 platforms + a multi-space negative test) is genuinely load-bearing. Empirical closure was verified live (Test 7-Retry, 22:00Z) — v1.1.1 → v1.1.3 .zip download succeeded byte-exact at the dotted URL. There are no critical issues. Findings below are all info-level and concern documentation precision, defensive programming opportunities, and structural test-coverage suggestions for future hardening.
+
+### Info
+
+### IN-05: `sanitizeAssetUrl()` only handles U+0020 (literal SPACE), not other Unicode whitespace forms
+
+**File:** `scripts/emit-latest-yml.mjs:175-177`
+**Issue:** The implementation `localFilename.replace(/ /g, '.')` matches U+0020 SPACE only. It does NOT match:
+- U+00A0 NO-BREAK SPACE
+- U+2009 THIN SPACE
+- U+202F NARROW NO-BREAK SPACE
+- U+3000 IDEOGRAPHIC SPACE
+- U+0009 TAB / U+000A LF / U+000D CR
+- Other Unicode `\p{Zs}` category characters
+
+This is **correct for the current use case** — `electron-builder`'s `productName` is `"Spine Texture Manager"` which contains only ASCII U+0020 — but it is brittle to future product-name changes (e.g., trademark localization, or a non-ASCII rebrand). The JSDoc at line 160-166 explicitly justifies the choice ("GitHub's rename is a deterministic 1:1 substitution per character") which is correct for ASCII space; whether GitHub also normalizes other Unicode whitespace forms identically is unverified by this change set.
+
+**Fix (optional, Plan 15-05+):** Add a guard or expand the rationale. One option: assert in the helper (or a sibling test) that `localFilename` contains no `[\s ]` *other than* U+0020, failing loudly at synthesizer time if a future productName change introduces exotic whitespace. Trivial:
+
+```js
+function sanitizeAssetUrl(localFilename) {
+  // Defensive: GitHub's rename behavior is empirically verified for U+0020
+  // only. Other Unicode whitespace would silently pass through and re-introduce
+  // the 3-name mismatch class. Guard surfaces the inconsistency at synth time.
+  if (/[^\S  ]| /.test(localFilename)) {
+    throw new Error(`sanitizeAssetUrl: filename contains non-U+0020 whitespace: ${JSON.stringify(localFilename)}. GitHub rename behavior is only verified for ASCII space.`);
+  }
+  return localFilename.replace(/ /g, '.');
+}
+```
+
+Status: Recommended for v1.2+ hardening. Not blocking v1.1.3.
+
+### IN-06: `sanitizeAssetUrl()` has no defense against null/undefined/non-string input
+
+**File:** `scripts/emit-latest-yml.mjs:175-177`
+**Issue:** `localFilename.replace(...)` throws `TypeError: Cannot read properties of null/undefined (reading 'replace')` if `localFilename` is null or undefined. It throws `TypeError: localFilename.replace is not a function` if it's a number/object/array. The caller chain — `findInstallers()` returns `string[]` from `readdirSync()`, mapped via `installerNames.map((name) => …)` — guarantees `name` is always a non-empty string. So the guard is unreachable in practice.
+
+This is **acceptable** given the internal-only use; flagged for completeness because the JSDoc declares `@param {string}` but does not assert it, and a future refactor that exposes the helper to a different code path (e.g., a CLI entry) could surface the gap.
+
+**Fix (optional):** None required. If exposing the helper externally in the future, add `if (typeof localFilename !== 'string') throw new TypeError(...)`.
+
+### IN-07: Test fixture `Multi  Space  Name` is not exercised by the universal regex assertion
+
+**File:** `tests/integration/emit-latest-yml.spec.ts:447-470`
+**Issue:** The "universal regex invariant" test at line 447 iterates `[macOutputYamlPath, winOutputYamlPath, linuxOutputYamlPath]` — the three "real productName" fixtures. The multi-space negative-test fixture (`multiSpaceOutputYamlPath`) is NOT in this iteration. So the universal regex `^[A-Za-z0-9.+/_=-]+\.(zip|dmg|exe|AppImage)$` is NEVER applied to the `Multi..Space..Name-9.9.9-arm64.zip` output (which would still pass — `+` quantifier allows consecutive dots — but that's never confirmed).
+
+This is fine for D-15-LIVE-1's regression scope (the multi-space test enforces 1:1-ness, the regex test enforces shape; they're orthogonal). Surface it because a maintainer skimming the regex test might assume "every emit goes through this gate" — and it doesn't.
+
+**Fix (optional):** Either add `multiSpaceOutputYamlPath` to the `allYamls` array in the universal regex test (would still pass; locks behavior universally), or add an explicit comment noting the multi-space fixture is intentionally exempt because it tests the helper's transformation contract, not the output shape contract.
+
+### IN-08: `tests/integration/build-scripts.spec.ts:80` hardcodes `'1.1.3'` — coupling test maintenance to every release
+
+**File:** `tests/integration/build-scripts.spec.ts:78-81`
+**Issue:** The assertion `expect(pkg.version).toBe('1.1.3')` was bumped from `'1.1.2'` (commit `95b76eb`, Plan 15-06) and was previously bumped from `'1.1.1'` to `'1.1.2'` in Plan 15-01. This is the SECOND coupling between a release-engineering version-bump and a test-update; it will be the THIRD on v1.1.4, the FOURTH on v1.1.5, and so on. Every future hotfix or feature release must include this 1-line spec edit or CI will fail.
+
+The assertion's intent is unclear: it does not catch a real defect (the `tag-version-guard` in `release.yml:43-54` already enforces `TAG_VERSION === PKG_VERSION`). It also cannot detect a "stale package.json" bug because the `pkg.version` read is from the same `package.json` that any developer would be editing. So the assertion is purely a tautology — it asserts that the version assertion matches the version field. It adds no defensive value beyond the tag-version-guard.
+
+**Fix (recommended for follow-up, NOT a blocker for v1.1.3):** Either:
+1. **Remove the assertion entirely** — the `tag-version-guard` in `.github/workflows/release.yml` is the load-bearing check; the spec assertion is redundant.
+2. **Replace with a structural check** that does NOT pin a literal version, e.g.:
+   ```ts
+   test('package.json version is a valid semver', () => {
+     const pkg = JSON.parse(read('package.json'));
+     expect(pkg.version).toMatch(/^\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$/);
+   });
+   ```
+   This catches `version: "TBD"` / `version: undefined` / typos without coupling to the current version literal.
+3. Document the assertion as intentional and make the bump-in-lockstep coupling explicit (e.g., move it into the version-bump runbook checklist).
+
+Process gap: Plan 15-01 bumped the version to 1.1.2 and updated this assertion in lockstep; Plan 15-06 had to do the same again. Each future version-bump plan inherits this coupling. A structural fix here removes the recurring maintenance burden.
+
+### IN-09: `Multi  Space  Name` fixture's package.json declares `version: '9.9.9-test'` but the fixture filename embeds `9.9.9` (without `-test`)
+
+**File:** `tests/integration/emit-latest-yml.spec.ts:486-490`
+**Issue:** The temp `package.json` written at line 488-491 declares `version: '9.9.9-test'`. The fixture installer filenames at line 486-487 are `Multi  Space  Name-9.9.9-arm64.dmg/.zip` (versioning embeds `9.9.9`, not `9.9.9-test`). The synthesizer reads `pkg.version` from the temp package.json and writes it to the YAML's top-level `version` field, which then mismatches the version embedded in the file URLs.
+
+This **does not affect any assertion** in Plan 15-05's tests because the assertions only check `files[].url` and `doc.path`, not the relationship between `doc.version` and the URL's embedded version. Real production builds DO have `pkg.version` (e.g., `1.1.3`) match the version embedded in the filename (`...-1.1.3-arm64.zip`). So the fixture is a structurally valid test for the URL-rewrite contract but is internally inconsistent in a way real builds aren't.
+
+**Fix (optional):** Either (a) align the package.json version literal to `'9.9.9'` (drop `-test`) for this fixture only, or (b) align the filenames to embed `9.9.9-test`. Functionally cosmetic; flag because it's a small but real surprise for a maintainer cross-referencing the fixture.
+
+### IN-10: 4 `beforeAll` hooks in the same `describe` block silently order-coupled by vitest registration order
+
+**File:** `tests/integration/emit-latest-yml.spec.ts:329, 383, 417, 478`
+**Issue:** The `Phase 15 Plan 05` describe block has 4 separate `beforeAll` hooks (one per fixture: mac, win, linux, multi-space) and 4 separate `afterAll` hooks. Vitest runs `beforeAll` hooks in registration order (top-down), and each hook spawns a synthesizer subprocess + writes a temp dir. This works correctly today but has 3 subtle implications:
+
+1. If any one `beforeAll` throws (e.g., `execFileSync` failure on a CI runner with a broken Node binary), all subsequent tests in the describe fail with cryptic "fixture not found" errors rather than a clear synth-failure error.
+2. The 4 hooks share no setup state (each scopes its own `tempDir`) so they're independent; the arrangement is purely organizational. A future refactor could split the describe into 4 sub-describes (one per platform) with cleaner failure isolation.
+3. The 4 hooks each spawn a synthesizer subprocess sequentially — this adds ~4 × N ms to test startup. Not a perf concern at v=4 but noteworthy.
+
+**Fix (optional):** Refactor into 4 nested `describe` blocks, each with its own setup/teardown — improves failure-isolation and matches the existing pattern (see "Phase 15 D-04 — dual-installer mac case" describe at line 186). Not a v1.1.3 blocker.
+
+### IN-11: JSDoc `@returns` description in `sanitizeAssetUrl` does not specify what happens to non-space characters
+
+**File:** `scripts/emit-latest-yml.mjs:173`
+**Issue:** The JSDoc `@returns` line says `GitHub-canonical form (spaces replaced with dots; all other chars preserved)`. The "all other chars preserved" clause is true but glosses over a subtle case: the helper does NOT validate that the input does not already contain dots in unexpected positions (e.g., `Spine.Texture.Manager-1.1.3-arm64.zip` as an input — already canonicalized — would idempotently return the same string, which is correct, but the JSDoc doesn't make idempotence explicit).
+
+**Fix (optional):** Add one more line to the JSDoc:
+
+```
+ * Idempotent: an already-canonical filename (no spaces) is returned unchanged.
+```
+
+This is genuinely useful documentation because a maintainer might wonder "what if upstream pre-canonicalizes" — the answer is "no harm done."
+
+---
+
+### Notes on the supplement's threat-model and out-of-scope concerns
+
+**Threat model coverage (Plan 15-05 §<threat_model>):**
+- T-15-05-01 (Tampering, deterministic 1:1 helper): Implementation matches design verbatim; vitest gate locks it. ✓
+- T-15-05-02 (Information disclosure, sha512+size from local file): Implementation reads bytes from `p = join(RELEASE_DIR, name)` — local spaced filename — at lines 197-198, intrinsic to file content; correct. ✓
+- T-15-05-03 (DoS via CI, 3-OS test matrix): The new describe block is part of the existing vitest suite which runs on `ubuntu-latest`/`windows-2022`/`macos-14` per release.yml. ✓
+- T-15-05-04 (Elevation, npm version side-effects): Verified post-hoc the version bump touched only `package.json` + `package-lock.json` (commit `95b76eb` and earlier). ✓
+
+**Threat-model gap (informational, NOT a finding):** The model does not address the *forward-compat* concern flagged in the prompt's Review Focus #5: if `electron-builder` or its productName template ever changes its space-substitution rules, `sanitizeAssetUrl()` would silently emit the wrong URL. The no-spaces invariant test catches the case where spaces leak through; it does NOT catch the case where electron-builder changes to *another* character (e.g., underscore) and the helper becomes a no-op. This is genuinely informational — the only mitigation is the live UAT Test 7 path, which is in place and verified. No action.
+
+**Test coverage gaps NOT flagged as findings (because out-of-realistic-scope):**
+- Empty string input: `''.replace(/ /g, '.') === ''` — trivially correct.
+- URL-special chars (`#`, `?`, `&`, `+`): Not in productName "Spine Texture Manager"; the universal regex `[A-Za-z0-9.+/_=-]` permits `+`, `/`, `_`, `=`, `-` but NOT `#`/`?`/`&`/`%`/parens — so future productName changes containing those would fail the universal regex assertion at line 456. This is a defense-in-depth gate, not a gap.
+- Very long filenames: No length-dependent logic; not exercised.
+- Path-separator-looking chars (`/` or `\`): The universal regex *does* permit `/` (matches `[A-Za-z0-9.+/_=-]`). If a future productName contained a literal `/`, it would slip through. This is a real defense gap, but extremely contrived (electron-builder's `sanitize-filename` strips `/` before substitution, per the Plan 15-05 objective's Option B analysis). Not flagging.
+
+**Plan 15-06 code-side surface:** The 1-line bump of `pkg.version` assertion is the only code change; flagged in IN-08 above. Plan 15-06 is otherwise pure release-engineering (tag, push, publish, retry-Test-7) which has no code-review surface.
+
+**JSDoc quality:** The 35-line JSDoc on `sanitizeAssetUrl()` is genuinely excellent — it documents the WHY (3-name mismatch with concrete examples), the WHY-NOT (alternative transformations like `\s+` collapse, encodeURIComponent, NFD normalize), and the invariants (sha512+size compute path unchanged). Future maintainers will understand the load-bearing nature of this helper without needing to re-read Plan 15-05. No findings.
+
+**Inline call-site comment:** Lines 193-195 explain the dot-rewrite at the assignment with a pointer to D-15-LIVE-1. Good. No findings.
+
+---
+
+_Supplement reviewed: 2026-04-29T22:30:00Z_
+_Reviewer: Claude (gsd-code-reviewer)_
+_Depth: standard_
+_Supplement scope: Plans 15-05 (sanitizeAssetUrl + tests) + 15-06 (version-bump test assertion)_
