@@ -288,13 +288,14 @@ operator runbook (Leo, on this macOS host):
 
 ## Summary
 
-total: 7 (4 pre-tag + 3 post-publish)
+total: 8 (4 pre-tag + 3 post-publish + 1 v1.1.3 retry)
 passed: 0
+partial-pass: 1 (Test 7-Retry — UPDFIX-01 / D-15-LIVE-1 closed empirically; new defects D-15-LIVE-2 + D-15-LIVE-3 routed to backlog)
 issues: 0
-pending: 5 (Tests 1, 3 from pre-tag — see Operator notes; Test 7 from post-publish — see Test 7 operator runbook)
+pending: 4 (Tests 1, 3 from pre-tag — see Operator notes; Test 7 superseded by Test 7-Retry partial-pass)
 skipped: 0
 blocked: 2 (Tests 2, 4 — Windows host unavailable)
-deferred: 0 (Tests 5, 6, 7 scaffolded by Task 8; 5+6 marked blocked-no-resource; 7 marked pending human capture)
+deferred: 1 (v1.1.2 mac stranded user verification — operationally indistinguishable from fresh-install)
 
 ## v1.1.3 Hotfix Retry (Plan 15-06 — UPDFIX-01 retry post-D-15-LIVE-1 fix)
 
@@ -322,7 +323,92 @@ expected: Within ~3-5 seconds of launching the v1.1.1 app cold,
   re-prompt "Open Anyway" post-relaunch (RESEARCH §Risk #3 — expected
   for ad-hoc cert mismatch; NOT an UPDFIX-01 failure). After relaunch,
   Help → About reports `1.1.3` (NOT `1.1.1`).
-result: pending — see operator runbook below.
+result: partial-pass — 2026-04-29 (UPDFIX-01 / D-15-LIVE-1 EMPIRICALLY CLOSED at the URL/feed layer; new defect D-15-LIVE-2 discovered at the install/swap layer; new UX defect D-15-LIVE-3 discovered on the menu-gating layer; both routed to backlog per user decision — NOT a v1.1.4 hotfix)
+
+operator: Leo
+host: macOS (Sequoia, arm64)
+date: 2026-04-29
+setup: v1.1.1 fresh-installed from `gh release download v1.1.1 --pattern "*arm64.dmg"` per runbook step 1.
+
+round_1_startup_check:
+  observation: |
+    DevTools console open with "auto-update" filter applied. Waited 2+ minutes
+    after launch. Result: ZERO matches in console under both "auto-update" filter
+    AND empty-filter, all-levels-including-Verbose. Network tab also empty (no rows).
+  diagnosis: |
+    v1.1.1's auto-update.ts has only `console.error` statements (no `console.info`
+    on happy path). The `console.info` instrumentation we'd told operator to look
+    for was added in Phase 14 (v1.1.2/v1.1.3 only). Network tab in Electron only
+    captures renderer-process traffic; main-process `node:https` calls from
+    electron-updater don't appear there. SILENT SUCCESS IS THE EXPECTED BEHAVIOR
+    IN v1.1.1. Runbook expectation (steps 5-6) was wrong — it assumed v1.1.1
+    had the Phase 14 logging, which it does not.
+
+round_2_manual_check_help_check_for_updates:
+  observation: |
+    UpdateDialog auto-opened with full v1.1.3 release notes (Summary, "macOS
+    auto-update fix", "D-15-LIVE-1", v1.1.2-mac-stranded paragraph, stranded-rc
+    callout for rc1/rc2/rc3, INSTALL.md cross-link, version "1.1.3" — all visible).
+    Clicked "Download & Restart". Download progressed; button label flipped
+    "Download & Restart" → "Restart".
+  empirical_proof_of_updfix_01_closure: |
+    The .zip URL with the dotted form (`Spine.Texture.Manager-1.1.3-arm64.zip`)
+    returned 200 and electron-updater fetched the full 121,848,102 bytes
+    successfully. The exact request that returned 404 in v1.1.2 returns 200 in
+    v1.1.3. D-15-LIVE-1 IS EMPIRICALLY CLOSED AT THE URL/FEED LAYER.
+
+round_3_clicked_restart_NEW_DEFECT:
+  observation: |
+    App did NOT relaunch into v1.1.3. Error dialog appeared:
+      "Update check failed
+       Update check failed: Code signature at URL
+       file:///Users/leo/Library/Caches/com.spine.texture-manager.ShipIt/update.pNctXsE/Spine%20Texture%20Manager.app/
+       did not pass validation: code failed to satisfy specified code requirement(s)"
+    Force-quit, relaunched app — version still reads 1.1.1 (Help → About).
+    Repeated full sequence — same result on second attempt.
+  diagnosis: |
+    Squirrel.Mac downloaded and unpacked v1.1.3 successfully into
+    `~/Library/Caches/com.spine.texture-manager.ShipIt/update.pNctXsE/`, but
+    macOS code-signature validation rejected the swap. Both v1.1.1 and v1.1.3
+    are ad-hoc signed (no Apple Developer ID — project hasn't enrolled).
+    Ad-hoc builds generate fresh per-build code hashes, so v1.1.3's Designated
+    Requirement does not match v1.1.1's stored DR. Squirrel.Mac strict-validates
+    and aborts.
+  not_a_regression: |
+    THIS IS A NEW DEFECT, NOT A REGRESSION. Earlier auto-update attempts (rc1→rc2→rc3
+    channel-name bug; v1.1.0/v1.1.1→v1.1.2 URL bug) failed at earlier pipeline
+    stages so the code-sig check was never reached. v1.1.3 is the first version
+    where the URL layer works, exposing the next layer's defect.
+  defect_id: D-15-LIVE-2
+  routing: backlog item 999.2 (manual-download UX path; NOT a v1.1.4 hotfix)
+
+round_4_ux_bug:
+  observation: |
+    Help → Check for Updates is gated on having a JSON project loaded. When no
+    project is loaded, the menu item does not trigger a check (no UpdateDialog,
+    no console output).
+  diagnosis: |
+    Separate UX defect — menu item should be available regardless of project state.
+  defect_id: D-15-LIVE-3
+  routing: backlog item 999.3 (menu gating fix)
+
+user_decision:
+  paths_offered:
+    - "Apple Developer ID enrollment ($99/yr) — proper code-sig fix"
+    - "Workaround research (e.g. switch electron-updater away from Squirrel.Mac)"
+    - "Manual-download-only flow"
+  chosen: manual-download-only flow
+  rationale: Pragmatic, honest, removes brittleness.
+  phase_15_outcome:
+    - "Phase 15 / UPDFIX-01 / D-15-LIVE-1: PASSED (the 404 URL bug is empirically closed)"
+    - "D-15-LIVE-2 (code-sig swap fail) → backlog 999.2; future phase changes UpdateDialog to Open in Browser button on macOS; deprecate Download/Restart for macOS"
+    - "D-15-LIVE-3 (menu gating) → backlog 999.3; separate UX item"
+
+closure_evidence_for_updfix_01:
+  - "v1.1.1 → v1.1.3 .zip download succeeded byte-exact (121,848,102 bytes) from canonical dotted URL Spine.Texture.Manager-1.1.3-arm64.zip"
+  - "The exact request that returned 404 in v1.1.2 returns 200 in v1.1.3"
+  - "sanitizeAssetUrl() synthesizer rewrite (Plan 15-05) verified live"
+
 reason: by-design human-in-the-loop — Squirrel.Mac swap is kernel-level OS
   behavior; integration tests cannot simulate.
 
@@ -424,6 +510,55 @@ If a test reveals a regression (e.g. the cold-start log lines never
 fire, or the manual-check from idle hangs), the user can ABORT at
 CHECKPOINT 2 — the v1.1.2 tag is local-only at this stage, and
 deleting it pre-push is a single `git tag -d v1.1.2` away.
+
+## Newly discovered defects
+
+Discovered during Test 7-Retry execution (2026-04-29). Both routed to backlog
+per user decision; neither is a v1.1.4 hotfix.
+
+### D-15-LIVE-2: macOS Squirrel.Mac swap fails code-signature validation on ad-hoc signed builds
+
+surfaced_in: Test 7-Retry round 3 (after clicking "Restart" on UpdateDialog)
+defect: |
+  Squirrel.Mac downloaded and unpacked v1.1.3 successfully into
+  ~/Library/Caches/com.spine.texture-manager.ShipIt/update.pNctXsE/, but
+  macOS code-signature validation rejected the swap with: "Code signature at
+  URL ... did not pass validation: code failed to satisfy specified code
+  requirement(s)". Both v1.1.1 and v1.1.3 are ad-hoc signed (no Apple Developer
+  ID — project hasn't enrolled). Ad-hoc builds generate fresh per-build code
+  hashes, so v1.1.3's Designated Requirement does not match v1.1.1's stored
+  DR. Squirrel.Mac strict-validates and aborts. Blocks ALL auto-update install
+  steps on macOS regardless of URL/feed correctness.
+not_a_regression: |
+  Latent since v1.0.0. Earlier auto-update attempts (rc1→rc2→rc3 channel-name
+  bug; v1.1.0/v1.1.1→v1.1.2 URL bug) failed at earlier pipeline stages so the
+  code-sig check was never reached. v1.1.3 is the first version where the URL
+  layer works, exposing the next layer's defect.
+user_decision: manual-download UX path (NOT Apple Developer Program enrollment)
+routed_to: backlog item 999.2 (.planning/phases/999.2-macos-auto-update-manual-download-ux/)
+severity: medium (auto-update was already manual for users who hit prior bugs; this formalizes it)
+scope: |
+  Change UpdateDialog on macOS to show "Open Releases page in browser" instead
+  of "Download & Restart". Renderer state machine + dialog UX work. Likely 1 phase.
+cross_references:
+  - "Test 7-Retry result transcript above"
+  - "User decision section above"
+  - "ROADMAP.md Backlog § Phase 999.2"
+
+### D-15-LIVE-3: Help → Check for Updates gated on JSON project loaded
+
+surfaced_in: Test 7-Retry round 4 (post-defect observation)
+defect: |
+  Help → Check for Updates menu item does not fire the update check unless a
+  JSON project is loaded. With no project loaded, clicking the menu item does
+  nothing — no UpdateDialog, no console output. Menu item should be available
+  regardless of project state.
+severity: low (UX bug, not a defect; users can work around by loading any project)
+scope: Probably a 1-line fix in the menu handler / state machine guard
+routed_to: backlog item 999.3 (.planning/phases/999.3-help-check-for-updates-gated-on-project-loaded/)
+cross_references:
+  - "Test 7-Retry result transcript above (round 4)"
+  - "ROADMAP.md Backlog § Phase 999.3"
 
 ## Gaps
 
