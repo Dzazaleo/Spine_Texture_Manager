@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1.2
 milestone_name: Auto-update fixes
 status: unknown
-last_updated: "2026-04-29T15:50:20.996Z"
+last_updated: "2026-04-29T19:23:29.430Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -209,7 +209,7 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continued fr
 - Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard).
 - Phase 8.2 inserted after Phase 8.1 (2026-04-26): File-menu surface + Cmd+O accelerator gating fix; bundled with native File menu items.
 
-**Planned Phase:** 15 (Build/feed shape fix + v1.1.2 release) — 4 plans — 2026-04-29T15:48:33.144Z
+**Planned Phase:** 15 (build-feed-shape-fix-v1-1-2-release) — 6 plans — 2026-04-29T19:23:29.427Z
 
 **Planned Phase:** 15 (Build/feed shape fix + v1.1.2 release) — pending after Plan 14-06 closure; awaiting `/gsd-plan-phase 15`. Requirements: UPDFIX-01. Will reconcile electron-builder output with electron-updater 6.8.3 feed consumption (mac `.dmg` + `.zip` + `latest-mac.yml`; win NSIS `.exe` + `.blockmap` + `latest.yml`), bump package.json 1.1.1 → 1.1.2, tag `v1.1.2`, watch CI, publish through the existing 12.1-D-10 architecture. Will live-verify the 6 packaged-build UAT items persisted in `14-HUMAN-UAT.md`.
 
