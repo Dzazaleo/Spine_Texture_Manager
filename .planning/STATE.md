@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.1.2
 milestone_name: Auto-update fixes
 status: unknown
-last_updated: "2026-04-29T10:01:00.675Z"
+last_updated: "2026-04-29T10:24:27.521Z"
 progress:
   total_phases: 4
   completed_phases: 0
