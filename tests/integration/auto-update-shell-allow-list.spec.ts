@@ -31,9 +31,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
-// RED gate — wrong literal so the spec fails against the current source.
-// GREEN commit corrects this to the real Releases-index URL.
-const RELEASES_INDEX_URL = 'https://github.com/Dzazaleo/Spine_Texture_Manager/RELEASES_RED';
+const RELEASES_INDEX_URL = 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
 
 function readFile(relativePath: string): string {
   return readFileSync(resolve(REPO_ROOT, relativePath), 'utf-8');
