@@ -21,3 +21,17 @@ scripts/probe-per-anim.ts(14,31): error TS2339: Property 'values' does not exist
 **Why not auto-fixed under Rule 1:** The deviation rules' SCOPE BOUNDARY explicitly excludes "Pre-existing warnings, linting errors, or failures in unrelated files." This file is the textbook case — it's gitignored, untracked, and the error existed for ~7 days before Phase 15 work began.
 
 **Plan 15-04 Task 1 typecheck acceptance:** Met as far as Plan 15's code surface is concerned (all tracked files in `src/`, `tests/`, `scripts/emit-latest-yml.mjs`, `scripts/cli.ts`, etc. typecheck cleanly).
+
+## 2026-04-29 — Plan 15-06 Task 1 Step 7 (typecheck)
+
+**Out-of-scope finding:** Local `npm run typecheck` fails on `scripts/probe-per-anim.ts:14:31`
+(`Property 'values' does not exist on type 'SamplerOutput'`).
+
+**Why deferred:**
+- File is gitignored (matches `scripts/probe-*.ts`); CI clean-checkout never sees it.
+- The `probe-*.ts` files are throwaway developer scripts; not part of release artifacts.
+- CI typecheck (release.yml:56) runs against tracked files only → will pass on CI.
+- Verified: `git ls-files scripts/` returns only `cli.ts`, `emit-latest-yml.mjs`, `.gitkeep`.
+
+**Resolution candidate:** Add `"exclude": [..., "scripts/probe-*.ts"]` to tsconfig.node.json
+in a future cleanup plan; keeps local + CI typecheck behavior consistent.

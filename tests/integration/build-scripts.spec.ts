@@ -75,9 +75,9 @@ describe('Phase 15 RESEARCH §A2 — package.json build:* scripts drop explicit 
     expect(pkg.scripts['build:linux']).toMatch(/electron-builder\s+--linux\s+--publish/);
   });
 
-  test('package.json version is 1.1.2', () => {
+  test('package.json version is 1.1.3', () => {
     const pkg = JSON.parse(read('package.json'));
-    expect(pkg.version).toBe('1.1.2');
+    expect(pkg.version).toBe('1.1.3');
   });
 });
 
