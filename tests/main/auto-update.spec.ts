@@ -356,3 +356,118 @@ describe('extractSummary parsing (D-09)', () => {
     );
   });
 });
+
+// ============================================================================
+// Phase 14 Plan 01 — additions for D-03 sticky slot, D-05 asymmetric dismissal,
+// D-08 trigger threading. The pre-existing Phase 12 describe blocks above stay
+// green (the startup path is preserved verbatim); these new blocks cover the
+// new surface area.
+// ============================================================================
+
+describe('Phase 14 D-03 — sticky pendingUpdateInfo slot', () => {
+  it('(14-1) getPendingUpdateInfo() returns null after init when no update-available has fired', async () => {
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    expect(mod.getPendingUpdateInfo()).toBeNull();
+  });
+
+  it('(14-2) getPendingUpdateInfo() returns the payload after update-available fires', async () => {
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await fireEvent('update-available', {
+      version: '1.2.3',
+      releaseNotes: '## Summary\nFix bug.',
+    });
+    const slot = mod.getPendingUpdateInfo();
+    expect(slot).not.toBeNull();
+    expect(slot).toEqual(
+      expect.objectContaining({
+        version: '1.2.3',
+        summary: 'Fix bug.',
+        fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+      }),
+    );
+  });
+
+  it('(14-3) latest update-available wins (slot overwrites on newer version)', async () => {
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    await fireEvent('update-available', { version: '1.2.4', releaseNotes: '' });
+    expect(mod.getPendingUpdateInfo()?.version).toBe('1.2.4');
+  });
+
+  it('(14-4) clearPendingUpdateInfo() empties the slot', async () => {
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(mod.getPendingUpdateInfo()).not.toBeNull();
+    mod.clearPendingUpdateInfo();
+    expect(mod.getPendingUpdateInfo()).toBeNull();
+  });
+
+  it('(14-8) sticky slot is NOT written when startup-check suppression fires', async () => {
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: '1.2.3',
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    // Prime trigger context to 'startup' (the default for the 3.5s timer path)
+    // by calling checkUpdate(false) before the simulated event fires.
+    await mod.checkUpdate(false);
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(mod.getPendingUpdateInfo()).toBeNull();
+  });
+});
+
+describe('Phase 14 D-05 — asymmetric dismissal (manual ALWAYS re-presents)', () => {
+  it('(14-5) manual check + dismissed === available → IPC IS sent (override)', async () => {
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: '1.2.3',
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await mod.checkUpdate(true); // manual
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(sendStub).toHaveBeenCalledWith(
+      'update:available',
+      expect.objectContaining({ version: '1.2.3' }),
+    );
+  });
+
+  it('(14-6) startup check + dismissed === available → IPC NOT sent (Phase 12 D-08 preserved)', async () => {
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: '1.2.3',
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await mod.checkUpdate(false); // startup
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(sendStub).not.toHaveBeenCalledWith(
+      'update:available',
+      expect.anything(),
+    );
+  });
+
+  it('(14-7) startup check + dismissed < available → IPC IS sent (strict-> preserved)', async () => {
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: '1.2.3',
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await mod.checkUpdate(false); // startup
+    await fireEvent('update-available', { version: '1.2.4', releaseNotes: '' });
+    expect(sendStub).toHaveBeenCalledWith(
+      'update:available',
+      expect.objectContaining({ version: '1.2.4' }),
+    );
+  });
+});
