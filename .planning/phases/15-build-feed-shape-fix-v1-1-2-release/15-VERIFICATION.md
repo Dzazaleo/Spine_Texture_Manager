@@ -1,10 +1,57 @@
 ---
 phase: 15-build-feed-shape-fix-v1-1-2-release
-verified: 2026-04-29T18:30:00Z
-verified_by: gsd-verifier (independent goal-backward analysis; supersedes Plan 15-04 Task 9 self-verification)
-status: human_needed
-score: 4/5 ROADMAP success criteria fully VERIFIED programmatically; SC-2 (mac live happy path) and SC-3 (Windows live behavior) require human-in-the-loop UAT capture (code + CI + feed shape verified)
-overrides_applied: 0
+verified: 2026-04-29T19:35:00Z
+verified_by: live UAT session (Leo + Claude orchestrator); supersedes 18:30Z gsd-verifier human_needed status
+status: gaps_found
+score: 3/5 ROADMAP success criteria VERIFIED + 1 PARTIAL (SC-3 Win windows-fallback PASSED, mac auto-update FAILED) + 1 FAILED (SC-2 mac happy path 404 on .zip download)
+overrides_applied: 1 (status human_needed → gaps_found after Test 7 FAILED with HTTP 404)
+
+critical_defect:
+  id: D-15-LIVE-1
+  surfaced_in: live UAT 2026-04-29T19:30Z
+  defect: |
+    UPDFIX-01 NOT closed in v1.1.2. The published latest-mac.yml advertises
+    `url: Spine Texture Manager-1.1.2-arm64.zip` (with SPACES). GitHub Releases
+    auto-renames assets on upload, storing the .zip as
+    `Spine.Texture.Manager-1.1.2-arm64.zip` (with DOTS). electron-updater 6.x
+    reads the spaces-version URL from the YML and sanitizes spaces to dashes
+    when constructing the request, producing
+    `Spine-Texture-Manager-1.1.2-arm64.zip` → HTTP 404. Squirrel.Mac swap fails;
+    macOS testers cannot auto-update from v1.1.1 to v1.1.2.
+  evidence: |
+    User-visible error in v1.1.1 UpdateDialog: "Update check failed: Cannot
+    download https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.2/Spine-Texture-Manager-1.1.2-arm64.zip,
+    status 404". Cross-checked: gh release view v1.1.2 --json assets shows
+    actual asset name `Spine.Texture.Manager-1.1.2-arm64.zip` (DOTS); cat
+    latest-mac.yml shows `url: Spine Texture Manager-1.1.2-arm64.zip` (SPACES).
+  why_phase_15_missed_it:
+    - Plan 15-01 Task 1 D-07 Gate 1 verified the LOCAL build's latest-mac.yml matched the local files (both used spaces). Spaces matched spaces. ✓
+    - Plan 15-04 Task 5 verified the published Release had 7 assets and latest-mac.yml had correct shape. But it did NOT test that the URLs in latest-mac.yml actually resolve when fetched (HEAD or GET against the constructed URL).
+    - Plan 15-04 Task 1's 8 invariants checked sha512 + size byte-for-byte against local files but did not verify the URL field would resolve against GitHub's stored asset name.
+  scope: macOS only. Windows is unaffected because Phase 14's windows-fallback variant intercepts the auto-download flow and shows "Open Release Page" → manual download from GitHub. Linux UNKNOWN (no live test host).
+  remediation_path: hotfix v1.1.3 — fix the synthesizer (`scripts/emit-latest-yml.mjs`) to write the `url:` field as the GitHub-stored sanitized form (dots, not spaces); OR change `electron-builder.yml` artifactName to use `${productFilename}` (no spaces) so all three sides agree on naming.
+
+live_uat_session_notes:
+  date: 2026-04-29T19:00–19:35Z
+  operator: Leo (macOS host)
+  observed:
+    - Test 5 (Win manual re-check after Later) → PASSED via screenshot (UpdateDialog appears with windows-fallback button)
+    - Test 6 (Win windows-fallback Open Release Page button) → PASSED via screenshot (UPDFIX-02 closure intact)
+    - Test 7 (mac UPDFIX-01 happy path) → FAILED with HTTP 404 (D-15-LIVE-1 above)
+    - Side observation: UPDFIX-03 ride-forward — cold-start auto-check did NOT fire on v1.1.1 cold-start. Help → Check for Updates DID work. UPDFIX-04 closure intact; UPDFIX-03 appears regressed in v1.1.1 packaged build (or test was confounded by DevTools timing). Captured for Phase 14 follow-up; not a Phase 15 blocker.
+    - Side observation: Cmd+Q + AppleScript-quit do not terminate the app on macOS — only window-X-button or Force Quit work. Captured as backlog item 999.1.
+
+re_verification:
+  previous_status: human_needed (gsd-verifier 18:30Z)
+  previous_score: 4/5 programmatic + 2 UAT pending
+  notes: |
+    The 18:30Z verification produced status `human_needed` with the assumption that
+    code/CI/feed shape were structurally correct and only the live behavioral check
+    was outstanding. The 19:35Z live UAT proved the feed shape is structurally
+    INCORRECT in a way the programmatic checks did not catch — the URL field uses
+    spaces, but GitHub serves the asset under a different name, and electron-updater
+    constructs a third variant. This is a real verification gap, not a deferral.
+overrides_applied_count: 1
 re_verification:
   previous_status: passed-with-pending-uat
   previous_score: 4/5 + 1 partial-VERIFIED

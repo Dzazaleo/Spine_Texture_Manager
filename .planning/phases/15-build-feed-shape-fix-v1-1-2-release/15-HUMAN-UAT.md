@@ -2,20 +2,45 @@
 phase: 15-build-feed-shape-fix-v1-1-2-release
 source: [15-VERIFICATION.md]
 inherits: 14-HUMAN-UAT.md
-status: signed-off
-signed_off_at: 2026-04-29T17:55:30Z
-signed_off_in: phase-15-build-feed-shape-fix-v1-1-2-release Plan 15-04 Task 9
+status: gaps-found
 started: 2026-04-29T17:12:53Z
-updated: 2026-04-29T17:55:30Z
-signoff_note: |
-  Phase 15 UAT runbook closed for accounting purposes. Tests 1, 3, 5, 6, 7
-  marked `pending` with embedded operator runbooks (Leo to capture mac
-  transcripts; Win operator to capture Tests 2, 4, 5, 6 transcripts).
-  Phase deliverable is complete from the agent's perspective; live UAT
-  closure is asynchronous via direct edits to the result: blocks below.
-  See 15-VERIFICATION.md `gaps:` block for G-1 (mac happy path live UAT)
-  and G-2 (Win UAT) — both documented as pending human capture per
-  embedded operator runbooks; not blockers for v1.1.2 ship.
+updated: 2026-04-29T19:35:00Z
+live_uat_session: 2026-04-29 19:00–19:35Z (Leo + Claude orchestrator)
+findings_summary: |
+  Live UAT against published v1.1.2 surfaced a CRITICAL UPDFIX-01 defect
+  (Test 7 FAILED) and ride-forward observations on Tests 5+6 (Windows
+  windows-fallback PASSED via screenshot evidence).
+
+  Test 7 (mac UPDFIX-01 happy path): FAILED with HTTP 404. The published
+  latest-mac.yml advertises `url: Spine Texture Manager-1.1.2-arm64.zip`
+  (with SPACES). GitHub Releases auto-renames assets on upload, storing
+  the .zip as `Spine.Texture.Manager-1.1.2-arm64.zip` (with DOTS).
+  electron-updater 6.x reads the spaces-version URL from the YML and
+  sanitizes spaces to dashes when constructing the request, producing
+  `Spine-Texture-Manager-1.1.2-arm64.zip` → 404. Squirrel.Mac swap fails
+  with the user-visible error: "Update check failed: Cannot download
+  https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.2/Spine-Texture-Manager-1.1.2-arm64.zip,
+  status 404". UPDFIX-01 IS NOT CLOSED — v1.1.2 mac auto-update is broken;
+  testers will hit the same 404. Hotfix v1.1.3 required.
+
+  Tests 5 + 6 (Windows ride-forward): PASSED via screenshot evidence
+  showing the windows-fallback "Open Release Page" button on the
+  UpdateDialog — UPDFIX-02 closure verified. Windows users are NOT
+  affected by the Phase 15 macOS URL mismatch because the windows-
+  fallback variant intercepts the auto-download flow.
+
+  Tests 1 + 3 (mac pre-tag UAT): SUPERSEDED by Test 7 finding — the
+  cold-start auto-check (UPDFIX-03) did NOT fire automatically on
+  v1.1.1 cold start (separate Phase 14 ride-forward concern, captured
+  inline below); Help → Check for Updates DID work (UPDFIX-04 closure
+  intact).
+
+  Tests 2 + 4 (Windows cold-start auto-check, Help → Check from idle):
+  pending — separate Windows host needed for cold-start observation.
+
+  Phase 15 verification status overridden from `human_needed` to
+  `gaps_found`. Phase 15 cannot be marked complete; v1.1.3 hotfix planned
+  to address the UPDFIX-01 URL-mismatch defect.
 ---
 
 # Phase 15 — Human UAT runbook
