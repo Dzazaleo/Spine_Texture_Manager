@@ -922,6 +922,30 @@ export interface Api {
   /** UPD-02 — Help → Check for Updates manual trigger. Resolves when checkUpdate completes. */
   checkForUpdates: () => Promise<void>;
 
+  /**
+   * Phase 14 D-03 — late-mount pending-update re-delivery.
+   *
+   * Renderer App.tsx calls this ONCE on mount in the lifted update-subscription
+   * useEffect (Plan 03). Main returns the sticky 'update-available' payload
+   * (overwritten on each newer version; cleared on dismiss/download), or null
+   * on first launch / no pending update.
+   *
+   * Handles the edge case where main fires 'update-available' BEFORE the
+   * renderer's React effect commits (e.g. the 3.5s startup check resolves
+   * before React hydration finishes — root cause of UPDFIX-03's "no startup
+   * notification" symptom on shipped v1.1.1).
+   *
+   * One-shot invoke (no subscription, no Pitfall 9 listener-identity scaffold).
+   * The slot lives in main-process module state per D-Discretion-2 (in-memory
+   * only for v1.1.2 hotfix scope).
+   */
+  requestPendingUpdate: () => Promise<{
+    version: string;
+    summary: string;
+    variant: 'auto-update' | 'windows-fallback';
+    fullReleaseUrl: string;
+  } | null>;
+
   /** UPD-03 — UpdateDialog "Download + Restart" click. Opt-in download. */
   downloadUpdate: () => Promise<void>;
 
