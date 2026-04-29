@@ -180,11 +180,7 @@ describe('Phase 14 D-05 asymmetric dismissal — manual ALWAYS re-presents', () 
     mod.initAutoUpdater();
     await mod.checkUpdate(true); // trigger=manual
     await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
-    // RED gate: assertion intentionally inverted — will be flipped to
-    // toHaveBeenCalledWith in the GREEN commit. The asymmetric override
-    // means manual+dismissed===available DOES IPC; this RED check claims
-    // the opposite to satisfy the TDD red gate.
-    expect(sendStub).not.toHaveBeenCalledWith(
+    expect(sendStub).toHaveBeenCalledWith(
       'update:available',
       expect.objectContaining({ version: '1.2.3' }),
     );
