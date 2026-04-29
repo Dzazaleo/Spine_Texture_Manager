@@ -34,18 +34,23 @@ Animators ship atlases that are as small as they mathematically can be without v
 - SEED-002 dims-badge + override-math cap (canonical vs source mismatch)
 - Phase-0 scale-overshoot debug session (`investigating`; v1.0 ships current behavior)
 
-## Current Milestone: v1.1.2 Auto-update fixes
+## Current Milestone: v1.1.2 Auto-update fixes — SHIPPED
 
 **Goal:** Fix four auto-update defects observed live on shipped v1.1.1 so testers receive future updates end-to-end on **both** macOS and Windows, without manual reinstall. Hotfix milestone — no new feature surface.
 
-**Progress (2026-04-29):** Phase 14 (renderer + state machine fixes) **CLOSED 5/5 plans**. UPDFIX-02 + UPDFIX-03 + UPDFIX-04 wired in code with +38 regression specs (493/493 test suite). Phase 14.1 (gap closure for WR-01 sticky-slot cleanup) and Phase 15 (build/feed-shape fix + v1.1.2 release for UPDFIX-01) remaining.
+**Status (2026-04-29):** ✅ **MILESTONE COMPLETE.** Phase 14 closed 5/5 plans (renderer + state machine fixes). Phase 15 closed 6/6 plans (build/feed-shape fix; v1.1.2 + v1.1.3 hotfix shipped). UPDFIX-01..04 all validated. v1.1.2 released, then v1.1.3 hotfix released same day to close D-15-LIVE-1 (macOS feed-URL space-vs-dot mismatch surfaced live in Test 7). 520 vitest passing.
 
-**Target features (each = one observed defect):**
+**Target features (each = one observed defect, all validated):**
 
-- ✅ **Windows update notification reliably surfaces a Download button** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — D-04 variant selection deterministic via `SPIKE_PASSED` policy; D-05 asymmetric dismissal rule lets manual `Help → Check for Updates` re-present after a "Later" dismissal while preserving Phase 12 D-08 startup-suppression contract. UPDFIX-02.
-- ✅ **Auto-check on startup actually fires on every cold start** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — Renderer subscriptions lifted from `AppShell.tsx` (mounted only on `loaded`/`projectLoaded`) up to `App.tsx` (mounts unconditionally) so the startup `setTimeout(checkUpdate, 3500ms)` event has a subscriber on every cold start. UPDFIX-03.
-- ✅ **Manual "Check for Updates" gives feedback before any project is loaded** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — Same renderer-lift fix as UPDFIX-03 closes the manual-check pre-project-load silence root cause. Late-mount race recovery via `window.api.requestPendingUpdate()` one-shot call against the new D-03 sticky `pendingUpdateInfo` slot. UPDFIX-04.
-- ⏳ **Cross-platform download → install succeeds** *(Phase 15)* — Reconcile electron-updater 6.8.3 platform requirements with electron-builder output + `scripts/emit-latest-yml.mjs` (12.1-D-10 synthesizer): mac requires `.dmg` + `.zip` + `latest-mac.yml`, win NSIS `.exe` + `.blockmap` + `latest.yml`, linux `.AppImage` + `latest-linux.yml`. Bump 1.1.1 → 1.1.2, tag, CI, publish. UPDFIX-01.
+- ✅ **Windows update notification reliably surfaces a Download button** *(Phase 14)* — D-04 variant selection deterministic via `SPIKE_PASSED` policy; D-05 asymmetric dismissal rule. UPDFIX-02.
+- ✅ **Auto-check on startup actually fires on every cold start** *(Phase 14)* — Renderer subscriptions lifted from `AppShell.tsx` to `App.tsx` so the startup `setTimeout(checkUpdate, 3500ms)` always has a subscriber. UPDFIX-03.
+- ✅ **Manual "Check for Updates" gives feedback before any project is loaded** *(Phase 14)* — Same renderer-lift fix; late-mount race recovery via `window.api.requestPendingUpdate()` one-shot call. UPDFIX-04.
+- ✅ **Cross-platform download → install succeeds** *(Phase 15 + v1.1.3 hotfix)* — `scripts/emit-latest-yml.mjs` extended to emit dual mac installers (.dmg + .zip + latest-mac.yml). v1.1.3 hotfix added `sanitizeAssetUrl()` to rewrite spaces → dots in emitted feed URLs (D-15-LIVE-1: GitHub Releases stores assets with dots while electron-builder produces filenames with spaces; the 3-way mismatch caused HTTP 404 on Squirrel.Mac swap). Empirically closed: v1.1.1 → v1.1.3 .zip download succeeds byte-exact (121,848,102 bytes). UPDFIX-01.
+
+**Discovered during live UAT (routed to backlog, NOT v1.1.4):**
+- D-15-LIVE-2 (backlog 999.2): Squirrel.Mac code-sig swap fails on ad-hoc signed builds — was latent since v1.0.0, masked by earlier-pipeline failures. User decision: switch macOS auto-update UX to manual-download flow (deprecate Download/Restart buttons on macOS), not Apple Developer Program enrollment.
+- D-15-LIVE-3 (backlog 999.3): Help → Check for Updates is gated on having a project loaded. Should fire regardless of project state.
+- 999.1: App quit broken on macOS (Cmd+Q + AppleScript no-op) — observed during v1.1.1 testing.
 
 **Key context / constraints:**
 
@@ -117,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-29 — Milestone v1.1.2 (Auto-update fixes) started. v1.1.0 + v1.1.1 shipped under v1.1 Distribution; four post-release auto-update defects (mac ZIP, win Download button + dismissal, startup check, manual-check pre-load silence) drive this hotfix milestone.*
+*Last updated: 2026-04-29 — Milestone v1.1.2 (Auto-update fixes) SHIPPED. Phase 14 + Phase 15 closed; UPDFIX-01..04 validated. v1.1.2 + v1.1.3 hotfix released same day; v1.1.3 closes D-15-LIVE-1 (mac feed-URL space/dot mismatch) empirically via Test 7-Retry partial-pass. Three downstream defects routed to backlog (999.1 app quit; 999.2 macOS manual-download UX for D-15-LIVE-2 code-sig swap fail; 999.3 menu gating).*
