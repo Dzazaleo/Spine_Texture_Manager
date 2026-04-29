@@ -409,6 +409,35 @@ const api: Api = {
   /** UPD-02 — Help → Check for Updates manual trigger. Resolves when checkUpdate completes. */
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('update:check-now'),
 
+  /**
+   * Phase 14 D-03 — late-mount pending-update re-delivery.
+   *
+   * Renderer App.tsx calls this ONCE on mount in the lifted update-subscription
+   * useEffect. Main returns the sticky 'update-available' payload (overwritten
+   * on each newer version; cleared on dismiss/download), or null on first
+   * launch / no pending update.
+   *
+   * Handles the edge case where main fired 'update-available' BEFORE the
+   * renderer's React effect committed (e.g. the 3.5s startup check resolving
+   * before React hydration finishes — was the root cause of UPDFIX-03's
+   * "no startup notification" symptom on shipped v1.1.1).
+   *
+   * One-shot invoke — NO subscription, NO Pitfall 9 listener-identity scaffold
+   * needed (no removeListener cleanup; the slot lives in main-process module
+   * state and is read-only from the renderer's perspective).
+   *
+   * Type signature is defined inline (mirrors the Phase 12 D-04 inline payload
+   * type at the onUpdateAvailable bridge below) — preload runs in a separate
+   * context with its own type-graph; importing from main would cross the trust
+   * boundary unnecessarily for v1.1.2 hotfix scope.
+   */
+  requestPendingUpdate: (): Promise<{
+    version: string;
+    summary: string;
+    variant: 'auto-update' | 'windows-fallback';
+    fullReleaseUrl: string;
+  } | null> => ipcRenderer.invoke('update:request-pending'),
+
   /** UPD-03 — UpdateDialog "Download + Restart" click. Opt-in download (autoDownload=false). */
   downloadUpdate: (): Promise<void> => ipcRenderer.invoke('update:download'),
 
