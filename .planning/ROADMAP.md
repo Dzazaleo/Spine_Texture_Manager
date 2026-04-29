@@ -202,7 +202,7 @@ Plans:
 - [x] 15-02-PLAN.md — Synthesizer dual-installer mac extension + 4 new vitest assertions (Wave 1, autonomous; TDD RED→GREEN→docs) — complete 2026-04-29
 - [x] 15-03-PLAN.md — release.yml CI extension + greenfield build-scripts.spec.ts (Wave 1, autonomous) — complete 2026-04-29
 - [x] 15-04-PLAN.md — v1.1.2 release engineering: tag push + CI watch + 7-asset GitHub Release publish + D-10 split UAT (Wave 2, autonomous: false — 3 BLOCKING checkpoints) — complete 2026-04-29 (v1.1.2 shipped; live UAT Test 7 surfaced D-15-LIVE-1 — UPDFIX-01 NOT closed)
-- [ ] 15-05-PLAN.md — UPDFIX-01 hotfix v1.1.3 (gap closure for D-15-LIVE-1): sanitizeAssetUrl synthesizer rewrite + no-spaces regression test + version bump 1.1.2→1.1.3 (Wave 3, autonomous; gap_closure: true; TDD RED→GREEN→chore)
+- [x] 15-05-PLAN.md — UPDFIX-01 hotfix v1.1.3 (gap closure for D-15-LIVE-1): sanitizeAssetUrl synthesizer rewrite + no-spaces regression test + version bump 1.1.2→1.1.3 (Wave 3, autonomous; gap_closure: true; TDD RED→GREEN→chore) — completed 2026-04-29 (commits `f123e10` test RED + `d4ec015` feat GREEN + `ca7152a` chore version-bump; +7 D-15-LIVE-1 regression assertions; package.json now 1.1.3; no v1.1.3 tag yet — Plan 15-06 owns)
 - [ ] 15-06-PLAN.md — v1.1.3 release engineering (gap closure): pre-flight (D-07 + URL-resolution invariant) + tag at git rev-parse main (AP-1 lesson encoded) + CI watch + 7-asset publish + Test 7-Retry + doc-flip (Wave 4, autonomous: false — 3 BLOCKING checkpoints; gap_closure: true; tag_target: main)
 
 ## Progress
@@ -216,7 +216,7 @@ Plans:
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
 | 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
 | 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 6/6 | Complete (verified — live-OS UAT deferred to Phase 15 per 14-HUMAN-UAT.md) | 2026-04-29 |
-| 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 4/6 | In progress (Plans 15-01..15-04 complete; v1.1.2 shipped 2026-04-29 but UPDFIX-01 NOT closed — D-15-LIVE-1 surfaced in live UAT Test 7 with HTTP 404; gap-closure Plans 15-05 + 15-06 added 2026-04-29 to ship v1.1.3 hotfix) | — |
+| 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 5/6 | In progress (Plans 15-01..15-04 + 15-05 complete; v1.1.2 shipped 2026-04-29 but UPDFIX-01 NOT closed — D-15-LIVE-1 surfaced in live UAT Test 7 with HTTP 404; Plan 15-05 landed v1.1.3 hotfix code (sanitizeAssetUrl synthesizer + no-spaces regression test + version bump 1.1.2→1.1.3); Plan 15-06 owns v1.1.3 tag + CI + publish + Test 7-Retry) | — |
 
 ## Deferred (post-v1.1)
 
