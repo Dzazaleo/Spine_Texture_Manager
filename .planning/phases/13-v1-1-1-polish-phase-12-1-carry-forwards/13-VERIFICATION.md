@@ -1,8 +1,8 @@
 ---
 phase: 13-v1-1-1-polish-phase-12-1-carry-forwards
-verified: 2026-04-28T22:50:00Z
-status: passed_partial
-score: 4/4 Phase 12.1 carry-forwards closed at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md, plus Gaps Summary polish-todos rc-channel naming + autoHideMenuBar + About-panel SemVer); v1.1.1 publication: PENDING (Plan 05) — tag push + 6-asset GitHub Release publish owned by Plan 13-05; live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle) deferred to Phase 13.1 per CONTEXT D-01 split
+verified: 2026-04-29T06:45:00Z
+status: passed
+score: 5/5 Phase 13 plans complete — 4/4 Phase 12.1 carry-forwards closed at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md, plus Gaps Summary polish-todos rc-channel naming + autoHideMenuBar + About-panel SemVer) + v1.1.1 final published 2026-04-29 with 6-asset GitHub Release atomically (D-10 publish-race fix verified clean — workflow run 25094013906); live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle) deferred to Phase 13.1 per CONTEXT D-01 split
 overrides_applied: 0
 re_verification: null  # Phase 13 is its own initial verification
 human_verification: []  # No Phase 13 human-verified items (live UAT deferred to Phase 13.1 per D-07)
@@ -12,11 +12,11 @@ human_verification: []  # No Phase 13 human-verified items (live UAT deferred to
 
 **Phase Goal:** Land the **code- and docs-side** changes that close out Phase 12.1's carry-forward backlog, then tag and publish **v1.1.1 final** as a maintenance release. Live-verification work (Linux UAT runbook, libfuse2 PNG capture, macOS / Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) is split into a follow-up **Phase 13.1** so v1.1.1 can ship without being host-blocked on Linux.
 
-**Verified:** 2026-04-28T22:50:00Z
-**Status:** passed_partial
-**Re-verification:** No — initial verification (Phase 13.1, when inserted, will record the live-UAT verification round in its own report; Plan 13-05's tag push + Release publish will produce a small follow-up edit to this report flipping T-6 from PENDING to VERIFIED and frontmatter `status:` from `passed_partial` to `passed`)
+**Verified:** 2026-04-29T06:45:00Z
+**Status:** passed
+**Re-verification:** No — initial verification (Phase 13.1, when inserted, will record the live-UAT verification round in its own report). Plan 13-05's tag push + Release publish completed 2026-04-29T06:43:45Z; this report's frontmatter flipped from `status: passed_partial` → `passed` and T-6 below flipped from PENDING → VERIFIED.
 
-**v1.1.1 publication: PENDING (Plan 05)**
+**v1.1.1 publication: LIVE — published 2026-04-29T06:43:45Z at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1 (CI workflow run 25094013906; 6 assets atomic).**
 
 ## Goal Achievement
 
@@ -33,7 +33,7 @@ The v1.1.1 publication itself — `v1.1.1` tag push, CI run producing the 6-asse
 | T-3 | `app.setAboutPanelOptions({ applicationName: 'Spine Texture Manager', applicationVersion: app.getVersion() })` shipped inside `app.whenReady()` callback at `src/main/index.ts` (Anti-Pattern #4 closure) — Windows About panel will read SemVer (`1.1.1`) instead of win32 FileVersion 4-component padding (`1.1.1.0`) | VERIFIED at code level; live verification deferred to Phase 13.1 per D-07 | `grep -c "app.setAboutPanelOptions" src/main/index.ts` returns at least `1`; `grep -q "applicationVersion: app.getVersion()" src/main/index.ts` succeeds; `tests/main/index-options.spec.ts` source-grep regression test passes. Unconditional call per CONTEXT D-06 (Electron no-ops unsupported per-platform fields). Plan 13-01 commit `202c506`. |
 | T-4 | Three pending todos moved to `.planning/todos/resolved/` via `git mv` (88%-style rename similarity preserves git blame across the rename) with `## Resolved` sections appended documenting closure provenance | VERIFIED | `ls .planning/todos/pending/2026-04-28-{electron-updater-prerelease-channel-mismatch,windows-menu-bar-hidden-by-default-alt-reveals,windows-about-panel-shows-1.1.0.0-not-semver}.md 2>/dev/null \| wc -l` returns `0`; `ls .planning/todos/resolved/2026-04-28-{electron-updater-prerelease-channel-mismatch,windows-menu-bar-hidden-by-default-alt-reveals,windows-about-panel-shows-1.1.0.0-not-semver}.md \| wc -l` returns `3`; `git log --diff-filter=R --name-only` shows 3 renames distributed across commits `202c506` (×2 — windows-menu-bar + windows-about-panel) and `566ed8e` (×1 — electron-updater-prerelease-channel-mismatch); each resolved file ends with a `## Resolved` section dated 2026-04-28 referencing the relevant Plan 13 plan number. |
 | T-5 | `package.json` + `package-lock.json` bumped 1.1.0 → 1.1.1 (CI tag-version-guard at `.github/workflows/release.yml:43-54` will accept a `v1.1.1` tag push) | VERIFIED | `node -p 'require("./package.json").version'` outputs `1.1.1`; `node -p 'require("./package-lock.json").version'` outputs `1.1.1`; `node -p 'require("./package-lock.json").packages[""].version'` outputs `1.1.1`; mechanism: `npm version 1.1.1 --no-git-tag-version` (PATTERNS.md canonical mechanism); single-concern atomic commit per D-Discretion #4 + 12.1-02 precedent (commits `d532c34`, `0dd573b`, `1eadd68`). Plan 13-03 commit `612ba60`. |
-| T-6 | `v1.1.1` tag pushed + CI run produces 6-asset GitHub Release atomically (3 installers + 3 `latest*.yml` feed files; `isDraft: false`; `isPrerelease: false`); Release body includes the D-03 stranded-rc-tester callout | **PENDING (Plan 05)** | Owned by Plan 13-05 (autonomous: false; user-confirmation gate before tag push and before Release publish). Expected post-Plan-05 evidence: `gh release view v1.1.1 --json assets -q '.assets \| length'` returns `6`; `gh release view v1.1.1 --json isDraft -q '.isDraft'` returns `false`; workflow logs CLEAN of `Personal Access Token is not set` / `asset_already_exists` / `HTTP 422`. This row will be flipped from PENDING to VERIFIED by a small follow-up edit during Plan 13-05's close-out. |
+| T-6 | `v1.1.1` tag pushed + CI run produces 6-asset GitHub Release atomically (3 installers + 3 `latest*.yml` feed files; `isDraft: false`; `isPrerelease: false`); Release body includes the D-03 stranded-rc-tester callout | VERIFIED | Tag `v1.1.1` pushed to origin pointing at `612ba60` (chore(13-03) version-bump commit per the 12.1-02 precedent of tagging the version-bump commit, NOT the subsequent docs commit). CI workflow run [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) concluded with `success` in ~4m07s (started 2026-04-29T06:20:25Z, completed 2026-04-29T06:24:32Z). `gh release view v1.1.1 --json assets -q '.assets \| length'` returns `6` (assets: `Spine.Texture.Manager-1.1.1-arm64.dmg` 125.9 MB, `Spine.Texture.Manager-1.1.1-x64.exe` 109.1 MB, `Spine.Texture.Manager-1.1.1-x86_64.AppImage` 139.2 MB, `latest-mac.yml` 371 B, `latest.yml` 367 B, `latest-linux.yml` 383 B). `gh release view v1.1.1 --json isDraft -q '.isDraft'` returns `false`; `gh release view v1.1.1 --json isPrerelease -q '.isPrerelease'` returns `false`; published at `2026-04-29T06:43:45Z`; URL https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1. D-10 publish-race fix log-clean (no Personal Access Token / asset_already_exists / HTTP 422 lines). Release body authored with D-03 stranded-rc-tester callout in `## Known issues` + `## Release tag conventions` cross-link to CLAUDE.md. |
 
 ### Required Artifacts
 
@@ -119,13 +119,11 @@ Plan 13-05's tag push + Release publish gates (BLOCKING checkpoints before tag p
 
 4. **Live verification of the cosmetic Windows fixes from Plan 13-01** — packaged v1.1.1 Windows install should show menu bar visible by default (no Alt-press needed) and About panel reading SemVer `1.1.1` (not win32 FileVersion `1.1.1.0`). Code-level closure is asserted by `tests/main/index-options.spec.ts` source-grep regression but the UX-level confirmation requires a real Windows host with a packaged installer.
 
-**Pending in Phase 13:**
+**Closed in Phase 13 (Plan 13-05 — 2026-04-29):**
 
-- **v1.1.1 publication: PENDING (Plan 05).** Plan 13-05 (autonomous: false; user-confirmation gate before tag push and before Release publish) will: push the `v1.1.1` tag → CI tag-version-guard at `.github/workflows/release.yml:43-54` accepts (because Plan 13-03 satisfied the version-equality contract) → CI matrix builds 3 OSes in parallel → 12.1-D-10 synthesizer emits the 3 `latest*.yml` feed files → `softprops/action-gh-release@v2.6.2` publishes the 6-asset draft Release atomically → Plan 13-05 authors the v1.1.1 release notes including the D-03 stranded-rc-tester callout ("If you installed `v1.1.0-rcN`, please download v1.1.1 manually from this page — auto-update couldn't reach you due to a naming bug fixed in this version") → user clicks "Publish" → small follow-up edit flips T-6 above from PENDING to VERIFIED + frontmatter `status: passed_partial → passed` + STATE.md `## Current phase` to fully closed + ROADMAP.md Phase 13 row to 5/5 Complete + Milestones bullet to ✅ v1.1.1 patch.
-
-If Plan 13-05 fails or is aborted, this state surface remains accurate ("code/docs landed; tag-push + Release publish pending") and a future re-attempt can pick up the verified `v1.1.1` package state without re-running Plans 13-01..04.
+- **v1.1.1 publication: LIVE.** Plan 13-05 executed the full release sequence: `v1.1.1` annotated tag created locally pointing at `612ba60` (Plan 13-03's chore version-bump commit per the 12.1-02 precedent of tagging the version-bump commit, NOT the subsequent docs commit) → tag pushed to origin → CI workflow [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) triggered → tag-version-guard at `.github/workflows/release.yml:43-54` accepted (`TAG_VERSION="1.1.1"` matched `PKG_VERSION="$(node -p "require('./package.json').version")"="1.1.1"` per Plan 13-03's bump) → CI matrix built 3 OSes in parallel (ubuntu-latest / windows-2022 / macos-14) → `scripts/emit-latest-yml.mjs` (12.1-D-10 synthesizer) emitted the 3 `latest*.yml` feed files → `softprops/action-gh-release@v2.6.2` published the 6-asset draft Release atomically → Release body authored with the D-03 stranded-rc-tester callout in `## Known issues` and a cross-link to CLAUDE.md `## Release tag conventions` → user verified body + asset list + isPrerelease state via the BLOCKING checkpoint → `gh release edit v1.1.1 --draft=false` flipped published at 2026-04-29T06:43:45Z. CI run conclusion `success` in ~4m07s; D-10 publish-race fix log-clean (4th successful CI run with the fix architecture, after rc2 / rc3 / v1.1.0). Public release URL: https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1.
 
 ---
 
-_Verified: 2026-04-28T22:50:00Z_
-_Verifier: Claude (gsd-executor) — Phase 13 Plan 04 execution_
+_Verified: 2026-04-29T06:45:00Z_
+_Verifier: Claude (gsd-executor) — Phase 13 Plan 05 closure_

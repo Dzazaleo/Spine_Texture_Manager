@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1.1
 milestone_name: Polish (Phase 12.1 carry-forwards)
-status: in_progress
-last_updated: "2026-04-28T22:50:00.000Z"
+status: complete
+last_updated: "2026-04-29T06:50:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 16
-  completed_plans: 15
-  percent: 94
+  completed_plans: 16
+  percent: 100
 ---
 
 # State
@@ -20,7 +20,7 @@ v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; 
 
 ## Current phase
 
-**Phase 13 — v1.1.1 polish: Phase 12.1 carry-forwards — CLOSED 4/5 plans complete 2026-04-28 at code/docs level.** v1.1.1 tag push + 6-asset GitHub Release publish pending Plan 13-05 (autonomous: false; user-confirmation gate before the irreversible push). All 3 carry-forward todos from 12.1's `passed_partial` close (rc-channel naming convention, Windows menu-bar autoHideMenuBar, Windows About panel SemVer) RESOLVED at code/docs level via Plans 13-01 + 13-02; version bump 1.1.0 → 1.1.1 landed by Plan 13-03 unblocking Plan 13-05's tag push; verification + state surface authored by Plan 13-04 (greenfield 13-VERIFICATION.md mirrors 12.1-VERIFICATION.md shape; PRESERVE-HISTORY flips on 12.1-VERIFICATION.md Anti-Patterns #1/#3/#4 + Gaps Summary). Live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) split to Phase 13.1 per CONTEXT D-01 — Phase 13.1 will be inserted via `/gsd-insert-phase 13.1` once Plan 13-05 closes.
+**Phase 13 — v1.1.1 polish: Phase 12.1 carry-forwards — CLOSED 5/5 plans complete 2026-04-29; v1.1.1 final published with 6-asset GitHub Release at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1.** All 3 carry-forward todos from 12.1's `passed_partial` close (rc-channel naming convention, Windows menu-bar autoHideMenuBar, Windows About panel SemVer) RESOLVED at code/docs level via Plans 13-01 + 13-02; version bump 1.1.0 → 1.1.1 landed by Plan 13-03; verification + state surface authored by Plan 13-04; v1.1.1 tag pushed + CI workflow [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) succeeded in ~4m07s + 6-asset draft Release synthesized atomically (D-10 publish-race fix verified clean — 4th successful CI run with the architecture, after rc2 / rc3 / v1.1.0) + Release body authored with D-03 stranded-rc-tester callout + isDraft flipped false at 2026-04-29T06:43:45Z by Plan 13-05. Live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) split to Phase 13.1 per CONTEXT D-01 — Phase 13.1 will be inserted via `/gsd-insert-phase 13.1` in a follow-up planning session.
 
 **Carry-forwards to v1.1.1** (documented in 12.1-VERIFICATION.md ## Gaps Summary + standalone todos):
 
@@ -38,11 +38,31 @@ v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; 
 
 ## Current plan
 
-13-05-PLAN.md (next; tag push v1.1.1 + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout per D-03, Wave 4, autonomous: false — has BLOCKING checkpoints before tag push and before Release publish).
+(none — Phase 13 closed; v1.1 milestone shippable; Phase 13.1 awaiting `/gsd-insert-phase 13.1` for live UAT carry-forwards; v1.2 cycle awaiting scoping).
 
 ## Last completed
 
-Plan 13-04 (Wave 3 — greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates) — 2026-04-28. Single atomic commit covering 4 file changes — proven 12.1-08 close-out shape (commit `b4ed03f`) mapped to Phase 13:
+Plan 13-05 (Wave 4 — v1.1.1 tag push + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout per D-03) — 2026-04-29. autonomous: false plan with 3 BLOCKING user-confirmation checkpoints (pre-flight verify; pre-push final-confirmation; pre-publish final-verification). Executed across 9 tasks; the user passed all 3 checkpoint gates ("ready" → tag at HEAD~1 per default → "push" → "publish"). Sequence on the wire:
+
+1. **Tag creation (Task 2):** `git tag -a v1.1.1 612ba60 -m "v1.1.1 — Phase 12.1 carry-forwards (cosmetic Windows fixes + rc-channel docs)"` — annotated tag pointing at the chore(13-03) version-bump commit per the 12.1-02 precedent of tagging the version-bump commit, NOT the subsequent docs commit.
+
+2. **Tag push (Task 4):** `git push origin v1.1.1` — push triggered `.github/workflows/release.yml` workflow run [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) within ~30s.
+
+3. **CI run (Task 5):** ran ~4m07s (started 2026-04-29T06:20:25Z, completed 2026-04-29T06:24:32Z), conclusion `success`. Tag-version-guard at release.yml:43-54 accepted (TAG_VERSION="1.1.1" matched PKG_VERSION="1.1.1" per Plan 13-03's bump). 3-OS test matrix (ubuntu-latest / windows-2022 / macos-14) passed; build matrix produced 3 installers; `scripts/emit-latest-yml.mjs` (12.1-D-10 synthesizer) emitted 3 `latest*.yml` feed files; `softprops/action-gh-release@v2.6.2` published the 6-asset draft Release atomically. D-10 publish-race fix log-clean (4th successful CI run with the architecture, after rc2 / rc3 / v1.1.0 — no Personal Access Token / asset_already_exists / HTTP 422 lines).
+
+4. **Release body authoring (Task 6):** edited the rendered release-template body via `gh release edit v1.1.1 --notes-file ...` to add the D-03 stranded-rc-tester callout in `## Known issues` (verbatim per CONTEXT.md §specifics: "If you installed `v1.1.0-rcN` (rc1, rc2, or rc3), please download `v1.1.1` manually from the assets list below — after upgrading, all future auto-updates work normally") + cross-link to CLAUDE.md `## Release tag conventions`. 4 sections preserved per REL-02 contract (Summary / New in this version / Known issues / Install instructions). 6 assets unchanged.
+
+5. **Publication (Task 8):** `gh release edit v1.1.1 --draft=false` published at 2026-04-29T06:43:45Z. Verified `isDraft: false`, `isPrerelease: false`, `assetCount: 6` (3 installers + 3 latest*.yml feed files). Public URL: https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1. Asset names + sizes: `Spine.Texture.Manager-1.1.1-arm64.dmg` (125.9 MB), `Spine.Texture.Manager-1.1.1-x64.exe` (109.1 MB), `Spine.Texture.Manager-1.1.1-x86_64.AppImage` (139.2 MB), `latest-mac.yml` (371 B), `latest.yml` (367 B), `latest-linux.yml` (383 B).
+
+6. **Follow-up doc-flip commit (Task 9):** atomic commit covering 3 file changes — `.planning/phases/13-v1-1-1-polish-phase-12-1-carry-forwards/13-VERIFICATION.md` (frontmatter `status: passed_partial → passed`, `score:` 4/4 → 5/5 with publication evidence; visible body block flipped from "PENDING (Plan 05)" → "LIVE — published 2026-04-29T06:43:45Z"; T-6 row Status flipped PENDING → VERIFIED with full evidence including run ID + publishedAt + 6-asset names+sizes + isDraft:false + isPrerelease:false; Gaps Summary "Pending in Phase 13" sub-paragraph rewritten to "Closed in Phase 13 (Plan 13-05 — 2026-04-29)" with the full publication sequence narrative; trailing footer bumped to 2026-04-29T06:45:00Z + verifier line updated to "Plan 05 closure"); `.planning/STATE.md` (frontmatter `last_updated:` bumped to 2026-04-29T06:50:00Z, `progress.completed_phases: 3 → 4`, `completed_plans: 15 → 16`, `percent: 94 → 100`, `status: in_progress → complete`; `## Current phase` rewritten from "CLOSED 4/5" → "CLOSED 5/5 plans complete 2026-04-29; v1.1.1 final published" + Release URL + run ID; `## Current plan` advanced from "13-05-PLAN.md (next; ...)" → "(none — Phase 13 closed; ...)"); `.planning/ROADMAP.md` (Phase 13 plan list `[ ] 13-05-PLAN.md` → `[x]` with completion note + commit SHA + Release URL; Progress table row `4/5 In progress (Plan 13-05 pending)` → `5/5 Complete | 2026-04-29`; Milestones bullet `🚧 **v1.1.1 patch**` → `✅ **v1.1.1 patch (2026-04-29)**` mirroring the 12-* phase closures' format).
+
+Net releases pipeline state: v1.0 final + v1.1.0 final + v1.1.1 final all published, all 6-asset complete, all D-10 publish-race-fix-clean. v1.1.1 patch milestone shipped. Phase 13 fully closed (5/5 plans). Phase 13.1 ready for `/gsd-insert-phase 13.1` insertion (live UAT — Linux runbook + macOS/Windows auto-update lifecycle observation; cosmetic Windows fix UX-level confirmation; windows-fallback variant observation).
+
+Acceptance verification: `gh release view v1.1.1 --json isDraft,isPrerelease,assets --jq '{ isDraft, isPrerelease, count: (.assets | length) }'` returns `{ "isDraft": false, "isPrerelease": false, "count": 6 }`. Test suite unchanged at 455/455 (no regressions from doc-only doc-flip commit). Working tree clean (only previously-known untracked Phase 12.1 leftovers remain). 2 commits added on Plan 13-05's wire: 0 task commits during Tasks 1-8 (all read-only or remote-only operations) + 1 doc-flip commit (Task 9) + 1 close-out commit (this SUMMARY + final state/roadmap reconciliation). Hook-validated commits (no `--no-verify`).
+
+Forward references: Phase 13.1 (when inserted via `/gsd-insert-phase 13.1`) inherits the 4 Gaps Summary deferrals documented in 13-VERIFICATION.md `### Gaps Summary` "Carry-forwards to Phase 13.1" block. Existing v1.1.0 final installs will detect v1.1.1 via electron-updater 6.x's `currentChannel === null` code branch (final → final path is unaffected by the rc-channel bug fixed via CLAUDE.md docs in Plan 13-02). Stranded v1.1.0-rcN testers (rc1 / rc2 / rc3) need to manually download v1.1.1 per the D-03 callout in the Release body.
+
+Prior: Plan 13-04 (Wave 3 — greenfield 13-VERIFICATION.md + PRESERVE-HISTORY 12.1-VERIFICATION.md flips + STATE.md/ROADMAP.md closure updates) — 2026-04-28. Single atomic commit covering 4 file changes — proven 12.1-08 close-out shape (commit `b4ed03f`) mapped to Phase 13:
 
 1. `.planning/phases/13-v1-1-1-polish-phase-12-1-carry-forwards/13-VERIFICATION.md` (greenfield) — frontmatter mirror of 12.1-VERIFICATION.md shape with `status: passed_partial` (T-6 v1.1.1 publication PENDING Plan 13-05; all other rows VERIFIED with commit SHAs from Plans 13-01 / 13-02 / 13-03). `score:` field enumerates 4/4 carry-forwards closed at code/docs level (Anti-Patterns #1 + #3 + #4 in 12.1-VERIFICATION.md, plus Gaps Summary polish-todos rc-channel naming + autoHideMenuBar + About-panel SemVer) plus v1.1.1 publication status (PENDING Plan 05 — owned by Plan 13-05 with user-confirmation gates before the irreversible push). Body mirrors 12.1-VERIFICATION.md's 12-section order (title + Phase Goal block + Verified/Status/Re-verification + Goal Achievement + Observable Truths + Required Artifacts + Key Link Verification + Behavioral Spot-Checks + Requirements Coverage + Anti-Patterns Found + Human Verification Required + Gaps Summary + trailing footer). Observable Truths table has 6 rows (T-1..T-6) — T-1 through T-5 VERIFIED with evidence (grep counts, node -p readbacks, vitest delta, commit SHAs `566ed8e` / `202c506` / `612ba60`); T-6 (v1.1.1 tag pushed + 6-asset GitHub Release atomic publish) PENDING. Behavioral Spot-Checks table has 22 rows of grep / node -p / readback commands. Gaps Summary forward-points to Phase 13.1 for Linux runbook + auto-update lifecycle UAT + cosmetic Windows fix live verification + windows-fallback variant observation; documents v1.1.1 publication-pending state for Plan 13-05.
 
