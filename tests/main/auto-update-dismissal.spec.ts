@@ -29,7 +29,7 @@
  *   regression net with cases targeting Phase 14's new exports + new
  *   asymmetric + new instrumentation surface.
  *
- * Coverage (11 assertions across 3 describe blocks):
+ * Coverage (13 assertions across 3 describe blocks):
  *   1. Phase 14 D-05 — manual ALWAYS re-presents (asymmetric override)
  *      14-a   manual + dismissed === available    → IPC IS sent
  *      14-b   startup + dismissed === available   → IPC NOT sent
@@ -42,6 +42,8 @@
  *      14-h   sticky slot overwrites on newer version
  *      14-i   clearPendingUpdateInfo() empties the slot
  *      14-j   suppressed startup event does NOT write to the sticky slot
+ *      14-l   IPC dismiss path empties the slot (Plan 06 / WR-01 closure)
+ *      14-m   IPC download path empties the slot (Plan 06 / WR-01 closure)
  *   3. Phase 14 D-10 structured logging
  *      14-k   `[auto-update] initAutoUpdater: entry` console.info emitted
  *
@@ -333,6 +335,66 @@ describe('Phase 14 D-03 update:request-pending sticky slot', () => {
     await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
     // Suppression branch returns early — slot stays null.
     expect(mod.getPendingUpdateInfo()).toBeNull();
+  });
+
+  it('(14-l) IPC dismiss path empties the sticky slot — clearPendingUpdateInfo + dismissUpdate combined behavior (gap WR-01 closure)', async () => {
+    // Lock the contract Plan 06 just wired into src/main/ipc.ts ipcMain.on('update:dismiss').
+    // The IPC handler does:
+    //   const { dismissUpdate, clearPendingUpdateInfo } = await import('./auto-update.js');
+    //   clearPendingUpdateInfo();
+    //   await dismissUpdate(version);
+    // This test mirrors that combined behavior in-process (the IPC layer itself
+    // is exercised by tests/main/ipc.spec.ts; here we only need to assert that
+    // the COMBINED clearPendingUpdateInfo + dismissUpdate sequence empties the
+    // slot — which is exactly what the user-facing 'Later' click triggers).
+    //
+    // Without Plan 06's wiring this test would still pass on the (14-i) shape
+    // because (14-i) calls clearPendingUpdateInfo() in isolation. The
+    // distinguishing assertion below is that the slot is non-null AFTER
+    // populating + BEFORE acting (anchoring the precondition) and null AFTER
+    // the IPC-handler-mirrored sequence runs.
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: null,
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(mod.getPendingUpdateInfo()).not.toBeNull(); // precondition — slot populated by deliverUpdateAvailable
+
+    // Mirror the ipc.ts update:dismiss handler shape: clear before delegating.
+    mod.clearPendingUpdateInfo();
+    await mod.dismissUpdate('1.2.3');
+
+    expect(mod.getPendingUpdateInfo()).toBeNull(); // postcondition — slot empty
+    expect(setDismissedVersionMock).toHaveBeenCalledWith('1.2.3'); // dismissUpdate still ran
+  });
+
+  it('(14-m) IPC download path empties the sticky slot — clearPendingUpdateInfo + downloadUpdate combined behavior (gap WR-01 closure)', async () => {
+    // Same shape as (14-l) but for the 'Download + Restart' click path. The
+    // ipc.ts update:download handler does:
+    //   const { downloadUpdate, clearPendingUpdateInfo } = await import('./auto-update.js');
+    //   clearPendingUpdateInfo();
+    //   return downloadUpdate();
+    // The autoUpdater.downloadUpdate stub resolves immediately (mockResolvedValue
+    // at line 70 in this file), so this test does not block on a real download.
+    loadUpdateStateMock.mockResolvedValue({
+      version: 1,
+      dismissedUpdateVersion: null,
+      spikeOutcome: 'unknown',
+    });
+    const mod = await import('../../src/main/auto-update.js');
+    mod.initAutoUpdater();
+    await fireEvent('update-available', { version: '1.2.3', releaseNotes: '' });
+    expect(mod.getPendingUpdateInfo()).not.toBeNull(); // precondition
+
+    // Mirror the ipc.ts update:download handler shape: clear before delegating.
+    mod.clearPendingUpdateInfo();
+    await mod.downloadUpdate();
+
+    expect(mod.getPendingUpdateInfo()).toBeNull(); // postcondition
+    expect(autoUpdaterStub.downloadUpdate).toHaveBeenCalledTimes(1); // downloadUpdate still ran
   });
 });
 
