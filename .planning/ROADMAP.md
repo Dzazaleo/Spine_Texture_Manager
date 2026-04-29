@@ -40,7 +40,7 @@
 
 ### 🚧 v1.1.2 Auto-update fixes (Phases 14–15) — IN PROGRESS
 
-- [ ] **Phase 14: Auto-update reliability fixes (renderer + state machine)** — Code-only fixes in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them. Restores the missing/regressed startup auto-check (UPDFIX-03), fixes the renderer-subscription race that silences manual `Help → Check for Updates` before any project loads (UPDFIX-04), and fixes the Windows UpdateDialog variant-selection + dismissal-persistence + re-check state machine so the Download (or windows-fallback "Open Release Page") button reliably surfaces and re-presents on subsequent checks (UPDFIX-02). No tag, no CI run, no publish in this phase — Phase 15 owns the live release.
+- [x] **Phase 14: Auto-update reliability fixes (renderer + state machine)** — Code-only fixes in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them. Restores the missing/regressed startup auto-check (UPDFIX-03), fixes the renderer-subscription race that silences manual `Help → Check for Updates` before any project loads (UPDFIX-04), and fixes the Windows UpdateDialog variant-selection + dismissal-persistence + re-check state machine so the Download (or windows-fallback "Open Release Page") button reliably surfaces and re-presents on subsequent checks (UPDFIX-02). No tag, no CI run, no publish in this phase — Phase 15 owns the live release. (completed 2026-04-29)
 - [ ] **Phase 15: Build/feed shape fix + v1.1.2 release** — Reconciles what `electron-builder` produces and what `scripts/emit-latest-yml.mjs` (the 12.1-D-10 synthesizer) emits with what `electron-updater@6.8.3` actually consumes per platform: macOS requires a `.zip` artifact alongside the `.dmg` advertised in `latest-mac.yml` (Squirrel.Mac swaps via zip — root cause of "ZIP file not provided"); Windows NSIS `.exe` + `.blockmap` + `latest.yml` shape verified live; Linux `.AppImage` + `latest-linux.yml` opportunistically. Then bumps `package.json` 1.1.1 → 1.1.2, tags `v1.1.2`, watches CI, publishes the resulting Release. UPDFIX-01 is verified by an installed v1.1.1 client successfully detecting + downloading + applying v1.1.2 from the real published feed on macOS + Windows.
 
 ## Phase Details
@@ -206,7 +206,7 @@ Plans:
 | 12. Auto-update + install docs | v1.1 | 6/6 | Complete    | 2026-04-27 |
 | 12.1. Installer + auto-update live verification | v1.1 | 8/8 | Complete (passed_partial — 4 carry-forwards to v1.1.1) | 2026-04-28 |
 | 13. v1.1.1 polish — Phase 12.1 carry-forwards | v1.1.1 | 5/5 | Complete | 2026-04-29 |
-| 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 0/TBD | Not started | — |
+| 14. Auto-update reliability fixes (renderer + state machine) | v1.1.2 | 5/5 | Complete    | 2026-04-29 |
 | 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 0/TBD | Not started | — |
 
 ## Deferred (post-v1.1)

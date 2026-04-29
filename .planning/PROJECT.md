@@ -38,18 +38,20 @@ Animators ship atlases that are as small as they mathematically can be without v
 
 **Goal:** Fix four auto-update defects observed live on shipped v1.1.1 so testers receive future updates end-to-end on **both** macOS and Windows, without manual reinstall. Hotfix milestone — no new feature surface.
 
+**Progress (2026-04-29):** Phase 14 (renderer + state machine fixes) **CLOSED 5/5 plans**. UPDFIX-02 + UPDFIX-03 + UPDFIX-04 wired in code with +38 regression specs (493/493 test suite). Phase 14.1 (gap closure for WR-01 sticky-slot cleanup) and Phase 15 (build/feed-shape fix + v1.1.2 release for UPDFIX-01) remaining.
+
 **Target features (each = one observed defect):**
 
-- **Cross-platform download → install succeeds** — On macOS, "Download & Restart" throws `ZIP file not provided`; Windows download path is unverified because the Download button never surfaces. Research what electron-updater 6.x actually requires on each platform (mac: `.dmg` + `.zip` + `latest-mac.yml`; win: NSIS `.exe` + `.blockmap` + `latest.yml`; linux: `.AppImage` + `latest-linux.yml`), reconcile with what `scripts/emit-latest-yml.mjs` (the 12.1-D-10 synthesizer) currently emits, fix the gap, and verify download → relaunch live on macOS and Windows.
-- **Windows update notification reliably surfaces a Download button** — Notification appears once with no Download CTA, never reappears on subsequent "Check for updates" clicks after dismissal. Investigate UpdateDialog variant selection (windows-fallback vs standard), dismissal persistence (atomic JSON store), re-check state machine.
-- **Auto-check on startup actually fires on every cold start** — UPD-01 was claimed Complete in v1.1 but is not firing in shipped v1.1.1 on either OS. Restore startup check, verify cold-start.
-- **Manual "Check for Updates" gives feedback before any project is loaded** — On macOS, Help → Check for Updates is silent until a `.json` / `.stmproj` is dropped (Windows blocked by the previous defect, but suspected same root cause). Investigate event ordering between `autoUpdater` events and renderer subscription; either buffer in main or defer first check until `did-finish-load`.
+- ✅ **Windows update notification reliably surfaces a Download button** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — D-04 variant selection deterministic via `SPIKE_PASSED` policy; D-05 asymmetric dismissal rule lets manual `Help → Check for Updates` re-present after a "Later" dismissal while preserving Phase 12 D-08 startup-suppression contract. UPDFIX-02.
+- ✅ **Auto-check on startup actually fires on every cold start** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — Renderer subscriptions lifted from `AppShell.tsx` (mounted only on `loaded`/`projectLoaded`) up to `App.tsx` (mounts unconditionally) so the startup `setTimeout(checkUpdate, 3500ms)` event has a subscriber on every cold start. UPDFIX-03.
+- ✅ **Manual "Check for Updates" gives feedback before any project is loaded** *(Phase 14, code complete; live OS UAT carries to Phase 15)* — Same renderer-lift fix as UPDFIX-03 closes the manual-check pre-project-load silence root cause. Late-mount race recovery via `window.api.requestPendingUpdate()` one-shot call against the new D-03 sticky `pendingUpdateInfo` slot. UPDFIX-04.
+- ⏳ **Cross-platform download → install succeeds** *(Phase 15)* — Reconcile electron-updater 6.8.3 platform requirements with electron-builder output + `scripts/emit-latest-yml.mjs` (12.1-D-10 synthesizer): mac requires `.dmg` + `.zip` + `latest-mac.yml`, win NSIS `.exe` + `.blockmap` + `latest.yml`, linux `.AppImage` + `latest-linux.yml`. Bump 1.1.1 → 1.1.2, tag, CI, publish. UPDFIX-01.
 
 **Key context / constraints:**
 
 - All four defects hit users in the wild on v1.1.1 — this is a hotfix release, not a new-feature milestone.
-- (1) and (2) may share root cause (broken/absent feed entries). Research-first to avoid double-fixing.
-- (3) and (4) may share root cause (renderer not subscribed when events fire). Investigate together.
+- Phase 14's renderer-mount lift fix supersedes the original "(3) and (4) may share root cause" hypothesis — both UPDFIX-03 and UPDFIX-04 had the same root cause (renderer not subscribed when events fire) and both close together via the App.tsx lift.
+- Phase 15 still owns UPDFIX-01 (download→install cross-platform) — feed-shape research-first to avoid double-fixing the mac `.zip` artifact gap.
 - v1.1.1 final → final auto-update via electron-updater 6.x's `currentChannel === null` code branch — no rc-channel mismatch involved.
 - Existing v1.1 distribution surface (installer build, CI pipeline, INSTALL.md) is locked; do not regress.
 - Phase 13.1 (live UAT carry-forwards from v1.1.1: Linux runbook, v1.1.0 → v1.1.1 lifecycle observation) is **separate** from v1.1.2 — those tasks pre-date this milestone and remain pending host availability. v1.1.2 fixes the broken update flow itself.

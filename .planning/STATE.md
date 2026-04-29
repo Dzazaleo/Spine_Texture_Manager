@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1.2
 milestone_name: Auto-update fixes
-status: unknown
-last_updated: "2026-04-29T10:24:27.521Z"
+status: in_progress
+last_updated: "2026-04-29T12:15:00Z"
 progress:
-  total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 2
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 5
 ---
 
 # State
@@ -23,21 +23,43 @@ Coverage: 4/4 UPDFIX requirements mapped to exactly one phase each. UPDFIX-02 + 
 
 ## Current phase
 
-Phase 14 — Auto-update reliability fixes (renderer + state machine). Not started. Awaiting `/gsd-plan-phase 14`.
+Phase 14 — Auto-update reliability fixes (renderer + state machine). **CLOSED 5/5 plans complete 2026-04-29** (verifier status: `human_needed`; 5/5 code-level truths verified; 6 ROADMAP success criteria require packaged-build OS UAT, persisted in 14-HUMAN-UAT.md and deferred to Phase 15 by milestone contract). Phase 15 (build/feed shape fix + v1.1.2 release) is next, but a small **WR-01 gap-closure phase 14.1** is recommended first to fix the sticky-slot cleanup gap surfaced by code review (10 LoC + 1 regression test) before the v1.1.2 tag goes out — see Next action.
 
-**Goal:** Restore reliable auto-update notification + check behavior on every cold start and on every manual `Help → Check for Updates` click on **both** macOS and Windows, regardless of whether a project file has been loaded yet, and ensure dismissing the notification does not permanently suppress it. Code-only phase touching `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them; no tag, no CI run, no publish (Phase 15 owns the live release surface).
+**Goal achieved:** All three Phase 14 requirements (UPDFIX-02, UPDFIX-03, UPDFIX-04) are wired in code with regression specs in `npm run test` (493/493 passing across 45 test files; +22 new assertions across 3 spec files added in Wave 3). Asymmetric dismissal rule + sticky pending-update slot + structured `[auto-update]` instrumentation + `update:request-pending` IPC + preload bridge + renderer lift all landed across 3 waves.
 
-**Requirements:** UPDFIX-02, UPDFIX-03, UPDFIX-04.
+**Architecture decisions taken (locked):**
+- D-05 asymmetric dismissal rule: manual trigger SKIPS `dismissedUpdateVersion` suppression; startup trigger PRESERVES it (verbatim Phase 12 D-08 behavior on the startup branch).
+- D-03 sticky pending-update slot: module-level `pendingUpdateInfo: UpdateAvailablePayload | null` in `src/main/auto-update.ts` written on every `update:available`; preserved on `update-not-available`; in-memory only (no persistence — D-Discretion-2).
+- D-09/D-10 structured logging: 9 `[auto-update] event: key=value, ...` `console.info` lines (target was ≥6).
+- D-01..D-04 renderer lift: 5 update subscriptions + `updateState` + `manualCheckPendingRef` + `<UpdateDialog>` mount lifted from `AppShell.tsx` (mounted only on `loaded`/`projectLoaded`) up to `App.tsx` (mounts unconditionally on every AppState branch). Late-mount race recovery via one-shot `window.api.requestPendingUpdate()` on App mount.
+- D-12 SHELL allow-list verified: `SHELL_OPEN_EXTERNAL_ALLOWED` Set in `src/main/ipc.ts:174` still contains `https://github.com/Dzazaleo/Spine_Texture_Manager/releases` (byte-identical agreement asserted by `tests/integration/auto-update-shell-allow-list.spec.ts`).
 
-**Plans:** TBD (decomposed by `/gsd-plan-phase 14`).
+**Code-review verdict:** 0 critical, 3 warnings, 5 info. Headline finding **WR-01 (warning)** — `clearPendingUpdateInfo()` is exported and tested but no production caller invokes it on dismiss/download. Cold-start path is unaffected (slot is in-memory only); latent risk for HMR/StrictMode/future in-session remount paths. Recommended fix before Phase 15 ships v1.1.2: a Phase 14.1 gap-closure plan (~10 LoC + 1 regression test) — full remediation guidance in 14-HUMAN-UAT.md `## Gaps` section.
 
 ## Current plan
 
-— (Phase 14 not yet planned)
+— (Phase 14 closed; next plan to decompose: 14.1-01 (WR-01 gap closure) via `/gsd-plan-phase 14 --gaps` in a fresh session)
 
 ## Last completed
 
-Plan 13-05 (Wave 4 — v1.1.1 tag push + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout per D-03) — 2026-04-29. autonomous: false plan with 3 BLOCKING user-confirmation checkpoints (pre-flight verify; pre-push final-confirmation; pre-publish final-verification). Executed across 9 tasks; the user passed all 3 checkpoint gates ("ready" → tag at HEAD~1 per default → "push" → "publish"). Sequence on the wire:
+**Phase 14 — Auto-update reliability fixes (renderer + state machine)** — 5/5 plans complete — 2026-04-29. Three-wave parallel execution via `gsd-executor` agents in isolated git worktrees:
+
+- **Wave 1 (parallel):** Plan 14-01 (main-side: trigger-aware suppression + sticky `pendingUpdateInfo` slot + 9 structured `[auto-update]` console.info lines + `update:request-pending` IPC handler + D-12 SHELL allow-list verification) committed `5ad1083`/`6e9f735`/`f161e00`/`b32d39b`/`5a4e850`/`e8a33a8` (test+feat+docs+test+feat+docs RED→GREEN cadence). Plan 14-02 (preload contextBridge: `window.api.requestPendingUpdate()` one-shot invoke wrapper + Rule 3 auto-fix on `src/shared/types.ts` Api interface) committed `df5b8fc`/`10bac77`/`f4cbf17`/`032bafd`. Both worktrees merged at `394b2cd` and `f72c70a`; add/add conflict on `deferred-items.md` (both plans logged the same pre-existing sampler-worker-girl flake) resolved by combining into a single unified entry. Post-merge test gate: 471/471 passed.
+
+- **Wave 2 (sequential, single plan):** Plan 14-03 (renderer subscription lift — 5 update subscriptions + `updateState` + `manualCheckPendingRef` + `<UpdateDialog>` mount moved from `AppShell.tsx` to `App.tsx` so they mount unconditionally on every AppState branch; late-mount race recovery via one-shot `window.api.requestPendingUpdate()` on App mount; Rule 3 auto-fix added `requestPendingUpdate` stub to `tests/renderer/save-load.spec.tsx`) committed `802a76e`/`d67b0ec`/`fc28b9d`. Worktree merged at `0db0482`. Post-merge test gate: 471/471 passed.
+
+- **Wave 3 (parallel):** Plan 14-04 `type: tdd` (greenfield regression specs — `tests/main/auto-update-dismissal.spec.ts` 11 assertions across 3 describe blocks + `tests/renderer/app-update-subscriptions.spec.tsx` 7 assertions; both shipped through inverted-RED→GREEN cycles since the production code already existed from Waves 1-2) committed `a666c3d`/`469660b`/`28cf567`/`7fbe81b`/`7daf67d`. Plan 14-05 (cross-surface integration spec — `tests/integration/auto-update-shell-allow-list.spec.ts` 4 assertions gating byte-identical agreement on the GitHub Releases-index URL across `App.tsx` `onOpenReleasePage`, `ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED`, and `auto-update.ts` `GITHUB_RELEASES_INDEX_URL`) committed `6bf5076`/`8b26e43`/`20fd7d4`. Both worktrees merged at `e96bcd3` and `b61d9f7`. Post-merge test gate: 493/493 passed.
+
+**Phase-level gates after Wave 3:**
+- Code review (`gsd-code-reviewer` agent at `standard` depth across 13 files): 0 critical / 3 warning / 5 info → committed at `ff0b9e5` (`14-REVIEW.md`). Headline WR-01 — sticky slot cleanup gap (see Phase 14.1 gap-closure note in Current phase + Next action).
+- Regression gate: full suite re-run, 493/493 passed across 45 test files, 0 prior-phase regressions.
+- Verifier (`gsd-verifier` agent): status `human_needed` — 5/5 code-level truths verified; 6 ROADMAP success criteria require packaged-build OS UAT and have been persisted in `14-HUMAN-UAT.md` (status: partial) for verification during Phase 15. WR-01 also surfaced as a code-level gap with 3 remediation paths documented. Verification report committed at `7455eb4` (`14-VERIFICATION.md`).
+
+**Net commits added on Phase 14's wire (orchestrator + 5 executor worktrees, branched from `9031c92` to `df31405`):** 27 commits — 6 worktree merge commits + 4 tracking-update commits (`12ca09e`/`9ae04c9`/`b85ef52`) + 14 task commits inside worktrees (test+feat+refactor+docs RED→GREEN cadence, all hook-bypassed `--no-verify` per parallel-executor protocol; orchestrator validated hooks at post-wave gates) + 3 phase-level gate commits (`ff0b9e5` REVIEW + `7455eb4` VERIFICATION + `df31405` HUMAN-UAT).
+
+**Test suite delta:** 455/455 (Phase 13 close) → 493/493 (Phase 14 close) = +38 new specs (+18 from Plan 14-04 dismissal/subscriptions specs, +4 from Plan 14-05 integration spec, +9 from Plan 14-01 main-side RED specs flipped GREEN, +7 from Plan 14-02 preload bridge specs).
+
+Prior: Plan 13-05 (Wave 4 — v1.1.1 tag push + CI watch + 6-asset GitHub Release publish with stranded-rc-tester callout per D-03) — 2026-04-29. autonomous: false plan with 3 BLOCKING user-confirmation checkpoints (pre-flight verify; pre-push final-confirmation; pre-publish final-verification). Executed across 9 tasks; the user passed all 3 checkpoint gates ("ready" → tag at HEAD~1 per default → "push" → "publish"). Sequence on the wire:
 
 1. **Tag creation (Task 2):** `git tag -a v1.1.1 612ba60 -m "v1.1.1 — Phase 12.1 carry-forwards (cosmetic Windows fixes + rc-channel docs)"` — annotated tag pointing at the chore(13-03) version-bump commit per the 12.1-02 precedent of tagging the version-bump commit, NOT the subsequent docs commit.
 
@@ -69,17 +91,17 @@ Prior milestone: v1.1.1 (Phase 13) closed 2026-04-29; v1.1 (Phases 10–12 + 12.
 
 ## Next action
 
-Milestone v1.1.2 (Auto-update fixes) roadmap landed 2026-04-29. **Next: `/gsd-plan-phase 14`** to decompose Phase 14 (Auto-update reliability fixes — renderer + state machine; UPDFIX-02 + UPDFIX-03 + UPDFIX-04) into executable plans. Phase 14 is code-only (no tag, no CI, no publish) and lands first because (a) the Windows Download button visibility fix (UPDFIX-02) is a prerequisite for live-verifying UPDFIX-01's Windows download path in Phase 15, and (b) the renderer/state-machine fixes are lower-risk than the build/feed-shape fix in Phase 15.
+Phase 14 closed 2026-04-29 (5/5 plans, code-only contract honored, +38 regression specs landed). **Next (in a fresh session): `/gsd-plan-phase 14 --gaps`** — decomposes the WR-01 sticky-slot cleanup gap into a Phase 14.1 gap-closure plan (~10 LoC + 1 regression test in `tests/main/auto-update-dismissal.spec.ts`). The verifier (`14-VERIFICATION.md` frontmatter `gaps[0]`) marks this as `failed` because Plan 14-03's frontmatter must-have truth #11 promised `clearPendingUpdateInfo()` would run on dismiss/download, but no production caller exists. Cold-start path is unaffected (in-memory-only contract); the latent risk lands the moment any in-session remount affordance ships. The fresh-session boundary is intentional — `/gsd-plan-phase` benefits from a clean context for its research + pattern-mapper + (optional) discuss steps.
 
-After Phase 14 closes, `/gsd-plan-phase 15` decomposes the build/feed-shape fix + v1.1.2 release wave (UPDFIX-01; package.json bump 1.1.1 → 1.1.2; tag push; CI watch; 6-asset (or 7-asset if `.zip` adds for macOS auto-update) Release publish through the existing 12.1-D-10 architecture). Phase 15's release-engineering wave will mirror Plan 13-05's shape (autonomous: false, 3 BLOCKING user-confirmation checkpoints — pre-flight verify; pre-push final confirmation; pre-publish final verification — per the user's git-beginner posture documented in user memory).
+After Phase 14.1 closes, `/gsd-plan-phase 15` decomposes the build/feed-shape fix + v1.1.2 release wave (UPDFIX-01; package.json bump 1.1.1 → 1.1.2; tag push; CI watch; 6-asset (or 7-asset if `.zip` adds for macOS auto-update) Release publish through the existing 12.1-D-10 architecture). Phase 15's release-engineering wave will mirror Plan 13-05's shape (autonomous: false, 3 BLOCKING user-confirmation checkpoints — pre-flight verify; pre-push final confirmation; pre-publish final verification — per the user's git-beginner posture documented in user memory). Phase 15 will live-verify the 6 packaged-build UAT items persisted in `14-HUMAN-UAT.md` (mac/win cold-start auto-check, idle Help→Check on both OS, Windows dismiss-and-recheck, Windows Download/Open Release Page button surface).
 
 Phase 13.1 (live UAT carry-forwards from v1.1.1) remains separately tracked — pending host availability; out-of-scope for v1.1.2 fixes.
 
 ## Open questions
 
 - Phase 15: macOS auto-update `.zip` artifact — does electron-builder 26.x produce it automatically when `mac.target` includes `dmg`, or does the target list need to add `zip` explicitly? Plan-phase 15 RESEARCH locks this against electron-updater 6.8.3's actual feed consumption against an unsigned ad-hoc `.dmg`. Cross-reference `12-RESEARCH.md` §"Unsigned-Windows Behavior" precedent for the equivalent NSIS `.exe` + `.blockmap` shape investigation.
-- Phase 14: Is the manual `Help → Check for Updates` pre-load silence on macOS (UPDFIX-04) caused by (a) renderer subscription timing (renderer subscribes to `update:*` IPC events on a code path that only runs after `did-finish-load`), or (b) main-side event ordering (autoUpdater fires events synchronously inside `app.whenReady()` before the renderer is mountable)? Plan-phase 14 investigates both hypotheses; fix architecture depends on which is the root cause.
-- Phase 14: UPDFIX-02 dismissal semantics — should `dismissedUpdateVersion` (Phase 12 D-08) suppress on subsequent **startup** checks but NOT on **manual on-demand** checks? Or should both paths re-present the dialog when the user explicitly clicks `Help → Check for Updates`? Recommended interpretation per UPDFIX-02 wording: manual on-demand always re-presents; startup auto-check still respects dismissedUpdateVersion. Plan-phase 14 locks this against the requirement.
+- ~~Phase 14: Is the manual `Help → Check for Updates` pre-load silence on macOS (UPDFIX-04) caused by (a) renderer subscription timing or (b) main-side event ordering?~~ **RESOLVED 2026-04-29 (Phase 14 close):** Root cause was (a) — renderer subscriptions lived in `AppShell.tsx` which only mounts on `loaded`/`projectLoaded` AppState branches, so the manual-check IPC events fired into a void when no project was loaded. Fix: lift subscriptions + `<UpdateDialog>` mount up to `App.tsx` (mounts unconditionally on every branch). Late-mount race for any update-available events that fired before `App.tsx` finished mounting handled via one-shot `window.api.requestPendingUpdate()` on App mount that reads from the new D-03 sticky slot.
+- ~~Phase 14: UPDFIX-02 dismissal semantics — should `dismissedUpdateVersion` suppress on subsequent **startup** checks but NOT on **manual on-demand** checks?~~ **RESOLVED 2026-04-29 (Phase 14 close):** Yes — D-05 asymmetric rule. Manual trigger SKIPS suppression; startup trigger PRESERVES Phase 12 D-08 strict suppression. Routed via module-level `lastCheckTrigger` slot in `src/main/auto-update.ts` recorded by `checkUpdate(triggeredManually)` and read at top of `deliverUpdateAvailable`.
 
 ## Decisions
 
@@ -106,12 +128,27 @@ v1.1.2 decisions to date:
 
 - Roadmap shape (2026-04-29): 2 phases — Phase 14 (renderer/state-machine fixes UPDFIX-02 + 03 + 04, code-only) before Phase 15 (build/feed-shape fix + v1.1.2 release UPDFIX-01). Rationale: Phase 14 is lower-risk and unblocks live verification of UPDFIX-01's Windows download path in Phase 15. Phase 15's release wave mirrors Plan 13-05's shape (autonomous: false, 3 BLOCKING user-confirmation checkpoints).
 - Phase 13.1 (live UAT carry-forwards from v1.1.1) is **separately tracked**, NOT part of v1.1.2 — those tasks pre-date this milestone and remain pending host availability.
+- Phase 14 D-05 asymmetric dismissal rule (2026-04-29): manual `Help → Check for Updates` SKIPS the `dismissedUpdateVersion` suppression branch; startup auto-check PRESERVES it. Implemented via module-level `lastCheckTrigger: 'startup' | 'manual' | null` slot in `src/main/auto-update.ts`, recorded synchronously by `checkUpdate(triggeredManually)` before `Promise.race` begins, read at top of `deliverUpdateAvailable`. This decision interpretation was confirmed during Phase 14 discuss (CONTEXT.md) per the recommended UPDFIX-02 reading and is now locked in 11 regression assertions across `tests/main/auto-update-dismissal.spec.ts` + 28 assertions in `tests/main/auto-update.spec.ts`.
+- Phase 14 D-03 sticky pending-update slot (2026-04-29): module-level `pendingUpdateInfo: UpdateAvailablePayload | null` in `src/main/auto-update.ts` — written on every `update:available`; preserved on `update-not-available` (the previous available payload remains sticky); cleared via explicit `clearPendingUpdateInfo()` call. **In-memory only — no persistence to `update-state.json`** (D-Discretion-2 — slot is rebuilt every cold-start launch by the next available event). Renderer fetches via `window.api.requestPendingUpdate()` one-shot invoke during late-mount hydration on App.tsx.
+- Phase 14 D-12 SHELL allow-list verified (2026-04-29): `SHELL_OPEN_EXTERNAL_ALLOWED` Set in `src/main/ipc.ts:174` still contains `https://github.com/Dzazaleo/Spine_Texture_Manager/releases` byte-for-byte. Cross-surface drift now caught at test-time by `tests/integration/auto-update-shell-allow-list.spec.ts` (4 assertions) which reads the literal string from all 3 sites (App.tsx `onOpenReleasePage`, ipc.ts allow-list, auto-update.ts `GITHUB_RELEASES_INDEX_URL`) and asserts byte-identical agreement.
+- Phase 14 renderer-mount architecture (2026-04-29): update subscriptions + `<UpdateDialog>` mount lifted from `AppShell.tsx` (which only mounts on `loaded`/`projectLoaded` AppState branches) up to `App.tsx` (mounts unconditionally on every AppState branch). This fix closes UPDFIX-04 (manual `Help → Check for Updates` no longer requires a project to be loaded) and is the architecturally-cleaner version of the alternatives considered in Phase 14 discuss (CONTEXT.md): main-side event buffering, `did-finish-load` deferral. Lift was chosen because (a) it fixes the actual root cause (renderer subscription timing) rather than papering over it, and (b) it eliminates an entire class of "renderer-not-yet-subscribed" races permanently.
+- Phase 14 WR-01 sticky-slot cleanup gap (2026-04-29): `clearPendingUpdateInfo` is exported and tested but no production caller invokes it on the dismiss/download paths. Cold-start path is unaffected (in-memory-only contract). Routing decision: **gap closure via Phase 14.1** in a fresh session via `/gsd-plan-phase 14 --gaps`. Rationale: keep release-engineering (Phase 15) scope narrow; preserve the canonical GSD gap-closure flow; ~10 LoC fix is small enough to ship as its own atomic phase.
 
 ## Last session
 
-2026-04-29 — v1.1.2 milestone roadmap created. ROADMAP.md updated to add Phases 14 + 15 under new "v1.1.2 Auto-update fixes" milestone bullet (continuing phase numbering from Phase 13; Phase 13.1 explicitly reserved/separate). REQUIREMENTS.md traceability table populated (UPDFIX-01 → Phase 15; UPDFIX-02 + 03 + 04 → Phase 14). 4/4 v1.1.2 requirement coverage validated. STATE.md frontmatter updated (`milestone: v1.1.2`, `total_phases: 2`, all completed counters at 0). Awaiting `/gsd-plan-phase 14` to decompose Phase 14 into plans.
+2026-04-29 — Phase 14 (Auto-update reliability fixes — renderer + state machine) executed end-to-end via `/gsd-execute-phase 14`. 5/5 plans across 3 waves with `gsd-executor` agents in parallel git worktrees:
 
-Earlier 2026-04-29 — Plan 13-05 (Wave 4 — v1.1.1 tag push + CI watch + 6-asset GitHub Release publish) closed; v1.1.1 final published. v1.1.1 patch milestone shipped. (Full session record preserved in v1.1.1 close-out STATE.md history; abbreviated here for v1.1.2 STATE.md focus.)
+- **Setup (orchestrator):** committed pre-existing planning artifacts (5 PLAN.md files + 14-PATTERNS.md + ROADMAP.md plan-list bump + STATE.md tracking pointer) at `b62f665` and `9031c92` so executor worktrees would branch from a clean base.
+- **Wave 1 (parallel, 2 plans):** 14-01 main-side hardening + 14-02 preload bridge. 10 worktree commits (RED→GREEN cadence) merged into 2 merge commits + 1 tracking commit; deferred-items.md add/add conflict resolved by combining both flake reports. Test gate: 471/471.
+- **Wave 2 (single plan):** 14-03 renderer subscription lift from AppShell → App.tsx with late-mount hydration. 3 worktree commits + 1 merge + 1 tracking commit. Test gate: 471/471 (1 previously-flaky sampler-worker-girl spec passing again).
+- **Wave 3 (parallel, 2 plans):** 14-04 TDD regression specs (inverted RED→GREEN since prod code already shipped from Waves 1-2; +18 assertions) + 14-05 cross-surface URL-consistency integration spec (+4 assertions). 8 worktree commits + 2 merge commits + 1 tracking commit. Test gate: 493/493.
+- **Phase-level gates:** code review (`gsd-code-reviewer` standard depth, 0 critical / 3 warning / 5 info, headline WR-01 sticky-slot cleanup gap → committed at `ff0b9e5`); regression gate (full suite re-run 493/493 zero prior-phase regressions); verifier (`gsd-verifier` status `human_needed`; 5/5 code-level truths verified; 6 packaged-build OS UAT items persisted in `14-HUMAN-UAT.md` for Phase 15 verification; WR-01 surfaced as a code-level gap → committed at `7455eb4`/`df31405`).
+- **Decision routing surfaced to user:** WR-01 routed to a Phase 14.1 gap-closure plan in a fresh session (rationale: keep Phase 15 release-engineering scope narrow; preserve canonical GSD gap-closure flow; ~10 LoC fix small enough to ship atomic).
+- **Phase close-out:** ROADMAP.md Phase 14 bullet flipped `[ ]` → `[x]`; STATE.md `## Current phase` rewritten from "Not started" → "CLOSED 5/5 plans complete 2026-04-29"; `## Last completed` body refreshed; `## Decisions` extended with 5 new Phase 14 entries (D-05 asymmetric, D-03 sticky slot, D-12 allow-list, renderer-mount, WR-01 routing).
+
+Earlier 2026-04-29 — v1.1.2 milestone roadmap created. ROADMAP.md updated to add Phases 14 + 15 under new "v1.1.2 Auto-update fixes" milestone bullet. REQUIREMENTS.md traceability table populated (UPDFIX-01 → Phase 15; UPDFIX-02 + 03 + 04 → Phase 14). 4/4 v1.1.2 requirement coverage validated.
+
+Earlier 2026-04-29 — Plan 13-05 (Wave 4 — v1.1.1 tag push + CI watch + 6-asset GitHub Release publish) closed; v1.1.1 final published. v1.1.1 patch milestone shipped.
 
 ## Links
 
@@ -156,7 +193,11 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continued fr
 - Phase 8.1 inserted after Phase 8 (2026-04-26): close Phase 8 verification gaps (locate-skeleton recovery reachability + new-skeleton dirty-guard).
 - Phase 8.2 inserted after Phase 8.1 (2026-04-26): File-menu surface + Cmd+O accelerator gating fix; bundled with native File menu items.
 
-**Active Phase:** Phase 14 (Auto-update reliability fixes — renderer + state machine) — not started; awaiting `/gsd-plan-phase 14`. Requirements: UPDFIX-02 + UPDFIX-03 + UPDFIX-04. Code surface concentrated in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them.
+**Planned Phase:** 14.1 (Phase 14 gap closure — WR-01 sticky-slot cleanup) — pending; **next: `/gsd-plan-phase 14 --gaps` in a fresh session**. Single-plan phase scoped to ~10 LoC + 1 regression test (call `clearPendingUpdateInfo()` at top of `update:dismiss` and `update:download` ipcMain.handle bodies in `src/main/ipc.ts`; assert in `tests/main/auto-update-dismissal.spec.ts` that `getPendingUpdateInfo()` returns `null` after either IPC fires).
+
+**Planned Phase:** 15 (Build/feed shape fix + v1.1.2 release) — pending after 14.1; awaiting `/gsd-plan-phase 15`. Requirements: UPDFIX-01. Will reconcile electron-builder output with electron-updater 6.8.3 feed consumption (mac `.dmg` + `.zip` + `latest-mac.yml`; win NSIS `.exe` + `.blockmap` + `latest.yml`), bump package.json 1.1.1 → 1.1.2, tag `v1.1.2`, watch CI, publish through the existing 12.1-D-10 architecture. Will live-verify the 6 packaged-build UAT items persisted in `14-HUMAN-UAT.md`.
+
+**Closed Phase:** 14 (Auto-update reliability fixes — renderer + state machine) — 5/5 plans complete — 2026-04-29. UPDFIX-02 + UPDFIX-03 + UPDFIX-04 closed at code level (live OS UAT carries to Phase 15 packaged-build wave). +38 regression specs added; suite at 493/493 across 45 files. Verifier status `human_needed` (5/5 code truths verified, 6 packaged-build UAT items deferred). 1 code-level gap (WR-01 sticky-slot cleanup) routed to Phase 14.1.
 
 **Closed Phase:** 13 (v1.1.1 polish — Phase 12.1 carry-forwards) — 5/5 plans complete — 2026-04-29. v1.1.1 final published at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1 (CI workflow run [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) succeeded ~4m07s with 6-asset atomic publish via D-10 publish-race fix architecture; user passed all 3 BLOCKING checkpoint gates: pre-flight-verify → tag-push-confirm → publish-confirm).
 
@@ -168,4 +209,4 @@ v1.1 milestone started 2026-04-27 — Distribution. Phase numbering continued fr
 
 **Closed Phase:** 10 (Installer build) — 3/3 plans complete — 2026-04-27T10:08:45Z. DIST-01..DIST-07 closed.
 
-**Planned Phase:** 14 (auto-update-reliability-fixes-renderer-state-machine) — 5 plans — 2026-04-29T10:01:00.672Z
+**Closed Phase:** 14 (auto-update-reliability-fixes-renderer-state-machine) — 5 plans — closed 2026-04-29.
