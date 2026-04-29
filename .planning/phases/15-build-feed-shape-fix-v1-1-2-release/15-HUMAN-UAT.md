@@ -41,6 +41,17 @@ findings_summary: |
   Phase 15 verification status overridden from `human_needed` to
   `gaps_found`. Phase 15 cannot be marked complete; v1.1.3 hotfix planned
   to address the UPDFIX-01 URL-mismatch defect.
+
+  v1.1.3 hotfix plan (Plan 15-06):
+  - Plan 15-05 landed sanitizeAssetUrl synthesizer rewrite (commits
+    f123e10 RED, d4ec015 GREEN, ca7152a chore version bump 1.1.2 → 1.1.3,
+    883b6e1 SUMMARY).
+  - Plan 15-06 ships v1.1.3 with the URL-resolution invariant pre-flight
+    gate (D-07 Gate 1) + CI dry-run gate (D-07 Gate 2) that would have
+    caught D-15-LIVE-1 in v1.1.2.
+  - Test 7-Retry runbook embedded above; UPDFIX-01 closure deferred to
+    operator (Leo) executing the runbook against installed v1.1.1 →
+    published v1.1.3 path.
 ---
 
 # Phase 15 — Human UAT runbook
@@ -284,6 +295,100 @@ pending: 5 (Tests 1, 3 from pre-tag — see Operator notes; Test 7 from post-pub
 skipped: 0
 blocked: 2 (Tests 2, 4 — Windows host unavailable)
 deferred: 0 (Tests 5, 6, 7 scaffolded by Task 8; 5+6 marked blocked-no-resource; 7 marked pending human capture)
+
+## v1.1.3 Hotfix Retry (Plan 15-06 — UPDFIX-01 retry post-D-15-LIVE-1 fix)
+
+After Plan 15-05 landed (sanitizeAssetUrl synthesizer rewrite + no-spaces regression test + version bump 1.1.2 → 1.1.3) and Plan 15-06 published v1.1.3, Test 7 must be re-run to empirically close UPDFIX-01.
+
+### Test 7-Retry: UPDFIX-01 macOS happy path against v1.1.3 (PRIMARY VERIFICATION)
+
+context: Installed packaged v1.1.1 macOS client (NOT v1.1.2 — v1.1.2's
+  client has the broken url and cannot reach v1.1.3 automatically; v1.1.2
+  mac users must MANUALLY download v1.1.3 from the Releases page; that
+  manual-download path is covered by the release-notes callout but does
+  not exercise the auto-update path) + the now-published v1.1.3 feed
+  at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.3/latest-mac.yml.
+expected: Within ~3-5 seconds of launching the v1.1.1 app cold,
+  DevTools console emits these 3 lines verbatim:
+    - `[auto-update] startup-check: setTimeout fired`
+    - `[auto-update] checkUpdate: trigger=startup, version=1.1.1`
+    - `[auto-update] event: update-available, version=1.1.3`
+  UpdateDialog opens with v1.1.3 available. Clicking "Download &
+  Restart" triggers Squirrel.Mac to swap via the .zip artifact at the
+  GitHub-canonical URL `Spine.Texture.Manager-1.1.3-arm64.zip` (DOTS,
+  no spaces) — DevTools must NOT contain `ERR_UPDATER_ZIP_FILE_NOT_FOUND`
+  NOR an HTTP 404 error. After Squirrel.Mac extracts + replaces the
+  .app bundle, the app relaunches into v1.1.3. Sequoia Gatekeeper may
+  re-prompt "Open Anyway" post-relaunch (RESEARCH §Risk #3 — expected
+  for ad-hoc cert mismatch; NOT an UPDFIX-01 failure). After relaunch,
+  Help → About reports `1.1.3` (NOT `1.1.1`).
+result: pending — see operator runbook below.
+reason: by-design human-in-the-loop — Squirrel.Mac swap is kernel-level OS
+  behavior; integration tests cannot simulate.
+
+operator runbook (Leo, on this macOS host):
+  1. Verify v1.1.1 is installed:
+       ls "/Applications/Spine Texture Manager.app" 2>&1
+     If a v1.1.2 .app from prior install OR a v1.1.3 .app from the local
+     pre-flight build exists, UNINSTALL FIRST so the upgrade path is
+     exercised cleanly:
+       rm -rf "/Applications/Spine Texture Manager.app"
+     Then install v1.1.1 fresh:
+       gh release download v1.1.1 --pattern "*arm64.dmg" --dir ~/Downloads
+       open ~/Downloads/Spine.Texture.Manager-1.1.1-arm64.dmg
+       # drag to /Applications, eject DMG
+  2. Quit any running Spine Texture Manager instance.
+  3. Launch v1.1.1 from /Applications via Spotlight or Dock.
+     (Approve Gatekeeper "Open" prompt if presented.)
+  4. IMMEDIATELY open DevTools: View → Toggle Developer Tools (Cmd+Option+I).
+  5. Wait ~5 seconds for the startup-check setTimeout to fire.
+  6. Filter the console for "auto-update". EXPECTED: 3 log lines:
+       [auto-update] startup-check: setTimeout fired
+       [auto-update] checkUpdate: trigger=startup, version=1.1.1
+       [auto-update] event: update-available, version=1.1.3
+     Copy these 3 lines verbatim into the result block below.
+  7. UpdateDialog should auto-open with v1.1.3 available.
+  8. Click "Download & Restart".
+  9. WATCH the DevTools console during the download. EXPECTED:
+     NO line containing `ERR_UPDATER_ZIP_FILE_NOT_FOUND` AND NO HTTP 404
+     line referencing `Spine-Texture-Manager-1.1.3-arm64.zip` (the dashes
+     form — that's the v1.1.2 bug). The download URL the client actually
+     fetches MUST be the dots form
+     `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.3/Spine.Texture.Manager-1.1.3-arm64.zip`.
+     If you can capture the Network tab request URL, paste it; otherwise
+     just confirm absence of 404 + ZIP_FILE_NOT_FOUND.
+ 10. App should relaunch automatically. If Sequoia presents "Open Anyway"
+     dialog, accept it (expected for ad-hoc cert mismatch).
+ 11. After relaunch, click Help → About. EXPECTED: version reads `1.1.3`.
+ 12. Paste under this `result:` block:
+       a. The 3 startup log lines (verbatim)
+       b. Confirmation of NO ERR_UPDATER_ZIP_FILE_NOT_FOUND in download phase
+       c. Confirmation of NO HTTP 404 lines referencing the .zip
+       d. (Optional) the Network tab download URL
+       e. Whether Sequoia "Open Anyway" appeared post-relaunch
+       f. The version reported by Help → About
+       g. Optionally, a screenshot of the About dialog
+ 13. Flip `result: pending → passed` if all expected lines fire and
+     version reports 1.1.3; `result: failed` if anything goes wrong.
+     If FAILED, capture the full transcript — D-15-LIVE-1 was supposed
+     to be closed by v1.1.3; another failure means the fix didn't take
+     OR there's a different defect we missed.
+
+### v1.1.2 mac stranded user verification (manual download path; LOW-priority confidence check)
+
+context: Any installed v1.1.2 mac client cannot auto-update to v1.1.3
+  (its broken url construction will still 404). The release-notes callout
+  in v1.1.3 directs these users to manually download. This test verifies
+  the manual-download instructions actually work.
+expected: User on v1.1.2 mac client clicks Help → Check for Updates,
+  sees the v1.1.2-broken-update error (HTTP 404 — same as the original
+  D-15-LIVE-1 transcript). User reads the v1.1.3 Release notes, follows
+  the manual-download link, downloads `Spine.Texture.Manager-1.1.3-arm64.dmg`,
+  drag-installs over /Applications/Spine Texture Manager.app, launches,
+  and Help → About reports `1.1.3`.
+result: deferred — operationally indistinguishable from a fresh-install
+  of v1.1.3, which is already covered by INSTALL.md. Mark `signed-off
+  (covered by existing INSTALL.md flow)` post-publication.
 
 ## Operator notes — pre-tag UAT execution by human
 
