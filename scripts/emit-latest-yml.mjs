@@ -136,6 +136,46 @@ function computeSha512Base64(absPath) {
   return createHash('sha512').update(buf).digest('base64');
 }
 
+/**
+ * Rewrite a local installer filename (with spaces) to its GitHub-canonical
+ * asset-store form (with dots) — Phase 15 Plan 05 hotfix for D-15-LIVE-1.
+ *
+ * Why this exists:
+ *   electron-builder's `artifactName: ${productName}-${version}-${arch}.${ext}`
+ *   substitutes productName="Spine Texture Manager" verbatim (with spaces),
+ *   producing local files like `release/Spine Texture Manager-1.1.3-arm64.zip`.
+ *   GitHub Releases auto-renames spaces → dots on upload, storing the asset
+ *   as `Spine.Texture.Manager-1.1.3-arm64.zip`. electron-updater@6.x reads
+ *   the url field from latest-*.yml and constructs a download URL by appending
+ *   the url to the Release tag's download base — sanitizing spaces to DASHES
+ *   in that construction. So the three sides see THREE different names:
+ *     - Local filename:        `Spine Texture Manager-1.1.3-arm64.zip` (SPACES)
+ *     - GitHub stored name:    `Spine.Texture.Manager-1.1.3-arm64.zip` (DOTS)
+ *     - electron-updater req:  `Spine-Texture-Manager-1.1.3-arm64.zip` (DASHES)
+ *   The fix: emit the url field in latest-*.yml as the GitHub-stored DOT form.
+ *   electron-updater reads the dot form, builds the download URL from it
+ *   verbatim (no further sanitization needed because dots are not whitespace),
+ *   and the URL agrees byte-for-byte with the GitHub-stored asset name → 200.
+ *
+ * Why ONLY space→dot (not multi-space-collapse, not URL encode, not NFD):
+ *   GitHub's rename is a deterministic 1:1 substitution per character. Two
+ *   consecutive spaces in the source filename produce two consecutive dots
+ *   in the stored filename (verified by the multi-space negative test in
+ *   tests/integration/emit-latest-yml.spec.ts). Any other transformation
+ *   (regex \s+ collapse, encodeURIComponent, normalize 'NFD') would diverge
+ *   from GitHub's behavior and re-introduce the 3-name mismatch class.
+ *
+ * sha512 + size compute path is UNCHANGED — those read bytes from the local
+ * file (which still has the spaced name); the hash + byte count are intrinsic
+ * to file content, not the asset's stored URL.
+ *
+ * @param {string} localFilename - Filename as it appears in release/ (may contain spaces)
+ * @returns {string} - GitHub-canonical form (spaces replaced with dots; all other chars preserved)
+ */
+function sanitizeAssetUrl(localFilename) {
+  return localFilename.replace(/ /g, '.');
+}
+
 function emitYaml(platform) {
   const cfg = PLATFORM_MAP[platform];
   const { outName } = cfg;
@@ -150,7 +190,10 @@ function emitYaml(platform) {
   const files = installerNames.map((name) => {
     const p = join(RELEASE_DIR, name);
     return {
-      url: name,
+      // Phase 15 Plan 05 hotfix (D-15-LIVE-1): emit GitHub-canonical url (dots,
+      // not spaces). sha512 + size compute uses the LOCAL filename (read bytes
+      // from the spaced file on disk); only the url FIELD is rewritten.
+      url: sanitizeAssetUrl(name),
       sha512: computeSha512Base64(p),
       size: statSync(p).size,
     };
