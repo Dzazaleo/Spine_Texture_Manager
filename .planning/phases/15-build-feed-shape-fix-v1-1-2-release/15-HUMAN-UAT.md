@@ -2,8 +2,9 @@
 phase: 15-build-feed-shape-fix-v1-1-2-release
 source: [15-VERIFICATION.md]
 inherits: 14-HUMAN-UAT.md
-status: pending
+status: partial
 started: 2026-04-29T17:12:53Z
+updated: 2026-04-29T17:55:00Z
 ---
 
 # Phase 15 — Human UAT runbook
@@ -82,26 +83,171 @@ result: pending — requires Windows machine. Same blocked status as
 
 ## Post-publish Tests
 
-(Filled by Task 8 after v1.1.2 publication.)
+(Scaffolded by Task 8 — v1.1.2 published 2026-04-29T17:52:50Z.
+All three tests below require human-in-the-loop interaction with
+packaged Electron builds + live DevTools console capture; the
+gsd-executor agent cannot launch packaged installers interactively
+or capture DevTools output. Marked `pending` with operator runbook;
+user (Leo) to execute out-of-band and append transcripts.)
 
 ### Test 5: Windows manual re-check after Later dismissal (UPDFIX-02 / Phase-14 ride-forward)
-[deferred to Task 8]
+
+context: Installed packaged v1.1.1 Windows client + published v1.1.2
+  feed (live at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.2
+  as of 2026-04-29T17:52:50Z).
+expected: After clicking "Later" on the v1.1.2 update notification
+  (which persists `dismissedUpdateVersion: '1.1.2'` to
+  `update-state.json`), clicking Help → Check for Updates manually
+  re-opens the UpdateDialog with v1.1.2 still presented (Phase 14
+  D-05 asymmetric rule — manual triggers SKIP `dismissedUpdateVersion`
+  suppression). Subsequently restarting the app should NOT re-present
+  the same dismissed version on cold-start auto-check (Phase 12 D-08
+  startup suppression preserved).
+result: pending — requires Windows host. This machine is macOS-only.
+  The gsd-executor agent cannot operate a Windows host.
+reason: blocked-no-resource — no Windows machine accessible.
+
+operator runbook (when Windows host becomes available):
+  1. On the Windows host, download v1.1.1 installer:
+     https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.1/Spine.Texture.Manager-1.1.1-x64.exe
+  2. Install (SmartScreen "More info → Run anyway" per INSTALL.md).
+  3. Launch from Start Menu / Desktop shortcut.
+  4. Wait ~3-5 seconds; UpdateDialog should appear with v1.1.2 available
+     in `windows-fallback` variant (SPIKE_PASSED=false on win32 per
+     Phase 12 D-04 / Phase 14 D-13).
+  5. Click "Later". Dialog dismisses.
+  6. From the menu bar: Help → Check for Updates.
+  7. EXPECTED: UpdateDialog re-opens with v1.1.2 still presented
+     (asymmetric rule).
+  8. Capture the DevTools console transcript (Ctrl+Shift+I) showing
+     the `[auto-update]` log lines for both the auto-check and the
+     subsequent manual check.
+  9. Close the app fully. Re-launch from Start Menu.
+ 10. Wait ~3-5 seconds. EXPECTED: UpdateDialog should NOT appear
+     (cold-start startup-check preserves dismissedUpdateVersion
+     suppression per Phase 12 D-08).
+ 11. Paste both transcripts under this `result:` block; flip
+     `result: pending → passed/failed` based on observed behavior.
 
 ### Test 6: Windows UpdateDialog Open Release Page button visibility (UPDFIX-02 windows-fallback / Phase-14 ride-forward)
-[deferred to Task 8]
 
-### Test 7: UPDFIX-01 macOS happy path (NEW for Phase 15)
-[deferred to Task 8]
+context: Continuation of Test 5's Windows session — UpdateDialog
+  open on a packaged v1.1.1 Windows install with v1.1.2 available
+  in `windows-fallback` variant.
+expected: variant=windows-fallback (NOT auto-update — SPIKE_PASSED=false
+  on win32 by default); "Open Release Page" button visible (NOT
+  "Download & Install" — that's the auto-update variant); clicking
+  the button opens the system's default browser to
+  `https://github.com/Dzazaleo/Spine_Texture_Manager/releases`
+  (the URL from `SHELL_OPEN_EXTERNAL_ALLOWED` per Phase 14 D-12,
+  byte-identical across all 3 sites per the integration spec).
+result: pending — requires Windows host. Same constraint as Test 5.
+reason: blocked-no-resource — no Windows machine accessible.
+
+operator runbook (when Windows host becomes available):
+  1. From Test 5's UpdateDialog state (variant=windows-fallback).
+  2. Inspect the dialog visually:
+     - Title should mention update available
+     - Body text mentions visiting the Release page
+     - One button labeled "Open Release Page" (NOT "Download & Install")
+     - One button labeled "Later"
+  3. Click "Open Release Page".
+  4. EXPECTED: System default browser opens
+     https://github.com/Dzazaleo/Spine_Texture_Manager/releases
+     (the index page, NOT a per-tag URL).
+  5. EXPECTED: Browser URL bar matches that string byte-for-byte.
+  6. Capture: a screenshot of the UpdateDialog showing the variant +
+     a screenshot/copy of the browser URL after the click.
+  7. Paste evidence under this `result:` block; flip
+     `result: pending → passed/failed`.
+
+### Test 7: UPDFIX-01 macOS happy path (NEW for Phase 15 — PRIMARY VERIFICATION)
+
+context: Installed packaged v1.1.1 macOS client (must already be
+  installed at /Applications/Spine Texture Manager.app from prior
+  Phase 13 testing OR freshly downloaded) + the now-published
+  v1.1.2 feed (latest-mac.yml live at
+  https://github.com/Dzazaleo/Spine_Texture_Manager/releases/download/v1.1.2/latest-mac.yml).
+  This is the test that closes UPDFIX-01 — the entire point of v1.1.2.
+expected: Within ~3-5 seconds of launching the v1.1.1 app cold,
+  DevTools console emits these 3 lines verbatim:
+    - `[auto-update] startup-check: setTimeout fired`
+    - `[auto-update] checkUpdate: trigger=startup, version=1.1.1`
+    - `[auto-update] event: update-available, version=1.1.2`
+  UpdateDialog opens with v1.1.2 available. Clicking "Download &
+  Restart" triggers Squirrel.Mac to swap via the .zip artifact (NOT
+  the .dmg — this is the bug fix). DevTools must NOT contain the line
+  `ERR_UPDATER_ZIP_FILE_NOT_FOUND` (the live error in v1.1.1 that
+  UPDFIX-01 fixes). After Squirrel.Mac extracts + replaces the .app
+  bundle, the app relaunches into v1.1.2. Sequoia Gatekeeper may
+  re-prompt "Open Anyway" post-relaunch (RESEARCH §Risk #3 — expected
+  for ad-hoc cert mismatch; NOT an UPDFIX-01 failure). After relaunch,
+  Help → About reports `1.1.2` (NOT `1.1.1`).
+result: pending — requires installed v1.1.1 packaged app + human
+  DevTools observation + restart sequence. The gsd-executor agent
+  cannot launch packaged Electron apps interactively, capture
+  DevTools console output, observe the Squirrel.Mac swap, or
+  approve a Gatekeeper prompt. The user (Leo) must execute this
+  test out-of-band on their macOS box.
+reason: by-design human-in-the-loop — Squirrel.Mac swap is a kernel-
+  level OS behavior; integration tests cannot simulate; this is the
+  inherent boundary between automation and human verification.
+
+operator runbook (Leo, on this macOS host):
+  1. Verify v1.1.1 is installed:
+       ls "/Applications/Spine Texture Manager.app" 2>&1
+     If missing, download:
+       gh release download v1.1.1 --pattern "*arm64.dmg" --dir ~/Downloads
+       open ~/Downloads/Spine.Texture.Manager-1.1.1-arm64.dmg
+       # drag to Applications, eject DMG
+     If a v1.1.2 .app already exists from Task 1 local builds,
+     UNINSTALL FIRST (drag to Trash) so the upgrade path is exercised
+     cleanly:
+       rm -rf "/Applications/Spine Texture Manager.app"
+       # re-install v1.1.1 fresh from the steps above
+  2. Quit any running Spine Texture Manager instance.
+  3. Launch v1.1.1 from /Applications via Spotlight or Dock.
+     (Approve Gatekeeper "Open" prompt if presented.)
+  4. IMMEDIATELY open DevTools: View → Toggle Developer Tools
+     (or Cmd+Option+I).
+  5. Wait ~5 seconds for the startup-check setTimeout to fire.
+  6. Filter the console for "auto-update". EXPECTED: 3 log lines:
+       [auto-update] startup-check: setTimeout fired
+       [auto-update] checkUpdate: trigger=startup, version=1.1.1
+       [auto-update] event: update-available, version=1.1.2
+     Copy these 3 lines verbatim.
+  7. UpdateDialog should auto-open with v1.1.2 available.
+  8. Click "Download & Restart".
+  9. WATCH the DevTools console during the download. EXPECTED:
+     NO line containing `ERR_UPDATER_ZIP_FILE_NOT_FOUND`.
+     If you see that error, UPDFIX-01 has NOT been fixed → flip
+     `result: pending → failed` and capture the full error transcript
+     for emergency triage.
+ 10. App should relaunch automatically. If Sequoia presents
+     "Open Anyway" dialog, accept it (this is expected per
+     RESEARCH §Risk #3 — ad-hoc cert mismatch on fresh Squirrel
+     swap; NOT an UPDFIX-01 failure).
+ 11. After relaunch, click Help → About. EXPECTED: version reads
+     `1.1.2` (NOT `1.1.1`).
+ 12. Paste under this `result:` block:
+       a. The 3 startup log lines
+       b. Confirmation of NO ERR_UPDATER_ZIP_FILE_NOT_FOUND in download phase
+       c. Whether Sequoia "Open Anyway" appeared post-relaunch
+       d. The version reported by Help → About
+       e. Optionally, a screenshot of the About dialog
+ 13. Flip `result: pending → passed` if all expected lines fire and
+     the version reports 1.1.2; `result: failed` if any expected
+     line is missing OR if `ERR_UPDATER_ZIP_FILE_NOT_FOUND` appeared.
 
 ## Summary
 
 total: 7 (4 pre-tag + 3 post-publish)
 passed: 0
 issues: 0
-pending: 4
+pending: 5 (Tests 1, 3 from pre-tag — see Operator notes; Test 7 from post-publish — see Test 7 operator runbook)
 skipped: 0
 blocked: 2 (Tests 2, 4 — Windows host unavailable)
-deferred: 3 (Tests 5, 6, 7 — post-publish, owned by Task 8)
+deferred: 0 (Tests 5, 6, 7 scaffolded by Task 8; 5+6 marked blocked-no-resource; 7 marked pending human capture)
 
 ## Operator notes — pre-tag UAT execution by human
 
