@@ -97,9 +97,10 @@ beforeEach(() => {
       },
     } as OpenResponse),
     // Phase 12 Plan 01 — auto-update preload surface (UPD-01..UPD-06).
-    // AppShell mounts a useEffect that subscribes to all five on* methods
-    // at first render — every method must be present (returning unsub fn)
-    // or React throws 'is not a function' on the useEffect commit.
+    // App.tsx (post Phase 14 Plan 03 lift) mounts a useEffect that
+    // subscribes to all five on* methods on first render — every method
+    // must be present (returning unsub fn) or React throws 'is not a
+    // function' on the useEffect commit.
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     dismissUpdate: vi.fn(),
@@ -110,6 +111,11 @@ beforeEach(() => {
     onUpdateError: vi.fn(() => () => undefined),
     onMenuCheckForUpdates: vi.fn(() => () => undefined),
     onMenuInstallationGuide: vi.fn(() => () => undefined),
+    // Phase 14 Plan 02/03 — late-mount sticky-slot recovery. App.tsx's
+    // lifted useEffect calls window.api.requestPendingUpdate() once on
+    // mount; tests must stub it so the Promise resolves (null = no
+    // pending update, the common case for these specs).
+    requestPendingUpdate: vi.fn().mockResolvedValue(null),
   });
 });
 
