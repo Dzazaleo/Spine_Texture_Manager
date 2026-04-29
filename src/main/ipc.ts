@@ -699,6 +699,31 @@ export function registerIpcHandlers(): void {
     })();
   });
 
+  // Phase 14 D-03 — late-mount pending-update re-delivery channel.
+  //
+  // Renderer App.tsx calls this ONCE on mount via window.api.requestPendingUpdate()
+  // to handle the late-subscribe edge case where main fired 'update-available'
+  // BEFORE the renderer's React effect committed (e.g., 3.5s startup check
+  // resolving before React hydration finishes — was the root cause of UPDFIX-03's
+  // "no startup notification" symptom on shipped v1.1.1 because the renderer
+  // never had a subscriber when the event fired).
+  //
+  // Returns the sticky 'update-available' payload (overwritten on each newer
+  // version; cleared by renderer-driven dismiss/download flows), or null on
+  // first launch / no pending update. Slot lives in src/main/auto-update.ts
+  // module state per D-Discretion-2 (in-memory only for v1.1.2 hotfix scope —
+  // rebuilt on every cold start).
+  //
+  // Trust-boundary: takes NO inbound payload (renderer invokes with zero args
+  // via ipcRenderer.invoke('update:request-pending')); the typed return value
+  // is enforced statically at the preload bridge. No string-guard needed at
+  // this site — mirrors the Phase 12 'update:check-now' / 'update:download'
+  // handlers above which also take zero args.
+  ipcMain.handle('update:request-pending', async () => {
+    const { getPendingUpdateInfo } = await import('./auto-update.js');
+    return getPendingUpdateInfo();
+  });
+
   // Phase 12 Plan 03 (D-19) — F1 atlas-image URL bridge.
   //
   // Renderer cannot use node:url (sandboxed; no Node modules at runtime),

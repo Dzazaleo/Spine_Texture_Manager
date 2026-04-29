@@ -86,7 +86,15 @@ vi.mock('../../src/main/sampler-worker-bridge.js', () => ({
 // so the handler bodies can be exercised without booting the real
 // electron-updater module. getPendingUpdateInfo's return value is controlled
 // per-test via getPendingUpdateInfoMock.mockReturnValueOnce(...).
-const getPendingUpdateInfoMock = vi.hoisted(() => vi.fn(() => null));
+type UpdateAvailablePayloadShape = {
+  version: string;
+  summary: string;
+  variant: 'auto-update' | 'windows-fallback';
+  fullReleaseUrl: string;
+};
+const getPendingUpdateInfoMock = vi.hoisted(() =>
+  vi.fn<() => UpdateAvailablePayloadShape | null>(() => null),
+);
 vi.mock('../../src/main/auto-update.js', () => ({
   getPendingUpdateInfo: getPendingUpdateInfoMock,
   clearPendingUpdateInfo: vi.fn(),
