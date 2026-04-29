@@ -1,44 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1.1
-milestone_name: Polish (Phase 12.1 carry-forwards)
-status: complete
-last_updated: "2026-04-29T06:50:00.000Z"
+milestone: v1.1.2
+milestone_name: Auto-update fixes
+status: in_progress
+last_updated: "2026-04-29T00:00:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current milestone
 
-v1.1.1 — Polish (Phase 12.1 carry-forwards). v1.1.0 final shipped 2026-04-28; v1.1.1 closes 4 carry-forwards over 5 plans (Phase 13).
+v1.1.2 — Auto-update fixes. Hotfix milestone scoping four post-release auto-update defects observed live on shipped v1.1.1 (mac `ZIP file not provided` on Download & Restart; Windows notification appears once with no Download button and never reappears on re-check; auto-check on startup not firing on either OS; manual "Check for Updates" stays silent on macOS until a project file is loaded). Phase 13 closed 2026-04-29 (v1.1.1 shipped). Phase 13.1 (live UAT carry-forwards from v1.1.1) remains pending host availability and is **separate** from v1.1.2 — those tasks pre-date this milestone.
 
 ## Current phase
 
-**Phase 13 — v1.1.1 polish: Phase 12.1 carry-forwards — CLOSED 5/5 plans complete 2026-04-29; v1.1.1 final published with 6-asset GitHub Release at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1.** All 3 carry-forward todos from 12.1's `passed_partial` close (rc-channel naming convention, Windows menu-bar autoHideMenuBar, Windows About panel SemVer) RESOLVED at code/docs level via Plans 13-01 + 13-02; version bump 1.1.0 → 1.1.1 landed by Plan 13-03; verification + state surface authored by Plan 13-04; v1.1.1 tag pushed + CI workflow [25094013906](https://github.com/Dzazaleo/Spine_Texture_Manager/actions/runs/25094013906) succeeded in ~4m07s + 6-asset draft Release synthesized atomically (D-10 publish-race fix verified clean — 4th successful CI run with the architecture, after rc2 / rc3 / v1.1.0) + Release body authored with D-03 stranded-rc-tester callout + isDraft flipped false at 2026-04-29T06:43:45Z by Plan 13-05. Live UAT (Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation) split to Phase 13.1 per CONTEXT D-01 — Phase 13.1 will be inserted via `/gsd-insert-phase 13.1` in a follow-up planning session.
-
-**Carry-forwards to v1.1.1** (documented in 12.1-VERIFICATION.md ## Gaps Summary + standalone todos):
-
-- Linux runbook + libfuse2 PNG capture (deferred to Phase 13.1 — no host this round)
-- rc → rc auto-update lifecycle docs — **CLOSED 13-02 commit `566ed8e`** (CLAUDE.md `## Release tag conventions` section per D-05; workflow-level regex guard deferred to v1.2+)
-- Windows menu-bar-hidden-by-default cosmetic — **CLOSED 13-01 commit `202c506`**
-- Windows About panel cosmetic — **CLOSED 13-01 commit `202c506`**
-
-**Carry-forwards to Phase 13.1** (documented in 13-VERIFICATION.md ## Gaps Summary):
-
-- Linux runbook execution + libfuse2 PNG capture (no Linux host this round — same blocker as 12.1)
-- macOS / Windows v1.1.0 → v1.1.1 auto-update lifecycle UAT (canonical user path; rc-channel bug does NOT affect final → final auto-update via electron-updater 6.x's `currentChannel === null` code branch)
-- Live verification of cosmetic Windows fixes from Plan 13-01 (menu bar visible by default + About panel reads SemVer `1.1.1`)
-- Windows windows-fallback variant live observation (deferred until v1.1.2 ships)
+Not started — defining requirements.
 
 ## Current plan
 
-(none — Phase 13 closed; v1.1 milestone shippable; Phase 13.1 awaiting `/gsd-insert-phase 13.1` for live UAT carry-forwards; v1.2 cycle awaiting scoping).
+—
 
 ## Last completed
 
@@ -209,11 +195,7 @@ Prior milestone: v1.0 (MVP) closed 2026-04-26. 12 phases, 62 plans, 331 vitest p
 
 ## Next action
 
-Phase 12 closed (6/6 plans complete). Next surface is the proposed phase 12.1: pick the electron-builder 26.x publish-race fix architecture (3 options enumerated in `.planning/phases/12-auto-update-tester-install-docs/deferred-items.md`), validate locally, run a fresh tag-push CI to publish v1.1.0-rc2 with full 3-OS artifacts and `latest*.yml` feed files, then execute Plan 12-01's Spike Runbook for live UPD-06 strict-bar three-step verification on a Windows test host. Side task: capture all 4 INSTALL.md screenshots during the same tester round and replace the placeholder PNGs in `docs/install-images/` (no INSTALL.md edits required — binary swap only).
-
-Phase 13 (crash + error reporting; TEL-01..07) is the next planned phase; not blocked by anything in Phase 12.
-
-**DO NOT push tags until phase 12.1 lands the publish-race fix** — the workflow will fail and pollute releases. See `.planning/phases/12-auto-update-tester-install-docs/deferred-items.md` "CI tag-push will fail" entry.
+Milestone v1.1.2 (Auto-update fixes) started 2026-04-29. Defining requirements next, then roadmap. Phase 13.1 (live UAT carry-forwards from v1.1.1) remains separately tracked — out-of-scope for v1.1.2 fixes.
 
 ## Open questions
 

@@ -34,24 +34,25 @@ Animators ship atlases that are as small as they mathematically can be without v
 - SEED-002 dims-badge + override-math cap (canonical vs source mismatch)
 - Phase-0 scale-overshoot debug session (`investigating`; v1.0 ships current behavior)
 
-## Current Milestone: v1.1 Distribution
+## Current Milestone: v1.1.2 Auto-update fixes
 
-**Goal:** Ship cross-platform installers (Windows / macOS / Linux) via GitHub Releases with auto-update, so the app can be distributed to testers without `git clone` / Node toolchain.
+**Goal:** Fix four auto-update defects observed live on shipped v1.1.1 so testers receive future updates end-to-end on **both** macOS and Windows, without manual reinstall. Hotfix milestone — no new feature surface.
 
-**Target features:**
-- **Cross-platform installer build** — electron-builder targets: Windows `.exe` (NSIS), macOS `.dmg` (universal or arm64+x64), Linux `.AppImage`. User cannot test Linux locally — Linux build must be CI-only with reasonable defaults.
-- **GitHub Actions CI build pipeline** — tag-triggered workflow (`v*.*.*`) that builds all 3 platforms in parallel and uploads artifacts to a draft GitHub Release.
-- **GitHub Releases distribution channel** — releases published with installer assets attached, release-notes template, tester-facing install instructions for each OS (including Gatekeeper / SmartScreen workarounds).
-- **Auto-update via electron-updater** — wired to GitHub Releases feed; check-on-startup + on-demand "Check for Updates" menu item; graceful UX when update unavailable / network offline.
-- **Signing posture (Phase 1, no paid certs):** ad-hoc signing on macOS (testers right-click → Open the first time); unsigned Windows (SmartScreen "More info → Run anyway"); AppImage on Linux needs no signing. Document the bypass steps in release notes.
-- **Tester-facing install docs** — short per-OS install guide bundled in the release description and a stable `INSTALL.md` in repo root.
+**Target features (each = one observed defect):**
+
+- **Cross-platform download → install succeeds** — On macOS, "Download & Restart" throws `ZIP file not provided`; Windows download path is unverified because the Download button never surfaces. Research what electron-updater 6.x actually requires on each platform (mac: `.dmg` + `.zip` + `latest-mac.yml`; win: NSIS `.exe` + `.blockmap` + `latest.yml`; linux: `.AppImage` + `latest-linux.yml`), reconcile with what `scripts/emit-latest-yml.mjs` (the 12.1-D-10 synthesizer) currently emits, fix the gap, and verify download → relaunch live on macOS and Windows.
+- **Windows update notification reliably surfaces a Download button** — Notification appears once with no Download CTA, never reappears on subsequent "Check for updates" clicks after dismissal. Investigate UpdateDialog variant selection (windows-fallback vs standard), dismissal persistence (atomic JSON store), re-check state machine.
+- **Auto-check on startup actually fires on every cold start** — UPD-01 was claimed Complete in v1.1 but is not firing in shipped v1.1.1 on either OS. Restore startup check, verify cold-start.
+- **Manual "Check for Updates" gives feedback before any project is loaded** — On macOS, Help → Check for Updates is silent until a `.json` / `.stmproj` is dropped (Windows blocked by the previous defect, but suspected same root cause). Investigate event ordering between `autoUpdater` events and renderer subscription; either buffer in main or defer first check until `did-finish-load`.
 
 **Key context / constraints:**
-- User cannot test Linux locally — reliance on CI build success + AppImage's portability.
-- Apple Developer ID and Windows EV cert are explicitly out of scope for v1.1 (cost / time). Will revisit after tester feedback.
-- App-Store / Microsoft Store distribution is out of scope.
-- electron-updater on Windows historically required code-signed builds; need to verify whether unsigned + GitHub Releases path works (research / spike during plan-phase).
-- Existing v1.0 capabilities must remain shippable — no scope creep into UI improvements or Documentation Builder (deferred to v1.2+).
+
+- All four defects hit users in the wild on v1.1.1 — this is a hotfix release, not a new-feature milestone.
+- (1) and (2) may share root cause (broken/absent feed entries). Research-first to avoid double-fixing.
+- (3) and (4) may share root cause (renderer not subscribed when events fire). Investigate together.
+- v1.1.1 final → final auto-update via electron-updater 6.x's `currentChannel === null` code branch — no rc-channel mismatch involved.
+- Existing v1.1 distribution surface (installer build, CI pipeline, INSTALL.md) is locked; do not regress.
+- Phase 13.1 (live UAT carry-forwards from v1.1.1: Linux runbook, v1.1.0 → v1.1.1 lifecycle observation) is **separate** from v1.1.2 — those tasks pre-date this milestone and remain pending host availability. v1.1.2 fixes the broken update flow itself.
 
 ## Primary user
 
@@ -82,6 +83,23 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 - `core/` cannot import DOM, Electron, or `sharp` (Layer 3 invariant — locked by `tests/arch.spec.ts`).
 - CLI byte-for-byte unchanged across phases (D-102; CLAUDE.md fact #3 / #5).
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ## Project root
 
 `/Users/leo/Documents/WORK/CODING/Spine_Texture_Manager/`
@@ -97,4 +115,4 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ---
 
-*Last updated: 2026-04-27 — Phase 12 complete (auto-update orchestrator + INSTALL.md cookbook + 3 Windows runtime fixes; spike + screenshots deferred to 12.1)*
+*Last updated: 2026-04-29 — Milestone v1.1.2 (Auto-update fixes) started. v1.1.0 + v1.1.1 shipped under v1.1 Distribution; four post-release auto-update defects (mac ZIP, win Download button + dismissal, startup check, manual-check pre-load silence) drive this hotfix milestone.*
