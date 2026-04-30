@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: expansion
-status: milestone_started
+status: roadmap_landed
 last_updated: "2026-04-30T00:00:00Z"
 progress:
   total_phases: 8
@@ -15,32 +15,38 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap landed; awaiting /gsd-discuss-phase or /gsd-plan-phase)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-30 — Milestone v1.2 (expansion) started; 8 phases scoped (13.1 + 16 / 17 / 18 + 19 / 20 / 21 / 22).
+Status: Roadmap landed; 26/26 v1.2 REQs mapped 1:1 to 8 phases (13.1 + 16 + 17 + 18 + 19 + 20 + 21 + 22)
+Last activity: 2026-04-30 — ROADMAP.md authored against REQUIREMENTS.md (commit f36f265, 25-row Traceability — actual count 26 REQs across 8 phases). Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22; Phase 13.1 inserted opportunistically when a host becomes available.
+
+## Last Roadmap Update
+
+2026-04-30 — `.planning/ROADMAP.md` refined to match the v1.2 REQUIREMENTS.md surface authored at commit f36f265. v1.0 / v1.1 / v1.1.1 / v1.1.2 historical sections preserved verbatim (append-only). v1.2 milestone bullet expanded from "Phases 16–18 promoted from backlog" → full 8-phase scope summary. v1.2 section header updated to "Phases 13.1, 16–22 (8 phases; promoted from backlog + tester feedback + dormant seeds 2026-04-30)". Phases 16 / 17 / 18 (already-existing rich Phase Details from /gsd-review-backlog commit cc0bc6a) gained `**Requirements:**` lines + `**Success Criteria**` blocks; existing Background / User decision / Scope / Severity / Cross-references sub-blocks preserved verbatim. Phases 13.1, 19, 20, 21, 22 authored from scratch (Phase 13.1 details lifted from 13-VERIFICATION.md gaps; Phase 19 from tester-feedback REQs; Phase 20 from D-148 + DOC-01..05; Phases 21 + 22 narrative lifted from `.planning/seeds/SEED-001-atlas-less-mode.md` + `.planning/seeds/SEED-002-dims-badge-override-cap.md`). Progress table extended with rows for 13.1, 19, 20, 21, 22 (16/17/18 rows preserved). Deferred section updated to strikethrough the 4 items now promoted (SEED-001, SEED-002, UI improvements, Documentation Builder, Phase 13.1 carry-forwards) + new "Out-of-scope for v1.2 specifically" section listing Apple Developer ID + Sentry as declined for v1.2 with v1.3 revisit posture. Backlog section unchanged (still empty post-/gsd-review-backlog 2026-04-29). Commit hash: [committed in next step].
 
 ## Current milestone
 
 v1.2 — expansion. Closes three macOS regressions + one host-blocked carry-forward from v1.1.x; refines the UI based on tester feedback (Phase 19 UI-01..05); adds the Documentation Builder feature (Phase 20 fills the .stmproj v1 reserved `documentation: object` slot from D-148); lands the two long-dormant SEEDs (Phase 21 SEED-001 atlas-less mode → Phase 22 SEED-002 dims-badge override-cap).
 
 Phases (continues numbering from v1.1.2; no `--reset-phase-numbers`):
-- **13.1** — Live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 lifecycle observation; host-availability gated)
-- **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29)
-- **17** — Help → Check for Updates not gated on project state (closes D-15-LIVE-3; promoted from backlog 999.3)
-- **18** — Cmd+Q + AppleScript quit broken on macOS (promoted from backlog 999.1)
+- **13.1** — Live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 lifecycle observation; host-availability gated; UAT-01..03)
+- **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29; UPDFIX-05)
+- **17** — Help → Check for Updates not gated on project state (closes D-15-LIVE-3; promoted from backlog 999.3; UPDFIX-06)
+- **18** — Cmd+Q + AppleScript quit broken on macOS (promoted from backlog 999.1; QUIT-01, QUIT-02)
 - **19** — UI improvements UI-01..05 (sticky header + cards + modal redesign + quantified callouts + button hierarchy; tester feedback)
-- **20** — Documentation Builder feature (.stmproj v1 documentation slot; D-148)
-- **21** — SEED-001 atlas-less mode (json + images, no .atlas; PNG header reader + synthetic atlas)
-- **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety)
+- **20** — Documentation Builder feature (.stmproj v1 documentation slot; D-148; DOC-01..05)
+- **21** — SEED-001 atlas-less mode (json + images, no .atlas; PNG header reader + synthetic atlas; LOAD-01..04)
+- **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety; DIMS-01..05)
+
+Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
 
 Out of scope for v1.2: Apple Developer ID signing + notarization (declined; manual-download UX is the v1.2 answer); Crash reporting / Sentry (revisit at v1.3); Spine 4.3+ versioned loader; `.skel` binary loader.
 
-REQUIREMENTS.md and ROADMAP.md will be authored next; phase numbering continues; Phase 22 depends on Phase 21.
+REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22 depends on Phase 21.
 
 ## Current phase
 
-— (no active phase yet; ready for `/gsd-discuss-phase 13.1` or `/gsd-discuss-phase 16` once roadmap is approved)
+— (no active phase yet; ready for `/gsd-discuss-phase 16` or `/gsd-plan-phase 16` — recommended first phase per execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
 
 ## Current plan
 

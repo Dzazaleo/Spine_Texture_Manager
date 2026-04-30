@@ -100,10 +100,10 @@ Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). **Depends o
 
 ## Traceability
 
-(Empty — populated by the roadmapper.)
+Roadmap-locked 2026-04-30 (ROADMAP.md authored). Every v1.2 REQ maps to exactly one phase; every phase has at least one REQ. Phase 22 depends on Phase 21 (shared PNG header reader infrastructure). Phase 13.1 is host-availability gated and runs opportunistically — not a strict dependency for any other phase.
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
+| Requirement | Phase | Status  |
+|-------------|-------|---------|
 | UAT-01      | 13.1  | Pending |
 | UAT-02      | 13.1  | Pending |
 | UAT-03      | 13.1  | Pending |
@@ -131,4 +131,4 @@ Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). **Depends o
 | DIMS-04     | 22    | Pending |
 | DIMS-05     | 22    | Pending |
 
-**Coverage:** 25/25 requirements pre-mapped to exactly one phase each. Roadmapper will validate full coverage and re-emit this section with any refinements (success criteria, dependency notes). Phase 22 depends on Phase 21 (shared PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent).
+**Coverage:** 26/26 v1.2 REQs mapped to exactly one phase each (no orphans, no duplicates). 8 phases own at least one REQ (13.1: 3, 16: 1, 17: 1, 18: 2, 19: 5, 20: 5, 21: 4, 22: 5). Phase 22 depends on Phase 21 (shared `src/core/png-header.ts` PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent locked 2026-04-25). Phase 13.1 is host-availability gated; no other phase blocks on it.
