@@ -244,6 +244,27 @@ export function App() {
     onClickSaveAs: () => Promise<SaveResponse>;
   } | null>(null);
 
+  /**
+   * Phase 18 D-01 + D-02 — callback-ref bridge for the before-quit dirty-guard,
+   * LIFTED from AppShell.tsx:786-800. App.tsx is the always-mounted root, so
+   * the onCheckDirtyBeforeQuit subscription runs on every AppState branch
+   * (idle / loading / loaded / projectLoaded / projectLoadFailed / error) —
+   * pre-lift, the listener lived inside AppShell which only mounted on
+   * `loaded` / `projectLoaded`, leaving Cmd+Q / AppleScript quit no-op'd from
+   * idle (closes QUIT-01 + QUIT-02).
+   *
+   * Object shape parallels appShellMenuRef (Phase 08.2 D-175): two members so
+   * AppShell can keep ownership of both the isDirty memo (line 580) AND the
+   * SaveQuitDialog mount slot (saveQuitDialogState at line 232 / SaveQuitDialog
+   * mount at line 1357). The lifted listener below dereferences at IPC-fire
+   * time, treating null as "AppShell unmounted — no project to save, fire
+   * confirmQuitProceed immediately" (D-04).
+   */
+  const dirtyCheckRef = useRef<{
+    isDirty: () => boolean;
+    openSaveQuitDialog: (onProceed: () => void) => void;
+  } | null>(null);
+
   // D-17: echo summary to console on successful load (ROADMAP exit criterion).
   // Phase 8: extended to fire on `projectLoaded` too — same console contract.
   useEffect(() => {
@@ -304,6 +325,66 @@ export function App() {
       unsubSaveAs();
     };
   }, [handleBeforeDrop, handleProjectLoad]);
+
+  /**
+   * Phase 18 D-01..D-05, D-11 — before-quit dirty-guard subscription, LIFTED
+   * from AppShell.tsx:786-800. Closes QUIT-01 + QUIT-02. Mirrors the canonical
+   * Phase 14 commit 802a76e shape (auto-update lift, lines 367-444 above).
+   *
+   * Three-branch dispatch (D-03, D-04, D-05):
+   *   - dirtyCheckRef.current === null  → AppShell unmounted (idle / error /
+   *     projectLoadFailed). No project to save. Fire confirmQuitProceed
+   *     immediately. (D-04 — this branch is the QUIT-01/QUIT-02 fix.)
+   *   - ref.isDirty() === false         → AppShell mounted but session is
+   *     clean. Same fast-path as D-04 — no SaveQuitDialog needed. (D-05)
+   *   - ref.isDirty() === true          → AppShell mounted + dirty. Hand the
+   *     proceed callback into AppShell via openSaveQuitDialog so the existing
+   *     SaveQuitDialog mount + setSaveQuitDialogState invocation runs verbatim.
+   *     Phase 8 contract LOCKED — Cancel keeps the app running (no
+   *     confirmQuitProceed call → main stays paused at preventDefault →
+   *     Electron aborts the quit). Save / Don't Save fires the proceed
+   *     callback through the existing pendingAction chain (AppShell.tsx:1370,
+   *     1377). (D-03)
+   *
+   * Empty dep array is correct: dirtyCheckRef.current is dereferenced at
+   * IPC-fire time (NOT at effect-attach time), so this effect must NOT re-run
+   * when AppShell mounts/unmounts. Mirrors the auto-update useEffect at line
+   * 444 (`}, []);`) and the Pitfall 9 / 15 cleanup discipline (preload
+   * preserves listener identity via a wrapped const closure, so the cleanup
+   * MUST return the unsubscribe — without `return unsub;` every re-mount
+   * would leak a listener).
+   *
+   * D-11: accepted pre-mount race. If the user presses Cmd+Q within ~500ms
+   * of cold start (before this effect commits on first render), main stays
+   * paused at preventDefault. The arch-grep test in Plan 02 catches the
+   * regression class structurally; the empirical race is bounded by React
+   * hydration and is not user-reachable in practice. Escalation path
+   * (main-side ~2s timeout fallback) is preserved as a deferred idea in
+   * 18-CONTEXT.md.
+   */
+  useEffect(() => {
+    const unsub = window.api.onCheckDirtyBeforeQuit(() => {
+      const ref = dirtyCheckRef.current;
+      if (ref === null) {
+        // D-04 — AppShell unmounted. No project, no dirty state, no dialog.
+        window.api.confirmQuitProceed();
+        return;
+      }
+      if (!ref.isDirty()) {
+        // D-05 — mounted but clean. Same fast-path as D-04.
+        window.api.confirmQuitProceed();
+        return;
+      }
+      // D-03 — mounted + dirty. Defer to the existing SaveQuitDialog flow
+      // (mount + setSaveQuitDialogState stay in AppShell). Save / Don't Save
+      // → onProceed runs → confirmQuitProceed. Cancel → onProceed never runs
+      // → main stays paused at preventDefault → Electron aborts the quit.
+      ref.openSaveQuitDialog(() => {
+        window.api.confirmQuitProceed();
+      });
+    });
+    return unsub;
+  }, []);
 
   /**
    * Phase 08.2 D-187 — push menu state to main whenever the AppState
@@ -471,6 +552,7 @@ export function App() {
           samplingHz={120}
           onBeforeDropRef={beforeDropRef}
           appShellMenuRef={appShellMenuRef}
+          dirtyCheckRef={dirtyCheckRef}
         />
       )}
       {state.status === 'projectLoaded' && (
@@ -487,6 +569,7 @@ export function App() {
           initialProject={state.project}
           onBeforeDropRef={beforeDropRef}
           appShellMenuRef={appShellMenuRef}
+          dirtyCheckRef={dirtyCheckRef}
         />
       )}
       {state.status === 'projectLoadFailed' && (
