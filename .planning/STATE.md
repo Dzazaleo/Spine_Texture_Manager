@@ -2,15 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: phase_complete
-last_updated: "2026-04-30T12:30:00Z"
-last_activity: "2026-04-30 — Phase 17 (Help → Check for Updates not gated on project) SKIPPED via /gsd-discuss-phase 17 investigation. UPDFIX-06 closed-by-test (regression test 14-l in tests/renderer/app-update-subscriptions.spec.tsx already locks the wiring; Phase 14 lift commit 802a76e fixed the bug; D-15-LIVE-3 was observed on the pre-lift v1.1.1 binary). v1.2 has 6 phases remaining (13.1 + 18 + 19 + 20 + 21 + 22). Earlier 2026-04-30: Phase 16 (macOS auto-update → manual-download UX) COMPLETE. 6/6 plans, 531 vitest passing, UPDFIX-05 closed."
+status: completed
+last_updated: "2026-04-30T11:15:46.609Z"
+last_activity: 2026-04-30 — Phase 17 skipped via /gsd-discuss-phase 17. UPDFIX-06 closed-by-test (existing regression test (14-l) in `tests/renderer/app-update-subscriptions.spec.tsx`).
 progress:
-  total_phases: 7
-  completed_phases: 1
-  skipped_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # State
