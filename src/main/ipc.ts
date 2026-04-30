@@ -184,6 +184,74 @@ const SHELL_OPEN_EXTERNAL_ALLOWED: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
+ * Phase 16 D-04 — releases-URL structural allow-list helper.
+ *
+ * Returns `true` iff `url` is a well-formed https URL on the github.com host
+ * targeting either:
+ *   - The project's Releases index page
+ *     (`/Dzazaleo/Spine_Texture_Manager/releases`), OR
+ *   - A specific release tag page
+ *     (`/Dzazaleo/Spine_Texture_Manager/releases/tag/v{version}`).
+ *
+ * Threat model — the structural check (URL-parse + hostname-equals +
+ * pathname-prefix) defends against:
+ *   - T-16-04-01 (URL-spoofing): naive `pathname.startsWith` without a
+ *     hostname check would allow `https://github.com.attacker.com/Dzazaleo/...`
+ *     because the malicious hostname has the project pathname as a substring.
+ *     The exact-equals on `parsed.hostname` blocks this.
+ *   - T-16-04-02 (subdomain-spoof): `https://attacker.github.com/...` blocked
+ *     by exact-equals on hostname (NOT endsWith / includes).
+ *   - T-16-04-03 (open-redirect via crafted info.version): malformed semver
+ *     smuggled through `releases/tag/v${info.version}` — the helper does
+ *     NOT execute or open the URL itself, only votes pass/reject. The
+ *     pathname-prefix guard is permissive about the version segment shape
+ *     because info.version is sourced from electron-updater (which itself
+ *     parses a published release tag string); defense in depth here would
+ *     be excessive vs. the parser at the source. If a malformed version
+ *     reaches this code, the outcome is "URL opens but lands on a 404
+ *     GitHub page" — not a privilege escalation.
+ *   - T-16-04-04 (scheme-downgrade): non-https schemes blocked by exact-equals
+ *     on `parsed.protocol`.
+ *   - T-16-04-05 (parse failure): malformed URL strings (e.g. "not a url",
+ *     "javascript:alert(1)", "") return false via the try/catch around
+ *     `new URL`.
+ *
+ * @internal — exported for tests/integration/auto-update-shell-allow-list.spec.ts
+ * (Plan 16-04 Task 1). Not part of the public src/main/ipc.ts API; do NOT
+ * re-export from index modules.
+ */
+export function isReleasesUrl(url: string): boolean {
+  if (typeof url !== 'string' || url.length === 0) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+  if (parsed.hostname !== 'github.com') return false;
+  // Pathname check — accept the index page exactly, OR any release-tag page
+  // under the project's namespace. The trailing-slash variant is rejected
+  // for the index URL to keep byte-for-byte agreement with Plan 14-05's
+  // URL-consistency regex (which asserts no trailing slash on the canonical
+  // literal).
+  if (parsed.pathname === '/Dzazaleo/Spine_Texture_Manager/releases') return true;
+  if (parsed.pathname.startsWith('/Dzazaleo/Spine_Texture_Manager/releases/tag/v')) {
+    // Pathname after the prefix must be a non-empty version segment with no
+    // additional slashes (defensive: a `/releases/tag/v1.2.0/extra/path`
+    // is NOT a release page on github.com — the actual GitHub URL shape
+    // ends at the tag).
+    const versionSegment = parsed.pathname.slice(
+      '/Dzazaleo/Spine_Texture_Manager/releases/tag/v'.length,
+    );
+    if (versionSegment.length === 0) return false;
+    if (versionSegment.includes('/')) return false;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Phase 6 REVIEW L-04 (2026-04-25) — the previous Round 2 helper
  * `isOutDirInsideSourceImages` (folder-position-only rejection) was
  * superseded by the Round 3+4 inline equality check + the F_OK probe in
@@ -652,7 +720,16 @@ export function registerIpcHandlers(): void {
   // bridge to open Spine documentation links from the in-app help view.
   ipcMain.on('shell:open-external', (_evt, url) => {
     if (typeof url !== 'string' || url.length === 0) return;
-    if (!SHELL_OPEN_EXTERNAL_ALLOWED.has(url)) return;
+    // Phase 16 D-04 — accept either:
+    //   (a) an exact-string match against the existing Set (Spine docs URLs +
+    //       INSTALL.md URL + the Releases index URL — the legacy Phase 12 D-18
+    //       allow-list shape), OR
+    //   (b) a structural match for a /releases/tag/v{version} URL on github.com
+    //       (Phase 16 D-04 — per-release URL emitted by deliverUpdateAvailable).
+    // The structural check (isReleasesUrl) defends against URL-spoofing tricks
+    // that a naive prefix match would allow. The Set.has check is preserved
+    // for backward-compat with Phase 12 D-18 + Plan 14-05 URL-consistency gate.
+    if (!SHELL_OPEN_EXTERNAL_ALLOWED.has(url) && !isReleasesUrl(url)) return;
     try {
       void shell.openExternal(url);
     } catch {
