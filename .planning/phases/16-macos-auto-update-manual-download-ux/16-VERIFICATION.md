@@ -1,19 +1,24 @@
 ---
 phase: 16-macos-auto-update-manual-download-ux
 verified: 2026-04-30T11:13:00Z
-status: human_needed
+status: passed
 score: 5/5
 must_haves_total: 5
 must_haves_verified: 5
 requirements: [UPDFIX-05]
 overrides_applied: 0
+human_verification_resolved: 2026-04-30T11:25:00Z
+human_verification_method: "dev-mode synthetic injection via temporary __triggerUpdateForUAT hook in App.tsx (applied + reverted in working tree, never committed). User confirmed both items PASS on macOS (darwin) — see 16-HUMAN-UAT.md for transcript."
 human_verification:
-  - test: "Packaged macOS build (ad-hoc-signed .dmg from main) shows 'Open Release Page' button when newer release available"
-    expected: "On macOS, when v1.2.0 (or any newer release) is published, the installed app's UpdateDialog opens with [Open Release Page] + [Later] buttons (NOT [Download + Restart]). No Squirrel.Mac swap is attempted; no `~/Library/Caches/com.spine.texture-manager.ShipIt/` activity; no code-signature mismatch error in DevTools console."
-    why_human: "Observable only on a packaged + installed macOS build receiving a real GitHub Releases feed event — code review and unit tests prove the routing logic is correct, but live UAT confirmation must wait for the v1.2.0 ship round. The Phase 16 PR explicitly defers package.json bump + tag + CI run + GitHub Release publish to a separate downstream task."
-  - test: "Clicking 'Open Release Page' on macOS launches default browser at /releases/tag/v{version}"
-    expected: "Browser opens at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0 (the per-release URL — Phase 16 D-04). User sees the .dmg / .exe / .AppImage assets directly. No errors in main DevTools console."
-    why_human: "Requires shell.openExternal invocation on a real macOS host — vitest cannot exercise the actual browser launch. Code path proves URL flows through SHELL_OPEN_EXTERNAL_ALLOWED guarded by isReleasesUrl helper (9 unit tests cover the URL shape contract)."
+  - test: "UpdateDialog renders [Open Release Page] button on manual-download variant"
+    result: PASS
+    verified_via: "dev-mode synthetic injection — `npm run dev` + `window.__triggerUpdateForUAT('manual-download')` in renderer DevTools console"
+  - test: "Clicking [Open Release Page] on macOS launches default browser at /releases/tag/v{version}"
+    result: PASS
+    verified_via: "dev-mode synthetic injection — clicking the button in the synthetic-event dialog opened default browser at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0"
+future_uat:
+  - test: "Re-verify items 1+2 against a packaged + installed macOS build receiving a real GitHub Releases feed event when v1.2.0 ships"
+    why: "Synthetic injection covers the renderer + IPC + shell.openExternal path. The upstream electron-updater → autoUpdater.on('update-available') handler is covered by unit tests but not yet by live UAT against a real release. This is out of Phase 16 scope (package.json bump + tag + CI run + GitHub Release publish are deferred to the v1.2.0 ship round)."
 ---
 
 # Phase 16: macOS auto-update manual-download UX Verification Report
