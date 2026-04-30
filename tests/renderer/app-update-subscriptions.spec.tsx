@@ -34,7 +34,7 @@ describe('Phase 14 — App.tsx update-subscription lift', () => {
     | ((payload: {
         version: string;
         summary: string;
-        variant: 'auto-update' | 'windows-fallback';
+        variant: 'auto-update' | 'manual-download';
         fullReleaseUrl: string;
       }) => void)
     | null = null;

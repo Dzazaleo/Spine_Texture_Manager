@@ -15,7 +15,7 @@
  *   10. state="downloaded" Restart click → onRestart.
  *   11. summary rendered as plain text in <pre> with whitespace-pre-wrap.
  *   12. View full release notes link → openExternalUrl(GITHUB_RELEASES_INDEX_URL).
- *   13. Windows-fallback variant: [Open Release Page] [Later] buttons.
+ *   13. manual-download variant: [Open Release Page] [Later] buttons.
  *   14. summary with markdown chars stays literal (no <strong>/<em> rendered).
  *   15. state="none" — friendly "up to date" view + Dismiss button.
  *
@@ -247,7 +247,7 @@ describe('UpdateDialog — Phase 12 Plan 01 (auto-update modal)', () => {
     );
   });
 
-  it('(13) Windows-fallback variant renders [Open Release Page] and [Later]', () => {
+  it('(13) manual-download variant renders [Open Release Page] and [Later]', () => {
     const onOpenReleasePage = vi.fn();
     render(
       <UpdateDialog
@@ -255,7 +255,7 @@ describe('UpdateDialog — Phase 12 Plan 01 (auto-update modal)', () => {
         state="available"
         version="1.2.3"
         summary=""
-        variant="windows-fallback"
+        variant="manual-download"
         onLater={vi.fn()}
         onClose={vi.fn()}
         onOpenReleasePage={onOpenReleasePage}
@@ -265,9 +265,9 @@ describe('UpdateDialog — Phase 12 Plan 01 (auto-update modal)', () => {
     expect(openBtn).toBeTruthy();
     fireEvent.click(openBtn);
     expect(onOpenReleasePage).toHaveBeenCalledTimes(1);
-    // Windows-fallback variant should NOT render [Download + Restart].
+    // manual-download variant should NOT render [Download + Restart].
     expect(screen.queryByRole('button', { name: /download \+ restart/i })).toBeNull();
-    // Windows-fallback variant should NOT render the View-full-release-notes link
+    // manual-download variant should NOT render the View-full-release-notes link
     // (the [Open Release Page] button serves that purpose).
     expect(screen.queryByRole('button', { name: /view full release notes/i })).toBeNull();
   });
