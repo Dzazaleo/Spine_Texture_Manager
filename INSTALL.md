@@ -136,9 +136,9 @@ If the right-click path doesn't show an "Open Anyway" option, fall back to the S
 
 ## After installation: auto-update
 
-Once installed, the app checks GitHub Releases for newer versions on startup (silently — only shows a prompt if an update is available). You can also check manually via **Help → Check for Updates** in the app menu.
+Once installed, the app checks GitHub Releases for newer versions on startup (silently — only shows a prompt if an update is available). You can also check manually via **Help → Check for Updates**.
 
-On macOS and Linux, accepting an update downloads the new version and prompts you to restart. On Windows, the same flow runs if your install is auto-update-capable; if not, the app shows a non-blocking notice with a button to open the Releases page where you can download the new installer manually.
+On Linux, accepting an update downloads the new version and prompts you to restart. On macOS and Windows, the app shows a non-blocking notice with a button to open the Releases page — download the new installer manually and run it (re-triggering the first-launch Gatekeeper / SmartScreen step).
 
 ---
 
