@@ -13,9 +13,10 @@
  *     `evt.sender.send('export:progress', ...)` at src/main/ipc.ts:511).
  *   - Suppression: when `dismissedUpdateVersion >= info.version` (D-08
  *     strict semver `>` semantics), drop the available event silently.
- *   - Variant routing: on Windows, gate the IPC payload's `variant`
- *     field on `SPIKE_PASSED` so the renderer mounts the correct dialog
- *     shape (auto-update OR windows-fallback per CONTEXT D-01..D-04).
+ *   - Variant routing: gate the IPC payload's `variant` field on
+ *     `IN_PROCESS_AUTO_UPDATE_OK` so the renderer mounts the correct
+ *     dialog shape (auto-update OR manual-download per Phase 12 D-04 +
+ *     Phase 16 D-05).
  *
  * Layer 3 invariant: lives in `src/main/`, freely imports `electron` and
  * `electron-updater`. NEVER imports from `src/core/` or `src/renderer/`.
@@ -50,7 +51,7 @@ import { loadUpdateState, setDismissedVersion } from './update-state.js';
 export type UpdateAvailablePayload = {
   version: string;
   summary: string;
-  variant: 'auto-update' | 'windows-fallback';
+  variant: 'auto-update' | 'manual-download';
   fullReleaseUrl: string;
 };
 
@@ -76,32 +77,50 @@ const CHECK_TIMEOUT_MS = 10_000;
 
 /**
  * Stable URL surface for "View full release notes" (D-09 / D-18 option (b)).
- * The Releases _index_ page is added as a SINGLE allow-list entry in
- * `src/main/ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED` rather than a per-tag URL
- * (which would require pattern support at the trust boundary). The user
- * lands one click away from the specific release; trade-off accepted.
+ * The Releases _index_ page is the backward-compat allow-list entry in
+ * `src/main/ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED`. Phase 16 D-04 widens the
+ * allow-list to also accept per-release `/releases/tag/v{semver}` URLs, but
+ * keeps this index URL accepted so any caller that still ships the index
+ * literal (UpdateDialog "View full release notes" link, Plan 14-05 URL-
+ * consistency regression gate) continues to work.
+ *
+ * Exported so Plan 16-04's IPC allow-list helper can import the canonical
+ * literal rather than re-stating the URL in two places.
  */
-const GITHUB_RELEASES_INDEX_URL =
+export const GITHUB_RELEASES_INDEX_URL =
   'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
 
 /**
- * D-04 / Task 6 — Windows-spike variant routing.
+ * Phase 16 D-01 / D-02 — single positive gate for in-process auto-update.
  *
- * Default: macOS and Linux always run the full auto-update path; Windows
- * defaults to the manual-fallback variant until Task 6's user-supervised
- * spike confirms the unsigned-NSIS auto-update flow works end-to-end
- * (detect + download + apply + relaunch).
+ * Reads as "this platform supports the in-process auto-update flow." Linux
+ * is the only platform where Squirrel-equivalent in-process swap works
+ * reliably without external code-signing constraints:
+ *   - macOS: Squirrel.Mac strict-validates the Designated Requirement
+ *     against the running app's code signature; ad-hoc-signed builds (no
+ *     Apple Developer ID — declined for v1.2 per CONTEXT.md, deferred
+ *     to v1.3+) generate fresh per-build hashes that cannot match
+ *     v1.1.x's stored DR. Empirically observed during Phase 15 v1.1.3
+ *     Test 7-Retry round 3 (2026-04-29 — D-15-LIVE-2). Routing to
+ *     manual-download closes the bug.
+ *   - Windows: NSIS auto-update spike has never run live (Phase 12 D-02
+ *     strict-spike bar). Defaults to manual-download until a Windows
+ *     host runs the spike. The `update-state.json` `spikeOutcome` field
+ *     can promote Windows to in-process at runtime (Outcome A/promotion
+ *     path — Phase 14 D-13).
+ *   - Linux: AppImage in-process swap works (no code-signing constraint).
  *
- * Set to `true` unconditionally after Outcome A; left at the default
- * for Outcomes B/C/D (Windows ships the manual-fallback notice).
+ * D-02 — runtime override stays Windows-only. There is NO parallel
+ * `macSignedOk` field. macOS structurally requires Apple Developer ID
+ * code-signing for Squirrel.Mac to accept the swap; a runtime flag flip
+ * cannot fix that. If Apple Developer ID enrollment ever lands (v1.3+
+ * earliest), that's a separate code change with its own gate constant.
  *
- * The `update-state.json` `spikeOutcome` field can ALSO promote this at
- * runtime (Task 6 step 10) — when `spikeOutcome === 'pass'`, the Windows
- * branch routes to the auto-update variant. This module-level constant is
- * the build-time compile-baseline; the runtime check in
- * `deliverUpdateAvailable` is the live signal.
+ * Replaces the prior Phase 12 D-04 gate which evaluated true on macOS and
+ * routed Squirrel.Mac into the code-signature-mismatch failure mode for
+ * every macOS update since v1.0.0 (see git history for the prior name).
  */
-const SPIKE_PASSED = process.platform !== 'win32';
+const IN_PROCESS_AUTO_UPDATE_OK = process.platform === 'linux';
 
 // --- Module state ----------------------------------------------------------
 
@@ -426,7 +445,7 @@ function extractSummary(
 
 /**
  * Bridge `update-available` to the renderer with D-08 suppression and
- * D-04 Windows-fallback variant routing.
+ * Phase 16 D-01 + D-02 variant routing.
  *
  * Suppression (D-08 strict `>` semantics): when the dismissed version is
  * newer-or-equal to the available version, drop the event. A NEWER version
@@ -434,13 +453,14 @@ function extractSummary(
  * sends `update:available`; `dismissedUpdateVersion='1.2.4'` +
  * `info.version='1.2.3'` does NOT.
  *
- * Variant routing (D-04): macOS / Linux always 'auto-update'. Windows
- * defaults to 'windows-fallback' until Task 6's spike runs and either
- * (a) flips `SPIKE_PASSED` at the module-constant level (Outcome A
- * promotes the build-time baseline to true), or (b) the persisted
- * `spikeOutcome === 'pass'` flag in update-state.json overrides at
- * runtime (allows promoting via a settings file edit without re-deploying
- * the main bundle — useful for tester rounds).
+ * Variant routing (Phase 16 D-01 + D-02 — supersedes the original Phase 12
+ * D-04 routing framing): the platform-only gate IN_PROCESS_AUTO_UPDATE_OK
+ * (Linux === true) routes Linux to 'auto-update'. macOS routes to
+ * 'manual-download' unconditionally (Apple Developer ID code-signing required
+ * for Squirrel.Mac swap on ad-hoc builds — declined for v1.2). Windows defaults
+ * to 'manual-download' AND retains the Phase 12 D-02 runtime escape hatch:
+ * `state.spikeOutcome === 'pass'` flips Windows to 'auto-update' without a
+ * source change (used after a successful Windows-host spike per Phase 14 D-13).
  */
 async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
   const state = await loadUpdateState();
@@ -464,19 +484,27 @@ async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
     return;
   }
 
-  // D-04 — Windows-fallback variant when on win32 AND spike has not passed
-  // (build-time SPIKE_PASSED OR runtime spikeOutcome === 'pass').
+  // Phase 16 D-01 + D-02 — single positive gate for in-process auto-update.
+  // Linux always 'auto-update'. Windows 'auto-update' iff the runtime escape
+  // hatch flag promotes (Phase 12 D-02 / Phase 14 D-13 — `spikeOutcome === 'pass'`
+  // in update-state.json). Everything else routes to 'manual-download' (the
+  // Phase 16 D-05 rename of the Phase 12 D-04 manual-fallback variant).
   const spikeRuntimePass = state.spikeOutcome === 'pass';
-  const variant: 'auto-update' | 'windows-fallback' =
-    process.platform === 'win32' && !SPIKE_PASSED && !spikeRuntimePass
-      ? 'windows-fallback'
-      : 'auto-update';
+  const variant: 'auto-update' | 'manual-download' =
+    IN_PROCESS_AUTO_UPDATE_OK || (process.platform === 'win32' && spikeRuntimePass)
+      ? 'auto-update'
+      : 'manual-download';
 
+  // Phase 16 D-04 — per-release templated URL. Lands the user directly on the
+  // release with the .dmg / .exe / .AppImage assets visible (one fewer click than
+  // the index page). The IPC allow-list (src/main/ipc.ts SHELL_OPEN_EXTERNAL_ALLOWED)
+  // accepts both the index URL (kept for backward-compat) and any /releases/tag/v{semver}
+  // URL — see Plan 16-04 isReleasesUrl helper.
   const payload: UpdateAvailablePayload = {
     version: info.version,
     summary: extractSummary(info.releaseNotes),
     variant,
-    fullReleaseUrl: GITHUB_RELEASES_INDEX_URL,
+    fullReleaseUrl: `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v${info.version}`,
   };
 
   // Phase 14 D-03 — populate sticky slot BEFORE sendToWindow so a renderer
