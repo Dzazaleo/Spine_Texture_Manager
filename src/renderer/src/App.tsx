@@ -247,11 +247,11 @@ export function App() {
   /**
    * Phase 18 D-01 + D-02 — callback-ref bridge for the before-quit dirty-guard,
    * LIFTED from AppShell.tsx:786-800. App.tsx is the always-mounted root, so
-   * the onCheckDirtyBeforeQuit subscription runs on every AppState branch
-   * (idle / loading / loaded / projectLoaded / projectLoadFailed / error) —
-   * pre-lift, the listener lived inside AppShell which only mounted on
-   * `loaded` / `projectLoaded`, leaving Cmd+Q / AppleScript quit no-op'd from
-   * idle (closes QUIT-01 + QUIT-02).
+   * the before-quit IPC subscription (see useEffect below) runs on every
+   * AppState branch (idle / loading / loaded / projectLoaded /
+   * projectLoadFailed / error) — pre-lift, the listener lived inside
+   * AppShell which only mounted on `loaded` / `projectLoaded`, leaving
+   * Cmd+Q / AppleScript quit no-op'd from idle (closes QUIT-01 + QUIT-02).
    *
    * Object shape parallels appShellMenuRef (Phase 08.2 D-175): two members so
    * AppShell can keep ownership of both the isDirty memo (line 580) AND the

@@ -109,6 +109,31 @@ export interface AppShellProps {
     onClickSave: () => Promise<SaveResponse>;
     onClickSaveAs: () => Promise<SaveResponse>;
   } | null>;
+  /**
+   * Phase 18 D-01 + D-02 — callback-ref bridge for the before-quit dirty-guard.
+   * App.tsx holds the useRef; AppShell registers `{ isDirty, openSaveQuitDialog }`
+   * into ref.current via a useEffect (see ref-registration block below the
+   * isDirty memo). App.tsx's lifted before-quit IPC listener dereferences at
+   * IPC-fire time so the latest registered impl always wins; when AppShell
+   * is unmounted (idle / error / projectLoadFailed) the ref is null and
+   * App.tsx's listener treats that as "no project loaded — fire
+   * confirmQuitProceed immediately" (D-04 — closes QUIT-01 + QUIT-02).
+   *
+   * Object shape carries TWO members because the SaveQuitDialog mount slot
+   * (saveQuitDialogState at line 232 + SaveQuitDialog mount at line 1357)
+   * stays in AppShell — only the IPC subscription lifts:
+   *   - isDirty()              → reads the AppShell isDirty memo (line 580).
+   *   - openSaveQuitDialog(cb) → invokes setSaveQuitDialogState({ reason: 'quit',
+   *                              pendingAction: cb }) so the existing Phase 8
+   *                              SaveQuitDialog flow runs verbatim (D-03).
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163) and appShellMenuRef
+   * (Phase 08.2 D-175) — same shape, same registration discipline.
+   */
+  dirtyCheckRef?: MutableRefObject<{
+    isDirty: () => boolean;
+    openSaveQuitDialog: (onProceed: () => void) => void;
+  } | null>;
 }
 
 export function AppShell({
@@ -117,6 +142,7 @@ export function AppShell({
   initialProject,
   onBeforeDropRef,
   appShellMenuRef,
+  dirtyCheckRef,
 }: AppShellProps) {
   // D-50: plain useState; default 'global' on every mount (i.e. every new drop).
   const [activeTab, setActiveTab] = useState<ActiveTab>('global');
@@ -778,28 +804,6 @@ export function AppShell({
    */
 
   /**
-   * before-quit dirty-guard subscription (D-143 + Pitfall 1). When the user
-   * tries to quit while isDirty === true, mount SaveQuitDialog with reason
-   * 'quit'. When clean, fire confirmQuitProceed immediately so main can
-   * complete the quit.
-   */
-  useEffect(() => {
-    const unsub = window.api.onCheckDirtyBeforeQuit(() => {
-      if (!isDirty) {
-        window.api.confirmQuitProceed();
-        return;
-      }
-      setSaveQuitDialogState({
-        reason: 'quit',
-        pendingAction: () => {
-          window.api.confirmQuitProceed();
-        },
-      });
-    });
-    return unsub;
-  }, [isDirty]);
-
-  /**
    * Phase 9 Plan 02 D-194 — subscribe to sampler progress events.
    * Pitfall 9 + 15 (RESEARCH): cleanup MUST return the unsubscribe closure;
    * the wrapped const inside preload preserves listener identity so
@@ -1042,6 +1046,44 @@ export function AppShell({
       appShellMenuRef.current = null;
     };
   }, [onClickSave, onClickSaveAs, appShellMenuRef]);
+
+  /**
+   * Phase 18 D-02 — register `{ isDirty, openSaveQuitDialog }` into App.tsx's
+   * dirtyCheckRef so the lifted before-quit IPC listener at App.tsx can read
+   * the current dirty signal AND trigger the existing Phase 8 SaveQuitDialog
+   * flow without owning AppShell's state.
+   *
+   * Closure freshness: the dep array includes `isDirty` so each isDirty
+   * change re-binds the closure with the latest captured value (Pitfall 9 /
+   * 15 listener-identity discipline). Cleanup nulls the ref so when
+   * AppShell unmounts (transition out of `loaded` / `projectLoaded`),
+   * App.tsx's lifted listener sees `null` and treats it as "no project
+   * loaded — fire confirmQuitProceed immediately" (D-04 — closes QUIT-01 +
+   * QUIT-02 from idle / error / projectLoadFailed).
+   *
+   * D-03: openSaveQuitDialog wraps setSaveQuitDialogState verbatim with
+   * reason 'quit' and the proceed callback supplied by App.tsx — the
+   * existing Phase 8 SaveQuitDialog mount at the bottom of this component
+   * (line ~1357) drives Save / Don't Save / Cancel exactly as before.
+   *
+   * Parallel to onBeforeDropRef (Phase 8.1 D-163) and appShellMenuRef
+   * (Phase 08.2 D-175) — same shape, same registration discipline.
+   */
+  useEffect(() => {
+    if (!dirtyCheckRef) return;
+    dirtyCheckRef.current = {
+      isDirty: () => isDirty,
+      openSaveQuitDialog: (onProceed) => {
+        setSaveQuitDialogState({
+          reason: 'quit',
+          pendingAction: onProceed,
+        });
+      },
+    };
+    return () => {
+      dirtyCheckRef.current = null;
+    };
+  }, [isDirty, dirtyCheckRef]);
 
   return (
     <div className="w-full h-full flex flex-col">

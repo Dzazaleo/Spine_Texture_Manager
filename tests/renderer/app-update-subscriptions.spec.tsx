@@ -107,6 +107,12 @@ describe('Phase 14 — App.tsx update-subscription lift', () => {
         downloadUpdate: downloadUpdateMock,
         quitAndInstallUpdate: quitAndInstallUpdateMock,
         openExternalUrl: openExternalUrlMock,
+        // Phase 18 — App.tsx now subscribes to the before-quit dirty-guard
+        // channel at mount (lifted from AppShell.tsx — D-01). Without these
+        // stubs every render(<App />) in this spec throws TypeError before
+        // any update-subscription assertion can run.
+        onCheckDirtyBeforeQuit: vi.fn(() => () => undefined),
+        confirmQuitProceed: vi.fn(),
       },
     });
   });
