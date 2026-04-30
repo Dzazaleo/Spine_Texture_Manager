@@ -34,32 +34,38 @@ Animators ship atlases that are as small as they mathematically can be without v
 - SEED-002 dims-badge + override-math cap (canonical vs source mismatch)
 - Phase-0 scale-overshoot debug session (`investigating`; v1.0 ships current behavior)
 
-## Current Milestone: v1.1.2 Auto-update fixes — SHIPPED
+## Previous Milestone: v1.1.2 Auto-update fixes — SHIPPED 2026-04-29
 
-**Goal:** Fix four auto-update defects observed live on shipped v1.1.1 so testers receive future updates end-to-end on **both** macOS and Windows, without manual reinstall. Hotfix milestone — no new feature surface.
+Hotfix milestone closing four auto-update defects observed live on v1.1.1. Phases 14 + 15 closed (5/5 + 6/6 plans); UPDFIX-01..04 validated. v1.1.2 published, then v1.1.3 same-day hotfix closed D-15-LIVE-1 (macOS feed-URL space-vs-dot mismatch) empirically via Test 7-Retry PARTIAL-PASS. 520 vitest passing. Three downstream defects discovered during live UAT (D-15-LIVE-2 ad-hoc code-sig swap; D-15-LIVE-3 menu gating; 999.1 macOS quit) routed to backlog and now promoted to v1.2 phases 16/17/18.
 
-**Status (2026-04-29):** ✅ **MILESTONE COMPLETE.** Phase 14 closed 5/5 plans (renderer + state machine fixes). Phase 15 closed 6/6 plans (build/feed-shape fix; v1.1.2 + v1.1.3 hotfix shipped). UPDFIX-01..04 all validated. v1.1.2 released, then v1.1.3 hotfix released same day to close D-15-LIVE-1 (macOS feed-URL space-vs-dot mismatch surfaced live in Test 7). 520 vitest passing.
+## Current Milestone: v1.2 expansion
 
-**Target features (each = one observed defect, all validated):**
+**Goal:** Close out three macOS regressions + one host-blocked carry-forward from v1.1.x; refine the UI based on tester feedback; add the Documentation Builder feature (the `.stmproj` v1 reserved `documentation: object` slot from D-148); land the two long-dormant SEEDs (atlas-less mode + dims-badge override-cap).
 
-- ✅ **Windows update notification reliably surfaces a Download button** *(Phase 14)* — D-04 variant selection deterministic via `SPIKE_PASSED` policy; D-05 asymmetric dismissal rule. UPDFIX-02.
-- ✅ **Auto-check on startup actually fires on every cold start** *(Phase 14)* — Renderer subscriptions lifted from `AppShell.tsx` to `App.tsx` so the startup `setTimeout(checkUpdate, 3500ms)` always has a subscriber. UPDFIX-03.
-- ✅ **Manual "Check for Updates" gives feedback before any project is loaded** *(Phase 14)* — Same renderer-lift fix; late-mount race recovery via `window.api.requestPendingUpdate()` one-shot call. UPDFIX-04.
-- ✅ **Cross-platform download → install succeeds** *(Phase 15 + v1.1.3 hotfix)* — `scripts/emit-latest-yml.mjs` extended to emit dual mac installers (.dmg + .zip + latest-mac.yml). v1.1.3 hotfix added `sanitizeAssetUrl()` to rewrite spaces → dots in emitted feed URLs (D-15-LIVE-1: GitHub Releases stores assets with dots while electron-builder produces filenames with spaces; the 3-way mismatch caused HTTP 404 on Squirrel.Mac swap). Empirically closed: v1.1.1 → v1.1.3 .zip download succeeds byte-exact (121,848,102 bytes). UPDFIX-01.
+**Target features (8 phases):**
 
-**Discovered during live UAT (routed to backlog, NOT v1.1.4):**
-- D-15-LIVE-2 (backlog 999.2): Squirrel.Mac code-sig swap fails on ad-hoc signed builds — was latent since v1.0.0, masked by earlier-pipeline failures. User decision: switch macOS auto-update UX to manual-download flow (deprecate Download/Restart buttons on macOS), not Apple Developer Program enrollment.
-- D-15-LIVE-3 (backlog 999.3): Help → Check for Updates is gated on having a project loaded. Should fire regardless of project state.
-- 999.1: App quit broken on macOS (Cmd+Q + AppleScript no-op) — observed during v1.1.1 testing.
+- **Phase 13.1 — Live UAT carry-forwards** *(host-blocked from v1.1.1)* — Linux AppImage UAT runbook + libfuse2 PNG capture for INSTALL.md; macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation.
+- **Phase 16 — macOS auto-update → manual-download UX** *(closes D-15-LIVE-2 / former 999.2)* — Flip the `SPIKE_PASSED = process.platform !== 'win32'` gate so macOS routes through the existing `windows-fallback` UpdateDialog variant (open GitHub Releases page in browser instead of Squirrel.Mac code-sig swap that fails on ad-hoc-signed builds). Likely renames `windows-fallback` → neutral `manual-download`. Plus dialog/INSTALL.md/Help copy + tests.
+- **Phase 17 — Help → Check for Updates not gated on project** *(closes D-15-LIVE-3 / former 999.3)* — Remove project-loaded guard on the menu handler so `update:check` IPC fires regardless of AppState branch. Likely a 1-line fix in `src/main/menu.ts`.
+- **Phase 18 — Cmd+Q + AppleScript quit broken on macOS** *(former 999.1)* — Wire missing `role: 'quit'` on the menu item, or fix `before-quit` handler swallowing the event. Observed in v1.1.1 packaged macOS build during Phase 15 UAT.
+- **Phase 19 — UI improvements (UI-01..05)** *(new for v1.2; sourced from tester feedback + visual diff against an older non-related Spine 3.8 reference app)* — Persistent sticky header bar (drop-zone state + primary action buttons + search box never scroll offscreen); card-based section layout with color-coded category icons + semantic state colors (green = under 1.0× scale, yellow = over, red = unused/danger); modal redesign with summary tiles + secondary cross-nav in footer; quantified unused-assets callout (`X.XX MB potential savings`); inline search + clear primary/secondary action-button hierarchy.
+- **Phase 20 — Documentation Builder feature** *(new for v1.2)* — Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148). Per-skeleton documentation surface: animation tracks with mix times + loop flags + notes, control-bone descriptions, skin descriptions, general notes, optimization config snapshot, export-to-HTML.
+- **Phase 21 — SEED-001 atlas-less mode** *(seed dormant since v1.0 Phase 6 close-out)* — Support `json + images folder, no .atlas` projects. New `src/core/png-header.ts` (IHDR-only byte parsing, no PNG decode — preserves CLAUDE.md fact #4) + `src/core/synthetic-atlas.ts` builds an in-memory `TextureAtlas` from per-region PNG headers when no `.atlas` file is present. Loader routes through synthesized atlas instead of failing with `AtlasNotFoundError`.
+- **Phase 22 — SEED-002 dims-badge + override-cap** *(seed; depends on Phase 21)* — Round-trip safety after Optimize. Extend `DisplayRow` with `actualSourceW/H` + `dimsMismatch` flag; surface badge in Global + Animation Breakdown panels when actual source PNG dims differ from canonical region dims; cap export effective scale at `min(peakScale, sourceW/canonicalW, sourceH/canonicalH)` so re-running Optimize on already-optimized images produces zero exports.
+
+**Out of scope (declined or deferred):**
+
+- Apple Developer ID code-signing + notarization ($99/yr; declined 2026-04-29 — Phase 16's manual-download UX is the v1.2 answer instead). Revisit at v1.3+.
+- Crash + error reporting (Sentry / equivalent) — descoped at v1.1; revisit at v1.3 once tester base + crash-trace volume justifies the SaaS dependency + consent UX overhead.
+- Spine 4.3+ versioned loader adapters; `.skel` binary loader. Carried unchanged from v1.0.
 
 **Key context / constraints:**
 
-- All four defects hit users in the wild on v1.1.1 — this is a hotfix release, not a new-feature milestone.
-- Phase 14's renderer-mount lift fix supersedes the original "(3) and (4) may share root cause" hypothesis — both UPDFIX-03 and UPDFIX-04 had the same root cause (renderer not subscribed when events fire) and both close together via the App.tsx lift.
-- Phase 15 still owns UPDFIX-01 (download→install cross-platform) — feed-shape research-first to avoid double-fixing the mac `.zip` artifact gap.
-- v1.1.1 final → final auto-update via electron-updater 6.x's `currentChannel === null` code branch — no rc-channel mismatch involved.
-- Existing v1.1 distribution surface (installer build, CI pipeline, INSTALL.md) is locked; do not regress.
-- Phase 13.1 (live UAT carry-forwards from v1.1.1: Linux runbook, v1.1.0 → v1.1.1 lifecycle observation) is **separate** from v1.1.2 — those tasks pre-date this milestone and remain pending host availability. v1.1.2 fixes the broken update flow itself.
+- Phase numbering continues from v1.1.2 (no `--reset-phase-numbers`); Phase 13.1 keeps its decimal name to preserve the "split off from Phase 13 so v1.1.1 could ship without being host-blocked" breadcrumb.
+- Phase 22 depends on Phase 21 (shared PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent).
+- Phase 16 supersedes the original "Apple Developer Program enrollment" path — manual-download UX is the locked answer; signing posture stays a v1.3 question.
+- UI improvements (Phase 19) work against the *current* PNG-screenshot UI; visual reference from an older 3.8 app exists for inspiration but its codebase is out-of-scope.
+- Existing v1.0 + v1.1 contracts (Layer 3 invariant, sampler lifecycle, override semantics, export uniform-only, `.stmproj` schema, sharp Lanczos3, atomic Pattern-B writes, ARIA modal pattern, distribution + CI surface) are locked; do not regress.
 
 ## Primary user
 
@@ -122,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-29 — Milestone v1.1.2 (Auto-update fixes) SHIPPED. Phase 14 + Phase 15 closed; UPDFIX-01..04 validated. v1.1.2 + v1.1.3 hotfix released same day; v1.1.3 closes D-15-LIVE-1 (mac feed-URL space/dot mismatch) empirically via Test 7-Retry partial-pass. Three downstream defects routed to backlog (999.1 app quit; 999.2 macOS manual-download UX for D-15-LIVE-2 code-sig swap fail; 999.3 menu gating).*
+*Last updated: 2026-04-30 — Milestone v1.2 (expansion) started. 8 phases scoped: 13.1 (live UAT carry-forwards), 16 / 17 / 18 (macOS manual-download UX + menu gating + Cmd+Q quit fix; promoted from backlog 999.1/2/3 via /gsd-review-backlog 2026-04-29), 19 (UI improvements UI-01..05 from tester feedback), 20 (Documentation Builder filling D-148 .stmproj slot), 21 (SEED-001 atlas-less mode), 22 (SEED-002 dims-badge override-cap; depends on 21). Apple Developer ID signing + Sentry crash reporting declined for v1.2; revisit at v1.3.*
