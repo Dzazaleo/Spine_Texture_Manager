@@ -77,12 +77,17 @@ const CHECK_TIMEOUT_MS = 10_000;
 
 /**
  * Stable URL surface for "View full release notes" (D-09 / D-18 option (b)).
- * The Releases _index_ page is added as a SINGLE allow-list entry in
- * `src/main/ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED` rather than a per-tag URL
- * (which would require pattern support at the trust boundary). The user
- * lands one click away from the specific release; trade-off accepted.
+ * The Releases _index_ page is the backward-compat allow-list entry in
+ * `src/main/ipc.ts` `SHELL_OPEN_EXTERNAL_ALLOWED`. Phase 16 D-04 widens the
+ * allow-list to also accept per-release `/releases/tag/v{semver}` URLs, but
+ * keeps this index URL accepted so any caller that still ships the index
+ * literal (UpdateDialog "View full release notes" link, Plan 14-05 URL-
+ * consistency regression gate) continues to work.
+ *
+ * Exported so Plan 16-04's IPC allow-list helper can import the canonical
+ * literal rather than re-stating the URL in two places.
  */
-const GITHUB_RELEASES_INDEX_URL =
+export const GITHUB_RELEASES_INDEX_URL =
   'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
 
 /**
@@ -111,9 +116,9 @@ const GITHUB_RELEASES_INDEX_URL =
  * cannot fix that. If Apple Developer ID enrollment ever lands (v1.3+
  * earliest), that's a separate code change with its own gate constant.
  *
- * Replaces the prior `SPIKE_PASSED = process.platform !== 'win32'` (Phase 12
- * D-04) which evaluated `true` on macOS and routed Squirrel.Mac into the
- * code-signature-mismatch failure mode for every macOS update since v1.0.0.
+ * Replaces the prior Phase 12 D-04 gate which evaluated true on macOS and
+ * routed Squirrel.Mac into the code-signature-mismatch failure mode for
+ * every macOS update since v1.0.0 (see git history for the prior name).
  */
 const IN_PROCESS_AUTO_UPDATE_OK = process.platform === 'linux';
 
@@ -448,8 +453,8 @@ function extractSummary(
  * sends `update:available`; `dismissedUpdateVersion='1.2.4'` +
  * `info.version='1.2.3'` does NOT.
  *
- * Variant routing (Phase 16 D-01 + D-02 — supersedes the original Phase 12 D-04
- * windows-fallback framing): the platform-only gate IN_PROCESS_AUTO_UPDATE_OK
+ * Variant routing (Phase 16 D-01 + D-02 — supersedes the original Phase 12
+ * D-04 routing framing): the platform-only gate IN_PROCESS_AUTO_UPDATE_OK
  * (Linux === true) routes Linux to 'auto-update'. macOS routes to
  * 'manual-download' unconditionally (Apple Developer ID code-signing required
  * for Squirrel.Mac swap on ad-hoc builds — declined for v1.2). Windows defaults
@@ -479,19 +484,27 @@ async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
     return;
   }
 
-  // D-04 — Windows-fallback variant when on win32 AND spike has not passed
-  // (build-time SPIKE_PASSED OR runtime spikeOutcome === 'pass').
+  // Phase 16 D-01 + D-02 — single positive gate for in-process auto-update.
+  // Linux always 'auto-update'. Windows 'auto-update' iff the runtime escape
+  // hatch flag promotes (Phase 12 D-02 / Phase 14 D-13 — `spikeOutcome === 'pass'`
+  // in update-state.json). Everything else routes to 'manual-download' (the
+  // Phase 16 D-05 rename of the Phase 12 D-04 manual-fallback variant).
   const spikeRuntimePass = state.spikeOutcome === 'pass';
-  const variant: 'auto-update' | 'windows-fallback' =
-    process.platform === 'win32' && !SPIKE_PASSED && !spikeRuntimePass
-      ? 'windows-fallback'
-      : 'auto-update';
+  const variant: 'auto-update' | 'manual-download' =
+    IN_PROCESS_AUTO_UPDATE_OK || (process.platform === 'win32' && spikeRuntimePass)
+      ? 'auto-update'
+      : 'manual-download';
 
+  // Phase 16 D-04 — per-release templated URL. Lands the user directly on the
+  // release with the .dmg / .exe / .AppImage assets visible (one fewer click than
+  // the index page). The IPC allow-list (src/main/ipc.ts SHELL_OPEN_EXTERNAL_ALLOWED)
+  // accepts both the index URL (kept for backward-compat) and any /releases/tag/v{semver}
+  // URL — see Plan 16-04 isReleasesUrl helper.
   const payload: UpdateAvailablePayload = {
     version: info.version,
     summary: extractSummary(info.releaseNotes),
     variant,
-    fullReleaseUrl: GITHUB_RELEASES_INDEX_URL,
+    fullReleaseUrl: `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v${info.version}`,
   };
 
   // Phase 14 D-03 — populate sticky slot BEFORE sendToWindow so a renderer
