@@ -1,54 +1,134 @@
-# Requirements — Milestone v1.1.2 Auto-update fixes
+# Requirements — Milestone v1.2 expansion
 
-> Active requirements for the v1.1.2 hotfix milestone. Validated v1.1 requirements (DIST-01..07, CI-01..06, REL-01..04, UPD-01..06) are archived in `.planning/milestones/v1.1-REQUIREMENTS.md`. Validated v1.0 requirements are archived in `.planning/milestones/v1.0-REQUIREMENTS.md`.
+> Active requirements for the v1.2 milestone. Validated v1.1.2 requirements (UPDFIX-01..04) are archived in [.planning/milestones/v1.1.2-REQUIREMENTS.md](milestones/v1.1.2-REQUIREMENTS.md). Validated v1.1 requirements are archived in [.planning/milestones/v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md). Validated v1.0 requirements are archived in [.planning/milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md).
 
 ## Goal
 
-Fix four auto-update defects observed live on shipped v1.1.1 so testers receive future updates end-to-end on **both** macOS and Windows (Linux verified opportunistically when host available), without manual reinstall. Hotfix milestone — no new feature surface, no new build/CI surface.
+Close out three macOS regressions + one host-blocked carry-forward from v1.1.x; refine the UI based on tester feedback (Phase 19 UI-01..05); add the Documentation Builder feature (Phase 20 fills the `.stmproj` v1 reserved `documentation: object` slot from D-148); land the two long-dormant SEEDs (Phase 21 SEED-001 atlas-less mode → Phase 22 SEED-002 dims-badge override-cap; depends on shared PNG header reader landed in Phase 21).
 
-## v1.1.2 Requirements
+## v1.2 Requirements
 
-### UPDFIX — Auto-update reliability fixes
+### UAT — Live UAT carry-forwards (Phase 13.1)
 
-- [x] **UPDFIX-01**: When an update is available, clicking "Download & Restart" successfully downloads the new version and relaunches into it on **both macOS and Windows** (Linux verified opportunistically when host available). No `ZIP file not provided` error on macOS, no missing-asset / hash-mismatch / download-failure error on Windows. Verified live against a real GitHub Release with the v1.1.2 build pipeline. — **CLOSED 2026-04-29 at URL/feed layer:** v1.1.2 shipped with broken mac auto-update (D-15-LIVE-1: synthesizer emitted spaced URL, GitHub stored dotted, electron-updater requested dashed → HTTP 404). v1.1.3 same-day hotfix (Plan 15-05 sanitizeAssetUrl synthesizer rewrite + Plan 15-06 URL-resolution invariant pre-flight gate) shipped at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3. Test 7-Retry PARTIAL-PASS empirically verified: v1.1.1 → v1.1.3 .zip download succeeded byte-exact (121,848,102 bytes) at canonical dotted URL `Spine.Texture.Manager-1.1.3-arm64.zip`; the exact request that returned HTTP 404 in v1.1.2 returns HTTP 200 in v1.1.3. (Install-step Squirrel.Mac swap blocked by separate ad-hoc code-sig defect D-15-LIVE-2 — latent since v1.0.0; routed to backlog 999.2 as a manual-download UX phase per user decision; NOT a UPDFIX-01 regression.)
-- [x] **UPDFIX-02
-**: On Windows, when an update is available, the update notification consistently surfaces a working **Download** button — or the windows-fallback "Open Release Page" button if the auto-install path is intentionally disabled per the existing `SPIKE_PASSED` policy. Dismissing the notification does not permanently suppress it; clicking Help → Check for Updates while a newer version is published re-presents the notification.
-- [ ] **UPDFIX-03**: The app automatically checks for updates shortly after every cold start on **both macOS and Windows** without any user action (UPD-01 regression in shipped v1.1.1). Network failures are silently swallowed (UPD-05 contract preserved); no error dialogs.
-- [ ] **UPDFIX-04**: When the user clicks Help → Check for Updates **before** loading any `.json` / `.stmproj` project file, they receive feedback within ~10 s — either an "Update available" notification, a "You're up to date" notice, or a graceful offline message. No silent void waiting on a project load. Behavior identical on macOS and Windows.
+Host-availability gated; pre-existing carry-forwards from v1.1.1 that pre-date v1.1.2.
 
-## Out of Scope (v1.1.2)
+- [ ] **UAT-01**: Linux AppImage UAT runbook executed end-to-end on Ubuntu 24.04 (or equivalent host); libfuse2 / libfuse2t64 error dialog PNG captured and binary-swapped into `docs/install-images/` for INSTALL.md.
+- [ ] **UAT-02**: macOS v1.1.0 → v1.1.1 auto-update lifecycle observed live (rc-channel matching behavior verified or new behavior documented for /gsd-debug follow-up if regression observed).
+- [ ] **UAT-03**: Windows v1.1.0 → v1.1.1 auto-update lifecycle observed live; cosmetic v1.1.1 Windows fixes (`autoHideMenuBar: false` + `setAboutPanelOptions` SemVer block) UX-confirmed; windows-fallback variant observed in real release feed.
 
-- New auto-update features (delta updates, staged rollouts, custom update channels). Still deferred to v1.2+.
-- Code-signing posture changes (Apple Developer ID, Windows EV cert). Still deferred per v1.1 scope notes; revisit after tester feedback.
-- Phase 13.1 live UAT carry-forwards (Linux runbook execution + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation; cosmetic Windows fix UX confirmation; Windows windows-fallback variant live observation). Separately tracked; pending host availability; not part of v1.1.2's fix surface.
-- Telemetry / crash reporting (TEL-future). Still descoped; revisit at v1.2 if tester volume grows.
-- Spine 4.3+ versioned loader adapters; atlas-less mode (SEED-001); dims-badge override-cap (SEED-002). Carried unchanged from prior milestones.
-- UI improvements outside the UpdateDialog state machine. The dialog itself can be edited as needed by UPDFIX-02; broader UI work stays deferred to v1.2.
+### UPDFIX — Auto-update follow-on fixes (Phase 16, Phase 17)
+
+Continues numbering from validated UPDFIX-01..04 (closed in v1.1.2).
+
+- [ ] **UPDFIX-05**: On macOS, when an update is available, UpdateDialog opens in `manual-download` variant (not Squirrel.Mac in-process swap); the "Open Release Page" button launches the GitHub Releases page in the system browser via the existing `SHELL_OPEN_EXTERNAL_ALLOWED` allow-list. Variant rename (`windows-fallback` → `manual-download`) propagates consistently to all surface mention sites: `src/main/auto-update.ts`, `src/main/ipc.ts`, `src/renderer/src/modals/UpdateDialog.tsx`, `INSTALL.md`, the in-app Help dialog, and all relevant tests. Closes D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc-signed builds; latent since v1.0.0).
+- [ ] **UPDFIX-06**: `Help → Check for Updates` menu item fires the `update:check` IPC regardless of whether a project (`.json` / `.stmproj`) is currently loaded — feedback appears within ~10 s on both macOS and Windows whether or not the user has dropped a file. Closes D-15-LIVE-3 (menu gating regression observed in v1.1.3 surface during Phase 15 Test 7-Retry round 4).
+
+### QUIT — App quit (Phase 18)
+
+Independent macOS UX defect observed in v1.1.1 packaged build during Phase 15 UAT.
+
+- [ ] **QUIT-01**: Pressing Cmd+Q from anywhere in the app terminates the process cleanly on macOS (currently no-op; only window-close X or Force Quit terminates).
+- [ ] **QUIT-02**: AppleScript `osascript -e 'tell application "Spine Texture Manager" to quit'` terminates the process cleanly on macOS (currently no-op).
+
+### UI — UI improvements (Phase 19)
+
+Sourced from tester feedback + visual diff against an unrelated older Spine 3.8 reference app the user built previously (visual reference only — codebase out of scope).
+
+- [ ] **UI-01**: Persistent sticky header — branded title + load-summary card (`N skeletons / N atlases / N regions`) + primary action buttons (Atlas Preview, Documentation, Optimize Assets, Save, Load) + search box stay visible (via `position: sticky`) when the user scrolls Global / Animation Breakdown lists. Closes the regression where scrolling hides the toolbar and forces users back to the top to interact with action buttons.
+- [ ] **UI-02**: Card-based section layout with color-coded category icons + semantic state colors (green = under 1.0× scale, yellow = over 1.0×, red = unused / danger) for Global panel, Animation Breakdown panel, and Unused Assets callout. Replaces flat tabular layout.
+- [ ] **UI-03**: Modal redesign — summary tiles at top of Optimize Assets + Atlas Preview modals (e.g. `544 Used Files` / `433 to Resize` / `Saving est. 77.7% pixels`); secondary cross-nav button in footer enables jumping between modals without closing (e.g. Atlas Preview button visible inside Optimize Assets modal).
+- [ ] **UI-04**: Unused-assets callout quantifies potential savings (`X.XX MB potential savings`) computed from on-disk PNG file sizes, instead of just showing the unused count.
+- [ ] **UI-05**: Inline search visible in the persistent header bar; clear primary/secondary button hierarchy in the action area — Optimize Assets elevated as the primary CTA (visually distinct treatment); Atlas Preview / Documentation / Save / Load styled as secondary.
+
+### DOC — Documentation Builder feature (Phase 20)
+
+Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148; reserved during v1.0 Phase 8 `.stmproj` schema lock; untested until v2 ladder lands).
+
+- [ ] **DOC-01**: Per-skeleton Documentation Builder modal accessible from a new top-bar button (placement coordinates with UI-01 sticky header design).
+- [ ] **DOC-02**: Animation tracks pane — drag animations from a side list to track containers; configure mix time (seconds, default 0.25s) + loop flag + free-text notes per track entry; multiple tracks supported.
+- [ ] **DOC-03**: Sections pane — capture events, general notes, control-bone descriptions (with name + description per bone), skin descriptions (with name + description per skin).
+- [ ] **DOC-04**: HTML export — standalone `.html` file containing all docs (animation tracks, sections, control bones, skins) + optimization config snapshot (safety buffer, space savings %) + atlas page count + image-utilization count. Self-contained, viewable offline.
+- [ ] **DOC-05**: Persistence in `.stmproj` v1's reserved `documentation: object` slot (D-148); round-trip safe (save → reload → identical content; existing 8-kind discriminated-union typed-error envelope honored for any new error kinds the doc loader introduces).
+
+### LOAD — Atlas-less mode (Phase 21; SEED-001)
+
+Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). Supports the natural state of source assets BEFORE the Spine packer runs, and the post-Optimize-overwrite state where source PNGs are the canonical source of region dims.
+
+- [ ] **LOAD-01**: Loader detects "no `.atlas` file beside `.json`" and routes through a synthesized atlas instead of failing with `AtlasNotFoundError`. The current `AtlasNotFoundError` message is preserved for actually-missing-atlas cases (e.g. malformed project), but the no-atlas case is no longer an error.
+- [ ] **LOAD-02**: New `src/core/png-header.ts` reads width/height from PNG IHDR chunk via byte parsing only — no `sharp` / libvips / pixel decoding. Preserves CLAUDE.md fact #4 ("the math phase does not decode PNGs"); reading IHDR bytes is structurally distinct from decoding.
+- [ ] **LOAD-03**: New `src/core/synthetic-atlas.ts` constructs an in-memory `TextureAtlas` from per-region PNG headers when no `.atlas` file is present. Each synthesized region: name = PNG basename, dims = PNG header dims, page = the PNG file itself, x/y = 0/0, rotated = false.
+- [ ] **LOAD-04**: Round-trip — load `json + images folder` project (no `.atlas`) → sample (Global + Animation Breakdown panels populate) → export to `images-optimized/` succeeds end-to-end. Golden fixture covers the path.
+
+### DIMS — Dims-badge + override-cap (Phase 22; SEED-002)
+
+Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). **Depends on Phase 21** — reuses Phase 21's PNG header reader infrastructure. Two scenarios surface canonical-vs-source dimension drift: (A) user pre-reduced source images manually outside the app; (B) user ran Optimize → Overwrite-all → re-loaded the same project (Phase 6 ConflictDialog path).
+
+- [ ] **DIMS-01**: `DisplayRow` (in `src/core/types.ts`) extended with `actualSourceW` / `actualSourceH` / `dimsMismatch: boolean` fields. Loader populates these from per-region PNG header reads (Phase 21's `png-header.ts`); `dimsMismatch` is set when `actualSource` differs from canonical region dims by more than 1px (rounding tolerance).
+- [ ] **DIMS-02**: Badge in Global panel + Animation Breakdown panel surfaces dims mismatch on affected rows with tooltip explaining the canonical-vs-source-PNG drift (e.g. "Source PNG (811×962) is smaller than canonical region dims (1628×1908). Optimize will cap at source size.").
+- [ ] **DIMS-03**: Export math (`buildExportPlan` in `src/core/export.ts` + byte-identical `src/renderer/src/lib/export-view.ts`) caps `effectiveScale = min(peakScale, actualSourceW/canonicalW, actualSourceH/canonicalH)` so the output is never upscaled beyond the actual source PNG dims. Honors locked memory `project_phase6_default_scaling.md` (uniform single-scale; never extrapolate).
+- [ ] **DIMS-04**: Already-optimized rows excluded from export when `actualSource × cappedEffScale` rounds to `actualSource` (zero net change); surfaced in a new `excludedAlreadyOptimized[]` array parallel to Phase 6 D-109 `excludedUnused[]`. Pre-flight OptimizeDialog file list shows muted treatment with an "already-optimized — skipped" indicator (parity with the Round 1 `excludedUnused` muted note UX).
+- [ ] **DIMS-05**: Round-trip — re-running Optimize on already-optimized images produces zero exports (no double Lanczos resampling). Vitest covers this against a fixture where source PNGs are smaller than canonical region dims.
+
+## Out of Scope (v1.2)
+
+- **Apple Developer ID code-signing + notarization** ($99/yr enrollment). Declined 2026-04-29 in favor of Phase 16's manual-download UX path. Revisit at v1.3 if user feedback or a separate use case justifies the cost + maintenance overhead.
+- **Crash + error reporting (Sentry or equivalent)**. Descoped at v1.1; carried unchanged. Revisit at v1.3 once tester base + crash-trace volume justifies the SaaS dependency + consent UX overhead.
+- **Spine 4.3+ versioned loader adapters** (F1.5 from v1.0 deferred list). Carried unchanged.
+- **`.skel` binary loader** (v1.0 deferred list). Carried unchanged.
+- **Adaptive bisection refinement around candidate peaks** (for pathological easing curves). v1.0 deferred. Carried unchanged.
+- **Aspect-ratio anomaly flag** (when `scaleX != scaleY` at peak). v1.0 deferred. Carried unchanged.
+- **In-app atlas re-packing** (writing a new `.atlas` file). v1.0 deferred. Carried unchanged.
+- **Mac App Store / Microsoft Store / Snap Store / Flatpak distribution; Linux `.deb` / `.rpm`; Windows EV cert.** v1.1 deferred. Carried unchanged.
+- **Delta updates / staged rollouts / custom update channels.** v1.1 deferred. Carried unchanged.
+- **Combined-skin compositing** (per-individual-skin sampling is the locked v1.0 contract). Carried unchanged.
 
 ## Future Requirements (deferred)
-
-Carried forward from v1.1 unchanged:
 
 - **DIST-future**: Code-signed + notarized macOS distribution (Apple Developer ID).
 - **DIST-future**: Code-signed Windows distribution (EV cert).
 - **DIST-future**: Linux `.deb` / Flatpak / Snap targets if Linux user base materializes.
-- **TEL-future**: Crash + error reporting (Sentry or equivalent). Originally TEL-01..TEL-07; descoped 2026-04-28. Reconsider at v1.2.
+- **TEL-future**: Crash + error reporting (Sentry or equivalent). Originally TEL-01..TEL-07; descoped 2026-04-28; declined again for v1.2 2026-04-30. Reconsider at v1.3.
 - **TEL-future**: Feature-usage analytics once tester base grows and a privacy posture is settled.
+- **F1.5**: Spine 4.3+ versioned loader adapters.
+- **F-binary**: `.skel` binary loader support.
 
 ## Validated (Locked from Earlier Milestones)
 
-- **v1.1 Distribution** (DIST-01..07, CI-01..06, REL-01..04, UPD-01..06) — all closed at code/docs level by Phases 10/11/12/12.1. v1.1.0 final shipped 2026-04-28; v1.1.1 patch shipped 2026-04-29. v1.1.2 fixes regressions in UPD-01..04 surfaces only; the locked DIST/CI/REL contracts are not relitigated. Full historical record in `.planning/milestones/v1.1-REQUIREMENTS.md`.
-- **v1.0 MVP** — full requirements record in `.planning/milestones/v1.0-REQUIREMENTS.md`.
+- **v1.1.2 Auto-update fixes** (UPDFIX-01..04) — all closed by Phases 14 + 15 + v1.1.3 hotfix. Full historical record in [.planning/milestones/v1.1.2-REQUIREMENTS.md](milestones/v1.1.2-REQUIREMENTS.md).
+- **v1.1 Distribution** (DIST-01..07, CI-01..06, REL-01..04, UPD-01..06) — all closed by Phases 10 / 11 / 12 / 12.1 / 13. Full historical record in [.planning/milestones/v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md).
+- **v1.0 MVP** (full requirements record) — [.planning/milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md).
 
 ## Traceability
 
-(Populated by the roadmapper 2026-04-29.)
+(Empty — populated by the roadmapper.)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UPDFIX-01   | 15    | Complete (URL/feed layer; Plan 15-05 + 15-06; v1.1.3 hotfix; Test 7-Retry PARTIAL-PASS) |
-| UPDFIX-02   | 14    | Complete (code level; live UAT Tests 5+6 PASSED via screenshot evidence in Phase 15 live UAT 2026-04-29T19:00–19:35Z) |
-| UPDFIX-03   | 14    | Complete (code level; live mac UAT noted regression in v1.1.1 packaged build per 15-VERIFICATION.md live_uat_session_notes — separate Phase 14 follow-up; not a Phase 15 blocker) |
-| UPDFIX-04   | 14    | Complete (code level; live mac UAT confirmed Help → Check works post-project-load; pre-load gating regressed in v1.1.3 surface and routed to backlog 999.3 / D-15-LIVE-3) |
+| UAT-01      | 13.1  | Pending |
+| UAT-02      | 13.1  | Pending |
+| UAT-03      | 13.1  | Pending |
+| UPDFIX-05   | 16    | Pending |
+| UPDFIX-06   | 17    | Pending |
+| QUIT-01     | 18    | Pending |
+| QUIT-02     | 18    | Pending |
+| UI-01       | 19    | Pending |
+| UI-02       | 19    | Pending |
+| UI-03       | 19    | Pending |
+| UI-04       | 19    | Pending |
+| UI-05       | 19    | Pending |
+| DOC-01      | 20    | Pending |
+| DOC-02      | 20    | Pending |
+| DOC-03      | 20    | Pending |
+| DOC-04      | 20    | Pending |
+| DOC-05      | 20    | Pending |
+| LOAD-01     | 21    | Pending |
+| LOAD-02     | 21    | Pending |
+| LOAD-03     | 21    | Pending |
+| LOAD-04     | 21    | Pending |
+| DIMS-01     | 22    | Pending |
+| DIMS-02     | 22    | Pending |
+| DIMS-03     | 22    | Pending |
+| DIMS-04     | 22    | Pending |
+| DIMS-05     | 22    | Pending |
 
-**Coverage:** 4/4 requirements mapped to exactly one phase. UPDFIX-02 + UPDFIX-03 + UPDFIX-04 cluster in Phase 14 (renderer/state-machine code surface in `src/main/auto-update.ts` + `src/main/update-state.ts` + `src/renderer/src/modals/UpdateDialog.tsx` + the `update:*` IPC channels between them — code-only, no tag/CI/publish). UPDFIX-01 lands in Phase 15 (build/feed-shape fix in `electron-builder.yml` + `scripts/emit-latest-yml.mjs` + `release.yml` artifact upload list, then `package.json` bump 1.1.1 → 1.1.2 + tag push + CI watch + 6-asset (or 7-asset if `.zip` adds) Release publish via the existing 12.1-D-10 publish-race fix architecture). Phase 15 depends on Phase 14 — Windows Download button visibility (UPDFIX-02) is a prerequisite for live-verifying UPDFIX-01's Windows download path against the real published feed.
+**Coverage:** 25/25 requirements pre-mapped to exactly one phase each. Roadmapper will validate full coverage and re-emit this section with any refinements (success criteria, dependency notes). Phase 22 depends on Phase 21 (shared PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent).
