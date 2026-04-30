@@ -83,12 +83,23 @@ export function App() {
     version: string;
     summary: string;
     variant: UpdateDialogVariant;
+    /**
+     * Phase 16 D-04 — per-release templated URL (`/releases/tag/v{version}`)
+     * supplied by main on the UpdateAvailablePayload. Flows from main payload
+     * → this slot → onOpenReleasePage handler → window.api.openExternalUrl
+     * → main's isReleasesUrl allow-list check (Plan 16-04) →
+     * shell.openExternal. Empty string when no payload has been received yet
+     * (state='none' / startup pre-check) — onOpenReleasePage guards on
+     * length > 0 as defense-in-depth.
+     */
+    fullReleaseUrl: string;
   }>({
     open: false,
     state: 'available',
     version: '',
     summary: '',
     variant: 'auto-update',
+    fullReleaseUrl: '',
   });
 
   // D-07 — only show "you're up to date" / error on MANUAL checks. Startup
@@ -360,7 +371,8 @@ export function App() {
         state: 'available',
         version: payload.version,
         summary: payload.summary,
-        variant: payload.variant === 'windows-fallback' ? 'windows-fallback' : 'auto-update',
+        variant: payload.variant === 'manual-download' ? 'manual-download' : 'auto-update',
+        fullReleaseUrl: payload.fullReleaseUrl,
       });
     });
     const unsubDownloaded = window.api.onUpdateDownloaded(() => {
@@ -378,6 +390,7 @@ export function App() {
           version: payload.currentVersion,
           summary: '',
           variant: 'auto-update',
+          fullReleaseUrl: '',
         });
       }
     });
@@ -393,6 +406,7 @@ export function App() {
           version: '',
           summary: `Update check failed: ${payload.message}`,
           variant: 'auto-update',
+          fullReleaseUrl: '',
         });
       }
     });
@@ -414,7 +428,8 @@ export function App() {
           state: 'available',
           version: payload.version,
           summary: payload.summary,
-          variant: payload.variant === 'windows-fallback' ? 'windows-fallback' : 'auto-update',
+          variant: payload.variant === 'manual-download' ? 'manual-download' : 'auto-update',
+          fullReleaseUrl: payload.fullReleaseUrl,
         });
       }
     });
@@ -529,7 +544,8 @@ export function App() {
           / projectLoadFailed / error) via the z-50 overlay in UpdateDialog
           itself. State machine driven by the auto-update IPC subscription
           useEffect above. Variant supplied by main per D-04 (auto-update on
-          macOS/Linux/Windows-IF-spike-PASS; windows-fallback otherwise). */}
+          Linux always; Windows-IF-spike-PASS; manual-download otherwise per
+          Phase 16 D-01). */}
       <UpdateDialog
         open={updateState.open}
         state={updateState.state}
@@ -553,7 +569,15 @@ export function App() {
           setUpdateState((prev) => ({ ...prev, open: false }));
         }}
         onOpenReleasePage={() => {
-          window.api.openExternalUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases');
+          // Phase 16 D-04 — forward the per-release templated URL the main
+          // payload supplied (`/releases/tag/v{version}`). Defense-in-depth
+          // length > 0 guard: if the manual-download button somehow renders
+          // when the slot is empty (state='none' with no payload received),
+          // the call is silently dropped rather than firing an empty URL at
+          // the IPC allow-list.
+          if (updateState.fullReleaseUrl.length > 0) {
+            window.api.openExternalUrl(updateState.fullReleaseUrl);
+          }
         }}
         onClose={() => setUpdateState((prev) => ({ ...prev, open: false }))}
       />
