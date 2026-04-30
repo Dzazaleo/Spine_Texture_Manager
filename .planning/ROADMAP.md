@@ -266,7 +266,15 @@ Plans:
   4. Windows behavior is unchanged — Windows continues to open the same `manual-download` variant under the renamed symbol; existing v1.1.x Windows-fallback contracts (Phase 12 D-04, Phase 14 D-13) are preserved.
   5. INSTALL.md and the in-app HelpDialog text describe the macOS update flow accurately as "open the GitHub Releases page in your browser, download the new `.dmg`, replace the app" — no remaining copy that promises in-app auto-update on macOS.
 
-**Plans:** TBD (run /gsd-plan-phase 16)
+**Plans:** 6 plans
+
+Plans:
+- [ ] 16-01-types-preload-rename-PLAN.md — Wave 1: rename variant literal in src/shared/types.ts + src/preload/index.ts (foundation type contract)
+- [ ] 16-02-install-md-rewrite-PLAN.md — Wave 1: rewrite INSTALL.md ## After installation: auto-update section per CONTEXT.md D-03 (Linux owns in-process; macOS+Windows share manual-download)
+- [ ] 16-03-main-gate-and-variant-PLAN.md — Wave 2: rename SPIKE_PASSED → IN_PROCESS_AUTO_UPDATE_OK, simplify variant routing per D-01, switch fullReleaseUrl to per-release templated URL per D-04, rename UpdateAvailablePayload variant literal
+- [ ] 16-04-ipc-allow-list-PLAN.md — Wave 2: add isReleasesUrl helper to src/main/ipc.ts (URL-parse + hostname-equals + pathname-prefix); extend tests/integration/auto-update-shell-allow-list.spec.ts with 9 new D-04 tests covering happy paths + threat model (URL spoofing, subdomain spoofing, scheme downgrade)
+- [ ] 16-05-renderer-propagation-PLAN.md — Wave 3: rename variant literal in UpdateDialog.tsx (5 conditional branches) + App.tsx (2 setters) + flow runtime updateState.fullReleaseUrl into onOpenReleasePage per D-04; verify HelpDialog no-op per D-06
+- [ ] 16-06-test-rename-and-regression-gate-PLAN.md — Wave 4: rename literals across 4 test files + rewrite (14-p) (14-s) for new contracts + add tests/integration/no-windows-fallback-literal.spec.ts regression gate per D-07; final full-suite green sweep
 
 ### Phase 17: Help → Check for Updates — fire regardless of project state
 
