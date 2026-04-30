@@ -26,9 +26,30 @@
  * Phase 14 D-12 — re-verified by Plan 14-01 Task 2; this spec is the durable
  * verifier so future refactors cannot inadvertently regress D-12.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+// Phase 16 D-04 — the new Phase 16 describe block below imports `isReleasesUrl`
+// from src/main/ipc.ts. The transitive load chain (`ipc.ts → project-io.ts →
+// recent.ts → app.getPath('userData')`) needs an electron stub so the import
+// resolves outside an Electron host. Pattern lifted from tests/core/ipc.spec.ts.
+// The Phase 14 file-content URL-consistency tests (14-p..s) are unaffected —
+// they use readFileSync, not the imported helper.
+vi.mock('electron', () => ({
+  dialog: { showSaveDialog: vi.fn(), showOpenDialog: vi.fn() },
+  ipcMain: { handle: vi.fn(), on: vi.fn() },
+  BrowserWindow: { getFocusedWindow: vi.fn(() => null) },
+  app: {
+    whenReady: vi.fn(),
+    quit: vi.fn(),
+    on: vi.fn(),
+    getPath: vi.fn(() => '/tmp/userData'),
+  },
+  shell: { showItemInFolder: vi.fn(), openExternal: vi.fn() },
+}));
+
+import { isReleasesUrl } from '../../src/main/ipc.js';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
 const RELEASES_INDEX_URL = 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
@@ -84,5 +105,71 @@ describe('Phase 14 — Open Release Page URL-consistency gate', () => {
     for (const o of occurrences) {
       expect(o.match).toBe(RELEASES_INDEX_URL);
     }
+  });
+});
+
+/**
+ * Phase 16 D-04 — Allow-list widening regression gate (UPDFIX-05).
+ *
+ * The shell-open-external trust boundary widens to accept per-release tag URLs
+ * of the form `https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v{version}`.
+ * The widening MUST NOT allow:
+ *   - Arbitrary repo paths under the project's URL surface (issues, pulls, wiki).
+ *   - Different repos on the same hostname (attacker/Spine_Texture_Manager).
+ *   - Hostname-spoofing (`github.com.attacker.com`, `attacker.github.com`).
+ *   - Non-https schemes.
+ *
+ * This spec drives Plan 16-04 Task 2's `isReleasesUrl` helper. The helper does
+ * a structural URL.parse + hostname-equals check + pathname-prefix check rather
+ * than a naive string-prefix match (which would silently allow URL spoofing).
+ *
+ * Test approach: import the `isReleasesUrl` helper directly (Plan 16-04 Task 2
+ * exports it ONLY for the test surface — `@internal` JSDoc to mark it as not
+ * part of the public src/main/ipc.ts API). Each spec asserts the boolean
+ * return.
+ *
+ * NOTE: the actual `import { isReleasesUrl }` lives at the top of this file
+ * (alongside the electron `vi.mock`) — vi.mock factories must be hoisted
+ * above any module under test, and ESM static imports are hoisted by the
+ * runtime. Keeping the import + mock together satisfies the hoist contract.
+ */
+
+describe('Phase 16 D-04 — releases-URL structural allow-list widening', () => {
+  it('(16-a) the index URL still passes (Phase 12 D-18 backward-compat)', () => {
+    expect(isReleasesUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases')).toBe(true);
+  });
+
+  it('(16-b) per-release tag URL with simple semver passes (D-04 happy path)', () => {
+    expect(isReleasesUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0')).toBe(true);
+  });
+
+  it('(16-c) per-release tag URL with dotted-prerelease passes (CLAUDE.md release-tag convention)', () => {
+    expect(isReleasesUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0-rc.1')).toBe(true);
+  });
+
+  it('(16-d) issues URL on the project repo is REJECTED (path-prefix narrowness)', () => {
+    expect(isReleasesUrl('https://github.com/Dzazaleo/Spine_Texture_Manager/issues')).toBe(false);
+  });
+
+  it('(16-e) different-repo /releases URL is REJECTED (path-prefix narrowness)', () => {
+    expect(isReleasesUrl('https://github.com/attacker/Spine_Texture_Manager/releases/tag/v1.2.0')).toBe(false);
+  });
+
+  it('(16-f) hostname-spoofed URL `github.com.attacker.com` is REJECTED (T-16-04 mitigated)', () => {
+    expect(isReleasesUrl('https://github.com.attacker.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0')).toBe(false);
+  });
+
+  it('(16-g) subdomain-spoofed URL `attacker.github.com` is REJECTED (T-16-04 mitigated)', () => {
+    expect(isReleasesUrl('https://attacker.github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.0')).toBe(false);
+  });
+
+  it('(16-h) non-https scheme is REJECTED (T-16-04 mitigated)', () => {
+    expect(isReleasesUrl('http://github.com/Dzazaleo/Spine_Texture_Manager/releases')).toBe(false);
+  });
+
+  it('(16-i) malformed URL strings return false (T-16-04 — URL parse failure path)', () => {
+    expect(isReleasesUrl('not a url')).toBe(false);
+    expect(isReleasesUrl('')).toBe(false);
+    expect(isReleasesUrl('javascript:alert(1)')).toBe(false);
   });
 });
