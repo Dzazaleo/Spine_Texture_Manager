@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: completed
-last_updated: "2026-04-30T11:15:46.609Z"
+last_updated: "2026-04-30T11:42:26.691Z"
 last_activity: 2026-04-30 — Phase 17 skipped via /gsd-discuss-phase 17. UPDFIX-06 closed-by-test (existing regression test (14-l) in `tests/renderer/app-update-subscriptions.spec.tsx`).
 progress:
   total_phases: 4
@@ -72,4 +72,4 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
-**Planned Phase:** 18 (app-quit-broken-cmd-q-and-applescript) — TBD plans — pending /gsd-discuss-phase 18 or /gsd-plan-phase 18
+**Planned Phase:** 18 (App quit broken — Cmd+Q + AppleScript do not terminate) — 2 plans — 2026-04-30T11:42:26.683Z
