@@ -85,23 +85,36 @@ const GITHUB_RELEASES_INDEX_URL =
   'https://github.com/Dzazaleo/Spine_Texture_Manager/releases';
 
 /**
- * D-04 / Task 6 — Windows-spike variant routing.
+ * Phase 16 D-01 / D-02 — single positive gate for in-process auto-update.
  *
- * Default: macOS and Linux always run the full auto-update path; Windows
- * defaults to the manual-fallback variant until Task 6's user-supervised
- * spike confirms the unsigned-NSIS auto-update flow works end-to-end
- * (detect + download + apply + relaunch).
+ * Reads as "this platform supports the in-process auto-update flow." Linux
+ * is the only platform where Squirrel-equivalent in-process swap works
+ * reliably without external code-signing constraints:
+ *   - macOS: Squirrel.Mac strict-validates the Designated Requirement
+ *     against the running app's code signature; ad-hoc-signed builds (no
+ *     Apple Developer ID — declined for v1.2 per CONTEXT.md, deferred
+ *     to v1.3+) generate fresh per-build hashes that cannot match
+ *     v1.1.x's stored DR. Empirically observed during Phase 15 v1.1.3
+ *     Test 7-Retry round 3 (2026-04-29 — D-15-LIVE-2). Routing to
+ *     manual-download closes the bug.
+ *   - Windows: NSIS auto-update spike has never run live (Phase 12 D-02
+ *     strict-spike bar). Defaults to manual-download until a Windows
+ *     host runs the spike. The `update-state.json` `spikeOutcome` field
+ *     can promote Windows to in-process at runtime (Outcome A/promotion
+ *     path — Phase 14 D-13).
+ *   - Linux: AppImage in-process swap works (no code-signing constraint).
  *
- * Set to `true` unconditionally after Outcome A; left at the default
- * for Outcomes B/C/D (Windows ships the manual-fallback notice).
+ * D-02 — runtime override stays Windows-only. There is NO parallel
+ * `macSignedOk` field. macOS structurally requires Apple Developer ID
+ * code-signing for Squirrel.Mac to accept the swap; a runtime flag flip
+ * cannot fix that. If Apple Developer ID enrollment ever lands (v1.3+
+ * earliest), that's a separate code change with its own gate constant.
  *
- * The `update-state.json` `spikeOutcome` field can ALSO promote this at
- * runtime (Task 6 step 10) — when `spikeOutcome === 'pass'`, the Windows
- * branch routes to the auto-update variant. This module-level constant is
- * the build-time compile-baseline; the runtime check in
- * `deliverUpdateAvailable` is the live signal.
+ * Replaces the prior `SPIKE_PASSED = process.platform !== 'win32'` (Phase 12
+ * D-04) which evaluated `true` on macOS and routed Squirrel.Mac into the
+ * code-signature-mismatch failure mode for every macOS update since v1.0.0.
  */
-const SPIKE_PASSED = process.platform !== 'win32';
+const IN_PROCESS_AUTO_UPDATE_OK = process.platform === 'linux';
 
 // --- Module state ----------------------------------------------------------
 
