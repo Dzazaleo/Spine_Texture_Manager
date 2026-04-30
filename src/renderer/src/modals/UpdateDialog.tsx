@@ -17,12 +17,14 @@
  *     this modal so D-05's "no native dialog" rule holds for every
  *     manual-check exit path.
  *
- * Variant routing (D-04):
- *   - 'auto-update' (default): macOS, Linux, and Windows-IF-spike-PASS.
+ * Variant routing (Phase 12 D-04 + Phase 16 D-01 + D-05):
+ *   - 'auto-update' (default): Linux always; Windows-IF-spike-PASS.
  *     Buttons: Download + Restart / Restart / Later / Dismiss.
- *   - 'windows-fallback': Windows-IF-spike-FAIL. Buttons: Open Release
- *     Page / Later. The user is directed externally to download the new
- *     installer manually (UPD-06 documented manual update path).
+ *   - 'manual-download': platform routes manual-download (Phase 16 D-01:
+ *     macOS always; Windows unless spikeOutcome === 'pass'). Buttons:
+ *     Open Release Page / Later. The user is directed externally to
+ *     download the new installer manually (UPD-06 documented manual
+ *     update path).
  *
  * ARIA contract (mirrors HelpDialog.tsx:89-114 byte-for-byte):
  *   - role="dialog" + aria-modal="true" + aria-labelledby="update-title"
@@ -68,7 +70,7 @@ export type UpdateDialogState = 'available' | 'downloading' | 'downloaded' | 'no
  * the renderer never derives this from the OS platform (the platform global
  * is unavailable to the sandboxed renderer anyway).
  */
-export type UpdateDialogVariant = 'auto-update' | 'windows-fallback';
+export type UpdateDialogVariant = 'auto-update' | 'manual-download';
 
 export interface UpdateDialogProps {
   open: boolean;
@@ -82,7 +84,7 @@ export interface UpdateDialogProps {
    * error message.
    */
   summary: string;
-  /** Default 'auto-update' (macOS/Linux/Windows-IF-spike-PASS). */
+  /** Default 'auto-update' (Linux always; Windows-IF-spike-PASS). macOS + Windows-default route to 'manual-download' (Phase 16 D-01). */
   variant?: UpdateDialogVariant;
   /** state='available' (auto-update variant only) — opt-in download trigger (UPD-03). */
   onDownload?: () => void;
@@ -90,7 +92,7 @@ export interface UpdateDialogProps {
   onRestart?: () => void;
   /** All states + both variants — persists dismissedUpdateVersion via D-08. */
   onLater: () => void;
-  /** Windows-fallback variant only — opens GitHub Release page externally. */
+  /** manual-download variant only — opens GitHub Release page externally. */
   onOpenReleasePage?: () => void;
   /** Overlay click + Escape key. */
   onClose: () => void;
@@ -122,7 +124,7 @@ function headlineFor(
     return `Restart to apply v${version}`;
   }
   // 'available' or 'downloading' — both variants share the headline.
-  if (variant === 'windows-fallback') {
+  if (variant === 'manual-download') {
     return `Update available: v${version}`;
   }
   return `Update available: v${version}`;
@@ -189,11 +191,11 @@ export function UpdateDialog(props: UpdateDialogProps) {
         )}
 
         {/* "View full release notes" link only on the auto-update variant
-            available/downloaded/downloading states — windows-fallback's
+            available/downloaded/downloading states — manual-download's
             [Open Release Page] button covers this affordance. state='none'
             doesn't show a release-notes link (no specific release to point
             to). */}
-        {variant !== 'windows-fallback' && props.state !== 'none' && (
+        {variant !== 'manual-download' && props.state !== 'none' && (
           <button
             type="button"
             onClick={openLink(GITHUB_RELEASES_INDEX_URL)}
@@ -207,7 +209,7 @@ export function UpdateDialog(props: UpdateDialogProps) {
             SaveQuitDialog.tsx:108-128 verbatim (primary bg-accent / secondary
             border-border / disabled opacity-50 idiom). */}
         <div className="flex gap-2 justify-end">
-          {variant === 'windows-fallback' && (
+          {variant === 'manual-download' && (
             <>
               <button
                 type="button"
@@ -226,7 +228,7 @@ export function UpdateDialog(props: UpdateDialogProps) {
             </>
           )}
 
-          {variant !== 'windows-fallback' && props.state === 'available' && (
+          {variant !== 'manual-download' && props.state === 'available' && (
             <>
               <button
                 type="button"
@@ -245,7 +247,7 @@ export function UpdateDialog(props: UpdateDialogProps) {
             </>
           )}
 
-          {variant !== 'windows-fallback' && props.state === 'downloading' && (
+          {variant !== 'manual-download' && props.state === 'downloading' && (
             <button
               type="button"
               disabled
@@ -255,7 +257,7 @@ export function UpdateDialog(props: UpdateDialogProps) {
             </button>
           )}
 
-          {variant !== 'windows-fallback' && props.state === 'downloaded' && (
+          {variant !== 'manual-download' && props.state === 'downloaded' && (
             <>
               <button
                 type="button"
@@ -274,7 +276,7 @@ export function UpdateDialog(props: UpdateDialogProps) {
             </>
           )}
 
-          {variant !== 'windows-fallback' && props.state === 'none' && (
+          {variant !== 'manual-download' && props.state === 'none' && (
             <button
               type="button"
               onClick={props.onLater}
