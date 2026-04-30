@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-04-30T13:02:00.000Z"
-last_activity: 2026-04-30 -- Phase 18 Wave 1 complete (Plan 18-01 lift); Wave 2 starting (Plan 18-02 lock + smoke checkpoint)
+last_updated: "2026-04-30T13:32:00.000Z"
+last_activity: 2026-04-30 -- Phase 18 plans 18-01 + 18-02 complete; dev-mode Cmd+Q smoke approved by user; ready for /gsd-verify-work 18
 progress:
   total_phases: 4
   completed_phases: 0
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 18 (app-quit-broken-cmd-q-and-applescript) — EXECUTING
-Plan: 2 of 2
-Status: Plan 18-01 complete (Wave 1 — lift onCheckDirtyBeforeQuit to App.tsx + dirtyCheckRef bridge); Wave 2 starting — Plan 18-02 (lock with vitest spec + arch-grep + dev-mode smoke checkpoint)
-Last activity: 2026-04-30 -- Phase 18 Wave 1 complete (Plan 18-01 lift); Wave 2 starting (Plan 18-02 lock + smoke checkpoint)
+Phase: 18 (app-quit-broken-cmd-q-and-applescript) — plans complete (2/2), pending /gsd-verify-work 18
+Plan: 2 of 2 complete
+Status: All Plan 18-01 + 18-02 commits merged to main. Test layer green (npm run test: 536 passing). Dev-mode Cmd+Q smoke check approved by user 2026-04-30 (CONTEXT D-09). QUIT-01 + QUIT-02 closed-by-test + dev-mode-smoke. Live packaged-binary UAT deferred to v1.2.0 ship round (CONTEXT D-10).
+Last activity: 2026-04-30 -- Phase 18 plans 18-01 + 18-02 complete; dev-mode Cmd+Q smoke approved by user; ready for /gsd-verify-work 18
 
 ## Last Roadmap Update
 
