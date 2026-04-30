@@ -89,7 +89,7 @@ vi.mock('../../src/main/sampler-worker-bridge.js', () => ({
 type UpdateAvailablePayloadShape = {
   version: string;
   summary: string;
-  variant: 'auto-update' | 'windows-fallback';
+  variant: 'auto-update' | 'manual-download';
   fullReleaseUrl: string;
 };
 const getPendingUpdateInfoMock = vi.hoisted(() =>
