@@ -915,7 +915,7 @@ export interface Api {
   // Five subscribe methods (Pitfall 9 listener-identity preservation in
   // src/preload/index.ts) + four invoke/send methods. Main is the single
   // source of truth for the variant routing (D-04 Windows-fallback): the
-  // renderer never derives 'auto-update' vs 'windows-fallback' from
+  // renderer never derives 'auto-update' vs 'manual-download' from
   // process.platform — it consumes the variant field as supplied by main.
   // -------------------------------------------------------------------------
 
@@ -942,7 +942,7 @@ export interface Api {
   requestPendingUpdate: () => Promise<{
     version: string;
     summary: string;
-    variant: 'auto-update' | 'windows-fallback';
+    variant: 'auto-update' | 'manual-download';
     fullReleaseUrl: string;
   } | null>;
 
@@ -960,7 +960,7 @@ export interface Api {
     cb: (payload: {
       version: string;
       summary: string;
-      variant?: 'auto-update' | 'windows-fallback';
+      variant?: 'auto-update' | 'manual-download';
       fullReleaseUrl: string;
     }) => void,
   ) => () => void;
