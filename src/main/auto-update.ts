@@ -13,9 +13,10 @@
  *     `evt.sender.send('export:progress', ...)` at src/main/ipc.ts:511).
  *   - Suppression: when `dismissedUpdateVersion >= info.version` (D-08
  *     strict semver `>` semantics), drop the available event silently.
- *   - Variant routing: on Windows, gate the IPC payload's `variant`
- *     field on `SPIKE_PASSED` so the renderer mounts the correct dialog
- *     shape (auto-update OR windows-fallback per CONTEXT D-01..D-04).
+ *   - Variant routing: gate the IPC payload's `variant` field on
+ *     `IN_PROCESS_AUTO_UPDATE_OK` so the renderer mounts the correct
+ *     dialog shape (auto-update OR manual-download per Phase 12 D-04 +
+ *     Phase 16 D-05).
  *
  * Layer 3 invariant: lives in `src/main/`, freely imports `electron` and
  * `electron-updater`. NEVER imports from `src/core/` or `src/renderer/`.
@@ -50,7 +51,7 @@ import { loadUpdateState, setDismissedVersion } from './update-state.js';
 export type UpdateAvailablePayload = {
   version: string;
   summary: string;
-  variant: 'auto-update' | 'windows-fallback';
+  variant: 'auto-update' | 'manual-download';
   fullReleaseUrl: string;
 };
 
@@ -439,7 +440,7 @@ function extractSummary(
 
 /**
  * Bridge `update-available` to the renderer with D-08 suppression and
- * D-04 Windows-fallback variant routing.
+ * Phase 16 D-01 + D-02 variant routing.
  *
  * Suppression (D-08 strict `>` semantics): when the dismissed version is
  * newer-or-equal to the available version, drop the event. A NEWER version
@@ -447,13 +448,14 @@ function extractSummary(
  * sends `update:available`; `dismissedUpdateVersion='1.2.4'` +
  * `info.version='1.2.3'` does NOT.
  *
- * Variant routing (D-04): macOS / Linux always 'auto-update'. Windows
- * defaults to 'windows-fallback' until Task 6's spike runs and either
- * (a) flips `SPIKE_PASSED` at the module-constant level (Outcome A
- * promotes the build-time baseline to true), or (b) the persisted
- * `spikeOutcome === 'pass'` flag in update-state.json overrides at
- * runtime (allows promoting via a settings file edit without re-deploying
- * the main bundle — useful for tester rounds).
+ * Variant routing (Phase 16 D-01 + D-02 — supersedes the original Phase 12 D-04
+ * windows-fallback framing): the platform-only gate IN_PROCESS_AUTO_UPDATE_OK
+ * (Linux === true) routes Linux to 'auto-update'. macOS routes to
+ * 'manual-download' unconditionally (Apple Developer ID code-signing required
+ * for Squirrel.Mac swap on ad-hoc builds — declined for v1.2). Windows defaults
+ * to 'manual-download' AND retains the Phase 12 D-02 runtime escape hatch:
+ * `state.spikeOutcome === 'pass'` flips Windows to 'auto-update' without a
+ * source change (used after a successful Windows-host spike per Phase 14 D-13).
  */
 async function deliverUpdateAvailable(info: UpdateInfo): Promise<void> {
   const state = await loadUpdateState();
