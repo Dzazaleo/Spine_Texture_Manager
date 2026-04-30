@@ -16,12 +16,12 @@ Host-availability gated; pre-existing carry-forwards from v1.1.1 that pre-date v
 - [ ] **UAT-02**: macOS v1.1.0 → v1.1.1 auto-update lifecycle observed live (rc-channel matching behavior verified or new behavior documented for /gsd-debug follow-up if regression observed).
 - [ ] **UAT-03**: Windows v1.1.0 → v1.1.1 auto-update lifecycle observed live; cosmetic v1.1.1 Windows fixes (`autoHideMenuBar: false` + `setAboutPanelOptions` SemVer block) UX-confirmed; windows-fallback variant observed in real release feed.
 
-### UPDFIX — Auto-update follow-on fixes (Phase 16, Phase 17)
+### UPDFIX — Auto-update follow-on fixes (Phase 16)
 
 Continues numbering from validated UPDFIX-01..04 (closed in v1.1.2).
 
 - [ ] **UPDFIX-05**: On macOS, when an update is available, UpdateDialog opens in `manual-download` variant (not Squirrel.Mac in-process swap); the "Open Release Page" button launches the GitHub Releases page in the system browser via the existing `SHELL_OPEN_EXTERNAL_ALLOWED` allow-list. Variant rename (`windows-fallback` → `manual-download`) propagates consistently to all surface mention sites: `src/main/auto-update.ts`, `src/main/ipc.ts`, `src/renderer/src/modals/UpdateDialog.tsx`, `INSTALL.md`, the in-app Help dialog, and all relevant tests. Closes D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc-signed builds; latent since v1.0.0).
-- [ ] **UPDFIX-06**: `Help → Check for Updates` menu item fires the `update:check` IPC regardless of whether a project (`.json` / `.stmproj`) is currently loaded — feedback appears within ~10 s on both macOS and Windows whether or not the user has dropped a file. Closes D-15-LIVE-3 (menu gating regression observed in v1.1.3 surface during Phase 15 Test 7-Retry round 4).
+- [x] **UPDFIX-06** *(closed-by-test 2026-04-30; no phase needed)*: `Help → Check for Updates` menu item fires the `update:check` IPC regardless of whether a project (`.json` / `.stmproj`) is currently loaded. **Closed by existing regression test** `tests/renderer/app-update-subscriptions.spec.tsx` test (14-l) "Help → Check for Updates from idle calls window.api.checkForUpdates()" — Phase 14's renderer-lift (commit 802a76e) moved the menu-listener subscription from `AppShell.tsx` to `App.tsx`'s top-level `useEffect`, so it mounts on every AppState branch including idle. D-15-LIVE-3 was observed on the v1.1.1 installed binary (pre-lift); v1.1.3+ already has the fix. Phase 17 skipped (originally promoted from backlog 2026-04-29; verification-only phase deemed redundant given (14-l) coverage).
 
 ### QUIT — App quit (Phase 18)
 
@@ -108,7 +108,7 @@ Roadmap-locked 2026-04-30 (ROADMAP.md authored). Every v1.2 REQ maps to exactly 
 | UAT-02      | 13.1  | Pending |
 | UAT-03      | 13.1  | Pending |
 | UPDFIX-05   | 16    | Pending |
-| UPDFIX-06   | 17    | Pending |
+| UPDFIX-06   | —     | Closed-by-test (regression test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e fixes the wiring; Phase 17 skipped 2026-04-30) |
 | QUIT-01     | 18    | Pending |
 | QUIT-02     | 18    | Pending |
 | UI-01       | 19    | Pending |
@@ -131,4 +131,4 @@ Roadmap-locked 2026-04-30 (ROADMAP.md authored). Every v1.2 REQ maps to exactly 
 | DIMS-04     | 22    | Pending |
 | DIMS-05     | 22    | Pending |
 
-**Coverage:** 26/26 v1.2 REQs mapped to exactly one phase each (no orphans, no duplicates). 8 phases own at least one REQ (13.1: 3, 16: 1, 17: 1, 18: 2, 19: 5, 20: 5, 21: 4, 22: 5). Phase 22 depends on Phase 21 (shared `src/core/png-header.ts` PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent locked 2026-04-25). Phase 13.1 is host-availability gated; no other phase blocks on it.
+**Coverage:** 26/26 v1.2 REQs mapped — 25 to a phase, 1 (UPDFIX-06) closed-by-test (no phase). 7 active phases own at least one REQ (13.1: 3, 16: 1, 18: 2, 19: 5, 20: 5, 21: 4, 22: 5). Phase 17 skipped 2026-04-30 — UPDFIX-06 already covered by `tests/renderer/app-update-subscriptions.spec.tsx` test (14-l). Phase 22 depends on Phase 21 (shared `src/core/png-header.ts` PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent locked 2026-04-25). Phase 13.1 is host-availability gated; no other phase blocks on it.

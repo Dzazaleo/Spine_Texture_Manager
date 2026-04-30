@@ -3,11 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: phase_complete
-last_updated: "2026-04-30T11:30:00Z"
-last_activity: "2026-04-30 — Phase 16 (macOS auto-update → manual-download UX) COMPLETE. 6/6 plans, 4 waves, 531 vitest passing, code review 0 critical / 2 warning / 5 info, UAT both items PASS via dev-mode synthetic injection. UPDFIX-05 closed. v1.2 has 7 phases remaining (13.1 + 17 + 18 + 19 + 20 + 21 + 22)."
+last_updated: "2026-04-30T12:30:00Z"
+last_activity: "2026-04-30 — Phase 17 (Help → Check for Updates not gated on project) SKIPPED via /gsd-discuss-phase 17 investigation. UPDFIX-06 closed-by-test (regression test 14-l in tests/renderer/app-update-subscriptions.spec.tsx already locks the wiring; Phase 14 lift commit 802a76e fixed the bug; D-15-LIVE-3 was observed on the pre-lift v1.1.1 binary). v1.2 has 6 phases remaining (13.1 + 18 + 19 + 20 + 21 + 22). Earlier 2026-04-30: Phase 16 (macOS auto-update → manual-download UX) COMPLETE. 6/6 plans, 531 vitest passing, UPDFIX-05 closed."
 progress:
-  total_phases: 8
+  total_phases: 7
   completed_phases: 1
+  skipped_phases: 1
   total_plans: 6
   completed_plans: 6
 ---
@@ -16,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 16 — COMPLETE 2026-04-30
-Plan: 6/6 complete
-Status: Phase 16 complete; ready for next phase. Recommended execution order: 17 → 18 → 19 → 20 → 21 → 22 (Phase 13.1 opportunistic). v1.2 milestone NOT complete — 7 phases remaining.
-Last activity: 2026-04-30 — Phase 16 closed (UPDFIX-05). 531 vitest passing.
+Phase: 17 — SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test); Phase 16 — COMPLETE 2026-04-30 (UPDFIX-05)
+Plan: 6/6 complete (Phase 16); 0/0 (Phase 17 — no plans, phase skipped)
+Status: Phase 16 complete + Phase 17 skipped; ready for next phase. Recommended execution order: 18 → 19 → 20 → 21 → 22 (Phase 13.1 opportunistic). v1.2 milestone NOT complete — 6 phases remaining.
+Last activity: 2026-04-30 — Phase 17 skipped via /gsd-discuss-phase 17. UPDFIX-06 closed-by-test (existing regression test (14-l) in `tests/renderer/app-update-subscriptions.spec.tsx`).
 
 ## Last Roadmap Update
 
@@ -32,15 +33,15 @@ v1.2 — expansion. Closes three macOS regressions + one host-blocked carry-forw
 Phases (continues numbering from v1.1.2; no `--reset-phase-numbers`):
 
 - **13.1** — Live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 lifecycle observation; host-availability gated; UAT-01..03)
-- **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29; UPDFIX-05)
-- **17** — Help → Check for Updates not gated on project state (closes D-15-LIVE-3; promoted from backlog 999.3; UPDFIX-06)
+- **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29; UPDFIX-05) ✅ COMPLETE 2026-04-30
+- **17** — Help → Check for Updates not gated on project state — SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e already fixed the wiring; D-15-LIVE-3 was observed on the pre-lift v1.1.1 binary)
 - **18** — Cmd+Q + AppleScript quit broken on macOS (promoted from backlog 999.1; QUIT-01, QUIT-02)
 - **19** — UI improvements UI-01..05 (sticky header + cards + modal redesign + quantified callouts + button hierarchy; tester feedback)
 - **20** — Documentation Builder feature (.stmproj v1 documentation slot; D-148; DOC-01..05)
 - **21** — SEED-001 atlas-less mode (json + images, no .atlas; PNG header reader + synthetic atlas; LOAD-01..04)
 - **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety; DIMS-01..05)
 
-Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
+Recommended execution order: 18 → 19 → 20 → 21 → 22, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
 
 Out of scope for v1.2: Apple Developer ID signing + notarization (declined; manual-download UX is the v1.2 answer); Crash reporting / Sentry (revisit at v1.3); Spine 4.3+ versioned loader; `.skel` binary loader.
 
@@ -48,7 +49,11 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current phase
 
-— (no active phase yet; ready for `/gsd-discuss-phase 16` or `/gsd-plan-phase 16` — recommended first phase per execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
+— (no active phase yet; ready for `/gsd-discuss-phase 18` or `/gsd-plan-phase 18` — next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
+
+## Phase 17 skip rationale
+
+`/gsd-discuss-phase 17` (2026-04-30) found that UPDFIX-06 — "Help → Check for Updates fires regardless of project state" — was already closed by Phase 14's renderer-lift work (commit `802a76e`, shipped in v1.1.2 / v1.1.3). The lift moved the `onMenuCheckForUpdates` subscription from `AppShell.tsx` (mounts only on `loaded` / `projectLoaded`) to `App.tsx`'s top-level `useEffect` (always mounted, runs on every AppState branch including idle). The Help menu item itself at `src/main/index.ts:290-293` has no `enabled:` field — it was never gated in main; the bug was on the renderer-subscription side. Existing regression test `tests/renderer/app-update-subscriptions.spec.tsx` test (14-l) "Help → Check for Updates from idle calls window.api.checkForUpdates()" already locks idle-state coverage. D-15-LIVE-3 was observed during Phase 15 Test 7-Retry round 4 on the v1.1.1 INSTALLED binary (pre-lift); v1.1.3+ already has the fix. Phase 17 was thus deemed redundant and skipped — no source change committed, no plans authored, phase number preserved as a SKIPPED entry for audit traceability (no renumbering of 18..22). UPDFIX-06 marked closed-by-test in REQUIREMENTS.md and ROADMAP.md.
 
 ## Current plan
 
@@ -66,4 +71,6 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 *This file is authored fresh at milestone start. Phase 14 + Phase 15 detailed execution history is preserved in their respective phase directories under `.planning/phases/14-…/` and `.planning/phases/15-…/` (VERIFICATION.md, HUMAN-UAT.md, SUMMARY files). v1.1.2 phases will be archived to `.planning/milestones/v1.1.2-phases/` when /gsd-complete-milestone v1.1.2 is run.*
 
-**Planned Phase:** 16 (macos-auto-update-manual-download-ux) — 6 plans — 2026-04-30T09:25:30.824Z
+**Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
+
+**Planned Phase:** 18 (app-quit-broken-cmd-q-and-applescript) — TBD plans — pending /gsd-discuss-phase 18 or /gsd-plan-phase 18
