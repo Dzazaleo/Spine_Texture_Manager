@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: "Roadmap landed; 26/26 v1.2 REQs mapped 1:1 to 8 phases (13.1 + 16 + 17 + 18 + 19 + 20 + 21 + 22)"
-last_updated: "2026-04-30T09:00:43.169Z"
-last_activity: "2026-04-30 — ROADMAP.md authored against REQUIREMENTS.md (commit f36f265, 25-row Traceability — actual count 26 REQs across 8 phases). Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22; Phase 13.1 inserted opportunistically when a host becomes available."
+status: executing
+last_updated: "2026-04-30T09:30:55.587Z"
+last_activity: 2026-04-30 -- Phase 16 execution started
 progress:
   total_phases: 4
   completed_phases: 0
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap landed; awaiting /gsd-discuss-phase or /gsd-plan-phase)
-Plan: —
-Status: Roadmap landed; 26/26 v1.2 REQs mapped 1:1 to 8 phases (13.1 + 16 + 17 + 18 + 19 + 20 + 21 + 22)
-Last activity: 2026-04-30 — ROADMAP.md authored against REQUIREMENTS.md (commit f36f265, 25-row Traceability — actual count 26 REQs across 8 phases). Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22; Phase 13.1 inserted opportunistically when a host becomes available.
+Phase: 16 (macos-auto-update-manual-download-ux) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 16
+Last activity: 2026-04-30 -- Phase 16 execution started
 
 ## Last Roadmap Update
 
@@ -65,3 +65,5 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 ---
 
 *This file is authored fresh at milestone start. Phase 14 + Phase 15 detailed execution history is preserved in their respective phase directories under `.planning/phases/14-…/` and `.planning/phases/15-…/` (VERIFICATION.md, HUMAN-UAT.md, SUMMARY files). v1.1.2 phases will be archived to `.planning/milestones/v1.1.2-phases/` when /gsd-complete-milestone v1.1.2 is run.*
+
+**Planned Phase:** 16 (macos-auto-update-manual-download-ux) — 6 plans — 2026-04-30T09:25:30.824Z

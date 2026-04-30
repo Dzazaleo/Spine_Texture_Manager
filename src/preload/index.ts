@@ -434,7 +434,7 @@ const api: Api = {
   requestPendingUpdate: (): Promise<{
     version: string;
     summary: string;
-    variant: 'auto-update' | 'windows-fallback';
+    variant: 'auto-update' | 'manual-download';
     fullReleaseUrl: string;
   } | null> => ipcRenderer.invoke('update:request-pending'),
 
@@ -456,7 +456,7 @@ const api: Api = {
     cb: (payload: {
       version: string;
       summary: string;
-      variant?: 'auto-update' | 'windows-fallback';
+      variant?: 'auto-update' | 'manual-download';
       fullReleaseUrl: string;
     }) => void,
   ) => {
@@ -465,7 +465,7 @@ const api: Api = {
       payload: {
         version: string;
         summary: string;
-        variant?: 'auto-update' | 'windows-fallback';
+        variant?: 'auto-update' | 'manual-download';
         fullReleaseUrl: string;
       },
     ) => cb(payload);
