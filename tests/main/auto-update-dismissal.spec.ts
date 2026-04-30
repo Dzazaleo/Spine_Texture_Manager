@@ -16,8 +16,8 @@
  *     (c) D-06 trigger-agnostic Later — `dismissUpdate()` writes
  *         `dismissedUpdateVersion` regardless of which trigger context
  *         preceded the call.
- *     (d) D-07 windows-fallback variant follows the same asymmetric rule
- *         (manual re-presents WITH the windows-fallback variant tag).
+ *     (d) D-07 manual-download variant follows the same asymmetric rule (Phase 16 D-05 rename — see git history for the prior Phase 14 token).
+ *         (manual re-presents WITH the manual-download variant tag.)
  *     (e) D-10 structured `console.info('[auto-update] ...')`
  *         instrumentation at boot, startup-check fire, checkUpdate
  *         resolve/reject, the 3 event handlers, and the SUPPRESSED /
@@ -35,7 +35,7 @@
  *      14-b   startup + dismissed === available   → IPC NOT sent
  *      14-c   startup + dismissed < available     → IPC IS sent (newer wins)
  *      14-d   D-06 trigger-agnostic Later persistence
- *      14-e   D-07 windows-fallback variant follows asymmetric rule
+ *      14-e   D-07 manual-download variant follows asymmetric rule (post-Phase-16 D-05 rename)
  *   2. Phase 14 D-03 sticky slot
  *      14-f   getPendingUpdateInfo() === null after init / before any event
  *      14-g   getPendingUpdateInfo() returns latest payload after fire
@@ -238,14 +238,17 @@ describe('Phase 14 D-05 asymmetric dismissal — manual ALWAYS re-presents', () 
     expect(setDismissedVersionMock).toHaveBeenCalledWith('1.2.3');
   });
 
-  it('(14-e) D-07 windows-fallback variant follows asymmetric rule (manual re-presents with variant tag)', async () => {
-    // Mock process.platform === 'win32' for the duration of this test so the
-    // variant routing branch evaluates to 'windows-fallback'. The Phase 12
-    // SPIKE_PASSED constant is already false on win32; spikeOutcome === 'unknown'
-    // here keeps the runtime flag from promoting it.
+  it('(14-e) D-07 manual-download variant follows asymmetric rule (manual re-presents with variant tag — Phase 16 D-05 rename of Phase 14 windows fallback)', async () => {
+    // Mock process.platform === 'darwin' for the duration of this test so the
+    // variant routing branch evaluates to 'manual-download'. Phase 16 D-01 makes
+    // macOS the canonical manual-download target: IN_PROCESS_AUTO_UPDATE_OK is
+    // false on darwin (only Linux is true) and there is no Windows-style
+    // spikeOutcome escape hatch on darwin (D-02). spikeOutcome === 'unknown'
+    // is irrelevant on darwin but kept for parity with the prior win32-mock
+    // shape.
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', {
-      value: 'win32',
+      value: 'darwin',
       configurable: true,
     });
     try {
@@ -265,7 +268,7 @@ describe('Phase 14 D-05 asymmetric dismissal — manual ALWAYS re-presents', () 
         'update:available',
         expect.objectContaining({
           version: '1.2.3',
-          variant: 'windows-fallback',
+          variant: 'manual-download',
         }),
       );
     } finally {
@@ -301,8 +304,11 @@ describe('Phase 14 D-03 update:request-pending sticky slot', () => {
     expect(slot).not.toBeNull();
     expect(slot?.version).toBe('1.2.3');
     expect(slot?.variant).toBeDefined();
+    // Phase 16 D-04 — fullReleaseUrl is now per-release templated
+    // (/releases/tag/v${info.version}) instead of the index URL. Plan 16-03
+    // Task 3 switched the deliverUpdateAvailable payload to use the tag form.
     expect(slot?.fullReleaseUrl).toBe(
-      'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+      'https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.3',
     );
   });
 
