@@ -321,7 +321,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 18-01-PLAN.md — Lift `onCheckDirtyBeforeQuit` from AppShell.tsx to App.tsx top-level useEffect; add `dirtyCheckRef` ref-bridge with object shape `{ isDirty; openSaveQuitDialog }` parallel to existing `appShellMenuRef` (D-01..D-06, D-11). Source-only fix; no main/preload changes.
+- [x] 18-01-PLAN.md — Lift `onCheckDirtyBeforeQuit` from AppShell.tsx to App.tsx top-level useEffect; add `dirtyCheckRef` ref-bridge with object shape `{ isDirty; openSaveQuitDialog }` parallel to existing `appShellMenuRef` (D-01..D-06, D-11). Source-only fix; no main/preload changes.
 - [ ] 18-02-PLAN.md — Lock the lift: new `tests/renderer/app-quit-subscription.spec.tsx` with FOUR D-07 assertions (18-a..18-d); extend `tests/arch.spec.ts` with D-08 grep block ensuring AppShell.tsx no longer subscribes to `onCheckDirtyBeforeQuit`; manual dev-mode smoke checkpoint (D-09).
 
 ### Phase 19: UI improvements (UI-01..05)
@@ -448,7 +448,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 15. Build/feed shape fix + v1.1.2 release | v1.1.2 | 6/6 | Complete (v1.1.2 shipped 2026-04-29 with broken mac auto-update D-15-LIVE-1; v1.1.3 hotfix shipped same day at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3; UPDFIX-01 / D-15-LIVE-1 empirically closed via Test 7-Retry PARTIAL-PASS; D-15-LIVE-2 + D-15-LIVE-3 newly discovered downstream defects routed to backlog 999.2 + 999.3 per user decision) | 2026-04-29 |
 | 16. macOS auto-update — manual-download UX | v1.2 | 6/6 | Complete    | 2026-04-30 |
 | 17. Help → Check for Updates not gated on project | v1.2 | 0/0 | SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e already fixes the wiring; verification-only phase deemed redundant) | 2026-04-30 |
-| 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 0/0 | Pending (promoted from backlog 999.1 on 2026-04-29; QUIT-01, QUIT-02) | — |
+| 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 1/2 | In progress (Plan 18-01 lift complete 2026-04-30; Plan 18-02 lock pending) | 2026-04-30 |
 | 19. UI improvements (UI-01..05) | v1.2 | 0/0 | Pending (sticky header + cards + modal redesign + quantified callouts + button hierarchy; tester feedback) | — |
 | 20. Documentation Builder feature | v1.2 | 0/0 | Pending (fills .stmproj v1 reserved documentation slot D-148; DOC-01..05) | — |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; LOAD-01..04; plants shared PNG header reader for Phase 22) | — |

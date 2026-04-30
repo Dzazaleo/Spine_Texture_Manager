@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: completed
-last_updated: "2026-04-30T11:42:26.691Z"
-last_activity: 2026-04-30 — Phase 17 skipped via /gsd-discuss-phase 17. UPDFIX-06 closed-by-test (existing regression test (14-l) in `tests/renderer/app-update-subscriptions.spec.tsx`).
+status: executing
+last_updated: "2026-04-30T13:02:00.000Z"
+last_activity: 2026-04-30 -- Phase 18 Wave 1 complete (Plan 18-01 lift); Wave 2 starting (Plan 18-02 lock + smoke checkpoint)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 17 — SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test); Phase 16 — COMPLETE 2026-04-30 (UPDFIX-05)
-Plan: 6/6 complete (Phase 16); 0/0 (Phase 17 — no plans, phase skipped)
-Status: Phase 16 complete + Phase 17 skipped; ready for next phase. Recommended execution order: 18 → 19 → 20 → 21 → 22 (Phase 13.1 opportunistic). v1.2 milestone NOT complete — 6 phases remaining.
-Last activity: 2026-04-30 — Phase 17 skipped via /gsd-discuss-phase 17. UPDFIX-06 closed-by-test (existing regression test (14-l) in `tests/renderer/app-update-subscriptions.spec.tsx`).
+Phase: 18 (app-quit-broken-cmd-q-and-applescript) — EXECUTING
+Plan: 2 of 2
+Status: Plan 18-01 complete (Wave 1 — lift onCheckDirtyBeforeQuit to App.tsx + dirtyCheckRef bridge); Wave 2 starting — Plan 18-02 (lock with vitest spec + arch-grep + dev-mode smoke checkpoint)
+Last activity: 2026-04-30 -- Phase 18 Wave 1 complete (Plan 18-01 lift); Wave 2 starting (Plan 18-02 lock + smoke checkpoint)
 
 ## Last Roadmap Update
 
