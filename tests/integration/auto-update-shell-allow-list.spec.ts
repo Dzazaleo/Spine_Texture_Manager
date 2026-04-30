@@ -2,8 +2,10 @@
 /**
  * Phase 14 Plan 05 — Open Release Page URL-consistency regression gate (UPDFIX-02).
  *
- * The windows-fallback "Open Release Page" CTA depends on byte-for-byte URL
- * agreement across THREE surfaces:
+ * The manual-download "Open Release Page" CTA depends on URL trust-boundary checks
+ * (both the legacy index URL byte-for-byte literal AND the Phase 16 D-04 runtime
+ * per-release URL must pass through the SHELL_OPEN_EXTERNAL_ALLOWED gate).
+ * Original Phase 14 URL agreement contract spans THREE surfaces:
  *
  *   1. src/renderer/src/App.tsx — onOpenReleasePage handler literal passed
  *      to window.api.openExternalUrl().
@@ -11,7 +13,7 @@
  *      Set.has gate; mismatch = silently dropped per Phase 12 D-18 contract).
  *   3. src/main/auto-update.ts — GITHUB_RELEASES_INDEX_URL constant pushed in
  *      the `update:available` IPC payload (UpdateDialog reads payload.fullReleaseUrl,
- *      which Plan 14-03 keeps for non-windows-fallback variant — currently the
+ *      which Plan 14-03 keeps for non-manual-download variant — currently the
  *      onOpenReleasePage handler hardcodes the literal directly, but the same
  *      URL must agree).
  *
@@ -59,9 +61,21 @@ function readFile(relativePath: string): string {
 }
 
 describe('Phase 14 — Open Release Page URL-consistency gate', () => {
-  it('(14-p) src/renderer/src/App.tsx contains the openExternalUrl call with the Releases-index URL', () => {
+  it('(14-p) src/renderer/src/App.tsx forwards the runtime updateState.fullReleaseUrl to openExternalUrl (Phase 16 D-04)', () => {
     const appTsx = readFile('src/renderer/src/App.tsx');
-    expect(appTsx).toContain(`openExternalUrl('${RELEASES_INDEX_URL}')`);
+    // Phase 16 D-04 — the renderer no longer hardcodes the index URL. The
+    // per-release URL templated by deliverUpdateAvailable (src/main/auto-update.ts)
+    // flows through the update-available IPC payload to the updateState slot,
+    // and onOpenReleasePage forwards updateState.fullReleaseUrl to
+    // window.api.openExternalUrl (which routes through src/main/ipc.ts'
+    // shell:open-external handler — guarded by isReleasesUrl per Plan 16-04).
+    expect(appTsx).toContain('openExternalUrl(updateState.fullReleaseUrl)');
+    // Defense-in-depth: the hardcoded RELEASES_INDEX_URL literal MUST NOT
+    // re-appear inside an openExternalUrl call in App.tsx (catches a future
+    // regression that re-introduces the dead path).
+    expect(appTsx).not.toMatch(
+      new RegExp(`openExternalUrl\\(\\s*['"\`]${RELEASES_INDEX_URL.replace(/[/.]/g, '\\$&')}['"\`]\\s*\\)`),
+    );
   });
 
   it('(14-q) src/main/ipc.ts SHELL_OPEN_EXTERNAL_ALLOWED contains the Releases-index URL (D-12)', () => {
@@ -80,15 +94,25 @@ describe('Phase 14 — Open Release Page URL-consistency gate', () => {
     // Extract every occurrence of a Releases-index-shaped URL across the 3 files
     // and assert they are all strictly equal. Catches typos like a trailing slash,
     // scheme drift (http vs https), or repo-rename drift.
+    // Phase 16 D-04 — App.tsx no longer carries a hardcoded URL literal (the
+    // runtime updateState.fullReleaseUrl flows through). The byte-for-byte
+    // URL-consistency check now compares only the two main-process files that
+    // STILL carry the index URL literal: ipc.ts (allow-list Set entry) and
+    // auto-update.ts (GITHUB_RELEASES_INDEX_URL constant — kept for backward
+    // compat allow-list match per Phase 16 D-04 + UpdateDialog.tsx's "View
+    // full release notes" link).
     const filesToCheck = [
-      'src/renderer/src/App.tsx',
       'src/main/ipc.ts',
       'src/main/auto-update.ts',
     ];
 
-    // Match any GitHub URL ending in /releases (with optional trailing slash) that
-    // resembles the project's URL. The literal we expect is the canonical form.
-    const ghReleasesPattern = /https:\/\/github\.com\/[\w-]+\/Spine_Texture_Manager\/releases\/?/g;
+    // Match the canonical index URL literal exactly — no `/tag/...` suffix.
+    // Phase 16 D-04 added a per-release templated URL form
+    // (`/releases/tag/v${info.version}`) inside auto-update.ts; that's a
+    // separate URL shape and is NOT covered by this byte-for-byte literal
+    // check. We use a negative-lookahead to guard against accidentally
+    // matching the start of the templated form.
+    const ghReleasesPattern = /https:\/\/github\.com\/[\w-]+\/Spine_Texture_Manager\/releases(?!\/tag)\/?/g;
 
     const occurrences: { file: string; match: string }[] = [];
     for (const f of filesToCheck) {
@@ -99,7 +123,7 @@ describe('Phase 14 — Open Release Page URL-consistency gate', () => {
       }
     }
 
-    expect(occurrences.length).toBeGreaterThanOrEqual(3); // at least one in each of the 3 files
+    expect(occurrences.length).toBeGreaterThanOrEqual(2); // at least one in each of the 2 remaining files (Phase 16 D-04 dropped App.tsx)
 
     // Every occurrence must equal the canonical literal (no trailing slash variant).
     for (const o of occurrences) {
