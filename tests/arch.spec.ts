@@ -203,3 +203,25 @@ describe('Phase 9 Layer 3: src/main/sampler-worker.ts must not import DOM/render
     );
   });
 });
+
+// Phase 18 — Layer 3 named anchor for the lifted before-quit dirty-guard.
+// CONTEXT D-08: AppShell.tsx must NOT contain `onCheckDirtyBeforeQuit` after
+// the lift. Phase 18 moves that subscription up to App.tsx (always-mounted
+// root) so Cmd+Q from any AppState routes through a live listener; this
+// grep locks the lift architecturally so a future re-regression breaks
+// the build, not just runtime.
+//
+// Unlike the Phase 8 / Phase 9 named-anchor blocks above, this block does
+// NOT use a try/catch ENOENT swallow — AppShell.tsx already exists and a
+// silent-pass on rename/delete would mask exactly the regression class
+// this block is meant to catch.
+describe('Phase 18 Layer 3: src/renderer/src/components/AppShell.tsx must not subscribe to onCheckDirtyBeforeQuit', () => {
+  it('AppShell.tsx does not contain the literal "onCheckDirtyBeforeQuit"', () => {
+    const filePath = 'src/renderer/src/components/AppShell.tsx';
+    const text = readFileSync(filePath, 'utf8');
+    expect(
+      text,
+      `${filePath} must NOT subscribe to onCheckDirtyBeforeQuit — that listener was lifted to App.tsx in Phase 18 (CONTEXT D-01 / D-02). Re-introducing it here would re-break QUIT-01 / QUIT-02 (Cmd+Q no-op when no project loaded).`,
+    ).not.toMatch(/onCheckDirtyBeforeQuit/);
+  });
+});
