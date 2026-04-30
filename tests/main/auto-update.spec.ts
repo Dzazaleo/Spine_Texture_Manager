@@ -166,10 +166,12 @@ describe('update-available → IPC bridge (extractSummary + variant)', () => {
       releaseNotes: '## Summary\nFixed F1 bug.\n## Other section\nignored',
     });
     expect(sendStub).toHaveBeenCalledTimes(1);
+    // Phase 16 D-04 — fullReleaseUrl is now per-release templated
+    // (`/releases/tag/v${info.version}`) rather than the static index URL.
     expect(sendStub).toHaveBeenCalledWith('update:available', expect.objectContaining({
       version: '1.2.3',
       summary: 'Fixed F1 bug.',
-      fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+      fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.3',
     }));
   });
 });
@@ -380,11 +382,13 @@ describe('Phase 14 D-03 — sticky pendingUpdateInfo slot', () => {
     });
     const slot = mod.getPendingUpdateInfo();
     expect(slot).not.toBeNull();
+    // Phase 16 D-04 — fullReleaseUrl is now per-release templated
+    // (`/releases/tag/v${info.version}`) rather than the static index URL.
     expect(slot).toEqual(
       expect.objectContaining({
         version: '1.2.3',
         summary: 'Fix bug.',
-        fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases',
+        fullReleaseUrl: 'https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.2.3',
       }),
     );
   });
