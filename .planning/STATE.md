@@ -1,11 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: expansion
-status: roadmap_landed
-last_updated: "2026-04-30T00:00:00Z"
+milestone_name: (in progress)
+status: "Roadmap landed; 26/26 v1.2 REQs mapped 1:1 to 8 phases (13.1 + 16 + 17 + 18 + 19 + 20 + 21 + 22)"
+last_updated: "2026-04-30T09:00:43.169Z"
+last_activity: "2026-04-30 — ROADMAP.md authored against REQUIREMENTS.md (commit f36f265, 25-row Traceability — actual count 26 REQs across 8 phases). Recommended execution order: 16 → 17 → 18 → 19 → 20 → 21 → 22; Phase 13.1 inserted opportunistically when a host becomes available."
 progress:
-  total_phases: 8
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -29,6 +30,7 @@ Last activity: 2026-04-30 — ROADMAP.md authored against REQUIREMENTS.md (commi
 v1.2 — expansion. Closes three macOS regressions + one host-blocked carry-forward from v1.1.x; refines the UI based on tester feedback (Phase 19 UI-01..05); adds the Documentation Builder feature (Phase 20 fills the .stmproj v1 reserved `documentation: object` slot from D-148); lands the two long-dormant SEEDs (Phase 21 SEED-001 atlas-less mode → Phase 22 SEED-002 dims-badge override-cap).
 
 Phases (continues numbering from v1.1.2; no `--reset-phase-numbers`):
+
 - **13.1** — Live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 lifecycle observation; host-availability gated; UAT-01..03)
 - **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29; UPDFIX-05)
 - **17** — Help → Check for Updates not gated on project state (closes D-15-LIVE-3; promoted from backlog 999.3; UPDFIX-06)
