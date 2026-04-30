@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: milestone_complete
-last_updated: "2026-04-30T09:30:55.587Z"
-last_activity: 2026-04-30 -- Phase 16 execution started
+status: phase_complete
+last_updated: "2026-04-30T11:30:00Z"
+last_activity: "2026-04-30 — Phase 16 (macOS auto-update → manual-download UX) COMPLETE. 6/6 plans, 4 waves, 531 vitest passing, code review 0 critical / 2 warning / 5 info, UAT both items PASS via dev-mode synthetic injection. UPDFIX-05 closed. v1.2 has 7 phases remaining (13.1 + 17 + 18 + 19 + 20 + 21 + 22)."
 progress:
-  total_phases: 4
+  total_phases: 8
   completed_phases: 1
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # State
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-04-30
+Phase: 16 — COMPLETE 2026-04-30
+Plan: 6/6 complete
+Status: Phase 16 complete; ready for next phase. Recommended execution order: 17 → 18 → 19 → 20 → 21 → 22 (Phase 13.1 opportunistic). v1.2 milestone NOT complete — 7 phases remaining.
+Last activity: 2026-04-30 — Phase 16 closed (UPDFIX-05). 531 vitest passing.
 
 ## Last Roadmap Update
 
