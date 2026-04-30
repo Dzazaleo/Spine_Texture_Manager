@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: executing
+status: milestone_complete
 last_updated: "2026-04-30T09:30:55.587Z"
 last_activity: 2026-04-30 -- Phase 16 execution started
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 16 (macos-auto-update-manual-download-ux) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 16
-Last activity: 2026-04-30 -- Phase 16 execution started
+Phase: 16
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-04-30
 
 ## Last Roadmap Update
 
