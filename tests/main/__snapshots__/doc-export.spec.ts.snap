@@ -1,0 +1,86 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderDocumentationHtml (DOC-04) > snapshot — full HTML for fixed payload + generatedAt 1`] = `
+"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spine Documentation — CHJWC_SYMBOLS</title>
+<style>
+:root {
+  --bg: #1c1917;
+  --card: #23201d;
+  --border: rgba(168, 162, 158, 0.18);
+  --terracotta: #e06b55;
+  --blue: #5fa8d4;
+  --green: #5fa866;
+  --muted: #a8a29e;
+  --fg: #f5f5f4;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }
+.hero { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.hero-title { font-size: 24px; font-weight: 600; }
+.hero-name { color: var(--terracotta); }
+.chip-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; color: var(--muted); }
+.chip svg { color: var(--blue); }
+.row { display: flex; gap: 16px; margin-bottom: 16px; }
+.card { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 16px; font-weight: 600; }
+.card-header svg { color: var(--green); }
+.card-header.bones svg, .card-header.events svg { color: var(--terracotta); }
+.card-header.skins svg { color: var(--blue); }
+.card-header.tracks svg { color: var(--terracotta); }
+.card-header.notes svg { color: var(--blue); }
+.loop-pill { display: inline-flex; align-items: center; padding: 2px 6px; font-size: 10px; font-family: monospace; border-radius: 4px; background-color: rgba(95, 168, 212, 0.15); color: var(--blue); }
+.track-divider { display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 12px; color: var(--terracotta); margin-top: 12px; margin-bottom: 4px; }
+.track-divider::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--terracotta); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+.entry-name { font-family: monospace; color: var(--terracotta); }
+.entry-name.skin { color: var(--blue); }
+.entry-desc { color: var(--muted); margin-top: 2px; font-size: 12px; }
+.notes-pre { white-space: pre-wrap; font-family: inherit; color: var(--muted); margin: 0; }
+.config-value { font-family: monospace; font-size: 28px; color: var(--fg); }
+.config-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.config-sublabel { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.entry-list { list-style: none; padding: 0; margin: 0; }
+.entry-list li { margin-bottom: 12px; }
+.empty-state { font-style: italic; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="hero">
+    <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M5 2 h7 l3 3 v13 H5 z"/><path d="M12 2 v3 h3"/></svg>
+    <div class="hero-title">Spine Documentation / <span class="hero-name">CHJWC_SYMBOLS</span></div>
+  </div><div class="chip-strip">
+    <span class="chip"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7"/><path d="M10 6 v4 l3 2"/></svg>Generated: 14/04/2026</span>
+    <span class="chip"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><rect x="2" y="3" width="16" height="14" rx="1"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14 l4 -4 4 3 4 -5 4 4 v5"/></svg>174 Images Utilized</span>
+    <span class="chip"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M9 7 l4 3 -4 3 z"/></svg>0 Animations Configured</span>
+    <span class="chip"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M11 2 L4 11 h5 l-2 7 7 -9 h-5 z"/></svg>170 Optimized Assets</span>
+    <span class="chip"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M2 5 l5 -2 6 2 5 -2 v12 l-5 2 -6 -2 -5 2 z"/><path d="M7 3 v14 M13 5 v14"/></svg>4 Atlas Pages (2048px)</span>
+  </div><div class="row"><div class="card">
+    <div class="card-header"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M10 3 L4 5 v5 c0 4 3 6 6 7 3 -1 6 -3 6 -7 V5 z"/></svg></span><span>Optimization Config</span></div>
+    <div class="config-value">0%</div>
+    <div class="config-label">Safety Buffer</div>
+    <div class="config-value" style="margin-top:16px;">91.7%</div>
+    <div class="config-label">Space Savings</div>
+    <div class="config-sublabel">Estimated Reduction</div>
+  </div><div class="card">
+    <div class="card-header notes"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M3 4 h14 v9 h-7 l-4 3 v-3 H3 z"/></svg></span><span>General Notes</span></div>
+    <pre class="notes-pre"></pre>
+  </div></div><div class="card">
+      <div class="card-header tracks"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7"/><path d="M10 6 v4 l3 2"/></svg></span><span>Animation Tracks</span></div>
+      <p class="empty-state">No animation tracks configured.</p>
+    </div><div class="row"><div class="card">
+      <div class="card-header bones"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M5 8 a2 2 0 0 1 2 -2 h6 a2 2 0 0 1 2 2 v4 a2 2 0 0 1 -2 2 h-6 a2 2 0 0 1 -2 -2 z"/></svg></span><span>Control Bones</span></div>
+      <p class="empty-state">No control bones documented.</p>
+    </div><div class="card">
+    <div class="card-header skins"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M2 6 l8 -3 8 3 -8 3 z"/><path d="M2 10 l8 3 8 -3"/><path d="M2 14 l8 3 8 -3"/></svg></span><span>Skins</span></div>
+    <ul class="entry-list"></ul>
+  </div></div>
+</body>
+</html>"
+`;
