@@ -148,6 +148,21 @@ export interface GlobalMaxRenderPanelProps {
 
 // ----- Pure helpers (module-top) -----------------------------------------
 
+/**
+ * Phase 19 UI-02 + D-06 — Row state predicate. Drives the row left-accent
+ * bar (UI-SPEC §5) and the tinted ratio cell. The "ratio" the spec refers
+ * to is the effective render scale (1.0× = source size, < 1.0× = under-
+ * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
+ */
+type RowState = 'under' | 'over' | 'unused' | 'neutral';
+
+function rowState(peakRatio: number, isUnused: boolean): RowState {
+  if (isUnused) return 'unused';
+  if (peakRatio < 1.0) return 'under';
+  if (peakRatio > 1.0) return 'over';
+  return 'neutral';
+}
+
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */
 const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
@@ -311,6 +326,11 @@ interface RowProps {
    * undefined and the row sits at its natural position.
    */
   style?: CSSProperties;
+  /**
+   * Phase 19 UI-02 + D-06 — row state for left-accent bar + tinted ratio
+   * cell. Computed per-row in the parent via rowState(effectiveScale, isUnused).
+   */
+  state: RowState;
 }
 
 function Row({
@@ -326,6 +346,7 @@ function Row({
   isFlashing,
   registerRef,
   style,
+  state,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -368,6 +389,21 @@ function Row({
         isFlashing && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
       )}
     >
+      {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
+          Mirrors the existing banner pattern at AppShell.tsx:1227 / 1258.
+          clsx with literal-class branches per Tailwind v4 discipline. */}
+      <td className="w-1 p-0">
+        <span
+          className={clsx(
+            'inline-block w-1 h-full',
+            state === 'under' && 'bg-success',
+            state === 'over' && 'bg-warning',
+            state === 'unused' && 'bg-danger',
+            state === 'neutral' && 'bg-transparent',
+          )}
+          aria-hidden="true"
+        />
+      </td>
       <td className="py-2 px-3">
         {/* Wrapping label: onClick captures shiftKey for range selection (mouse-only).
             The nested <input> onChange fires on plain click AND on Space/Enter keyboard
@@ -400,10 +436,18 @@ function Row({
       >
         {`${row.effExportW}×${row.effExportH}`}
       </td>
+      {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
+          trumps the prior override-aware text-accent here per the deliberate
+          D-06 visual unification (the override percent badge below still
+          surfaces the override signal). clsx literal branches per Tailwind v4
+          discipline (no template-string interpolation). */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
-          row.override !== undefined ? 'text-accent' : 'text-fg',
+          state === 'under' && 'bg-success/10 text-success',
+          state === 'over' && 'bg-warning/10 text-warning',
+          state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'neutral' && 'text-fg',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
@@ -568,6 +612,13 @@ export function GlobalMaxRenderPanel({
   // so a nullish-coalesce to [] is required before .slice/.filter and before
   // the .length guard in the render block below.
   const unusedAttachments = summary.unusedAttachments ?? [];
+  // Phase 19 UI-02 + D-06 — set of unused attachment names for O(1) lookup
+  // when computing per-row state (rowState predicate). Names come from the
+  // same IPC field that drives the unused-section table below.
+  const unusedNameSet = useMemo(
+    () => new Set(unusedAttachments.map((u) => u.attachmentName)),
+    [unusedAttachments],
+  );
   const filteredUnused = useMemo(
     () => {
       const q = query.trim().toLowerCase();
@@ -799,6 +850,7 @@ export function GlobalMaxRenderPanel({
             <table className="w-full border-collapse">
               <thead className="bg-panel sticky top-0 z-10">
                 <tr>
+                  <th className="w-1 p-0" aria-label="Row state indicator" />
                   <th scope="col" className="py-2 px-3 border-b border-border w-8">
                     <SelectAllCheckbox
                       visibleKeys={visibleKeys}
@@ -864,6 +916,10 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
+                  const state = rowState(
+                    row.effectiveScale,
+                    unusedNameSet.has(row.attachmentName),
+                  );
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -878,6 +934,7 @@ export function GlobalMaxRenderPanel({
                       selectedKeys={selectedAttachmentNames}
                       isFlashing={isFlashing === row.attachmentName}
                       registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                      state={state}
                       // Per RESEARCH §Q1: translate basis is the row's
                       // INITIAL position, not absolute scroll offset. The
                       // `idx * virtualRow.size` subtraction is documented
@@ -902,6 +959,7 @@ export function GlobalMaxRenderPanel({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-panel">
+              <th className="w-1 p-0" aria-label="Row state indicator" />
               <th scope="col" className="py-2 px-3 border-b border-border w-8">
                 <SelectAllCheckbox
                   visibleKeys={visibleKeys}
@@ -967,30 +1025,37 @@ export function GlobalMaxRenderPanel({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-fg-muted font-mono text-sm text-center py-8">
+                <td colSpan={9} className="text-fg-muted font-mono text-sm text-center py-8">
                   {query.trim() !== ''
                     ? 'No attachments match "' + query + '"'
                     : 'No attachments'}
                 </td>
               </tr>
             )}
-            {sorted.map((row) => (
-              <Row
-                key={row.attachmentKey}
-                row={row}
-                query={query}
-                checked={selected.has(row.attachmentKey)}
-                onToggle={handleToggleRow}
-                onRangeToggle={handleRangeToggle}
-                suppressNextChangeRef={suppressNextChangeRef}
-                onJumpToAnimation={onJumpToAnimation}
-                onOpenOverrideDialog={openDialog}
-                selectedKeys={selectedAttachmentNames}
-                /* Phase 7 D-130 NEW: */
-                isFlashing={isFlashing === row.attachmentName}
-                registerRef={(el) => registerRowRef(row.attachmentName, el)}
-              />
-            ))}
+            {sorted.map((row) => {
+              const state = rowState(
+                row.effectiveScale,
+                unusedNameSet.has(row.attachmentName),
+              );
+              return (
+                <Row
+                  key={row.attachmentKey}
+                  row={row}
+                  query={query}
+                  checked={selected.has(row.attachmentKey)}
+                  onToggle={handleToggleRow}
+                  onRangeToggle={handleRangeToggle}
+                  suppressNextChangeRef={suppressNextChangeRef}
+                  onJumpToAnimation={onJumpToAnimation}
+                  onOpenOverrideDialog={openDialog}
+                  selectedKeys={selectedAttachmentNames}
+                  /* Phase 7 D-130 NEW: */
+                  isFlashing={isFlashing === row.attachmentName}
+                  registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                  state={state}
+                />
+              );
+            })}
           </tbody>
         </table>
       )}
