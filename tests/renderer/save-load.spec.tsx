@@ -14,6 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { AppShell } from '../../src/renderer/src/components/AppShell';
 import { App } from '../../src/renderer/src/App';
 import type { SkeletonSummary, OpenResponse, SaveResponse } from '../../src/shared/types';
+import { DEFAULT_DOCUMENTATION } from '../../src/shared/types';
 
 afterEach(cleanup);
 
@@ -28,6 +29,8 @@ function makeSummary(): SkeletonSummary {
     attachments: { count: 0, byType: {} },
     skins: { count: 0, names: [] },
     animations: { count: 0, names: [] },
+    // Phase 20 D-09 — events field added to SkeletonSummary in Plan 20-01.
+    events: { count: 0, names: [] },
     peaks: [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', sourceW: 64, sourceH: 64,
@@ -45,12 +48,12 @@ beforeEach(() => {
   vi.stubGlobal('api', {
     saveProject: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
     saveProjectAs: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
-    openProject: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
-    openProjectFromFile: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
+    openProject: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj', documentation: DEFAULT_DOCUMENTATION } } as OpenResponse),
+    openProjectFromFile: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj', documentation: DEFAULT_DOCUMENTATION } } as OpenResponse),
     openProjectFromPath: vi.fn(),
     loadSkeletonFromFile: vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() }),
     locateSkeleton: vi.fn().mockResolvedValue({ ok: true, newPath: '/a/b/SIMPLE_RENAMED.json' }),
-    reloadProjectWithSkeleton: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj' } } as OpenResponse),
+    reloadProjectWithSkeleton: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj', documentation: DEFAULT_DOCUMENTATION } } as OpenResponse),
     onCheckDirtyBeforeQuit: vi.fn(() => () => undefined),
     confirmQuitProceed: vi.fn(),
     pickOutputDirectory: vi.fn(),
@@ -94,6 +97,7 @@ beforeEach(() => {
         sortColumn: null,
         sortDir: null,
         projectFilePath: '/a/b/proj.stmproj',
+        documentation: DEFAULT_DOCUMENTATION,
       },
     } as OpenResponse),
     // Phase 12 Plan 01 — auto-update preload surface (UPD-01..UPD-06).
@@ -285,6 +289,7 @@ describe('Stale-override banner (D-150)', () => {
           sortColumn: null,
           sortDir: null,
           projectFilePath: '/a/b/proj.stmproj',
+          documentation: DEFAULT_DOCUMENTATION,
         }}
       />,
     );
@@ -507,6 +512,7 @@ describe('Phase 08.2 menu wiring', () => {
         sortColumn: null,
         sortDir: null,
         projectFilePath: '/abs/path.stmproj',
+        documentation: DEFAULT_DOCUMENTATION,
       },
     });
     const cb = api.onMenuOpenRecent.mock.calls[0][0] as (path: string) => Promise<void>;

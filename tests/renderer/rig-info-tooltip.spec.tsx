@@ -83,6 +83,8 @@ function makeSummary(): SkeletonSummary {
     attachments: { count: 8, byType: { RegionAttachment: 8 } },
     skins: { count: 1, names: ['default'] },
     animations: { count: 3, names: [] },
+    // Phase 20 D-09 — events field added to SkeletonSummary in Plan 20-01.
+    events: { count: 0, names: [] },
     peaks: [],
     animationBreakdown: [],
     unusedAttachments: [],

@@ -711,6 +711,10 @@ export interface MaterializedProject {
   sortColumn: string | null;
   sortDir: 'asc' | 'desc' | null;
   projectFilePath: string;
+  // Phase 20 D-01 — typed documentation slot threaded through to the renderer
+  // on Open / locate-skeleton recovery. Drift policy (D-09 / D-10 / D-11)
+  // is applied renderer-side in AppShell via intersectDocumentationWithSummary.
+  documentation: Documentation;
 }
 
 export type SaveResponse =

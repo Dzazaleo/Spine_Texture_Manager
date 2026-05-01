@@ -49,7 +49,11 @@ import type {
   MaterializedProject,
   SaveResponse,
 } from '../../../shared/types.js';
-import { DEFAULT_DOCUMENTATION } from '../../../shared/types.js';
+import {
+  DEFAULT_DOCUMENTATION,
+  intersectDocumentationWithSummary,
+  type Documentation,
+} from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { SearchBar } from './SearchBar';
@@ -60,6 +64,7 @@ import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { SettingsDialog } from '../modals/SettingsDialog';
 import { HelpDialog } from '../modals/HelpDialog';
+import { DocumentationBuilderDialog } from '../modals/DocumentationBuilderDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
 
@@ -159,6 +164,12 @@ export function AppShell({
   // snapshot state — the modal reads summary + overrides directly (D-131).
   const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
+  // Phase 20 D-01 — Documentation Builder modal lifecycle. Plain boolean
+  // mirroring atlasPreviewOpen above. The documentation state itself is
+  // hoisted further down so its lazy initializer can intersect against the
+  // current summary for D-09/D-10/D-11 drift policy on first paint.
+  const [documentationBuilderOpen, setDocumentationBuilderOpen] = useState(false);
+
   // Phase 19 UI-01 + D-04 — NEW: panel filter query lifted up from the
   // GlobalMaxRenderPanel + AnimationBreakdownPanel internal useState slots
   // so the single sticky-bar SearchBar can drive both panels. Empty string
@@ -227,6 +238,20 @@ export function AppShell({
   useEffect(() => {
     setLocalSummary(null);
   }, [summary]);
+
+  // Phase 20 D-01 / D-09 / D-10 / D-11 — Documentation slot lifted into
+  // AppShell. Lazy initializer intersects DEFAULT_DOCUMENTATION (or the
+  // materialized .stmproj documentation, when present) with the live summary
+  // so events + skins are pre-populated with empty descriptions ready to
+  // author on first paint. The same helper runs on every materialize/load
+  // (mountOpenResponse) and on local-summary changes (resample) so drift is
+  // a single primitive — mirrors Phase 8 D-150 stale-overrides intersection.
+  const [documentation, setDocumentation] = useState<Documentation>(() =>
+    intersectDocumentationWithSummary(
+      initialProject?.documentation ?? DEFAULT_DOCUMENTATION,
+      summary,
+    ),
+  );
 
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
@@ -593,16 +618,15 @@ export function AppShell({
       // D-91 default; Phase 9 hoists actual panel sort state.
       sortColumn: 'attachmentName',
       sortDir: 'asc',
-      // Phase 20 Plan 01 D-01 — documentation slot now part of the editable
-      // session. Plan 20-02 hoists actual documentation state into AppShell
-      // (DocumentationBuilderDialog drives the value via setDocumentation).
-      // For Plan 01's contract scope, default to the empty 6-key shape so the
-      // serializer always writes a known-good Documentation; existing Phase
-      // 8-era files that load with `documentation: {}` already back-fill to
-      // DEFAULT_DOCUMENTATION through materializeProjectFile.
-      documentation: DEFAULT_DOCUMENTATION,
+      // Phase 20 Plan 02 — documentation now flows from the AppShell-local
+      // state slot driven by DocumentationBuilderDialog (Plan 02 Step B).
+      // The slot is seeded by the lazy useState initializer above (with
+      // intersect-against-summary applied for D-09/D-10/D-11 drift) and
+      // updated by the modal's onChange / setDocumentation. Save/Save As
+      // now persist the user-authored content alongside overrides.
+      documentation,
     }),
-    [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal],
+    [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal, documentation],
   );
 
   /**
@@ -723,6 +747,14 @@ export function AppShell({
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
     );
     setSkeletonNotFoundError(null);
+    // Phase 20 D-09/D-10/D-11 — drift-policy intersection on every materialize/
+    // load. Any saved documentation entries whose names no longer exist in
+    // the live skeleton are dropped silently; events + skins are auto-added
+    // with empty descriptions. Single primitive, single call site (mirrors
+    // Phase 8 D-150 stale-overrides intersection above).
+    setDocumentation(
+      intersectDocumentationWithSummary(project.documentation, project.summary),
+    );
   }, []);
 
   const onClickOpen = useCallback(async () => {
@@ -866,7 +898,12 @@ export function AppShell({
       // Phase 9 Plan 07 — HelpDialog joins the same derivation. aria-modal
       // alone would auto-suppress via 08.2 D-184, but explicit inclusion
       // keeps the derivation list parallel with the other 5 modal slots.
-      helpOpen;
+      helpOpen ||
+      // Phase 20 D-01 — DocumentationBuilderDialog joins the derivation.
+      // role="dialog" + aria-modal="true" already auto-suppresses File menu
+      // via 08.2 D-184; explicit inclusion keeps the audit list parallel
+      // with the other 6 modal slots.
+      documentationBuilderOpen;
       // Phase 14 Plan 03 — UpdateDialog removed from AppShell's modalOpen
       // derivation; the update-dialog state now lives in App.tsx (lifted
       // per D-02). The dialog's role="dialog" + aria-modal="true" still
@@ -878,7 +915,15 @@ export function AppShell({
       canSaveAs: true,
       modalOpen,
     });
-  }, [dialogState, exportDialogState, atlasPreviewOpen, saveQuitDialogState, settingsOpen, helpOpen]);
+  }, [
+    dialogState,
+    exportDialogState,
+    atlasPreviewOpen,
+    saveQuitDialogState,
+    settingsOpen,
+    helpOpen,
+    documentationBuilderOpen,
+  ]);
 
   /**
    * Phase 9 Plan 06 — Settings menu subscription. The native Edit→Preferences…
@@ -989,6 +1034,13 @@ export function AppShell({
           resp.project.staleOverrideKeys.length > 0
             ? resp.project.staleOverrideKeys
             : null,
+        );
+        // Phase 20 D-09/D-10/D-11 — re-intersect documentation against the
+        // post-resample summary. The resample IPC payload's `documentation`
+        // is a placeholder (main does not round-trip it through resample);
+        // the renderer-local documentation state is the source of truth.
+        setDocumentation((prev) =>
+          intersectDocumentationWithSummary(prev, resp.project.summary),
         );
         // After resample, the new samplingHz is now the "current saved"
         // value if we were already saved (lastSaved !== null). For untitled
@@ -1195,11 +1247,14 @@ export function AppShell({
           >
             Atlas Preview
           </button>
+          {/* Phase 20 D-01 — Documentation Builder modal trigger. The
+              `disabled`, `aria-disabled`, and `title` placeholder attributes
+              from Phase 19 D-03 are removed; onClick opens the
+              DocumentationBuilderDialog. Class string preserved verbatim
+              (Tailwind v4 literal-class scanner discipline). */}
           <button
             type="button"
-            disabled
-            aria-disabled="true"
-            title="Available in v1.2 Phase 20"
+            onClick={() => setDocumentationBuilderOpen(true)}
             className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
           >
             Documentation
@@ -1403,6 +1458,19 @@ export function AppShell({
           onOpenOptimizeDialog={onClickOptimize}
         />
       )}
+      {/* Phase 20 D-01 — Documentation Builder modal. Mounted alongside
+          AtlasPreviewModal; conditional rendering not strictly required (the
+          component returns null when !props.open) but matches the surrounding
+          pattern for File menu auto-suppression via 08.2 D-184. The `summary`
+          prop tracks effectiveSummary so post-resample doc UI reflects the
+          new skeleton's events/skins/animations names. */}
+      <DocumentationBuilderDialog
+        open={documentationBuilderOpen}
+        documentation={documentation}
+        summary={effectiveSummary}
+        onChange={setDocumentation}
+        onClose={() => setDocumentationBuilderOpen(false)}
+      />
       {/* Phase 9 Plan 06 — Settings dialog. Edit→Preferences (Plan 09-05)
           opens this. onApply mutates samplingHzLocal which triggers the
           re-sample useEffect above. role="dialog" + aria-modal="true" auto-

@@ -52,6 +52,8 @@ function makeSummary(): SkeletonSummary {
     attachments: { count: 0, byType: {} },
     skins: { count: 0, names: [] },
     animations: { count: 0, names: [] },
+    // Phase 20 D-09 — events field added to SkeletonSummary in Plan 20-01.
+    events: { count: 0, names: [] },
     peaks: [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', sourceW: 64, sourceH: 64,

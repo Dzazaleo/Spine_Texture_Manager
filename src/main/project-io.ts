@@ -45,6 +45,7 @@ import {
   serializeProjectFile,
   materializeProjectFile,
 } from '../core/project-file.js';
+import { DEFAULT_DOCUMENTATION } from '../core/documentation.js';
 import { loadSkeleton } from '../core/loader.js';
 import { buildSummary } from './summary.js';
 import {
@@ -528,6 +529,10 @@ export async function handleProjectOpenFromPath(
     sortColumn: materialized.sortColumn,
     sortDir: materialized.sortDir,
     projectFilePath: absolutePath,
+    // Phase 20 D-01 — thread the materialized documentation through to the
+    // renderer. AppShell will intersect against the live summary (D-09/D-10/
+    // D-11 drift policy) before seeding modal-local state.
+    documentation: materialized.documentation,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -761,6 +766,13 @@ export async function handleProjectReloadWithSkeleton(
     sortColumn,
     sortDir,
     projectFilePath: a.projectPath,
+    // Phase 20 D-01 — locate-skeleton recovery does not re-read the .stmproj
+    // file (it reuses the renderer's cached overrides/settings from the
+    // failed Open). `documentation` is not part of the cached args today;
+    // default to the empty 6-key shape so the renderer's drift policy
+    // intersects against the new skeleton without crashing. A future polish
+    // phase can thread documentation through the locate-skeleton args.
+    documentation: { ...DEFAULT_DOCUMENTATION },
   };
   return { ok: true, project };
 }
@@ -923,6 +935,12 @@ export async function handleProjectResample(
     // project.projectFilePath into a `string | null` state slot via Plan 04
     // and treats empty-string as null in the UI seam.
     projectFilePath: typeof a.projectFilePath === 'string' ? a.projectFilePath : '',
+    // Phase 20 D-01 — resample is a renderer-driven re-sample of an
+    // already-loaded session; documentation lives in renderer state and the
+    // renderer re-intersects against the new summary on its own. Default
+    // here keeps the type contract; AppShell ignores this field on the
+    // resample path (it preserves its own documentation state).
+    documentation: { ...DEFAULT_DOCUMENTATION },
   };
   return { ok: true, project };
 }
