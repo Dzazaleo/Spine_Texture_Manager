@@ -122,7 +122,7 @@ Roadmap-locked 2026-04-30 (ROADMAP.md authored). Every v1.2 REQ maps to exactly 
 | DOC-01      | 20    | Complete |
 | DOC-02      | 20    | Complete |
 | DOC-03      | 20    | Complete |
-| DOC-04      | 20    | Pending |
+| DOC-04      | 20    | Complete |
 | DOC-05      | 20    | Complete |
 | LOAD-01     | 21    | Pending |
 | LOAD-02     | 21    | Pending |
