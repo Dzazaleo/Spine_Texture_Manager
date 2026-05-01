@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T17:36:56.567Z"
+last_updated: "2026-05-01T19:06:10.975Z"
 last_activity: 2026-05-01 -- Phase 19 verifier PASSED; UI-04 MB-savings shipped DORMANT pending Phase 21 atlas-less loader (backlog 999.4 captures design pivot to OptimizeDialog post-generation savings report); two follow-up findings logged for a polish plan after Wave 5 (sticky-bar element height harmonization + Global panel layout-shift on internal SearchBar typing — both NEW, both deferred)
 progress:
   total_phases: 4
@@ -72,4 +72,4 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
-**Planned Phase:** 19 (UI improvements (UI-01..05)) — 7 plans — 2026-05-01T13:39:17.310Z
+**Planned Phase:** 20 (Documentation Builder feature) — 4 plans — 2026-05-01T19:06:10.972Z

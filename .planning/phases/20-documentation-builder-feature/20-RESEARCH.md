@@ -1531,32 +1531,37 @@ describe('renderDocumentationHtml (DOC-04)', () => {
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed. (5 LOW-risk assumptions remain; none block planning.)
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Chip "Animations Configured" count semantics — `documentation.animationTracks.length` vs `summary.animations.count`?**
    - What we know: User screenshot shows "23 Animations Configured" in chip strip but only 6 tracked entries in the table. CONTEXT.md `<specifics>` section flags this as a "narrow ambiguity" — locked interpretation = `documentation.animationTracks.length` (entries the user authored on tracks).
    - What's unclear: Whether the user actually meant `summary.animations.count` (rig's total animation count) when designing the screenshot.
    - Recommendation: Implement per LOCKED interpretation (`documentation.animationTracks.length`). If Phase 20 verification surfaces user disagreement, swap one variable in `doc-export.ts` (single-line change).
+   - **RESOLVED:** `documentation.animationTracks.length` (per Plan 04 chip 3 — chip counts user-authored entries, single-line variable swap available if user disagrees).
 
 2. **Should `materializeProjectFile`'s forward-compat default for empty `documentation: {}` (Pitfall 9 Option A) live in `core/project-file.ts` or be applied in `main/project-io.ts` AFTER materialization?**
    - What we know: Option A modifies `materializeProjectFile` directly (single source of truth, atomic with the validator extension).
    - What's unclear: Whether the planner prefers to keep `materializeProjectFile` as a pure passthrough and back-fill in main.
    - Recommendation: Option A (modify materializeProjectFile). Cleaner; the back-fill is structural shape-shaping, not I/O — belongs in the pure module. Document in materializer's docblock.
+   - **RESOLVED:** Option A (validator pre-massage in `validateProjectFile`) — refined per checker iteration. The materializer back-fill alone is insufficient because the validator runs FIRST and rejects strict-shape violations before reaching the materializer. Plan 01 Task 2 Step A pre-massages `obj.documentation` to `DEFAULT_DOCUMENTATION` when it is missing or `{}` BEFORE the per-field guards run; the materializer back-fill remains as defence in depth.
 
 3. **Should `events` field on `SkeletonSummary` be REQUIRED or OPTIONAL?**
    - What we know: Phase 19 introduced `unusedAttachments?` as OPTIONAL because Wave 0 typecheck would fail before Wave 2 wired the field.
    - What's unclear: Whether Phase 20 has the same Wave-0 typecheck risk.
    - Recommendation: REQUIRED. Phase 20 extends `summary.ts:128` and `types.ts:476` in the same wave, so there's no Wave-0 typecheck-without-runtime gap. Optional adds runtime null-checks throughout the renderer — avoid when possible.
+   - **RESOLVED:** REQUIRED (per Plan 01 — `events: { count: number; names: string[] }` lands as a non-optional `SkeletonSummary` field in the same wave that extends `summary.ts`).
 
 4. **Where exactly should the modal-local documentation state live? AppShell or modal-internal useState?**
    - What we know: D-16 says "Save changes commits the modal-local doc copy into AppSessionState; the existing SaveQuitDialog/onClose paths handle the rest."
    - What's unclear: Whether modal-local state means a deep copy (modal can edit freely; commit on Save copies back) OR direct binding (every keystroke mutates AppSessionState).
    - Recommendation: Modal-internal `useState<Documentation>` seeded from `props.documentation` on every modal-open mount. Commit copies the local state into `setDocumentation` (AppShell-side) on Save. Cancel discards modal-local. This matches the OverrideDialog pattern (`useState(String(props.currentPercent))` at OverrideDialog.tsx:61 — local state seeded from prop, applied via callback).
+   - **RESOLVED:** Modal-internal `useState<Documentation>` seeded from `props.documentation` on every open transition (per Plan 02 — Cancel discards, Save copies into AppShell `setDocumentation`).
 
 5. **Should `summary.events` extension include any extra metadata beyond `name`?**
    - What we know: D-09 specifies `{ name, description }` per event. EventData carries `intValue / floatValue / stringValue / volume / balance` for runtime payload, but those are runtime-time, not identity.
    - What's unclear: Nothing — D-09 is unambiguous. `name` is identity; description is user-supplied.
    - Recommendation: Stop at `{ count, names }` mirror of bones/skins/animations. No extra fields.
+   - **RESOLVED:** name + count only (per Plan 01 — `events: { count: number; names: string[] }` mirrors the bones/skins/animations shape; no `intValue/floatValue/stringValue/volume/balance` fields).
 
 ## Sources
 
