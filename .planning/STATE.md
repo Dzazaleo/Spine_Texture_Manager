@@ -3,23 +3,23 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T19:06:10.975Z"
-last_activity: 2026-05-01 -- Phase 19 verifier PASSED; UI-04 MB-savings shipped DORMANT pending Phase 21 atlas-less loader (backlog 999.4 captures design pivot to OptimizeDialog post-generation savings report); two follow-up findings logged for a polish plan after Wave 5 (sticky-bar element height harmonization + Global panel layout-shift on internal SearchBar typing — both NEW, both deferred)
+last_updated: "2026-05-01T19:23:17.789Z"
+last_activity: 2026-05-01 -- Phase 20 Plan 01 complete (Documentation types + validator + summary.events; DOC-03 + DOC-05 marked complete; 562 vitest passing)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 1
 ---
 
 # State
 
 ## Current Position
 
-Phase: 19 (ui-improvements-ui-01-05) — COMPLETE (7/7 plans; verifier PASSED)
-Plan: All 7 complete
-Status: Phase 19 complete; v1.2 milestone in progress (1/7 phases done; remaining: 13.1 host-gated, 16, 18, 20, 21, 22 in recommended order — Phase 17 was SKIPPED)
-Last activity: 2026-05-01 -- Phase 19 verifier PASSED; UI-04 MB-savings shipped DORMANT pending Phase 21 atlas-less loader (backlog 999.4 captures design pivot to OptimizeDialog post-generation savings report); two follow-up findings logged for a polish plan after Wave 5 (sticky-bar element height harmonization + Global panel layout-shift on internal SearchBar typing — both NEW, both deferred)
+Phase: 20 (documentation-builder-feature) — EXECUTING
+Plan: 2 of 4
+Status: Plan 01 (core-types-validator-summary) complete; Plan 02 (modal-shell-sections-pane) ready to execute
+Last activity: 2026-05-01 -- Phase 20 Plan 01 complete (Documentation interface + per-field validator + drift helper + Phase 8-era forward-compat pre-massage + serializer/materializer wiring + summary.events; DOC-03 + DOC-05 marked complete in REQUIREMENTS.md)
 
 ## Last Roadmap Update
 
@@ -56,7 +56,14 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current plan
 
-—
+20-02 (modal-shell-sections-pane) — ready for execution. Plan 20-01 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-01-core-types-validator-summary-SUMMARY.md`.
+
+## Phase 20 progress
+
+- **20-01 core-types-validator-summary** ✅ COMPLETE 2026-05-01 — Documentation interface + DEFAULT_DOCUMENTATION + validateDocumentation + intersectDocumentationWithSummary; validator pre-massage + materializer back-fill (Phase 8-era forward-compat); serializeProjectFile writes state.documentation; SkeletonSummary.events from skeletonData.events; AppSessionState.documentation field; renderer-legal Layer 3 re-export route through shared/types.ts (tsconfig.web.json carve-out for src/core/documentation.ts). 21 new tests in tests/core/documentation.spec.ts + 5 new tests in tests/core/project-file.spec.ts; 562 vitest passing. DOC-03 + DOC-05 marked complete.
+- 20-02 modal-shell-sections-pane — pending
+- 20-03 animation-tracks-pane-dnd — pending
+- 20-04 html-export-ipc-roundtrip — pending
 
 ## Last completed
 
@@ -73,3 +80,5 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
 **Planned Phase:** 20 (Documentation Builder feature) — 4 plans — 2026-05-01T19:06:10.972Z
+
+**Last Plan Action:** 20-01 (core-types-validator-summary) — COMPLETE — 2026-05-01T19:21:07Z (commits 6ec0176 → 815ed30 → 059d504 → 74c854f; SUMMARY at .planning/phases/20-documentation-builder-feature/20-01-core-types-validator-summary-SUMMARY.md)

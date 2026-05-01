@@ -386,7 +386,7 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 20-01-core-types-validator-summary-PLAN.md — Layer 3 foundation: Documentation types + validator + project-file extension + summary.events + tests
+- [x] 20-01-core-types-validator-summary-PLAN.md — Layer 3 foundation: Documentation types + validator + project-file extension + summary.events + tests (✅ COMPLETE 2026-05-01; DOC-03 + DOC-05 closed)
 - [ ] 20-02-modal-shell-sections-pane-PLAN.md — DocumentationBuilderDialog scaffold + tab strip + Sections pane + AppShell wiring (DOC-01, DOC-03)
 - [ ] 20-03-animation-tracks-pane-dnd-PLAN.md — Animation Tracks pane with HTML5 native DnD + reorder + remove + renderer test (DOC-02)
 - [ ] 20-04-html-export-ipc-roundtrip-PLAN.md — Main HTML export module + IPC channel + Export pane + DOC-04 + DOC-05 round-trip identity test
@@ -465,7 +465,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 17. Help → Check for Updates not gated on project | v1.2 | 0/0 | SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e already fixes the wiring; verification-only phase deemed redundant) | 2026-04-30 |
 | 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 2/2 | Complete 2026-04-30 (lift + vitest spec + arch-grep + dev-mode smoke approved; live UAT deferred to v1.2.0 ship round per CONTEXT D-10) | 2026-04-30 |
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
-| 20. Documentation Builder feature | v1.2 | 0/4 | Pending (fills .stmproj v1 reserved documentation slot D-148; DOC-01..05) | — |
+| 20. Documentation Builder feature | v1.2 | 1/4 | Plan 01 complete 2026-05-01 (Documentation types + validator + summary.events; DOC-03 + DOC-05); plans 02–04 pending | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; LOAD-01..04; plants shared PNG header reader for Phase 22) | — |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; depends on Phase 21; DIMS-01..05) | — |
 

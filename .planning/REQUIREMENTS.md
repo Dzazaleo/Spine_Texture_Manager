@@ -46,9 +46,9 @@ Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148; reserved d
 
 - [ ] **DOC-01**: Per-skeleton Documentation Builder modal accessible from a new top-bar button (placement coordinates with UI-01 sticky header design).
 - [ ] **DOC-02**: Animation tracks pane — drag animations from a side list to track containers; configure mix time (seconds, default 0.25s) + loop flag + free-text notes per track entry; multiple tracks supported.
-- [ ] **DOC-03**: Sections pane — capture events, general notes, control-bone descriptions (with name + description per bone), skin descriptions (with name + description per skin).
+- [x] **DOC-03**: Sections pane — capture events, general notes, control-bone descriptions (with name + description per bone), skin descriptions (with name + description per skin). _(Closed by Plan 20-01: SkeletonSummary.events auto-discovery source ready; Documentation interface includes events/controlBones/skins/generalNotes fields.)_
 - [ ] **DOC-04**: HTML export — standalone `.html` file containing all docs (animation tracks, sections, control bones, skins) + optimization config snapshot (safety buffer, space savings %) + atlas page count + image-utilization count. Self-contained, viewable offline.
-- [ ] **DOC-05**: Persistence in `.stmproj` v1's reserved `documentation: object` slot (D-148); round-trip safe (save → reload → identical content; existing 8-kind discriminated-union typed-error envelope honored for any new error kinds the doc loader introduces).
+- [x] **DOC-05**: Persistence in `.stmproj` v1's reserved `documentation: object` slot (D-148); round-trip safe (save → reload → identical content; existing 8-kind discriminated-union typed-error envelope honored for any new error kinds the doc loader introduces). _(Closed by Plan 20-01: round-trip identity proven by tests/core/project-file.spec.ts representative-doc test; validator pre-massage + materializer back-fill keep Phase 8-era empty-slot files loadable; reuses 'invalid-shape' kind — no 9th SerializableError.)_
 
 ### LOAD — Atlas-less mode (Phase 21; SEED-001)
 
