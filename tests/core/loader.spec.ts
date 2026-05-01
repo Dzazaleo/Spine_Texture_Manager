@@ -34,7 +34,10 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
     const r = loadSkeleton(FIXTURE);
     expect(r.skeletonData).toBeDefined();
     expect(r.atlas).toBeDefined();
-    expect(r.atlasPath.endsWith('SIMPLE_TEST.atlas')).toBe(true);
+    // Phase 21 D-03: LoadResult.atlasPath is `string | null`; canonical-mode
+    // load on this fixture must produce a non-null path (sibling .atlas exists).
+    expect(r.atlasPath).not.toBeNull();
+    expect(r.atlasPath!.endsWith('SIMPLE_TEST.atlas')).toBe(true);
     expect(path.resolve(r.skeletonPath)).toBe(FIXTURE);
   });
 
