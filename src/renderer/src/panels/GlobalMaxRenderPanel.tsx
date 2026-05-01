@@ -135,6 +135,15 @@ export interface GlobalMaxRenderPanelProps {
    */
   focusAttachmentName?: string | null;
   onFocusConsumed?: () => void;
+  /**
+   * Phase 19 UI-01 + D-04 — interim OPTIONAL props for the lifted SearchBar
+   * query state. AppShell owns the source of truth (single sticky-bar
+   * SearchBar drives both panels). Plans 19-04 + 19-05 tighten these to
+   * REQUIRED when removing the panel-internal useState('') slots and
+   * removing the panel-internal <SearchBar> elements.
+   */
+  query?: string;
+  onQueryChange?: (q: string) => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
