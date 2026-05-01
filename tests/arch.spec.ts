@@ -132,16 +132,21 @@ describe('GlobalMaxRenderPanel batch-scope invariant (04-03 gap-fix A regression
 });
 
 describe('Architecture boundary: src/core must not import sharp / node:fs / node:fs/promises (CLAUDE.md Fact #5 + Phase 6 Layer 3 lock)', () => {
-  it('no core file imports sharp or node:fs (sync or promises) — loader.ts exempt as Phase 0 load-time carve-out', () => {
+  it('no core file imports sharp or node:fs (sync or promises) — loader.ts + png-header.ts exempt as load-time carve-outs', () => {
     const files = globSync('src/core/**/*.ts');
+    // Phase 21 Plan 01 — png-header.ts is a load-time IHDR byte reader
+    // (24 bytes from file head, no decompression, no IDAT). It is structurally
+    // distinct from PNG decoding (which would require zlib/IDAT/pixel buffers
+    // and IS forbidden by CLAUDE.md fact #4). Like loader.ts, it executes at
+    // load-time only and never re-enters during the sampler hot loop.
+    const FS_LOAD_TIME_CARVE_OUTS = new Set<string>([
+      'src/core/loader.ts',
+      'src/core/png-header.ts',
+    ]);
     const offenders: string[] = [];
     for (const file of files) {
-      // loader.ts is the Phase 0 load-time fs carve-out (CLAUDE.md fact #4 says
-      // the math phase doesn't decode PNGs; loader.ts is the load phase, not
-      // the math phase — it reads the .json + .atlas text files exactly once
-      // at boot and never re-enters during the sampler hot loop). Phase 6
-      // does not touch loader.ts; this exemption is name-anchored.
-      if (file.endsWith('loader.ts')) continue;
+      const normalized = file.replace(/\\/g, '/');
+      if (FS_LOAD_TIME_CARVE_OUTS.has(normalized)) continue;
       const text = readFileSync(file, 'utf8');
       if (/from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]fs(\/promises)?['"]/.test(text)) {
         offenders.push(file);
