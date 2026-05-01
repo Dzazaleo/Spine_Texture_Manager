@@ -3,7 +3,7 @@ phase: 19
 plan: 06
 subsystem: renderer-modal-optimize-tiles-cross-nav
 tags: [optimize-dialog, summary-tiles, cross-nav, wave-5]
-status: in-progress-at-task-3-checkpoint
+status: complete
 requires:
   - "Plan 19-03 — interim OPTIONAL onOpenAtlasPreview?: () => void on OptimizeDialogProps + AppShell-side binding onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}"
   - "ExportPlan + ExportRow types in src/shared/types.ts (sourceW/sourceH/outW/outH)"
@@ -207,3 +207,26 @@ Verified commits exist on `worktree-agent-ad27b57fdcd37eebe` branch:
 - FOUND: `77879b9` — feat(19-06): flip OptimizeDialog footer to justify-between with cross-nav button at LEFT
 
 Tasks 1-2 self-check: PASSED.
+
+## Dev-Mode Smoke Approval
+
+**Date:** 2026-05-01
+**Result:** Approved (combined Wave 5 dev-mode smoke covering both 19-06 + 19-07)
+
+User ran `npm run dev`, opened a fixture, clicked Optimize Assets, and visually verified:
+- 3 summary tiles render at the top of OptimizeDialog body — PASS
+- Tile values reflect actual ExportPlan data — PASS
+- Tiles look recessed (`bg-surface` darker than `bg-panel`) — PASS
+- Footer flipped to `justify-between` with cross-nav `→ Atlas Preview` button at LEFT, existing actions cluster at RIGHT — PASS
+- Cross-nav button enabled when plan has rows — PASS
+- Cross-nav round-trip Optimize → Atlas Preview closes OptimizeDialog cleanly and opens AtlasPreviewModal — PASS
+- Tab cycles focus correctly within modal; Esc closes — PASS
+
+## Self-Check: PASSED
+
+All three commits verified on main after worktree merge:
+- 245d7db — feat(19-06): add 3 summary tiles to OptimizeDialog + tighten onOpenAtlasPreview to REQUIRED
+- 77879b9 — feat(19-06): flip OptimizeDialog footer to justify-between with cross-nav button at LEFT
+- 9c0906b — docs(19-06): in-progress summary at Task 3 checkpoint
+
+Plan 19-06 complete.

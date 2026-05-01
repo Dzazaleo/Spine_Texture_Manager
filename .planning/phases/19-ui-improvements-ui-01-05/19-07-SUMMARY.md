@@ -3,7 +3,7 @@ phase: 19
 plan: 07
 subsystem: renderer-modal-atlas-preview-tiles-cross-nav
 tags: [atlas-preview-modal, summary-tiles, cross-nav, wave-5]
-status: in-progress-at-task-3-checkpoint
+status: complete
 requires:
   - "Plan 19-03 — interim OPTIONAL onOpenOptimizeDialog?: () => void on AtlasPreviewModalProps + AppShell-side binding onOpenOptimizeDialog={onClickOptimize}"
   - "AtlasPreviewProjection + AtlasPage types in src/shared/types.ts (totalPages / pages[].regions / pages[].usedPixels / pages[].totalPixels)"
@@ -194,3 +194,28 @@ Verified commits exist on the current branch (parallel-executor worktree base me
 - FOUND: `742d116` — feat(19-07): flip AtlasPreviewModal footer to justify-between with cross-nav button at LEFT
 
 Tasks 1-2 self-check: PASSED.
+
+## Dev-Mode Smoke Approval
+
+**Date:** 2026-05-01
+**Result:** Approved (combined Wave 5 dev-mode smoke covering both 19-06 + 19-07)
+
+User ran `npm run dev`, opened a fixture, opened AtlasPreviewModal, and visually verified:
+- 3 summary tiles render at the top of AtlasPreviewModal body (Pages / Regions / Utilization %) — PASS
+- Tile values reflect actual `projection: AtlasPreviewProjection` data — PASS
+- Toggling `original` ↔ `optimized` mode in the left rail RE-DERIVES tile values (Pages count + Utilization % change) — PASS
+- Tiles look recessed-on-card (darker `bg-surface` than `bg-panel`); visually consistent with OptimizeDialog tiles — PASS
+- Existing left rail + canvas + region rectangles render BELOW the tiles, unchanged — PASS
+- Footer wrapped in `flex justify-between items-center mt-4` with `→ Optimize Assets` cross-nav button at LEFT (D-18 outlined-secondary), existing disclaimer at RIGHT — PASS
+- Cross-nav round-trip Atlas Preview → Optimize Assets closes AtlasPreviewModal cleanly and triggers AppShell's `onClickOptimize` flow (output picker → ExportPlan build → OptimizeDialog mount) — PASS
+- Full bidirectional round-trip Atlas Preview ⇄ Optimize works cleanly — PASS
+- Tab cycles focus correctly within modal; Esc closes — PASS
+
+## Self-Check: PASSED
+
+All three commits verified on main:
+- 48e4421 — feat(19-07): add 3 summary tiles to AtlasPreviewModal + tighten onOpenOptimizeDialog to REQUIRED
+- 742d116 — feat(19-07): flip AtlasPreviewModal footer to justify-between with cross-nav button at LEFT
+- 69336e0 — docs(19-07): in-progress summary at Task 3 checkpoint
+
+Plan 19-07 complete. Cross-modal round-trip (UI-03) closed end-to-end across Plans 19-06 + 19-07.
