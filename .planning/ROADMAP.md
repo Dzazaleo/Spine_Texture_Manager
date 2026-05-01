@@ -347,7 +347,16 @@ Plans:
   4. User loads a project with unused attachments and the Unused Assets callout displays a quantified savings figure in the form `X.XX MB potential savings`, computed from the on-disk PNG file sizes of the unused regions — not just the unused count. (UI-04)
   5. User scans the toolbar and visually identifies Optimize Assets as the primary CTA via distinct treatment (filled / accent color); Atlas Preview, Documentation, Save, and Load are visually subordinate (outline / muted treatment). The inline search box is anchored in the sticky header bar. (UI-05)
 
-**Plans:** TBD (run /gsd-plan-phase 19)
+**Plans:** 7 plans
+
+Plans:
+- [ ] 19-01-PLAN.md — Color tokens (--color-success #5FA866, --color-warning #C9913C) + format-bytes helper + UnusedAttachment.bytesOnDisk shape add (D-07, D-13, D-14)
+- [ ] 19-02-PLAN.md — Main-side fs.statSync per unused row in summary.ts; core/usage.ts return narrowed via Omit so Layer 3 invariant preserved (D-13, D-15)
+- [ ] 19-03-PLAN.md — Sticky <header> + load-summary card + Documentation placeholder + filled-primary Optimize CTA + lifted query state + cross-nav handler wiring (D-01..D-04, D-17..D-20, D-11 prereq)
+- [ ] 19-04-PLAN.md — GlobalMaxRenderPanel: card wrap + ruler section icon + row state bars + tinted ratio cell + warning-triangle SVG + X.XX MB potential savings callout + SearchBar removal (D-05, D-06, D-08, D-13/D-14/D-15)
+- [ ] 19-05-PLAN.md — AnimationBreakdownPanel: play/film section icon per AnimationCard + row state bars + tinted ratio cell + SearchBar removal (D-05, D-06, D-08)
+- [ ] 19-06-PLAN.md — OptimizeDialog: 3 summary tiles (Used Files / to Resize / Saving est. pixels) + cross-nav -> Atlas Preview at footer LEFT (D-09, D-11, D-12)
+- [ ] 19-07-PLAN.md — AtlasPreviewModal: 3 summary tiles (Pages / Regions / Utilization) + cross-nav -> Optimize Assets at footer LEFT (D-10, D-11, D-12)
 
 **UI hint**: yes
 
