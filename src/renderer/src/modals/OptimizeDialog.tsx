@@ -78,17 +78,18 @@ export interface OptimizeDialogProps {
    */
   onConfirmStart?: () => Promise<{ proceed: boolean; overwrite?: boolean }>;
   /**
-   * Phase 19 UI-03 + D-11/D-12 — interim OPTIONAL cross-nav handler. When
-   * present, the dialog (Plan 19-06) will render a footer-LEFT outlined-
-   * secondary button that invokes `props.onClose()` THEN
-   * `props.onOpenAtlasPreview()` (sequential mount per D-11; useFocusTrap
-   * cleanup runs on unmount before AtlasPreviewModal's mount calls its own
-   * trap — two distinct trap lifecycles, never co-existing). Plan 19-03
-   * pre-emptively adds the prop type definition + the AppShell-side
-   * binding `onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}`; Plan
-   * 19-06 will tighten to REQUIRED when adding the modal-side button.
+   * Phase 19 UI-03 + D-11/D-12 — REQUIRED cross-nav handler. The dialog
+   * renders a footer-LEFT outlined-secondary button that invokes
+   * `props.onClose()` THEN `props.onOpenAtlasPreview()` (sequential mount
+   * per D-11; useFocusTrap cleanup runs on unmount before
+   * AtlasPreviewModal's mount calls its own trap — two distinct trap
+   * lifecycles, never co-existing). Plan 19-03 added the prop type as
+   * OPTIONAL + wired the AppShell-side binding
+   * `onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}`; Plan 19-06
+   * tightens to REQUIRED here as the modal-side cross-nav button is now
+   * rendered and consumes this handler unconditionally.
    */
-  onOpenAtlasPreview?: () => void;
+  onOpenAtlasPreview: () => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -271,6 +272,23 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   if (!props.open) return null;
 
   const total = props.plan.rows.length;
+  // Phase 19 UI-03 D-09 — three summary tile values computed in-render from
+  // props.plan (no new prop surface required). Zero-guard on the savings
+  // calculation handles the empty-plan edge case so we never divide by 0.
+  const totalUsedFiles = props.plan.rows.length;
+  const toResize = props.plan.rows.filter((r) => r.outW < r.sourceW).length;
+  const sumSourcePixels = props.plan.rows.reduce(
+    (acc, r) => acc + r.sourceW * r.sourceH,
+    0,
+  );
+  const sumOutPixels = props.plan.rows.reduce(
+    (acc, r) => acc + r.outW * r.outH,
+    0,
+  );
+  const savingsPct =
+    sumSourcePixels > 0
+      ? (1 - sumOutPixels / sumSourcePixels) * 100
+      : 0;
   const headerTitle =
     state === 'complete'
       ? `Export complete — ${summary?.successes ?? 0} of ${total} succeeded`
@@ -295,6 +313,26 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
         <h2 id="optimize-title" className="text-sm text-fg mb-4">
           {headerTitle}
         </h2>
+
+        {/* Phase 19 UI-03 D-09 — 3 summary tiles (Used Files / to Resize /
+            Saving est. pixels) above the body branches. bg-surface
+            (= --color-stone-950) is intentionally darker than the
+            surrounding bg-panel (= --color-stone-900) for a recessed
+            card-on-card visual using existing tokens only. */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{totalUsedFiles}</span>
+            <span className="text-xs text-fg-muted text-center">Used Files</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{toResize}</span>
+            <span className="text-xs text-fg-muted text-center">to Resize</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{savingsPct.toFixed(1)}%</span>
+            <span className="text-xs text-fg-muted text-center">Saving est. pixels</span>
+          </div>
+        </div>
 
         {state === 'pre-flight' && <PreFlightBody plan={props.plan} />}
         {state !== 'pre-flight' && (
