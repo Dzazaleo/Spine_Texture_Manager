@@ -7,7 +7,7 @@ last_updated: "2026-05-01T22:00:00Z"
 last_activity: 2026-05-01 -- Phase 20 COMPLETE (4/4 plans; verifier 5/5 must-haves; UAT 3/4 passed on macOS, 1 deferred to Win/Linux todo); 20-REVIEW.md non-blocking 4 warning + 6 info; bottom-gap regression fixed in commit 10d40e6
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 0
   completed_plans: 0
 ---
@@ -18,7 +18,7 @@ progress:
 
 Phase: 20 (documentation-builder-feature) — COMPLETE (4/4 plans; verifier 5/5; UAT 3/4 passed macOS, 1 deferred Win/Linux)
 Plan: All 4 complete
-Status: Phase 20 complete; v1.2 milestone in progress (3/7 phases done: 16, 19, 20; remaining: 13.1 host-gated, 18, 21, 22 in recommended order — Phase 17 was SKIPPED)
+Status: Phase 20 complete; v1.2 milestone in progress (4/7 phases done: 16, 18, 19, 20; remaining: 13.1 host-gated, 21, 22 — Phase 17 was SKIPPED; Phase 18 ROADMAP checkbox bookkeeping fix 2026-05-01)
 Last activity: 2026-05-01 -- Phase 20 verifier 5/5; HUMAN-UAT 3 passed on macOS + 1 deferred (Windows + Linux DnD parity captured as pending todo); REQUIREMENTS.md DOC-04 doc fix; Tracks-card bottom-gap regression fixed (commit 10d40e6)
 
 ## Last Roadmap Update
@@ -48,7 +48,7 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current phase
 
-— (no active phase yet; ready for `/gsd-discuss-phase 18` or `/gsd-plan-phase 18` — next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first; or `/gsd-discuss-phase 21` to push toward the SEED-001 ladder)
+— (no active phase yet; ready for `/gsd-discuss-phase 21` — SEED-001 atlas-less mode, next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
 
 ## Phase 17 skip rationale
 
