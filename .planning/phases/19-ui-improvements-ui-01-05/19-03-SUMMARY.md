@@ -2,8 +2,8 @@
 phase: 19
 plan: 03
 subsystem: renderer-shell-sticky-header
-tags: [sticky-header, state-lift, cross-nav-wiring, wave-3-hub, in-progress]
-status: in-progress-at-task-4-checkpoint
+tags: [sticky-header, state-lift, cross-nav-wiring, wave-3-hub]
+status: complete
 requires:
   - "Plan 19-01 — foundation tokens + helper + bytesOnDisk?: number (independent of this plan)"
   - "Plan 19-02 — main-side bytesOnDisk writer (independent of this plan)"
@@ -247,4 +247,38 @@ Verified commits exist on `worktree-agent-a365c82b50d8fc94c` branch:
 - FOUND: `e6d4b63` — feat(19-03): lift query state to AppShell + thread to both panels with interim optional props
 - FOUND: `cecc058` — feat(19-03): wire cross-nav handlers + interim optional prop types on both modals
 
-Tasks 1-3 self-check: PASSED. Task 4 self-check pending continuation-agent finalization.
+Tasks 1-3 self-check: PASSED.
+
+## Dev-Mode Smoke Approval
+
+**Date:** 2026-05-01
+**Result:** Approved with caveats deferred to Wave 4
+
+User ran `npm run dev`, opened `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (149 regions, 75 attachments), and walked the 10-step verify protocol.
+
+**Steps 1-9: PASS** — sticky header pinned during scroll; load-summary card shows `1 skeletons | 1 atlases | 149 regions`; rig-info tooltip wording preserved; right-cluster order correct (Filter | Atlas Preview | Documentation | Optimize Assets | Save | Open); Optimize Assets renders filled orange; other 4 buttons outlined; Documentation tooltip reads `Available in v1.2 Phase 20` and is unclickable.
+
+**Step 10: FAIL — interim-state regression, expected to self-resolve in Wave 4.**
+
+The sticky-bar SearchBar does not drive the panels because GlobalMaxRenderPanel and AnimationBreakdownPanel still own their internal `useState('')` query slot — the new `query={query}` prop reaches them but is ignored. This is the documented interim posture of Wave 3 (`query?: string` is optional; panels haven't been rewired yet).
+
+Symptoms reported by user (all attributable to interim panel-internal state):
+- Per-panel filter clears when switching tabs (each panel's local state resets on unmount).
+- Sticky-bar SearchBar typing has no effect on either panel.
+- Duplicate SearchBar visible in panel body.
+
+**Disposition:** Approved as-is. Plans 19-04 (Wave 4) and 19-05 (Wave 4) tighten `query?: string` → `query: string`, remove the panel-internal `useState('')` slots, and remove the panel-internal `<SearchBar>` elements — closing all three symptoms by construction.
+
+**New findings outside Plan 19-03 scope (deferred to a follow-up plan after Wave 5):**
+- Sticky-bar element heights are not uniform — Untitled chip / load-summary card / SearchBar / button cluster render at slightly different heights. UI-SPEC §1 did not lock a height token. Defer height harmonization to a polish plan after Wave 5.
+- Global panel layout shifts horizontally when typing into the panel-internal SearchBar — likely caused by `N selected / N total` cell width change without a stabilizing `min-w-[Xch]` or fixed grid. Defer to the same polish plan. (AnimationBreakdownPanel does not exhibit this — confirms it's a Global-panel-specific layout issue, not a sticky-bar issue.)
+
+## Self-Check: PASSED
+
+All four commits verified on main after worktree merge:
+- de492d0 — feat(19-03): sticky header chrome + load-summary card + Documentation placeholder + filled-primary Optimize CTA
+- e6d4b63 — feat(19-03): lift query state to AppShell + thread to both panels with interim optional props
+- cecc058 — feat(19-03): wire cross-nav handlers + interim optional prop types on both modals
+- 73667a3 — docs(19-03): in-progress summary at Task 4 checkpoint
+
+Plan 19-03 complete. Continuing to Wave 4 (19-04 + 19-05).
