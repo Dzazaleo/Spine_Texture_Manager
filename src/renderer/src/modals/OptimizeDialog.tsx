@@ -78,17 +78,18 @@ export interface OptimizeDialogProps {
    */
   onConfirmStart?: () => Promise<{ proceed: boolean; overwrite?: boolean }>;
   /**
-   * Phase 19 UI-03 + D-11/D-12 — interim OPTIONAL cross-nav handler. When
-   * present, the dialog (Plan 19-06) will render a footer-LEFT outlined-
-   * secondary button that invokes `props.onClose()` THEN
-   * `props.onOpenAtlasPreview()` (sequential mount per D-11; useFocusTrap
-   * cleanup runs on unmount before AtlasPreviewModal's mount calls its own
-   * trap — two distinct trap lifecycles, never co-existing). Plan 19-03
-   * pre-emptively adds the prop type definition + the AppShell-side
-   * binding `onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}`; Plan
-   * 19-06 will tighten to REQUIRED when adding the modal-side button.
+   * Phase 19 UI-03 + D-11/D-12 — REQUIRED cross-nav handler. The dialog
+   * renders a footer-LEFT outlined-secondary button that invokes
+   * `props.onClose()` THEN `props.onOpenAtlasPreview()` (sequential mount
+   * per D-11; useFocusTrap cleanup runs on unmount before
+   * AtlasPreviewModal's mount calls its own trap — two distinct trap
+   * lifecycles, never co-existing). Plan 19-03 added the prop type as
+   * OPTIONAL + wired the AppShell-side binding
+   * `onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}`; Plan 19-06
+   * tightens to REQUIRED here as the modal-side cross-nav button is now
+   * rendered and consumes this handler unconditionally.
    */
-  onOpenAtlasPreview?: () => void;
+  onOpenAtlasPreview: () => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -271,6 +272,23 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   if (!props.open) return null;
 
   const total = props.plan.rows.length;
+  // Phase 19 UI-03 D-09 — three summary tile values computed in-render from
+  // props.plan (no new prop surface required). Zero-guard on the savings
+  // calculation handles the empty-plan edge case so we never divide by 0.
+  const totalUsedFiles = props.plan.rows.length;
+  const toResize = props.plan.rows.filter((r) => r.outW < r.sourceW).length;
+  const sumSourcePixels = props.plan.rows.reduce(
+    (acc, r) => acc + r.sourceW * r.sourceH,
+    0,
+  );
+  const sumOutPixels = props.plan.rows.reduce(
+    (acc, r) => acc + r.outW * r.outH,
+    0,
+  );
+  const savingsPct =
+    sumSourcePixels > 0
+      ? (1 - sumOutPixels / sumSourcePixels) * 100
+      : 0;
   const headerTitle =
     state === 'complete'
       ? `Export complete — ${summary?.successes ?? 0} of ${total} succeeded`
@@ -296,6 +314,26 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
           {headerTitle}
         </h2>
 
+        {/* Phase 19 UI-03 D-09 — 3 summary tiles (Used Files / to Resize /
+            Saving est. pixels) above the body branches. bg-surface
+            (= --color-stone-950) is intentionally darker than the
+            surrounding bg-panel (= --color-stone-900) for a recessed
+            card-on-card visual using existing tokens only. */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{totalUsedFiles}</span>
+            <span className="text-xs text-fg-muted text-center">Used Files</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{toResize}</span>
+            <span className="text-xs text-fg-muted text-center">to Resize</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{savingsPct.toFixed(1)}%</span>
+            <span className="text-xs text-fg-muted text-center">Saving est. pixels</span>
+          </div>
+        </div>
+
         {state === 'pre-flight' && <PreFlightBody plan={props.plan} />}
         {state !== 'pre-flight' && (
           <InProgressBody
@@ -317,56 +355,78 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
           />
         )}
 
-        <div className="flex gap-2 mt-6 justify-end">
-          {state === 'pre-flight' && (
-            <>
+        <div className="flex gap-2 mt-6 justify-between">
+          {/* Phase 19 UI-03 D-11 + D-12 — cross-nav to AtlasPreviewModal at
+              footer LEFT. Sequential mount: onClose() runs FIRST so the
+              focus-trap unmount-cleanup completes BEFORE AtlasPreviewModal's
+              mount installs its own trap (two distinct trap lifecycles, never
+              co-existing). Disabled predicate is plan.rows.length === 0 per
+              orchestrator's revision-pass lock — keeps OptimizeDialogProps
+              tight (no new `summary` prop needed). D-18 outlined-secondary
+              class string is byte-for-byte identical to AppShell.tsx:1165. */}
+          <button
+            type="button"
+            onClick={() => {
+              props.onClose();
+              props.onOpenAtlasPreview();
+            }}
+            disabled={props.plan.rows.length === 0}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            <span aria-hidden="true">→ </span>Atlas Preview
+          </button>
+          {/* Existing state-branched action cluster wrapped at RIGHT. */}
+          <div className="flex gap-2">
+            {state === 'pre-flight' && (
+              <>
+                <button
+                  type="button"
+                  onClick={props.onClose}
+                  className="border border-border rounded-md px-3 py-1 text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  ref={startBtnRef}
+                  type="button"
+                  onClick={onStart}
+                  disabled={total === 0}
+                  className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                >
+                  Start
+                </button>
+              </>
+            )}
+            {state === 'in-progress' && (
               <button
+                ref={cancelBtnRef}
                 type="button"
-                onClick={props.onClose}
+                onClick={onCancelInProgress}
                 className="border border-border rounded-md px-3 py-1 text-xs"
               >
                 Cancel
               </button>
-              <button
-                ref={startBtnRef}
-                type="button"
-                onClick={onStart}
-                disabled={total === 0}
-                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
-              >
-                Start
-              </button>
-            </>
-          )}
-          {state === 'in-progress' && (
-            <button
-              ref={cancelBtnRef}
-              type="button"
-              onClick={onCancelInProgress}
-              className="border border-border rounded-md px-3 py-1 text-xs"
-            >
-              Cancel
-            </button>
-          )}
-          {state === 'complete' && (
-            <>
-              <button
-                type="button"
-                onClick={onOpenOutputFolder}
-                className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
-              >
-                Open output folder
-              </button>
-              <button
-                ref={closeBtnRef}
-                type="button"
-                onClick={props.onClose}
-                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
-              >
-                Close
-              </button>
-            </>
-          )}
+            )}
+            {state === 'complete' && (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenOutputFolder}
+                  className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
+                >
+                  Open output folder
+                </button>
+                <button
+                  ref={closeBtnRef}
+                  type="button"
+                  onClick={props.onClose}
+                  className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+                >
+                  Close
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
