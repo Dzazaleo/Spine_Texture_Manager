@@ -6,7 +6,8 @@
     "src/renderer/src/env.d.ts",
     "src/preload/index.d.ts",
     "src/shared/**/*.ts",
-    "src/core/documentation.ts"
+    "src/core/documentation.ts",
+    "src/main/doc-export.ts"
   ],
   "exclude": [
     "node_modules",

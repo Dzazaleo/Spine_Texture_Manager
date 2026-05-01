@@ -35,6 +35,11 @@ export {
   validateDocumentation,
 } from '../core/documentation.js';
 
+// Phase 20 D-21 — local type imports for the Api interface body below + the
+// re-export so renderer consumers can pull these through shared/types.js
+// without reaching into src/main/* directly.
+import type { DocExportPayload, DocExportResponse } from '../main/doc-export.js';
+
 /**
  * Flat, serializable row consumed by the renderer panel and (in raw-number
  * form) by the CLI. Produced by `src/core/analyzer.ts` from the sampler's
@@ -1050,4 +1055,24 @@ export interface Api {
   // bug-prone concat; that call site is rewritten to await this bridge).
   // -------------------------------------------------------------------------
   pathToImageUrl: (absolutePath: string) => Promise<string>;
+
+  // -------------------------------------------------------------------------
+  // Phase 20 D-21 — Documentation HTML export.
+  //
+  // Resolves with DocExportResponse: { ok: true; path } on success, or
+  // { ok: false; error: { kind: 'Unknown'; message } } on cancel / fs error.
+  // Main owns the save dialog + atomic write; the renderer (DocumentationBuilderDialog
+  // ExportPane) only constructs the structured-clone-safe payload at click time.
+  // Round-trip identity for the documentation slot itself is gated by
+  // tests/core/documentation-roundtrip.spec.ts (DOC-05).
+  // -------------------------------------------------------------------------
+  exportDocumentationHtml: (payload: DocExportPayload) => Promise<DocExportResponse>;
 }
+
+/**
+ * Phase 20 D-21 — Re-export the doc-export IPC contract through shared/types.ts
+ * so the renderer can import these types without breaching the Layer 3 grep gate
+ * (renderer never imports from src/main/* directly). Type-only re-export — no
+ * runtime crossing.
+ */
+export type { DocExportPayload, DocExportResponse } from '../main/doc-export.js';

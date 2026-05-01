@@ -46,6 +46,10 @@
  */
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { Api, ExportProgressEvent, LoadResponse } from '../shared/types.js';
+// Phase 20 D-21 — Documentation HTML export. Type-only import: the actual
+// renderDocumentationHtml + handleExportDocumentationHtml run in main; preload
+// only forwards the structured-clone payload through ipcRenderer.invoke.
+import type { DocExportPayload, DocExportResponse } from '../main/doc-export.js';
 
 const api: Api = {
   loadSkeletonFromFile: async (file: File): Promise<LoadResponse> => {
@@ -546,6 +550,20 @@ const api: Api = {
   // -------------------------------------------------------------------------
   pathToImageUrl: (absolutePath: string): Promise<string> =>
     ipcRenderer.invoke('atlas:resolve-image-url', absolutePath),
+
+  // -------------------------------------------------------------------------
+  // Phase 20 D-21 — Documentation HTML export.
+  //
+  // The renderer (DocumentationBuilderDialog ExportPane) builds the
+  // structured-clone-safe DocExportPayload at click time and awaits
+  // DocExportResponse. Main owns the dialog.showSaveDialog + atomic write;
+  // this bridge is just the IPC forwarder. Mirrors the saveProjectAs shape
+  // (lines 154-155 above) — the user-facing pattern is the same: open a save
+  // dialog, write to disk, return success/error envelope. No subscription /
+  // listener-identity scaffolding needed (one-shot invoke).
+  // -------------------------------------------------------------------------
+  exportDocumentationHtml: (payload: DocExportPayload): Promise<DocExportResponse> =>
+    ipcRenderer.invoke('documentation:exportHtml', payload),
 };
 
 if (process.contextIsolated) {

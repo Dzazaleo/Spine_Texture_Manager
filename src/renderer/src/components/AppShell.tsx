@@ -67,6 +67,11 @@ import { HelpDialog } from '../modals/HelpDialog';
 import { DocumentationBuilderDialog } from '../modals/DocumentationBuilderDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
+// Phase 20 D-21 — atlas-preview snapshot for the Documentation Builder's
+// Export pane chip strip ("N Atlas Pages (MAX_PAGE_PXpx)"). Reuses the same
+// builder AtlasPreviewModal mounts (AtlasPreviewModal.tsx:105). Mode/dim
+// fixed: the chip is a single-line snapshot, not a stepper.
+import { buildAtlasPreview } from '../lib/atlas-preview-view.js';
 
 type ActiveTab = 'global' | 'animation';
 
@@ -628,6 +633,41 @@ export function AppShell({
     }),
     [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal, documentation],
   );
+
+  // Phase 20 D-21 — always-current AtlasPreviewProjection for the Documentation
+  // Builder's Export pane chip strip ("N Atlas Pages (MAX_PAGE_PXpx)"). Mirrors
+  // AtlasPreviewModal.tsx:105 — same buildAtlasPreview call with fixed
+  // mode='optimized' + maxPageDim=2048 because the chip is a single-line
+  // snapshot, not a stepper. Mode 'optimized' matches the locked HTML-export
+  // semantics (the chip counts pages of the OPTIMIZED atlas, mirroring the
+  // OptimizeDialog savings).
+  const atlasPreviewState = useMemo(
+    () =>
+      buildAtlasPreview(effectiveSummary, overrides, {
+        mode: 'optimized',
+        maxPageDim: 2048,
+      }),
+    [effectiveSummary, overrides],
+  );
+
+  // Phase 20 D-21 — savings-percentage snapshot for the HTML export's
+  // Optimization Config card. Formula LOCKED in 20-CONTEXT.md D-18 sub-step 3:
+  // (1 - sumOutPixels / sumSourcePixels) * 100, byte-identical to
+  // OptimizeDialog.tsx:280-291 (visual source-of-truth on the existing Optimize
+  // Assets dialog). Returns null when there are no rows in the plan (avoids
+  // divide-by-zero AND signals "no data" to the HTML export's '—' placeholder
+  // per renderOptimizationConfigCard in src/main/doc-export.ts).
+  const savingsPctMemo = useMemo<number | null>(() => {
+    const plan = buildExportPlan(effectiveSummary, overrides);
+    if (plan.rows.length === 0) return null;
+    const sumSourcePixels = plan.rows.reduce(
+      (acc, r) => acc + r.sourceW * r.sourceH,
+      0,
+    );
+    const sumOutPixels = plan.rows.reduce((acc, r) => acc + r.outW * r.outH, 0);
+    if (sumSourcePixels <= 0) return null;
+    return (1 - sumOutPixels / sumSourcePixels) * 100;
+  }, [effectiveSummary, overrides]);
 
   /**
    * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.
@@ -1468,6 +1508,9 @@ export function AppShell({
         open={documentationBuilderOpen}
         documentation={documentation}
         summary={effectiveSummary}
+        atlasPreview={atlasPreviewState}
+        exportPlanSavingsPct={savingsPctMemo}
+        lastOutDir={null}
         onChange={setDocumentation}
         onClose={() => setDocumentationBuilderOpen(false)}
       />

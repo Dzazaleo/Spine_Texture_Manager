@@ -45,6 +45,7 @@ import { clsx } from 'clsx';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import type {
   AnimationTrackEntry,
+  AtlasPreviewProjection,
   Documentation,
   EventDescriptionEntry,
   BoneDescriptionEntry,
@@ -56,6 +57,22 @@ export interface DocumentationBuilderDialogProps {
   open: boolean;
   documentation: Documentation;
   summary: SkeletonSummary;
+  /**
+   * Phase 20 D-21 — atlas-preview snapshot for the Export pane chip strip
+   * ("N Atlas Pages (MAX_PAGE_PXpx)"). AppShell builds this via
+   * buildAtlasPreview(effectiveSummary, overrides, { mode:'optimized', maxPageDim:2048 })
+   * adjacent to buildSessionState; the modal forwards verbatim into the IPC payload.
+   */
+  atlasPreview: AtlasPreviewProjection;
+  /**
+   * Phase 20 D-21 — pre-computed savings percentage for the HTML export's
+   * Optimization Config card. Formula LOCKED in CONTEXT.md D-18 sub-step 3
+   * — byte-identical to OptimizeDialog.tsx:280-291. null when there are no
+   * rows / no source pixels (renders as '—' in the export).
+   */
+  exportPlanSavingsPct: number | null;
+  /** AppSessionState.lastOutDir; null falls back to OS Documents in main. */
+  lastOutDir: string | null;
   onChange: (next: Documentation) => void;
   onClose: () => void;
 }
@@ -130,7 +147,15 @@ export function DocumentationBuilderDialog(props: DocumentationBuilderDialogProp
           {activePane === 'sections' && (
             <SectionsPane draft={draft} summary={props.summary} onChange={setDraft} />
           )}
-          {activePane === 'export' && <ExportPanePlaceholder />}
+          {activePane === 'export' && (
+            <ExportPane
+              draft={draft}
+              summary={props.summary}
+              atlasPreview={props.atlasPreview}
+              exportPlanSavingsPct={props.exportPlanSavingsPct}
+              lastOutDir={props.lastOutDir}
+            />
+          )}
         </div>
 
         {/* Footer — Cancel + Save changes (filled-primary CTA). */}
@@ -156,14 +181,96 @@ export function DocumentationBuilderDialog(props: DocumentationBuilderDialogProp
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder panes (filled in by later plans).
+// Export pane (FULL implementation per DOC-04 + UI-SPEC).
+//
+// Click "Export HTML…" → assemble the structured-clone-safe payload from props
+// + Date.now() generatedAt → window.api.exportDocumentationHtml(payload) →
+// render success/error inline. The skeleton basename is derived from
+// summary.skeletonPath here (renderer-side) so the modal does not have to
+// thread it as a separate prop. Cancel from the OS save dialog returns
+// { ok: false; error.message: 'Export cancelled' }; surface as the inline
+// error per UI-SPEC. T-20-19 (XSS) lives in main; the renderer only forwards
+// the documentation draft verbatim.
 // ---------------------------------------------------------------------------
 
-function ExportPanePlaceholder() {
-  // Filled in by Plan 04 (Export pane + IPC wiring).
+interface ExportPaneProps {
+  draft: Documentation;
+  summary: SkeletonSummary;
+  atlasPreview: AtlasPreviewProjection;
+  exportPlanSavingsPct: number | null;
+  lastOutDir: string | null;
+}
+
+function ExportPane({
+  draft,
+  summary,
+  atlasPreview,
+  exportPlanSavingsPct,
+  lastOutDir,
+}: ExportPaneProps) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<
+    { ok: true; path: string } | { ok: false; reason: string } | null
+  >(null);
+
+  const onClick = async () => {
+    if (busy) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      // Derive skeleton basename from summary.skeletonPath. Strip directory
+      // separators (cross-platform: macOS/Linux '/' + Windows '\') and the
+      // .json extension. Falls back to 'Untitled' for the degenerate
+      // empty-string case.
+      const fileName = summary.skeletonPath.split(/[\\/]/).pop() ?? 'Untitled';
+      const skeletonBasename = fileName.replace(/\.json$/i, '');
+      const payload = {
+        documentation: draft,
+        summary,
+        atlasPreview,
+        exportPlanSavingsPct,
+        skeletonBasename,
+        lastOutDir,
+        generatedAt: Date.now(),
+      };
+      const resp = await window.api.exportDocumentationHtml(payload);
+      if (resp.ok) {
+        setResult({ ok: true, path: resp.path });
+      } else {
+        // UI-SPEC copy contract: empty error.message → fallback string.
+        const reason =
+          resp.error.message.length > 0
+            ? resp.error.message
+            : 'An unknown error occurred. Try a different folder.';
+        setResult({ ok: false, reason });
+      }
+    } catch (err) {
+      setResult({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="text-sm text-fg-muted italic p-4">
-      Export pane — implementation in Plan 04.
+    <div className="flex flex-col gap-3 p-4">
+      <h3 className="text-base font-semibold text-fg">Export to HTML</h3>
+      <p className="text-sm text-fg-muted">
+        Generates a self-contained .html file with all documentation, optimization config, and atlas summary.
+      </p>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className="self-start bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Export HTML…
+      </button>
+      {result !== null && result.ok && (
+        <p className="text-sm text-success">Exported to {result.path}</p>
+      )}
+      {result !== null && !result.ok && (
+        <p className="text-sm text-danger">Could not export documentation. {result.reason}</p>
+      )}
     </div>
   );
 }

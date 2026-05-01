@@ -54,6 +54,12 @@ import {
   handleProjectReloadWithSkeleton,
   handleProjectResample,
 } from './project-io.js';
+// Phase 20 D-21 — Documentation HTML export. The handler orchestrates
+// dialog.showSaveDialog → renderDocumentationHtml → atomic write Pattern-B.
+// renderDocumentationHtml is pure and tested standalone in
+// tests/main/doc-export.spec.ts; this file only owns the IPC channel
+// registration alongside the existing project:* handlers.
+import { handleExportDocumentationHtml, type DocExportPayload } from './doc-export.js';
 import { getSamplerWorkerHandle } from './sampler-worker-bridge.js';
 // Phase 12 Plan 01 Task 4 — auto-update IPC bridge (UPD-01..UPD-06).
 //
@@ -908,6 +914,20 @@ export function registerIpcHandlers(): void {
   // the existing 'sampler:cancel' handler above (worker.terminate()).
   ipcMain.handle('project:resample', async (_evt, args) =>
     handleProjectResample(args),
+  );
+
+  // Phase 20 D-21 — Documentation HTML export channel.
+  //
+  // Trust boundary: the payload is shaped at the renderer (DocumentationBuilderDialog
+  // ExportPane click handler) and crosses IPC via structuredClone. The handler in
+  // src/main/doc-export.ts opens a save dialog (user explicitly confirms the path),
+  // renders the HTML via the pure renderDocumentationHtml, and writes via atomic
+  // Pattern-B (writeFile .tmp + rename). Cancel returns a kind:'Unknown' envelope
+  // with message 'Export cancelled' (mirrors the Save As cancel path). T-20-21:
+  // path traversal is structurally prevented — main writes only to the absolute
+  // path returned by dialog.showSaveDialog, never joins user-supplied components.
+  ipcMain.handle('documentation:exportHtml', async (_evt, payload) =>
+    handleExportDocumentationHtml(payload as DocExportPayload),
   );
 
   // Phase 8.2 D-181 — renderer pushes menu state on change. Main rebuilds
