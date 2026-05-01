@@ -44,7 +44,8 @@ Sourced from tester feedback + visual diff against an unrelated older Spine 3.8 
 
 Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148; reserved during v1.0 Phase 8 `.stmproj` schema lock; untested until v2 ladder lands).
 
-- [ ] **DOC-01**: Per-skeleton Documentation Builder modal accessible from a new top-bar button (placement coordinates with UI-01 sticky header design).
+- [x] **DOC-01
+**: Per-skeleton Documentation Builder modal accessible from a new top-bar button (placement coordinates with UI-01 sticky header design).
 - [ ] **DOC-02**: Animation tracks pane — drag animations from a side list to track containers; configure mix time (seconds, default 0.25s) + loop flag + free-text notes per track entry; multiple tracks supported.
 - [x] **DOC-03**: Sections pane — capture events, general notes, control-bone descriptions (with name + description per bone), skin descriptions (with name + description per skin). _(Closed by Plan 20-01: SkeletonSummary.events auto-discovery source ready; Documentation interface includes events/controlBones/skins/generalNotes fields.)_
 - [ ] **DOC-04**: HTML export — standalone `.html` file containing all docs (animation tracks, sections, control bones, skins) + optimization config snapshot (safety buffer, space savings %) + atlas page count + image-utilization count. Self-contained, viewable offline.

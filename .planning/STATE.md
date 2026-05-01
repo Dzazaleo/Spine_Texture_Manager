@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T19:23:17.789Z"
-last_activity: 2026-05-01 -- Phase 20 Plan 01 complete (Documentation types + validator + summary.events; DOC-03 + DOC-05 marked complete; 562 vitest passing)
+last_updated: "2026-05-01T19:38:43.990Z"
+last_activity: 2026-05-01 -- Phase 20 Plan 02 complete (DocumentationBuilderDialog modal + Sections pane + AppShell wiring + drift policy; DOC-01 marked complete; 562 vitest passing)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # State
@@ -17,9 +17,9 @@ progress:
 ## Current Position
 
 Phase: 20 (documentation-builder-feature) — EXECUTING
-Plan: 2 of 4
-Status: Plan 01 (core-types-validator-summary) complete; Plan 02 (modal-shell-sections-pane) ready to execute
-Last activity: 2026-05-01 -- Phase 20 Plan 01 complete (Documentation interface + per-field validator + drift helper + Phase 8-era forward-compat pre-massage + serializer/materializer wiring + summary.events; DOC-03 + DOC-05 marked complete in REQUIREMENTS.md)
+Plan: 3 of 4
+Status: Plan 02 (modal-shell-sections-pane) complete; Plan 03 (animation-tracks-pane-dnd) ready to execute
+Last activity: 2026-05-01 -- Phase 20 Plan 02 complete (DocumentationBuilderDialog modal scaffold + Sections pane + AppShell wiring + drift policy; DOC-01 marked complete in REQUIREMENTS.md; 562 vitest passing)
 
 ## Last Roadmap Update
 
@@ -56,12 +56,12 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current plan
 
-20-02 (modal-shell-sections-pane) — ready for execution. Plan 20-01 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-01-core-types-validator-summary-SUMMARY.md`.
+20-03 (animation-tracks-pane-dnd) — ready for execution. Plan 20-02 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-02-modal-shell-sections-pane-SUMMARY.md`.
 
 ## Phase 20 progress
 
 - **20-01 core-types-validator-summary** ✅ COMPLETE 2026-05-01 — Documentation interface + DEFAULT_DOCUMENTATION + validateDocumentation + intersectDocumentationWithSummary; validator pre-massage + materializer back-fill (Phase 8-era forward-compat); serializeProjectFile writes state.documentation; SkeletonSummary.events from skeletonData.events; AppSessionState.documentation field; renderer-legal Layer 3 re-export route through shared/types.ts (tsconfig.web.json carve-out for src/core/documentation.ts). 21 new tests in tests/core/documentation.spec.ts + 5 new tests in tests/core/project-file.spec.ts; 562 vitest passing. DOC-03 + DOC-05 marked complete.
-- 20-02 modal-shell-sections-pane — pending
+- **20-02 modal-shell-sections-pane** ✅ COMPLETE 2026-05-01 — DocumentationBuilderDialog 10th hand-rolled modal with the 5-modal ARIA scaffold (D-15 width swap min-w-[960px] max-w-[1100px] max-h-[85vh]); three-pane tab strip with verbatim TabButton class string; Sections pane FULL implementation per DOC-03 (events auto-list per D-09, control bones with debounced 100ms filter and opt-in persistence per D-10, skins per D-11, general notes textarea per D-12, safety buffer number input per D-22). AppShell wiring threads documentation end-to-end: lazy-init drift intersection on mount, mountOpenResponse drift on Open + locate-skeleton, resample-success drift; Documentation top-bar button enabled with onClick (placeholder attributes removed); modalOpen audit list updated. MaterializedProject.documentation threaded through main/project-io.ts at all 3 construction sites. 562 vitest passing; DOC-01 marked complete. Commits: 6302563 → a73b3db.
 - 20-03 animation-tracks-pane-dnd — pending
 - 20-04 html-export-ipc-roundtrip — pending
 
@@ -81,4 +81,4 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 **Planned Phase:** 20 (Documentation Builder feature) — 4 plans — 2026-05-01T19:06:10.972Z
 
-**Last Plan Action:** 20-01 (core-types-validator-summary) — COMPLETE — 2026-05-01T19:21:07Z (commits 6ec0176 → 815ed30 → 059d504 → 74c854f; SUMMARY at .planning/phases/20-documentation-builder-feature/20-01-core-types-validator-summary-SUMMARY.md)
+**Last Plan Action:** 20-02 (modal-shell-sections-pane) — COMPLETE — 2026-05-01T19:36:05Z (commits 6302563 → a73b3db; SUMMARY at .planning/phases/20-documentation-builder-feature/20-02-modal-shell-sections-pane-SUMMARY.md)
