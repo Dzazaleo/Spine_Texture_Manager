@@ -123,6 +123,7 @@ const KNOWN_KINDS: ReadonlySet<KnownErrorKind> = new Set<KnownErrorKind>([
   'SkeletonJsonNotFoundError',
   'AtlasNotFoundError',
   'AtlasParseError',
+  'MissingImagesDirError',   // Phase 21 (LOAD-01) — atlas-less catastrophic case routes through this envelope arm
   // Phase 12 / Plan 05 (D-21) — F3 Spine version guard.
   // 'SpineVersionUnsupportedError' is INTENTIONALLY NOT in this Set —
   // it carries an extra typed field (`detectedVersion`) on its envelope

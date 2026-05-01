@@ -90,3 +90,43 @@ export class SpineVersionUnsupportedError extends SpineLoaderError {
     this.name = 'SpineVersionUnsupportedError';
   }
 }
+
+/**
+ * Phase 21 (LOAD-01) — Atlas-less mode catastrophic case (D-10, D-11).
+ *
+ * Thrown by `src/core/synthetic-atlas.ts` when the atlas-less code path
+ * cannot synthesize an atlas because the `images/` folder is absent OR
+ * the folder exists but every per-region PNG read failed. Per D-09,
+ * partial-images cases (some PNGs present, some missing) silently skip
+ * the missing ones — this error is the all-or-nothing failure surface.
+ *
+ * Two-field constructor mirrors AtlasNotFoundError (D-10 explicit). The
+ * optional third arg `missingPngs` carries the full list of expected-but-
+ * missing PNG paths for D-11 ("error message lists ALL missing PNGs"); the
+ * IPC envelope only carries the human-formatted message string, so the
+ * structured field is for programmatic consumers (tests, future audit
+ * tooling) only.
+ *
+ * `.name = 'MissingImagesDirError'` is LOAD-BEARING — `src/main/ipc.ts`
+ * KNOWN_KINDS Set routes by `err.name` against the SerializableError
+ * union. Phase 21 Plan 02 wires both sides; without the wiring the
+ * error surfaces as `kind: 'Unknown'`.
+ */
+export class MissingImagesDirError extends SpineLoaderError {
+  constructor(
+    public readonly searchedPath: string,
+    public readonly skeletonPath: string,
+    public readonly missingPngs?: string[],
+  ) {
+    const trail =
+      missingPngs && missingPngs.length > 0
+        ? `\n  Missing PNGs:\n${missingPngs.map((p) => '    ' + p).join('\n')}`
+        : '';
+    super(
+      `Atlas-less mode requires an images/ folder beside the .json with per-region PNG files. ` +
+        `Either provide a .atlas file or populate images/ with the referenced PNGs.\n` +
+        `  Skeleton: ${skeletonPath}\n  Searched: ${searchedPath}${trail}`,
+    );
+    this.name = 'MissingImagesDirError';
+  }
+}
