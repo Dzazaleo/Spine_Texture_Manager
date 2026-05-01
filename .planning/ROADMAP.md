@@ -420,7 +420,7 @@ Plans:
 - [x] 21-01-PLAN.md — pure-TS PNG IHDR width/height byte parser (LOAD-02)
 - [x] 21-02-PLAN.md — MissingImagesDirError class + KNOWN_KINDS IPC routing (LOAD-01 plumbing)
 - [x] 21-03-PLAN.md — fixtures/SIMPLE_PROJECT_NO_ATLAS golden fixture (LOAD-04 prerequisite)
-- [ ] 21-04-PLAN.md — synthetic-atlas + SilentSkipAttachmentLoader (LOAD-03)
+- [x] 21-04-PLAN.md — synthetic-atlas + SilentSkipAttachmentLoader (LOAD-03)
 - [x] 21-05-PLAN.md — type cascade: LoadResult/SkeletonSummary atlasPath nullable + SourceDims +'png-header' + LoaderOptions.loaderMode (LOAD-01)
 - [ ] 21-06-PLAN.md — loader integration: 4-way branch order (D-05/D-06/D-07/D-08); AtlasNotFoundError preservation (LOAD-01 + criterion #5)
 - [ ] 21-07-PLAN.md — .stmproj v1 schema gains loaderMode; sampler-worker + project-io threading (LOAD-01 persistence)
@@ -474,7 +474,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 2/2 | Complete 2026-04-30 (lift + vitest spec + arch-grep + dev-mode smoke approved; live UAT deferred to v1.2.0 ship round per CONTEXT D-10) | 2026-04-30 |
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
-| 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 4/8 | In progress (Wave 1 complete: 21-01/02/03/05; LOAD-01..04) | — |
+| 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 5/8 | In progress (Waves 1+2 complete: 21-01/02/03/04/05; LOAD-01..04) | — |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; depends on Phase 21; DIMS-01..05) | — |
 
 ## Deferred (post-v1.1)
