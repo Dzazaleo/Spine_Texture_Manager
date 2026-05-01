@@ -289,10 +289,23 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
           </main>
         </div>
 
-        {/* Footer disclaimer (D-132 footer copy) */}
-        <p className="mt-4 text-xs text-fg-muted italic">
-          * Preview assumes 2px padding and no rotation. Actual export engine may vary slightly.
-        </p>
+        {/* Footer disclaimer (D-132 footer copy) + cross-nav (Phase 19 D-12) */}
+        <div className="flex justify-between items-center mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              props.onClose();
+              props.onOpenOptimizeDialog();
+            }}
+            disabled={props.summary.peaks.length === 0}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            <span aria-hidden="true">→ </span>Optimize Assets
+          </button>
+          <p className="text-xs text-fg-muted italic">
+            * Preview assumes 2px padding and no rotation. Actual export engine may vary slightly.
+          </p>
+        </div>
       </div>
     </div>
   );
