@@ -89,6 +89,11 @@ export async function runSamplerJob(params: {
   skeletonPath: string;
   atlasRoot?: string;
   samplingHz: number;
+  /**
+   * Phase 21 D-08 — propagate per-project loader mode into the worker.
+   * Optional for backward-compat (undefined → atlas-by-default semantics).
+   */
+  loaderMode?: 'auto' | 'atlas-less';
   onProgress: (percent: number) => void;
   isCancelled: () => boolean;
 }): Promise<SamplerWorkerOutbound> {
@@ -97,10 +102,12 @@ export async function runSamplerJob(params: {
 
     if (params.isCancelled()) return { type: 'cancelled' };
 
-    const load = loadSkeleton(
-      params.skeletonPath,
-      params.atlasRoot ? { atlasPath: params.atlasRoot } : {},
-    );
+    // Phase 21 D-08 — thread loaderMode through to the loader so atlas-less
+    // override survives the worker boundary.
+    const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
+    if (params.atlasRoot) loaderOpts.atlasPath = params.atlasRoot;
+    if (params.loaderMode) loaderOpts.loaderMode = params.loaderMode;
+    const load = loadSkeleton(params.skeletonPath, loaderOpts);
 
     if (params.isCancelled()) return { type: 'cancelled' };
 
@@ -182,6 +189,7 @@ if (parentPort !== null) {
     skeletonPath: data.skeletonPath,
     atlasRoot: data.atlasRoot,
     samplingHz: data.samplingHz,
+    loaderMode: data.loaderMode, // Phase 21 D-08
     onProgress: (percent) =>
       port.postMessage({ type: 'progress', percent } satisfies SamplerWorkerOutbound),
     isCancelled: () => cancelled,
