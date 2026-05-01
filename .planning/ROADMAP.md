@@ -383,7 +383,7 @@ Plans:
   4. User clicks Export → HTML and the app writes a self-contained `.html` file to a chosen location containing all docs (animation tracks, events, general notes, control bones, skins) + an optimization-config snapshot (safety buffer + space-savings %) + atlas page count + image-utilization count. The file opens in a browser offline with no broken references. (DOC-04)
   5. User saves a project containing documentation, closes the app, re-opens the project, and the documentation pane displays identical content (animation tracks + sections + bones + skins all bit-equal). The `.stmproj` schema-version field stays at `1` (D-148 forward-compat slot honored); any new error kind introduced by the doc loader extends the existing 8-kind discriminated-union typed-error envelope cleanly. (DOC-05)
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 20-01-core-types-validator-summary-PLAN.md — Layer 3 foundation: Documentation types + validator + project-file extension + summary.events + tests (✅ COMPLETE 2026-05-01; DOC-03 + DOC-05 closed)
@@ -465,7 +465,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 17. Help → Check for Updates not gated on project | v1.2 | 0/0 | SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e already fixes the wiring; verification-only phase deemed redundant) | 2026-04-30 |
 | 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 2/2 | Complete 2026-04-30 (lift + vitest spec + arch-grep + dev-mode smoke approved; live UAT deferred to v1.2.0 ship round per CONTEXT D-10) | 2026-04-30 |
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
-| 20. Documentation Builder feature | v1.2 | 4/4 | All plans complete 2026-05-01 (Documentation types + validator + summary.events; DocumentationBuilderDialog modal + Sections pane + AppShell drift wiring; Animation Tracks pane DnD + 11 RTL+jsdom tests; HTML export + IPC + 11 doc-export tests + 3 round-trip tests; DOC-01 + DOC-02 + DOC-03 + DOC-04 + DOC-05) — ready for `/gsd-verify-work 20` | 2026-05-01 |
+| 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; LOAD-01..04; plants shared PNG header reader for Phase 22) | — |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; depends on Phase 21; DIMS-01..05) | — |
 

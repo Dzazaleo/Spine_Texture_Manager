@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: verifying
-last_updated: "2026-05-01T20:03:30.327Z"
-last_activity: 2026-05-01
+status: executing
+last_updated: "2026-05-01T22:00:00Z"
+last_activity: 2026-05-01 -- Phase 20 COMPLETE (4/4 plans; verifier 5/5 must-haves; UAT 3/4 passed on macOS, 1 deferred to Win/Linux todo); 20-REVIEW.md non-blocking 4 warning + 6 info; bottom-gap regression fixed in commit 10d40e6
 progress:
-  total_phases: 4
-  completed_phases: 0
+  total_phases: 7
+  completed_phases: 3
   total_plans: 0
   completed_plans: 0
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 20 (documentation-builder-feature) — COMPLETE
-Plan: 4 of 4 (all complete)
-Status: Phase complete — ready for `/gsd-verify-work 20`
-Last activity: 2026-05-01
+Phase: 20 (documentation-builder-feature) — COMPLETE (4/4 plans; verifier 5/5; UAT 3/4 passed macOS, 1 deferred Win/Linux)
+Plan: All 4 complete
+Status: Phase 20 complete; v1.2 milestone in progress (3/7 phases done: 16, 19, 20; remaining: 13.1 host-gated, 18, 21, 22 in recommended order — Phase 17 was SKIPPED)
+Last activity: 2026-05-01 -- Phase 20 verifier 5/5; HUMAN-UAT 3 passed on macOS + 1 deferred (Windows + Linux DnD parity captured as pending todo); REQUIREMENTS.md DOC-04 doc fix; Tracks-card bottom-gap regression fixed (commit 10d40e6)
 
 ## Last Roadmap Update
 
@@ -48,7 +48,7 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current phase
 
-— (no active phase yet; ready for `/gsd-discuss-phase 18` or `/gsd-plan-phase 18` — next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
+— (no active phase yet; ready for `/gsd-discuss-phase 18` or `/gsd-plan-phase 18` — next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first; or `/gsd-discuss-phase 21` to push toward the SEED-001 ladder)
 
 ## Phase 17 skip rationale
 
@@ -82,3 +82,5 @@ Phase 20 is complete (4 of 4 plans shipped). Ready for `/gsd-verify-work 20`. Pl
 **Planned Phase:** 20 (Documentation Builder feature) — 4 plans — 2026-05-01T19:06:10.972Z
 
 **Last Plan Action:** 20-04 (html-export-ipc-roundtrip) — COMPLETE — 2026-05-01T20:00:31Z (commits ecab501 → 65b0f1c → 4dc8985; SUMMARY at .planning/phases/20-documentation-builder-feature/20-04-html-export-ipc-roundtrip-SUMMARY.md). Phase 20 complete — all 4 plans shipped; DOC-01..DOC-05 all closed end-to-end.
+
+**Last Phase Verification:** 20 (Documentation Builder feature) — VERIFIED human_needed → 3/4 PASSED on macOS, 1 deferred — 2026-05-01T22:00:00Z. gsd-verifier scored 5/5 must-haves verified; gsd-code-reviewer found 0 critical / 4 warning / 6 info (non-blocking). HUMAN-UAT outcome on macOS arm64 (Electron dev build): test 1 (live DnD) PASS, test 2 (offline HTML fidelity) PASS with 1 visual gap regression FIXED in commit 10d40e6 (renderTracksCard wrapped in .row div for bottom-margin contract; golden snapshot regenerated; 587/587 vitest passing), test 4 (full save→close→reopen) PASS, test 3 (cross-platform DnD on Win/Linux) DEFERRED — Windows hardware unavailable; NSIS installer ready at release/Spine Texture Manager-1.1.3-x64.exe; pending todo at .planning/todos/pending/2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md captures the test recipe + risk analysis (effectAllowed='copy' is structurally set per RESEARCH §Pattern 4, so failure mode is unlikely). REQUIREMENTS.md DOC-04 stale "Pending" table row corrected to "Complete" (line 125; line 52 canonical bullet was already [x]).
