@@ -12,6 +12,10 @@ import {
   absolutizePath,
 } from '../../src/core/project-file.js';
 import type { ProjectFileV1, AppSessionState } from '../../src/shared/types.js';
+import {
+  DEFAULT_DOCUMENTATION,
+  type Documentation,
+} from '../../src/core/documentation.js';
 
 const CORE_SRC = path.resolve('src/core/project-file.ts');
 
@@ -87,6 +91,23 @@ describe('validateProjectFile (D-156)', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.kind).toBe('newer-version');
   });
+
+  it('validator rejects malformed documentation slot (Phase 20 D-04)', () => {
+    const r = validateProjectFile({
+      version: 1,
+      skeletonPath: '/a/b/SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { animationTracks: 'not-an-array' },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.kind).toBe('invalid-shape');
+  });
 });
 
 describe('round-trip (D-145 + D-148 + D-155)', () => {
@@ -100,6 +121,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       lastOutDir: '/tmp/out',
       sortColumn: 'attachmentName',
       sortDir: 'asc',
+      documentation: DEFAULT_DOCUMENTATION,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -114,14 +136,115 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasPath: null, imagesDir: null,
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
+      documentation: DEFAULT_DOCUMENTATION,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
-    expect(file.documentation).toEqual({});
-    // And a non-empty doc must survive validate→materialize unchanged:
-    const withDoc: ProjectFileV1 = { ...file, documentation: { nonEmpty: 'value' } };
-    const v = validateProjectFile(withDoc);
+    expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
+    // Phase 20 D-04: validator rejects malformed sub-shape, but accepts
+    // DEFAULT_DOCUMENTATION shape. The original "non-empty doc preserved"
+    // test is replaced by the representative-doc round-trip test below.
+    const v = validateProjectFile(file);
     expect(v.ok).toBe(true);
-    if (v.ok) expect((v.project as ProjectFileV1).documentation).toEqual({ nonEmpty: 'value' });
+    if (v.ok) expect((v.project as ProjectFileV1).documentation).toEqual(DEFAULT_DOCUMENTATION);
+  });
+
+  it('round-trip preserves a non-empty Documentation (DOC-05)', () => {
+    const doc: Documentation = {
+      animationTracks: [
+        { id: 'uuid-1', trackIndex: 0, animationName: 'walk', mixTime: 0.25, loop: true, notes: 'Primary loop' },
+      ],
+      events: [{ name: 'shoot', description: 'Fires when ammo expended' }],
+      generalNotes: 'Multi-line\nnotes\nhere.',
+      controlBones: [{ name: 'CHAIN_2', description: 'Spine root' }],
+      skins: [{ name: 'default', description: 'The default skin' }],
+      safetyBufferPercent: 5,
+    };
+    const state: AppSessionState = {
+      skeletonPath: '/a/b/SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: doc,
+    };
+    const file = serializeProjectFile(state, '/a/b/proj.stmproj');
+    const json = JSON.stringify(file);
+    const parsed = JSON.parse(json);
+    const v = validateProjectFile(parsed);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    const mat = materializeProjectFile(v.project, '/a/b/proj.stmproj');
+    expect(mat.documentation).toEqual(doc);
+  });
+
+  it('materializer back-fills DEFAULT_DOCUMENTATION for Phase 8-era empty {} slot (Pitfall 9)', () => {
+    // Simulate a typed Phase 8-era file with documentation:{} written by Phase 8.
+    // We construct via cast — the runtime back-fill is what's under test.
+    const oldFile = {
+      version: 1 as const,
+      skeletonPath: '/a/b/SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {} as unknown as Documentation,
+    };
+    const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
+    expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
+  });
+
+  it('Phase 8-era full pipeline (validate → materialize) accepts empty {} and yields DEFAULT_DOCUMENTATION', () => {
+    // The CRITICAL forward-compat test: Phase 8-era `.stmproj` files have
+    // `documentation: {}` literally on disk. Without the validator pre-massage
+    // this test fails because validateProjectFile rejects {} at the strict
+    // per-field guards (animationTracks not array, etc.). With the pre-massage,
+    // the empty {} is treated as a missing slot and DEFAULT_DOCUMENTATION is
+    // substituted before the per-field guards run.
+    const phase8Era = {
+      version: 1,
+      skeletonPath: '/a/b/SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+    };
+    const v = validateProjectFile(phase8Era);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    const mat = materializeProjectFile(v.project, '/a/b/proj.stmproj');
+    expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
+  });
+
+  it('Phase 8-era full pipeline accepts MISSING documentation field (legacy v1 wire shape)', () => {
+    // Equally important: a hypothetical legacy v1 file with no `documentation`
+    // key at all. The validator pre-massage handles undefined too.
+    const ancientEra = {
+      version: 1,
+      skeletonPath: '/a/b/SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      // NOTE: no `documentation` key.
+    };
+    const v = validateProjectFile(ancientEra);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    const mat = materializeProjectFile(v.project, '/a/b/proj.stmproj');
+    expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
   });
 
   it('round-trip relative paths (D-155)', () => {
@@ -137,6 +260,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       imagesDir: path.join(basedir, 'images'),
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
+      documentation: DEFAULT_DOCUMENTATION,
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -171,7 +295,7 @@ describe('migrate (D-151)', () => {
     const file: ProjectFileV1 = {
       version: 1, skeletonPath: 'x.json', atlasPath: null, imagesDir: null,
       overrides: {}, samplingHz: null, lastOutDir: null,
-      sortColumn: null, sortDir: null, documentation: {},
+      sortColumn: null, sortDir: null, documentation: DEFAULT_DOCUMENTATION,
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
   });
