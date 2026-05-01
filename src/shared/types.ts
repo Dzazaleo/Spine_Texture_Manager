@@ -662,6 +662,13 @@ export interface SamplerWorkerData {
   skeletonPath: string;
   atlasRoot?: string;
   samplingHz: number;
+  /**
+   * Phase 21 D-08 — propagates per-project loader mode into the worker so
+   * the in-worker loadSkeleton call honors atlas-less synthesis even when
+   * a sibling .atlas exists. Optional for backward-compat (undefined →
+   * atlas-by-default semantics, equivalent to loaderMode='auto').
+   */
+  loaderMode?: 'auto' | 'atlas-less';
 }
 
 /**
@@ -687,6 +694,20 @@ export interface ProjectFileV1 {
   sortDir: 'asc' | 'desc' | null;
   // Phase 20 D-01 — typed via core/documentation.ts (was reserved object in Phase 8 D-148).
   documentation: Documentation;
+  /**
+   * Phase 21 (D-04 + D-08) — per-project loader mode override.
+   *
+   * - `'auto'` (default for legacy .stmproj files via validator pre-massage):
+   *   try sibling `.atlas` first; fall through to atlas-less synthesis only
+   *   if the sibling `.atlas` is unreadable (D-05).
+   * - `'atlas-less'`: skip the sibling `.atlas` read entirely; synthesize
+   *   from per-region PNG headers even if a `.atlas` file exists. Used for
+   *   the post-Optimize-overwrite workflow.
+   *
+   * Phase 8/20-era .stmproj files have no `loaderMode` field; the validator
+   * pre-massage at project-file.ts substitutes 'auto' (RESEARCH.md §Pitfall 6).
+   */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 export type ProjectFile = ProjectFileV1;
@@ -708,6 +729,8 @@ export interface AppSessionState {
   sortDir: 'asc' | 'desc' | null;
   // Phase 20 D-01 — drives serializeProjectFile :254
   documentation: Documentation;
+  // Phase 21 D-08 — drives loadSkeleton + sampler-worker; round-trips through .stmproj.
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 /**
