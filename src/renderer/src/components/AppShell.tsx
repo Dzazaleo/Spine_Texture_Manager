@@ -158,6 +158,13 @@ export function AppShell({
   // snapshot state — the modal reads summary + overrides directly (D-131).
   const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
+  // Phase 19 UI-01 + D-04 — NEW: panel filter query lifted up from the
+  // GlobalMaxRenderPanel + AnimationBreakdownPanel internal useState slots
+  // so the single sticky-bar SearchBar can drive both panels. Empty string
+  // on every mount (no persistence). Plain useState mirrors the panel-side
+  // shape at GlobalMaxRenderPanel.tsx:484 + AnimationBreakdownPanel.tsx:260.
+  const [query, setQuery] = useState('');
+
   // Phase 9 Plan 02 D-194 — sampling-in-flight UI surface. Indeterminate
   // progress per RESEARCH §Q4 (byte-frozen sampler has no inner-loop emit
   // point; intermediate percent values do not arrive — percent is 0 on
@@ -1309,6 +1316,8 @@ export function AppShell({
                focusAnimationName/onFocusConsumed pair. */
             focusAttachmentName={focusAttachmentName}
             onFocusConsumed={onFocusAttachmentConsumed}
+            query={query}
+            onQueryChange={setQuery}
           />
         )}
         {activeTab === 'animation' && (
@@ -1318,6 +1327,8 @@ export function AppShell({
             onFocusConsumed={onFocusConsumed}
             overrides={overrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
+            query={query}
+            onQueryChange={setQuery}
           />
         )}
       </main>
