@@ -393,7 +393,7 @@ export function renderDocumentationHtml(payload: DocExportPayload): string {
   body += renderHero(skeletonName);
   body += renderChipStrip(payload);
   body += `<div class="row">${renderOptimizationConfigCard(payload)}${renderGeneralNotesCard(payload.documentation.generalNotes)}</div>`;
-  body += renderTracksCard(payload.documentation.animationTracks);
+  body += `<div class="row">${renderTracksCard(payload.documentation.animationTracks)}</div>`;
   body += `<div class="row">${renderEntryListCard('bones', GLYPH.bone, 'Control Bones', documentedBones, 'No control bones documented.')}${renderEntryListCard('skins', GLYPH.layeredStack, 'Skins', skins, null)}</div>`;
   if (showEventsCard) {
     body += renderEntryListCard('events', GLYPH.bell, 'Events', events, null);

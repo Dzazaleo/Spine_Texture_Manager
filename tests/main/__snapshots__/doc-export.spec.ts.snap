@@ -71,10 +71,10 @@ td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px;
   </div><div class="card">
     <div class="card-header notes"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M3 4 h14 v9 h-7 l-4 3 v-3 H3 z"/></svg></span><span>General Notes</span></div>
     <pre class="notes-pre"></pre>
-  </div></div><div class="card">
+  </div></div><div class="row"><div class="card">
       <div class="card-header tracks"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><circle cx="10" cy="10" r="7"/><path d="M10 6 v4 l3 2"/></svg></span><span>Animation Tracks</span></div>
       <p class="empty-state">No animation tracks configured.</p>
-    </div><div class="row"><div class="card">
+    </div></div><div class="row"><div class="card">
       <div class="card-header bones"><span><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16"><path d="M5 8 a2 2 0 0 1 2 -2 h6 a2 2 0 0 1 2 2 v4 a2 2 0 0 1 -2 2 h-6 a2 2 0 0 1 -2 -2 z"/></svg></span><span>Control Bones</span></div>
       <p class="empty-state">No control bones documented.</p>
     </div><div class="card">
