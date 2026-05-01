@@ -70,18 +70,19 @@ export interface AtlasPreviewModalProps {
   onJumpToAttachment: (attachmentName: string) => void;
   onClose: () => void;
   /**
-   * Phase 19 UI-03 + D-11/D-12 — interim OPTIONAL cross-nav handler. When
-   * present, the modal (Plan 19-07) will render a footer-LEFT outlined-
-   * secondary button that invokes `props.onClose()` THEN
-   * `props.onOpenOptimizeDialog()` (sequential mount per D-11; AppShell's
-   * onClickOptimize re-runs the full async output-picker + plan-builder
-   * flow — the user re-picks the output directory on cross-nav, acceptable
-   * phase-scope behaviour per orchestrator's revision-pass lock). Plan
-   * 19-03 pre-emptively adds the prop type definition + the AppShell-side
-   * binding `onOpenOptimizeDialog={onClickOptimize}`; Plan 19-07 will
-   * tighten to REQUIRED when adding the modal-side button.
+   * Phase 19 UI-03 + D-11/D-12 — REQUIRED cross-nav handler. The modal
+   * renders a footer-LEFT outlined-secondary button that invokes
+   * `props.onClose()` THEN `props.onOpenOptimizeDialog()` (sequential mount
+   * per D-11; AppShell's onClickOptimize re-runs the full async
+   * output-picker + plan-builder flow — the user re-picks the output
+   * directory on cross-nav, acceptable phase-scope behaviour per
+   * orchestrator's revision-pass lock). Plan 19-03 pre-emptively added the
+   * prop type definition (interim OPTIONAL) + the AppShell-side binding
+   * `onOpenOptimizeDialog={onClickOptimize}`; Plan 19-07 tightens to
+   * REQUIRED here because the cross-nav button consumes the prop
+   * unconditionally in render.
    */
-  onOpenOptimizeDialog?: () => void;
+  onOpenOptimizeDialog: () => void;
 }
 
 export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
@@ -104,6 +105,29 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
     () => buildAtlasPreview(props.summary, props.overrides, { mode, maxPageDim }),
     [props.summary, props.overrides, mode, maxPageDim],
   );
+
+  // Phase 19 UI-03 + D-10 — summary-tile derivations. Three values rendered
+  // in the new flex gap-3 mb-4 row above the body. Derived as plain constants
+  // (not a useMemo) because `projection` is itself the existing memo — these
+  // reduces re-run only when `projection` changes, which is exactly when the
+  // user flips the `mode` toggle (or maxPageDim, or summary/overrides). Cost
+  // is O(N pages) which is small. UI-SPEC §8 line 446 explicitly accepts
+  // inline derived constants here.
+  const totalPages = projection.totalPages;
+  const totalRegions = projection.pages.reduce(
+    (acc, p) => acc + p.regions.length,
+    0,
+  );
+  const totalUsedPixels = projection.pages.reduce(
+    (acc, p) => acc + p.usedPixels,
+    0,
+  );
+  const totalPagePixels = projection.pages.reduce(
+    (acc, p) => acc + p.totalPixels,
+    0,
+  );
+  const utilizationPct =
+    totalPagePixels > 0 ? (totalUsedPixels / totalPagePixels) * 100 : 0;
 
   // Clamp currentPageIndex when toggle changes shrink pages.length.
   useEffect(() => {
@@ -208,6 +232,23 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
           >
             ×
           </button>
+        </div>
+
+        {/* Phase 19 UI-03 + D-10 — summary tiles (Pages / Regions / Utilization).
+            Re-derive on mode toggle via the existing `projection` memo. */}
+        <div className="flex gap-3 mb-4">
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{totalPages}</span>
+            <span className="text-xs text-fg-muted text-center">Pages</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{totalRegions}</span>
+            <span className="text-xs text-fg-muted text-center">Regions</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center gap-1 border border-border rounded-md bg-surface p-3">
+            <span className="text-base font-semibold text-fg">{utilizationPct.toFixed(1)}%</span>
+            <span className="text-xs text-fg-muted text-center">Utilization</span>
+          </div>
         </div>
 
         {/* Body: left rail + main canvas */}
