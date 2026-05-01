@@ -581,6 +581,7 @@ export type SerializableError =
         | 'SkeletonJsonNotFoundError'
         | 'AtlasNotFoundError'
         | 'AtlasParseError'
+        | 'MissingImagesDirError'          // Phase 21 (LOAD-01): atlas-less catastrophic case
         | 'ProjectFileNotFoundError'      // Phase 8 D-149: file missing on disk
         | 'ProjectFileParseError'          // Phase 8 Pitfall 9: JSON.parse SyntaxError
         | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1
