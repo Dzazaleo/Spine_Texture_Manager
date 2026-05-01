@@ -20,20 +20,52 @@ import type {
 export interface LoaderOptions {
   /** Override the atlas path. Defaults to sibling `.atlas` next to the JSON. */
   atlasPath?: string;
+  /**
+   * Phase 21 (D-08) — per-project loader mode override.
+   *
+   * - `'auto'` (default when undefined): try sibling `.atlas` first; fall
+   *   through to atlas-less synthesis only if the sibling `.atlas` is
+   *   unreadable (D-05).
+   * - `'atlas-less'`: skip the sibling `.atlas` read entirely and go
+   *   straight to synthesis even if a `.atlas` file exists beside the
+   *   JSON. Used for the "post-Optimize-overwrite" workflow where the
+   *   on-disk atlas is stale and the per-region PNGs are canonical.
+   *
+   * Independent of `atlasPath` — when both are provided, `atlasPath` is
+   * still tried first per D-06 (explicit user intent wins).
+   */
+  loaderMode?: 'auto' | 'atlas-less';
 }
 
 export interface SourceDims {
   w: number;
   h: number;
-  /** Provenance: 'atlas-orig' when the region supplies an `orig` size; 'atlas-bounds' when we fell back to packed `bounds` W×H. */
-  source: 'atlas-orig' | 'atlas-bounds';
+  /**
+   * Provenance:
+   * - `'atlas-orig'`: region supplied an `orig:` line in the .atlas file.
+   * - `'atlas-bounds'`: fell back to packed `bounds:` W×H (atlas had no `orig:`).
+   * - `'png-header'`: Phase 21 atlas-less mode — dims came from PNG IHDR
+   *   bytes via `src/core/png-header.ts:readPngDims` (D-15). No .atlas file
+   *   was present at load time; the synthesizer in `src/core/synthetic-atlas.ts`
+   *   built the atlas from per-region PNG headers.
+   */
+  source: 'atlas-orig' | 'atlas-bounds' | 'png-header';
 }
 
 export interface LoadResult {
   /** Absolute path of the loaded skeleton JSON. */
   skeletonPath: string;
-  /** Absolute path of the loaded atlas. */
-  atlasPath: string;
+  /**
+   * Absolute path of the loaded atlas, OR `null` in atlas-less mode (Phase 21
+   * D-03). Null indicates the atlas was synthesized in-memory from per-region
+   * PNG headers — there's no on-disk `.atlas` file to reference.
+   *
+   * Consumers of this field (audit list per RESEARCH.md §Pitfall 8):
+   * `src/main/summary.ts:115`, `src/main/project-io.ts:400-406, :484-486, :840`,
+   * `src/main/sampler-worker.ts:102`, `src/renderer/src/components/AppShell.tsx:612, :1053`.
+   * All sites are already null-defensive (verified during Plan 21 planning).
+   */
+  atlasPath: string | null;
   /** Parsed skeleton data (pre-instanced — sampler will `new Skeleton(skeletonData)` as needed). */
   skeletonData: SkeletonData;
   /** Parsed atlas. */

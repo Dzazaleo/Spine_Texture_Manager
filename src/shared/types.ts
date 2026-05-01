@@ -490,8 +490,15 @@ export interface AtlasPreviewProjection {
 export interface SkeletonSummary {
   /** Absolute path of the loaded skeleton JSON. */
   skeletonPath: string;
-  /** Absolute path of the loaded atlas. */
-  atlasPath: string;
+  /**
+   * Absolute path of the loaded atlas, OR `null` in atlas-less mode (Phase 21
+   * D-03). When null, the atlas was synthesized in-memory from per-region
+   * PNG headers (no on-disk `.atlas` file). The renderer can use this null
+   * signal to suppress UI affordances that only make sense for canonical-mode
+   * projects (e.g., AtlasPreviewModal page-strip, hovers showing the .atlas
+   * file path).
+   */
+  atlasPath: string | null;
   bones: { count: number; names: string[] };
   slots: { count: number };
   /** Count + per-class-name bucket (e.g. {RegionAttachment: 3, MeshAttachment: 1}). */
