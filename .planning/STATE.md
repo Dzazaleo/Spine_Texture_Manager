@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T19:38:43.990Z"
-last_activity: 2026-05-01 -- Phase 20 Plan 02 complete (DocumentationBuilderDialog modal + Sections pane + AppShell wiring + drift policy; DOC-01 marked complete; 562 vitest passing)
+last_updated: "2026-05-01T19:46:09Z"
+last_activity: 2026-05-01 -- Phase 20 Plan 03 complete (Animation Tracks pane DnD + 11 RTL+jsdom integration tests; DOC-02 marked complete; 573 vitest passing)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # State
@@ -17,9 +17,9 @@ progress:
 ## Current Position
 
 Phase: 20 (documentation-builder-feature) — EXECUTING
-Plan: 3 of 4
-Status: Plan 02 (modal-shell-sections-pane) complete; Plan 03 (animation-tracks-pane-dnd) ready to execute
-Last activity: 2026-05-01 -- Phase 20 Plan 02 complete (DocumentationBuilderDialog modal scaffold + Sections pane + AppShell wiring + drift policy; DOC-01 marked complete in REQUIREMENTS.md; 562 vitest passing)
+Plan: 4 of 4
+Status: Plan 03 (animation-tracks-pane-dnd) complete; Plan 04 (html-export-ipc-roundtrip) ready to execute
+Last activity: 2026-05-01 -- Phase 20 Plan 03 complete (Animation Tracks pane DnD: HTML5 native DnD + reorder + remove + 11 RTL+jsdom tests; DOC-02 marked complete; 573 vitest passing)
 
 ## Last Roadmap Update
 
@@ -56,13 +56,13 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current plan
 
-20-03 (animation-tracks-pane-dnd) — ready for execution. Plan 20-02 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-02-modal-shell-sections-pane-SUMMARY.md`.
+20-04 (html-export-ipc-roundtrip) — ready for execution. Plan 20-03 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-03-animation-tracks-pane-dnd-SUMMARY.md`.
 
 ## Phase 20 progress
 
 - **20-01 core-types-validator-summary** ✅ COMPLETE 2026-05-01 — Documentation interface + DEFAULT_DOCUMENTATION + validateDocumentation + intersectDocumentationWithSummary; validator pre-massage + materializer back-fill (Phase 8-era forward-compat); serializeProjectFile writes state.documentation; SkeletonSummary.events from skeletonData.events; AppSessionState.documentation field; renderer-legal Layer 3 re-export route through shared/types.ts (tsconfig.web.json carve-out for src/core/documentation.ts). 21 new tests in tests/core/documentation.spec.ts + 5 new tests in tests/core/project-file.spec.ts; 562 vitest passing. DOC-03 + DOC-05 marked complete.
 - **20-02 modal-shell-sections-pane** ✅ COMPLETE 2026-05-01 — DocumentationBuilderDialog 10th hand-rolled modal with the 5-modal ARIA scaffold (D-15 width swap min-w-[960px] max-w-[1100px] max-h-[85vh]); three-pane tab strip with verbatim TabButton class string; Sections pane FULL implementation per DOC-03 (events auto-list per D-09, control bones with debounced 100ms filter and opt-in persistence per D-10, skins per D-11, general notes textarea per D-12, safety buffer number input per D-22). AppShell wiring threads documentation end-to-end: lazy-init drift intersection on mount, mountOpenResponse drift on Open + locate-skeleton, resample-success drift; Documentation top-bar button enabled with onClick (placeholder attributes removed); modalOpen audit list updated. MaterializedProject.documentation threaded through main/project-io.ts at all 3 construction sites. 562 vitest passing; DOC-01 marked complete. Commits: 6302563 → a73b3db.
-- 20-03 animation-tracks-pane-dnd — pending
+- **20-03 animation-tracks-pane-dnd** ✅ COMPLETE 2026-05-01 — TracksPanePlaceholder replaced with full TracksPane + TrackContainer. First DnD surface in repo: HTML5 native DnD with namespaced MIME `'application/x-stm-anim'` (avoids OS file-drop pathway collision per D-06), `effectAllowed='copy'` on dragstart (Electron Chromium quirk), `preventDefault` mandatory on dragover, defensive name validation against `summary.animations.names` on drop (T-20-13 mitigation). Per-entry edit row: mix time + Loop checkbox + Notes input + ↑/↓ reorder + ✕ remove. Track-remove with entries triggers `window.confirm` with plural-aware copy. Empty-state surfaces (No tracks yet / Drop an animation here) verbatim from UI-SPEC. Add Track disabled when `summary.animations.count === 0`. 11 new RTL+jsdom integration tests in tests/renderer/documentation-builder-dialog.spec.tsx (modal smoke + tab switch + footer actions + DnD via fireEvent.dragStart/dragOver/drop + spoofed-name rejection + remove confirm + ↑/↓ reorder). 573 vitest passing; DOC-02 marked complete. Commits: 3dda71c (test RED) → 95f7975 (feat GREEN).
 - 20-04 html-export-ipc-roundtrip — pending
 
 ## Last completed
@@ -81,4 +81,4 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 **Planned Phase:** 20 (Documentation Builder feature) — 4 plans — 2026-05-01T19:06:10.972Z
 
-**Last Plan Action:** 20-02 (modal-shell-sections-pane) — COMPLETE — 2026-05-01T19:36:05Z (commits 6302563 → a73b3db; SUMMARY at .planning/phases/20-documentation-builder-feature/20-02-modal-shell-sections-pane-SUMMARY.md)
+**Last Plan Action:** 20-03 (animation-tracks-pane-dnd) — COMPLETE — 2026-05-01T19:46:09Z (commits 3dda71c → 95f7975; SUMMARY at .planning/phases/20-documentation-builder-feature/20-03-animation-tracks-pane-dnd-SUMMARY.md)

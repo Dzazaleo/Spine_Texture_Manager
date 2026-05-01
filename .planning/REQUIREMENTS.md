@@ -46,7 +46,8 @@ Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148; reserved d
 
 - [x] **DOC-01
 **: Per-skeleton Documentation Builder modal accessible from a new top-bar button (placement coordinates with UI-01 sticky header design).
-- [ ] **DOC-02**: Animation tracks pane — drag animations from a side list to track containers; configure mix time (seconds, default 0.25s) + loop flag + free-text notes per track entry; multiple tracks supported.
+- [x] **DOC-02
+**: Animation tracks pane — drag animations from a side list to track containers; configure mix time (seconds, default 0.25s) + loop flag + free-text notes per track entry; multiple tracks supported.
 - [x] **DOC-03**: Sections pane — capture events, general notes, control-bone descriptions (with name + description per bone), skin descriptions (with name + description per skin). _(Closed by Plan 20-01: SkeletonSummary.events auto-discovery source ready; Documentation interface includes events/controlBones/skins/generalNotes fields.)_
 - [ ] **DOC-04**: HTML export — standalone `.html` file containing all docs (animation tracks, sections, control bones, skins) + optimization config snapshot (safety buffer, space savings %) + atlas page count + image-utilization count. Self-contained, viewable offline.
 - [x] **DOC-05**: Persistence in `.stmproj` v1's reserved `documentation: object` slot (D-148); round-trip safe (save → reload → identical content; existing 8-kind discriminated-union typed-error envelope honored for any new error kinds the doc loader introduces). _(Closed by Plan 20-01: round-trip identity proven by tests/core/project-file.spec.ts representative-doc test; validator pre-massage + materializer back-fill keep Phase 8-era empty-slot files loadable; reuses 'invalid-shape' kind — no 9th SerializableError.)_
@@ -117,11 +118,11 @@ Roadmap-locked 2026-04-30 (ROADMAP.md authored). Every v1.2 REQ maps to exactly 
 | UI-03       | 19    | Pending |
 | UI-04       | 19    | Pending |
 | UI-05       | 19    | Pending |
-| DOC-01      | 20    | Pending |
-| DOC-02      | 20    | Pending |
-| DOC-03      | 20    | Pending |
+| DOC-01      | 20    | Complete |
+| DOC-02      | 20    | Complete |
+| DOC-03      | 20    | Complete |
 | DOC-04      | 20    | Pending |
-| DOC-05      | 20    | Pending |
+| DOC-05      | 20    | Complete |
 | LOAD-01     | 21    | Pending |
 | LOAD-02     | 21    | Pending |
 | LOAD-03     | 21    | Pending |
