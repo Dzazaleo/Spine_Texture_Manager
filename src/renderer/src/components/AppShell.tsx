@@ -51,6 +51,7 @@ import type {
 } from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
+import { SearchBar } from './SearchBar';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
@@ -1087,7 +1088,7 @@ export function AppShell({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
+      <header className="sticky top-0 z-20 flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
         {/* Filename chip — hoisted from the prior panel's internal header per D-49.
             Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
             Renders 'Untitled' when currentProjectPath is null; otherwise the project
@@ -1133,6 +1134,17 @@ export function AppShell({
             </div>
           )}
         </div>
+        {/* STM is single-skeleton-per-project; literal 1 matches the atlases cadence */}
+        <div
+          className="inline-flex items-center gap-3 border border-border rounded-md px-3 py-1 text-xs font-mono text-fg-muted"
+          aria-label="Load summary"
+        >
+          <span><span className="text-fg font-semibold">1</span> skeletons</span>
+          <span aria-hidden="true" className="text-border">|</span>
+          <span><span className="text-fg font-semibold">1</span> atlases</span>
+          <span aria-hidden="true" className="text-border">|</span>
+          <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
+        </div>
         <nav role="tablist" className="flex gap-1 items-center">
           <TabButton
             isActive={activeTab === 'global'}
@@ -1152,7 +1164,8 @@ export function AppShell({
             while an export is in flight (T-06-18 — second click is a no-op
             until the dialog's onRunEnd fires). Reuses warm-stone tokens
             from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          <SearchBar value={query} onChange={setQuery} />
           {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
               immediately LEFT of Optimize Assets (right-aligned cluster).
               Disabled when no peaks (summary not loaded yet or empty rig).
@@ -1168,9 +1181,18 @@ export function AppShell({
           </button>
           <button
             type="button"
+            disabled
+            aria-disabled="true"
+            title="Available in v1.2 Phase 20"
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            Documentation
+          </button>
+          <button
+            type="button"
             onClick={onClickOptimize}
             disabled={effectiveSummary.peaks.length === 0 || exportInFlight}
-            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+            className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Optimize Assets
           </button>
