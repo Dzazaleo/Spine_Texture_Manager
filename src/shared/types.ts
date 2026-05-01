@@ -796,6 +796,13 @@ export interface ResampleArgs {
   sortColumn?: string | null;
   sortDir?: 'asc' | 'desc' | null;
   projectFilePath?: string | null;
+  /**
+   * Phase 21 D-08 — per-project loader mode. Resample re-runs loader +
+   * sampler-worker; threading loaderMode preserves atlas-less synthesis
+   * across the resample round-trip. Optional for backward-compat
+   * (undefined → 'auto' default).
+   */
+  loaderMode?: 'auto' | 'atlas-less';
 }
 
 export type LocateSkeletonResponse =

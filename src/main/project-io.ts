@@ -399,12 +399,15 @@ export async function handleProjectOpenFromPath(
 
   // 6. Load skeleton. F1.2 atlas auto-discovery applies when atlasPath null
   //    (D-152 — `opts.atlasPath` undefined triggers sibling rediscovery).
+  // Phase 21 D-08 — Site 1: thread materialized.loaderMode into the loader
+  // so atlas-less projects honor the per-project override even when a
+  // sibling .atlas exists.
   let load;
   try {
-    load = loadSkeleton(
-      materialized.skeletonPath,
-      materialized.atlasPath !== null ? { atlasPath: materialized.atlasPath } : {},
-    );
+    const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
+    if (materialized.atlasPath !== null) loaderOpts.atlasPath = materialized.atlasPath;
+    if (materialized.loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
+    load = loadSkeleton(materialized.skeletonPath, loaderOpts);
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
       // D-149 — triggers locate-skeleton flow in the renderer (T-08-MISS).
@@ -485,6 +488,7 @@ export async function handleProjectOpenFromPath(
       skeletonPath: materialized.skeletonPath,
       atlasRoot: materialized.atlasPath !== null ? materialized.atlasPath : undefined,
       samplingHz: materialized.samplingHz,
+      loaderMode: materialized.loaderMode, // Phase 21 D-08 — Site 2
     },
     BrowserWindow.getAllWindows()[0]?.webContents ?? null,
   );
@@ -655,13 +659,30 @@ export async function handleProjectReloadWithSkeleton(
   const sortColumn = typeof a.sortColumn === 'string' ? a.sortColumn : null;
   const sortDir =
     a.sortDir === 'asc' || a.sortDir === 'desc' ? a.sortDir : null;
+  // Phase 21 D-08 — recovery path threads loaderMode from the renderer's
+  // useState slot. Validate as a string-literal union; default 'auto' if
+  // missing or invalid (forward-compat for renderer versions that don't
+  // populate the field — pre-Plan-08 builds dispatching the recovery flow
+  // see canonical-mode behavior, which is the safer default).
+  const loaderMode: 'auto' | 'atlas-less' =
+    a.loaderMode === 'atlas-less' ? 'atlas-less' : 'auto';
 
   // Reuse the loader+sampler+buildSummary chain from handleProjectOpenFromPath
   // steps 6-9. atlasPath is intentionally undefined → loader's F1.2 sibling
   // auto-discovery runs against the NEW skeleton's directory (D-152).
   let load;
   try {
-    load = loadSkeleton(a.newSkeletonPath, {});
+    // Phase 21 D-08 — Site 3 (recovery): thread loaderMode from the
+    // renderer-supplied recovery payload (the renderer's useState slot is
+    // the source of truth here; the main process discarded the original
+    // materialized state when the prior Open failed, so threading via args
+    // is the only option).
+    const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
+    if (loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
+    // atlasPath intentionally omitted: F1.2 sibling auto-discovery applies on
+    // the new skeleton's directory (D-152). loaderMode='atlas-less' override
+    // short-circuits sibling discovery in the loader (Plan 06).
+    load = loadSkeleton(a.newSkeletonPath, loaderOpts);
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
       // Phase 8.1 D-158/D-159: the user-picked replacement skeleton was
@@ -728,6 +749,7 @@ export async function handleProjectReloadWithSkeleton(
       skeletonPath: a.newSkeletonPath,
       atlasRoot: undefined,
       samplingHz,
+      loaderMode, // Phase 21 D-08 — Site 3 recovery path
     },
     BrowserWindow.getAllWindows()[0]?.webContents ?? null,
   );
@@ -839,9 +861,14 @@ export async function handleProjectResample(
   }
   const atlasPath = typeof a.atlasPath === 'string' ? a.atlasPath : undefined;
 
+  // Phase 21 D-08 — Site 4 (resample): thread loaderMode from the IPC
+  // payload so atlas-less projects survive the SettingsDialog resample.
   let load;
   try {
-    load = loadSkeleton(a.skeletonPath, atlasPath !== undefined ? { atlasPath } : {});
+    const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
+    if (atlasPath !== undefined) loaderOpts.atlasPath = atlasPath;
+    if (a.loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
+    load = loadSkeleton(a.skeletonPath, loaderOpts);
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
       // Resample shouldn't normally hit this — the renderer holds the
@@ -884,12 +911,22 @@ export async function handleProjectResample(
     };
   }
 
+  // Phase 21 D-08 — Site 5 (resample worker): thread loaderMode from the
+  // IPC payload. Validated as a string-literal union (the renderer is
+  // trusted but defense-in-depth keeps the worker boundary clean).
+  const resampleLoaderMode: 'auto' | 'atlas-less' | undefined =
+    a.loaderMode === 'atlas-less'
+      ? 'atlas-less'
+      : a.loaderMode === 'auto'
+        ? 'auto'
+        : undefined;
   const t0 = performance.now();
   const samplerResult = await runSamplerInWorker(
     {
       skeletonPath: a.skeletonPath,
       atlasRoot: atlasPath,
       samplingHz: a.samplingHz,
+      loaderMode: resampleLoaderMode, // Phase 21 D-08 — Site 5
     },
     BrowserWindow.getAllWindows()[0]?.webContents ?? null,
   );
