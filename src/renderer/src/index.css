@@ -64,6 +64,19 @@
      (both fail WCAG AA at 3.77 / 3.40:1). */
   --color-danger: #e06b55;
 
+  /* Success — sage green for under-1.0× scale rows + neutral state.
+     Literal hex (not a Tailwind palette var ref) because the pick sits
+     outside the default shades. 6.06:1 on --color-panel = WCAG AA normal-text
+     pass; sits in the same luminance band as --color-accent (6.24:1) +
+     --color-danger (5.33:1) for a coordinated chromatic palette. */
+  --color-success: #5FA866;
+
+  /* Warning — warm honey for over-1.0× scale rows. Literal hex; 6.33:1
+     on --color-panel = WCAG AA normal-text pass. Hue (~37°) is closest
+     to --color-accent (~25°), but never co-occurs in the same element
+     type (D-06 row bar vs D-17 button pill). */
+  --color-warning: #C9913C;
+
   /* Typography (D-15) — literal strings; inline is a no-op on these but
      keeping them in the same block for proximity. */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

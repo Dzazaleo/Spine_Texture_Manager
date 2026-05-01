@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-04-30T13:32:00.000Z"
-last_activity: 2026-04-30 -- Phase 18 plans 18-01 + 18-02 complete; dev-mode Cmd+Q smoke approved by user; ready for /gsd-verify-work 18
+last_updated: "2026-05-01T14:32:46.633Z"
+last_activity: 2026-05-01 -- Phase 19 execution started
 progress:
   total_phases: 4
   completed_phases: 0
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 18 (app-quit-broken-cmd-q-and-applescript) — plans complete (2/2), pending /gsd-verify-work 18
-Plan: 2 of 2 complete
-Status: All Plan 18-01 + 18-02 commits merged to main. Test layer green (npm run test: 536 passing). Dev-mode Cmd+Q smoke check approved by user 2026-04-30 (CONTEXT D-09). QUIT-01 + QUIT-02 closed-by-test + dev-mode-smoke. Live packaged-binary UAT deferred to v1.2.0 ship round (CONTEXT D-10).
-Last activity: 2026-04-30 -- Phase 18 plans 18-01 + 18-02 complete; dev-mode Cmd+Q smoke approved by user; ready for /gsd-verify-work 18
+Phase: 19 (ui-improvements-ui-01-05) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 19
+Last activity: 2026-05-01 -- Phase 19 execution started
 
 ## Last Roadmap Update
 
@@ -72,4 +72,4 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
-**Planned Phase:** 18 (App quit broken — Cmd+Q + AppleScript do not terminate) — 2 plans — 2026-04-30T11:42:26.683Z
+**Planned Phase:** 19 (UI improvements (UI-01..05)) — 7 plans — 2026-05-01T13:39:17.310Z
