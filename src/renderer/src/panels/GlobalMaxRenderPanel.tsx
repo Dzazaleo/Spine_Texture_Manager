@@ -619,6 +619,16 @@ export function GlobalMaxRenderPanel({
     () => new Set(unusedAttachments.map((u) => u.attachmentName)),
     [unusedAttachments],
   );
+  // Phase 19 UI-04 + D-13/D-14/D-15 — aggregate on-disk bytes across unused
+  // rows. Uses (u.bytesOnDisk ?? 0) fallback because the field is OPTIONAL
+  // on UnusedAttachment per Plan 19-01 (orchestrator's revision-pass lock —
+  // bytesOnDisk?: number on the interface; src/main/summary.ts is the sole
+  // writer). When every row is 0 (atlas-packed projects per D-15) the
+  // callout falls back to count-only copy.
+  const aggregateBytes = unusedAttachments.reduce(
+    (acc, u) => acc + (u.bytesOnDisk ?? 0),
+    0,
+  );
   const filteredUnused = useMemo(
     () => {
       const q = query.trim().toLowerCase();
@@ -789,12 +799,24 @@ export function GlobalMaxRenderPanel({
       {unusedAttachments.length > 0 && (
         <section className="mb-6 border-b border-border pb-4" aria-label="Unused attachments">
           <header className="flex items-center gap-2 mb-2 text-danger font-mono text-sm font-semibold">
-            <span aria-hidden="true">⚠</span>
-            <span>
-              {filteredUnused.length === 1
-                ? '1 unused attachment'
-                : `${filteredUnused.length} unused attachments`}
+            <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5">
+              <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
+                <path d="M10 3 L18 16 L2 16 Z" />
+                <path d="M10 8 v4 M10 14.5 v0.01" />
+              </svg>
             </span>
+            {aggregateBytes > 0 ? (
+              <span className="text-fg-muted font-mono">
+                <span className="font-semibold text-fg">{formatBytes(aggregateBytes)}</span>
+                {' '}potential savings
+              </span>
+            ) : (
+              <span className="text-fg-muted font-mono">
+                {filteredUnused.length === 1
+                  ? '1 unused attachment'
+                  : `${filteredUnused.length} unused attachments`}
+              </span>
+            )}
           </header>
           <table className="w-full border-collapse">
             <thead>

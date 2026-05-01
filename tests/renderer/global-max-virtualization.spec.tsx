@@ -24,7 +24,9 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { GlobalMaxRenderPanel } from '../../src/renderer/src/panels/GlobalMaxRenderPanel';
+import { SearchBar } from '../../src/renderer/src/components/SearchBar';
 import type { DisplayRow, SkeletonSummary } from '../../src/shared/types';
 
 // jsdom polyfills for useVirtualizer. Without these, the virtualizer treats
@@ -129,15 +131,33 @@ function makeSummary(rowCount: number): SkeletonSummary {
   };
 }
 
-function renderPanel(rowCount: number) {
-  return render(
-    <GlobalMaxRenderPanel
-      summary={makeSummary(rowCount)}
-      onJumpToAnimation={vi.fn()}
-      overrides={new Map()}
-      onOpenOverrideDialog={vi.fn()}
-    />,
+/**
+ * Phase 19 Plan 04 — query state lifted to AppShell. Mirror that contract
+ * in tests with a small wrapper component holding query state + the lifted
+ * SearchBar, threaded down to the panel via REQUIRED query/onQueryChange
+ * props. The SearchBar carries the same `aria-label="Filter rows by
+ * attachment name"` as the production sticky-bar instance, so the existing
+ * `getByLabelText(/filter rows by attachment name/i)` query keeps working.
+ */
+function PanelTestHarness({ rowCount }: { rowCount: number }) {
+  const [query, setQuery] = useState('');
+  return (
+    <>
+      <SearchBar value={query} onChange={setQuery} />
+      <GlobalMaxRenderPanel
+        summary={makeSummary(rowCount)}
+        onJumpToAnimation={vi.fn()}
+        overrides={new Map()}
+        onOpenOverrideDialog={vi.fn()}
+        query={query}
+        onQueryChange={setQuery}
+      />
+    </>
   );
+}
+
+function renderPanel(rowCount: number) {
+  return render(<PanelTestHarness rowCount={rowCount} />);
 }
 
 describe('GlobalMaxRenderPanel — Wave 2 D-191 / D-195', () => {
