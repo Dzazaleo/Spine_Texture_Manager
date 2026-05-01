@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T22:00:00Z"
-last_activity: 2026-05-01 -- Phase 20 COMPLETE (4/4 plans; verifier 5/5 must-haves; UAT 3/4 passed on macOS, 1 deferred to Win/Linux todo); 20-REVIEW.md non-blocking 4 warning + 6 info; bottom-gap regression fixed in commit 10d40e6
+last_updated: "2026-05-01T21:34:53.194Z"
+last_activity: 2026-05-01 -- Phase 20 verifier 5/5; HUMAN-UAT 3 passed on macOS + 1 deferred (Windows + Linux DnD parity captured as pending todo); REQUIREMENTS.md DOC-04 doc fix; Tracks-card bottom-gap regression fixed (commit 10d40e6)
 progress:
-  total_phases: 7
-  completed_phases: 4
+  total_phases: 4
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
 ---
