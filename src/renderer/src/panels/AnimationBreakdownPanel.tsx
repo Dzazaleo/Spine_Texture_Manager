@@ -81,7 +81,6 @@ import type {
   AnimationBreakdown,
   BreakdownRow,
 } from '../../../shared/types.js';
-import { SearchBar } from '../components/SearchBar';
 import { computeExportDims } from '../lib/export-view.js';
 
 /**
@@ -109,14 +108,15 @@ export interface AnimationBreakdownPanelProps {
   overrides?: ReadonlyMap<string, number>;
   onOpenOverrideDialog?: (row: BreakdownRow) => void;
   /**
-   * Phase 19 UI-01 + D-04 — interim OPTIONAL props for the lifted SearchBar
-   * query state. AppShell owns the source of truth (single sticky-bar
-   * SearchBar drives both panels). Plans 19-04 + 19-05 tighten these to
-   * REQUIRED when removing the panel-internal useState('') slots and
-   * removing the panel-internal <SearchBar> elements.
+   * Phase 19 UI-01 + D-04 (Plan 19-05 closure) — REQUIRED props for the
+   * lifted SearchBar query state. AppShell owns the source of truth (single
+   * sticky-bar SearchBar drives both panels). The panel-internal
+   * useState('') slot + the panel-internal SearchBar JSX element have been
+   * REMOVED in this plan; tightened from Plan 19-03's interim OPTIONAL
+   * posture to REQUIRED here.
    */
-  query?: string;
-  onQueryChange?: (q: string) => void;
+  query: string;
+  onQueryChange: (q: string) => void;
 }
 
 /**
@@ -260,13 +260,20 @@ export function AnimationBreakdownPanel({
   onFocusConsumed,
   overrides,
   onOpenOverrideDialog,
+  query,
+  onQueryChange,
 }: AnimationBreakdownPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
   const overridesMap: ReadonlyMap<string, number> = overrides ?? EMPTY_OVERRIDES;
   const openDialog = onOpenOverrideDialog ?? NOOP_OPEN_DIALOG;
 
-  const [query, setQuery] = useState('');
+  // Phase 19 UI-01 + D-04 (Plan 19-05) — panel-internal `useState('')` slot
+  // REMOVED. `query` is now driven by AppShell's lifted state via REQUIRED
+  // props; the panel-internal SearchBar JSX element is GONE (the sticky-bar
+  // SearchBar in AppShell is the sole input). `onQueryChange` is destructured
+  // to satisfy the props contract but never invoked from this panel — the
+  // sticky-bar SearchBar calls it directly through AppShell's binding.
   // D-63/D-64: static-pose card seeded as the only initially-expanded cardId.
   // The literal construction is a grep-verified signature.
   const [userExpanded, setUserExpanded] = useState<Set<string>>(
@@ -350,11 +357,6 @@ export function AnimationBreakdownPanel({
     <div className="w-full max-w-6xl mx-auto p-8">
       <header className="mb-4 flex items-center gap-4">
         <h2 className="text-lg font-semibold">Animation Breakdown</h2>
-        <SearchBar
-          value={query}
-          onChange={setQuery}
-          placeholder="Filter rows across cards…"
-        />
       </header>
       <div className="flex flex-col gap-3">
         {filteredCards.map((card) => {
@@ -438,6 +440,16 @@ function AnimationCard({
         className="w-full flex items-center gap-2 px-4 py-3 text-left text-sm font-semibold font-mono text-fg hover:bg-accent/5 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span className="text-fg-muted">{caret}</span>
+        {/* Phase 19 UI-02 + D-08 — section-level play/film glyph (UI-SPEC §3
+            lines 240-247). Stroke-based SVG; inherits text-fg via
+            currentColor. The caret span above is preserved (distinct
+            purpose — expand/collapse indicator vs. category icon). */}
+        <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5 text-fg">
+          <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
+            <rect x="3" y="3" width="14" height="14" rx="2" />
+            <path d="M9 7 l4 3 -4 3 z" />
+          </svg>
+        </span>
         <span>{card.animationName}</span>
         <span className="text-fg-muted">{countLabel}</span>
       </button>

@@ -30,7 +30,9 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { AnimationBreakdownPanel } from '../../src/renderer/src/panels/AnimationBreakdownPanel';
+import { SearchBar } from '../../src/renderer/src/components/SearchBar';
 import type {
   AnimationBreakdown,
   BreakdownRow,
@@ -162,17 +164,49 @@ function makeSummary(cardCount: number, rowsPerCard: number): SkeletonSummary {
   };
 }
 
+/**
+ * Phase 19 Plan 05 — query state lifted to AppShell. Mirror that contract
+ * in tests with a small wrapper component holding query state + the lifted
+ * SearchBar, threaded down to the panel via REQUIRED query/onQueryChange
+ * props. The SearchBar carries the same `aria-label="Filter rows by
+ * attachment name"` as the production sticky-bar instance, so the existing
+ * `getByLabelText(/filter rows by attachment name/i)` query keeps working.
+ */
+function PanelTestHarness({
+  cardCount,
+  rowsPerCard,
+  onOpenOverrideDialog,
+}: {
+  cardCount: number;
+  rowsPerCard: number;
+  onOpenOverrideDialog: (row: BreakdownRow) => void;
+}) {
+  const [query, setQuery] = useState('');
+  return (
+    <>
+      <SearchBar value={query} onChange={setQuery} />
+      <AnimationBreakdownPanel
+        summary={makeSummary(cardCount, rowsPerCard)}
+        focusAnimationName={null}
+        onFocusConsumed={vi.fn()}
+        overrides={new Map()}
+        onOpenOverrideDialog={onOpenOverrideDialog}
+        query={query}
+        onQueryChange={setQuery}
+      />
+    </>
+  );
+}
+
 function renderPanel(
   cardCount: number,
   rowsPerCard: number,
   onOpenOverrideDialog: (row: BreakdownRow) => void = vi.fn(),
 ) {
   return render(
-    <AnimationBreakdownPanel
-      summary={makeSummary(cardCount, rowsPerCard)}
-      focusAnimationName={null}
-      onFocusConsumed={vi.fn()}
-      overrides={new Map()}
+    <PanelTestHarness
+      cardCount={cardCount}
+      rowsPerCard={rowsPerCard}
       onOpenOverrideDialog={onOpenOverrideDialog}
     />,
   );
