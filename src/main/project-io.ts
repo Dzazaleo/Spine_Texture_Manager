@@ -537,6 +537,9 @@ export async function handleProjectOpenFromPath(
     // renderer. AppShell will intersect against the live summary (D-09/D-10/
     // D-11 drift policy) before seeding modal-local state.
     documentation: materialized.documentation,
+    // Phase 21 D-08 — thread loaderMode so AppShell can seed its toggle UI
+    // state on Open. Validator already defaulted legacy files to 'auto'.
+    loaderMode: materialized.loaderMode,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -788,6 +791,9 @@ export async function handleProjectReloadWithSkeleton(
     sortColumn,
     sortDir,
     projectFilePath: a.projectPath,
+    // Phase 21 D-08 — recovery path uses the loaderMode the renderer cached
+    // before the failed Open (computed at line ~667 from `a.loaderMode`).
+    loaderMode,
     // Phase 20 D-01 — locate-skeleton recovery does not re-read the .stmproj
     // file (it reuses the renderer's cached overrides/settings from the
     // failed Open). `documentation` is not part of the cached args today;
@@ -978,6 +984,12 @@ export async function handleProjectResample(
     // here keeps the type contract; AppShell ignores this field on the
     // resample path (it preserves its own documentation state).
     documentation: { ...DEFAULT_DOCUMENTATION },
+    // Phase 21 D-08 — thread the resample-time loaderMode back to the
+    // renderer. resampleLoaderMode is intentionally `undefined` when the IPC
+    // payload's loaderMode field was missing/invalid (worker-input safety);
+    // the IPC response coerces undefined → 'auto' to satisfy the
+    // MaterializedProject contract (non-undefined union).
+    loaderMode: resampleLoaderMode ?? 'auto',
   };
   return { ok: true, project };
 }

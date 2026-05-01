@@ -751,6 +751,11 @@ export interface MaterializedProject {
   // on Open / locate-skeleton recovery. Drift policy (D-09 / D-10 / D-11)
   // is applied renderer-side in AppShell via intersectDocumentationWithSummary.
   documentation: Documentation;
+  // Phase 21 D-08 — atlas-resolution mode threaded through to the renderer so
+  // AppShell can seed its loaderMode UI state on Open / locate-skeleton recovery
+  // / resample. Round-trips through .stmproj via PartialMaterialized.loaderMode;
+  // legacy files without the field default to 'auto' via the validator.
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 export type SaveResponse =
