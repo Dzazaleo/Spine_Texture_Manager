@@ -258,6 +258,21 @@ export function AppShell({
     ),
   );
 
+  // Phase 21 D-08 — per-project loader mode override. Lazy-initialized from
+  // initialProject?.loaderMode (round-trips through .stmproj per Plan 07);
+  // defaults to 'auto' (atlas-by-default) for first-time loads. Mirror of
+  // the Phase 20 documentation slot pattern immediately above.
+  //
+  // NB: `loaderMode` is added to MaterializedProject + AppSessionState +
+  // ResampleArgs in Plan 21-07 (concurrent worktree). The TS access here
+  // expects those type widenings to land in the merge-back to main; on this
+  // isolated branch typecheck reports the field as unknown until 21-07 is
+  // merged. See 21-08 plan §parallel_execution for the orchestrator
+  // coordination contract.
+  const [loaderMode, setLoaderMode] = useState<'auto' | 'atlas-less'>(
+    () => initialProject?.loaderMode ?? 'auto',
+  );
+
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
   // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
@@ -630,8 +645,19 @@ export function AppShell({
       // updated by the modal's onChange / setDocumentation. Save/Save As
       // now persist the user-authored content alongside overrides.
       documentation,
+      // Phase 21 D-08 — round-trip loaderMode through .stmproj per Plan 07's
+      // serializeProjectFile / validateProjectFile / materializeProjectFile
+      // extensions. AppSessionState gains the field in Plan 21-07.
+      loaderMode,
     }),
-    [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal, documentation],
+    [
+      summary.skeletonPath,
+      summary.atlasPath,
+      overrides,
+      samplingHzLocal,
+      documentation,
+      loaderMode,
+    ],
   );
 
   // Phase 20 D-21 — always-current AtlasPreviewProjection for the Documentation
@@ -795,6 +821,10 @@ export function AppShell({
     setDocumentation(
       intersectDocumentationWithSummary(project.documentation, project.summary),
     );
+    // Phase 21 D-08 — restore loaderMode from materialized project. Plan 21-07's
+    // materializeProjectFile back-fills file.loaderMode ?? 'auto', so legacy
+    // .stmproj files without the field default to 'auto' here as well.
+    setLoaderMode(project.loaderMode ?? 'auto');
   }, []);
 
   const onClickOpen = useCallback(async () => {
@@ -1062,6 +1092,11 @@ export function AppShell({
         sortColumn: 'attachmentName',
         sortDir: 'asc',
         projectFilePath: currentProjectPath,
+        // Phase 21 D-08 — main re-runs loadSkeleton(skeletonPath, { atlasPath,
+        // loaderMode }) so flipping the toggle picks the right branch (Plan
+        // 21-07 wires this into runSamplerInWorker + project-io.ts loadSkeleton
+        // calls). ResampleArgs gains the field in Plan 21-07's types extension.
+        loaderMode,
       });
       // Guard against a stale response landing after the next samplingHz
       // change (or unmount). The cancelled flag below is set by the
@@ -1099,12 +1134,17 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-    // Intentionally narrow deps: re-fire only on samplingHzLocal changes.
-    // Including overrides / paths in the deps would re-trigger a sample on
-    // every override edit, which is the wrong contract — overrides are a
-    // post-sample percent multiplier, not an input to the sampler.
+    // Intentionally narrow deps: re-fire only on samplingHzLocal OR loaderMode
+    // changes. Including overrides / paths in the deps would re-trigger a
+    // sample on every override edit, which is the wrong contract — overrides
+    // are a post-sample percent multiplier, not an input to the sampler.
+    //
+    // Phase 21 D-08 — `loaderMode` is included so flipping the
+    // "Use Images Folder as Source" checkbox triggers a resample (the loader
+    // routes through a different branch and produces different sourceDims
+    // provenance — `png-header` vs `atlas-orig`/`atlas-bounds`).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [samplingHzLocal]);
+  }, [samplingHzLocal, loaderMode]);
 
   /**
    * Phase 8.1 D-163 — register the dirty-guard impl into App.tsx's
@@ -1278,6 +1318,30 @@ export function AppShell({
             from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
         <div className="ml-auto flex items-center gap-2">
           <SearchBar value={query} onChange={setQuery} />
+          {/* Phase 21 D-08 — atlas-less mode toggle. Binary checkbox per
+              CONTEXT.md line 66 (Claude's discretion; binary toggle = checkbox,
+              NOT modal). When checked, the loader synthesizes an atlas from
+              per-region PNG headers instead of reading the .atlas file —
+              useful for the post-Optimize-overwrite workflow where the .atlas
+              has been replaced and the user wants to re-sample against PNGs.
+              Toggling triggers a resample (loaderMode is in the resample
+              useEffect dependency array; flips between fall-through and the
+              D-08 override branch in src/core/loader.ts). */}
+          <label
+            className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer select-none"
+            title="When enabled, the loader synthesizes an atlas from per-region PNG headers instead of reading the .atlas file. Useful for the post-Optimize-overwrite workflow."
+          >
+            <input
+              type="checkbox"
+              checked={loaderMode === 'atlas-less'}
+              onChange={(e) =>
+                setLoaderMode(e.currentTarget.checked ? 'atlas-less' : 'auto')
+              }
+              aria-label="Use Images Folder as Source"
+              className="cursor-pointer"
+            />
+            <span>Use Images Folder as Source</span>
+          </label>
           {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
               immediately LEFT of Optimize Assets (right-aligned cluster).
               Disabled when no peaks (summary not loaded yet or empty rig).
