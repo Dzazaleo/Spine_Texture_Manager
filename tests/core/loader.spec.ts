@@ -244,3 +244,125 @@ describe('loader: atlasSources map (Phase 6 Gap-Fix #2 — atlas-packed projects
     }
   });
 });
+
+describe('Phase 21 — atlas-less mode (LOAD-01 + ROADMAP success criterion #5)', () => {
+  // Tests cover D-05 / D-06 / D-07 / D-08 — the 4-way branch order in
+  // src/core/loader.ts (per RESEARCH.md §Pitfall 9). Branch order is
+  // load-bearing: re-ordering causes either AtlasNotFoundError to fire
+  // wrongly OR atlas-less synthesis to silently skip when not requested.
+  //
+  // Branch order (mandated):
+  //   1. opts.atlasPath !== undefined → canonical (D-06: throw verbatim
+  //      AtlasNotFoundError on read fail; NO fall-through)
+  //   2. opts.loaderMode === 'atlas-less' → synthesize (D-08: skip .atlas
+  //      read entirely, even if file exists)
+  //   3. sibling .atlas readable → canonical (D-07: atlas-by-default)
+  //   4. sibling .atlas unreadable → synthesize (D-05: fall-through)
+
+  it('D-06: explicit opts.atlasPath that is unreadable STILL throws AtlasNotFoundError (verbatim message preserved)', () => {
+    // ROADMAP success criterion #5: AtlasNotFoundError preserved verbatim for
+    // actually-missing-atlas / malformed-project cases. When the user
+    // explicitly hands the loader an atlasPath, the loader honors that intent
+    // and refuses to fall through to synthesis — even if a sibling .atlas
+    // exists or per-region PNGs are present.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-d06-'));
+    const skelPath = path.join(tmpDir, 'rig.json');
+    fs.writeFileSync(skelPath, '{"skeleton":{"spine":"4.2.43"}}');
+    const explicitAtlas = path.join(tmpDir, 'nonexistent.atlas');
+    try {
+      let caught: unknown;
+      try {
+        loadSkeleton(skelPath, { atlasPath: explicitAtlas });
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(AtlasNotFoundError);
+      const err = caught as AtlasNotFoundError;
+      // Verbatim message check — locked from src/core/errors.ts:44-47.
+      expect(err.message).toContain(
+        'Spine projects require an .atlas file beside the .json',
+      );
+      expect(err.message).toContain(
+        'Re-export from the Spine editor with the atlas included',
+      );
+      // Typed fields preserved.
+      expect(err.searchedPath).toBe(explicitAtlas);
+      expect(err.skeletonPath).toBe(skelPath);
+      expect(err.name).toBe('AtlasNotFoundError');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('D-05: sibling .atlas absent + valid images/ folder → atlas-less fall-through; LoadResult.atlasPath === null', () => {
+    const fixturePath = path.resolve(
+      'fixtures/SIMPLE_PROJECT_NO_ATLAS/SIMPLE_TEST.json',
+    );
+    const result = loadSkeleton(fixturePath);
+    expect(result.atlasPath).toBeNull();
+    // Atlas synthesized in-memory; spine-core consumed it cleanly.
+    expect(result.atlas).toBeDefined();
+    expect(result.atlas.regions.length).toBeGreaterThanOrEqual(3);
+    // sourceDims populated with 'png-header' provenance.
+    let pngHeaderCount = 0;
+    for (const dims of result.sourceDims.values()) {
+      if (dims.source === 'png-header') pngHeaderCount++;
+    }
+    expect(pngHeaderCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('D-07: sibling .atlas readable, no loaderMode override → canonical path (atlas-by-default; sourceDims provenance is atlas-*)', () => {
+    const fixturePath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+    const result = loadSkeleton(fixturePath);
+    expect(result.atlasPath).not.toBeNull();
+    expect(result.atlasPath!.endsWith('.atlas')).toBe(true);
+    // sourceDims provenance is 'atlas-orig' or 'atlas-bounds' — NOT 'png-header'.
+    for (const dims of result.sourceDims.values()) {
+      expect(dims.source).toMatch(/^atlas-(orig|bounds)$/);
+    }
+  });
+
+  it('D-08: loaderMode: "atlas-less" override skips sibling .atlas read even when file exists; LoadResult.atlasPath === null', () => {
+    // Construct a tmpdir with BOTH a JSON + a sibling .atlas + an images/
+    // folder of per-region PNGs. Without the override, D-07 would route
+    // through canonical path. With loaderMode: 'atlas-less', the loader
+    // skips the .atlas read entirely (D-08 override) and synthesizes.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loader-d08-'));
+    const sourceFixture = path.resolve(
+      'fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json',
+    );
+    const sourceAtlas = path.resolve(
+      'fixtures/SIMPLE_PROJECT/SIMPLE_TEST.atlas',
+    );
+    const sourceImages = path.resolve(
+      'fixtures/SIMPLE_PROJECT_NO_ATLAS/images',
+    );
+    const skelPath = path.join(tmpDir, 'SIMPLE_TEST.json');
+    const atlasPath = path.join(tmpDir, 'SIMPLE_TEST.atlas');
+    const imagesDir = path.join(tmpDir, 'images');
+    // Copy JSON.
+    fs.copyFileSync(sourceFixture, skelPath);
+    // Copy a real .atlas file (any valid one works — its presence is the test).
+    fs.copyFileSync(sourceAtlas, atlasPath);
+    // Copy the per-region images.
+    fs.mkdirSync(imagesDir, { recursive: true });
+    for (const png of fs.readdirSync(sourceImages)) {
+      fs.copyFileSync(
+        path.join(sourceImages, png),
+        path.join(imagesDir, png),
+      );
+    }
+    try {
+      const result = loadSkeleton(skelPath, { loaderMode: 'atlas-less' });
+      expect(result.atlasPath).toBeNull(); //                              synthesis happened, NOT atlas read
+      // Provenance proves synthesis path was taken.
+      let pngHeaderCount = 0;
+      for (const dims of result.sourceDims.values()) {
+        if (dims.source === 'png-header') pngHeaderCount++;
+      }
+      expect(pngHeaderCount).toBeGreaterThanOrEqual(3);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
