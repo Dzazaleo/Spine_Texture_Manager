@@ -62,8 +62,8 @@ import {
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
-import { SearchBar } from '../components/SearchBar';
 import { computeExportDims } from '../lib/export-view.js';
+import { formatBytes } from '../lib/format-bytes';
 
 /**
  * Phase 9 Plan 03 — Threshold for switching from flat-table render to
@@ -136,17 +136,32 @@ export interface GlobalMaxRenderPanelProps {
   focusAttachmentName?: string | null;
   onFocusConsumed?: () => void;
   /**
-   * Phase 19 UI-01 + D-04 — interim OPTIONAL props for the lifted SearchBar
-   * query state. AppShell owns the source of truth (single sticky-bar
-   * SearchBar drives both panels). Plans 19-04 + 19-05 tighten these to
-   * REQUIRED when removing the panel-internal useState('') slots and
-   * removing the panel-internal <SearchBar> elements.
+   * Phase 19 UI-01 + D-04 — REQUIRED props for the lifted SearchBar query
+   * state (tightened from interim OPTIONAL set by Plan 19-03). AppShell owns
+   * the source of truth (single sticky-bar SearchBar drives both panels);
+   * the panel-internal useState('') slot and panel-internal SearchBar
+   * element are removed in Plan 19-04.
    */
-  query?: string;
-  onQueryChange?: (q: string) => void;
+  query: string;
+  onQueryChange: (q: string) => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
+
+/**
+ * Phase 19 UI-02 + D-06 — Row state predicate. Drives the row left-accent
+ * bar (UI-SPEC §5) and the tinted ratio cell. The "ratio" the spec refers
+ * to is the effective render scale (1.0× = source size, < 1.0× = under-
+ * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
+ */
+type RowState = 'under' | 'over' | 'unused' | 'neutral';
+
+function rowState(peakRatio: number, isUnused: boolean): RowState {
+  if (isUnused) return 'unused';
+  if (peakRatio < 1.0) return 'under';
+  if (peakRatio > 1.0) return 'over';
+  return 'neutral';
+}
 
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */
@@ -311,6 +326,11 @@ interface RowProps {
    * undefined and the row sits at its natural position.
    */
   style?: CSSProperties;
+  /**
+   * Phase 19 UI-02 + D-06 — row state for left-accent bar + tinted ratio
+   * cell. Computed per-row in the parent via rowState(effectiveScale, isUnused).
+   */
+  state: RowState;
 }
 
 function Row({
@@ -326,6 +346,7 @@ function Row({
   isFlashing,
   registerRef,
   style,
+  state,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -368,6 +389,21 @@ function Row({
         isFlashing && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
       )}
     >
+      {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
+          Mirrors the existing banner pattern at AppShell.tsx:1227 / 1258.
+          clsx with literal-class branches per Tailwind v4 discipline. */}
+      <td className="w-1 p-0">
+        <span
+          className={clsx(
+            'inline-block w-1 h-full',
+            state === 'under' && 'bg-success',
+            state === 'over' && 'bg-warning',
+            state === 'unused' && 'bg-danger',
+            state === 'neutral' && 'bg-transparent',
+          )}
+          aria-hidden="true"
+        />
+      </td>
       <td className="py-2 px-3">
         {/* Wrapping label: onClick captures shiftKey for range selection (mouse-only).
             The nested <input> onChange fires on plain click AND on Space/Enter keyboard
@@ -400,10 +436,18 @@ function Row({
       >
         {`${row.effExportW}×${row.effExportH}`}
       </td>
+      {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
+          trumps the prior override-aware text-accent here per the deliberate
+          D-06 visual unification (the override percent badge below still
+          surfaces the override signal). clsx literal branches per Tailwind v4
+          discipline (no template-string interpolation). */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
-          row.override !== undefined ? 'text-accent' : 'text-fg',
+          state === 'under' && 'bg-success/10 text-success',
+          state === 'over' && 'bg-warning/10 text-warning',
+          state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'neutral' && 'text-fg',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
@@ -483,14 +527,17 @@ export function GlobalMaxRenderPanel({
   onOpenOverrideDialog,
   focusAttachmentName,
   onFocusConsumed,
+  query,
+  onQueryChange,
 }: GlobalMaxRenderPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
   const overridesMap: ReadonlyMap<string, number> = overrides ?? EMPTY_OVERRIDES;
   const openDialog = onOpenOverrideDialog ?? NOOP_OPEN_DIALOG;
 
-  // State: plain useState per D-32 (no Zustand / Jotai / Context).
-  const [query, setQuery] = useState('');
+  // Phase 19 UI-01 + D-04 — query state lifted to AppShell (single sticky-bar
+  // SearchBar drives the panel via props.query + props.onQueryChange).
+  // Panel-internal useState('') slot REMOVED in Plan 19-04.
   // Gap-fix C (human-verify 2026-04-24): default sort is (attachmentName, asc)
   // so the just-edited row stays visible in a long list. Supersedes the
   // Phase 2 D-29 default (peakScale desc).
@@ -565,6 +612,23 @@ export function GlobalMaxRenderPanel({
   // so a nullish-coalesce to [] is required before .slice/.filter and before
   // the .length guard in the render block below.
   const unusedAttachments = summary.unusedAttachments ?? [];
+  // Phase 19 UI-02 + D-06 — set of unused attachment names for O(1) lookup
+  // when computing per-row state (rowState predicate). Names come from the
+  // same IPC field that drives the unused-section table below.
+  const unusedNameSet = useMemo(
+    () => new Set(unusedAttachments.map((u) => u.attachmentName)),
+    [unusedAttachments],
+  );
+  // Phase 19 UI-04 + D-13/D-14/D-15 — aggregate on-disk bytes across unused
+  // rows. Uses (u.bytesOnDisk ?? 0) fallback because the field is OPTIONAL
+  // on UnusedAttachment per Plan 19-01 (orchestrator's revision-pass lock —
+  // bytesOnDisk?: number on the interface; src/main/summary.ts is the sole
+  // writer). When every row is 0 (atlas-packed projects per D-15) the
+  // callout falls back to count-only copy.
+  const aggregateBytes = unusedAttachments.reduce(
+    (acc, u) => acc + (u.bytesOnDisk ?? 0),
+    0,
+  );
   const filteredUnused = useMemo(
     () => {
       const q = query.trim().toLowerCase();
@@ -713,9 +777,16 @@ export function GlobalMaxRenderPanel({
 
   return (
     <div className="w-full max-w-6xl mx-auto p-8">
-      <header className="mb-4 flex items-center gap-4">
-        <SearchBar value={query} onChange={setQuery} />
-        <span className="text-fg-muted font-mono text-sm ml-auto">
+      <section className="border border-border rounded-md bg-panel p-4 mb-4">
+      <header className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
+        <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5 text-fg">
+          <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
+            <rect x="2" y="6" width="16" height="8" rx="1" />
+            <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3" />
+          </svg>
+        </span>
+        <span>Global Max Render Scale</span>
+        <span className="text-fg-muted font-mono text-sm font-normal ml-auto">
           {selected.size} selected / {sorted.length} total
         </span>
       </header>
@@ -728,12 +799,24 @@ export function GlobalMaxRenderPanel({
       {unusedAttachments.length > 0 && (
         <section className="mb-6 border-b border-border pb-4" aria-label="Unused attachments">
           <header className="flex items-center gap-2 mb-2 text-danger font-mono text-sm font-semibold">
-            <span aria-hidden="true">⚠</span>
-            <span>
-              {filteredUnused.length === 1
-                ? '1 unused attachment'
-                : `${filteredUnused.length} unused attachments`}
+            <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5">
+              <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
+                <path d="M10 3 L18 16 L2 16 Z" />
+                <path d="M10 8 v4 M10 14.5 v0.01" />
+              </svg>
             </span>
+            {aggregateBytes > 0 ? (
+              <span className="text-fg-muted font-mono">
+                <span className="font-semibold text-fg">{formatBytes(aggregateBytes)}</span>
+                {' '}potential savings
+              </span>
+            ) : (
+              <span className="text-fg-muted font-mono">
+                {filteredUnused.length === 1
+                  ? '1 unused attachment'
+                  : `${filteredUnused.length} unused attachments`}
+              </span>
+            )}
           </header>
           <table className="w-full border-collapse">
             <thead>
@@ -789,6 +872,7 @@ export function GlobalMaxRenderPanel({
             <table className="w-full border-collapse">
               <thead className="bg-panel sticky top-0 z-10">
                 <tr>
+                  <th className="w-1 p-0" aria-label="Row state indicator" />
                   <th scope="col" className="py-2 px-3 border-b border-border w-8">
                     <SelectAllCheckbox
                       visibleKeys={visibleKeys}
@@ -854,6 +938,10 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
+                  const state = rowState(
+                    row.effectiveScale,
+                    unusedNameSet.has(row.attachmentName),
+                  );
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -868,6 +956,7 @@ export function GlobalMaxRenderPanel({
                       selectedKeys={selectedAttachmentNames}
                       isFlashing={isFlashing === row.attachmentName}
                       registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                      state={state}
                       // Per RESEARCH §Q1: translate basis is the row's
                       // INITIAL position, not absolute scroll offset. The
                       // `idx * virtualRow.size` subtraction is documented
@@ -892,6 +981,7 @@ export function GlobalMaxRenderPanel({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-panel">
+              <th className="w-1 p-0" aria-label="Row state indicator" />
               <th scope="col" className="py-2 px-3 border-b border-border w-8">
                 <SelectAllCheckbox
                   visibleKeys={visibleKeys}
@@ -957,33 +1047,41 @@ export function GlobalMaxRenderPanel({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-fg-muted font-mono text-sm text-center py-8">
+                <td colSpan={9} className="text-fg-muted font-mono text-sm text-center py-8">
                   {query.trim() !== ''
                     ? 'No attachments match "' + query + '"'
                     : 'No attachments'}
                 </td>
               </tr>
             )}
-            {sorted.map((row) => (
-              <Row
-                key={row.attachmentKey}
-                row={row}
-                query={query}
-                checked={selected.has(row.attachmentKey)}
-                onToggle={handleToggleRow}
-                onRangeToggle={handleRangeToggle}
-                suppressNextChangeRef={suppressNextChangeRef}
-                onJumpToAnimation={onJumpToAnimation}
-                onOpenOverrideDialog={openDialog}
-                selectedKeys={selectedAttachmentNames}
-                /* Phase 7 D-130 NEW: */
-                isFlashing={isFlashing === row.attachmentName}
-                registerRef={(el) => registerRowRef(row.attachmentName, el)}
-              />
-            ))}
+            {sorted.map((row) => {
+              const state = rowState(
+                row.effectiveScale,
+                unusedNameSet.has(row.attachmentName),
+              );
+              return (
+                <Row
+                  key={row.attachmentKey}
+                  row={row}
+                  query={query}
+                  checked={selected.has(row.attachmentKey)}
+                  onToggle={handleToggleRow}
+                  onRangeToggle={handleRangeToggle}
+                  suppressNextChangeRef={suppressNextChangeRef}
+                  onJumpToAnimation={onJumpToAnimation}
+                  onOpenOverrideDialog={openDialog}
+                  selectedKeys={selectedAttachmentNames}
+                  /* Phase 7 D-130 NEW: */
+                  isFlashing={isFlashing === row.attachmentName}
+                  registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                  state={state}
+                />
+              );
+            })}
           </tbody>
         </table>
       )}
+      </section>
     </div>
   );
 }
