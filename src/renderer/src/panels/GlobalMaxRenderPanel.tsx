@@ -62,8 +62,8 @@ import {
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
-import { SearchBar } from '../components/SearchBar';
 import { computeExportDims } from '../lib/export-view.js';
+import { formatBytes } from '../lib/format-bytes';
 
 /**
  * Phase 9 Plan 03 — Threshold for switching from flat-table render to
@@ -136,14 +136,14 @@ export interface GlobalMaxRenderPanelProps {
   focusAttachmentName?: string | null;
   onFocusConsumed?: () => void;
   /**
-   * Phase 19 UI-01 + D-04 — interim OPTIONAL props for the lifted SearchBar
-   * query state. AppShell owns the source of truth (single sticky-bar
-   * SearchBar drives both panels). Plans 19-04 + 19-05 tighten these to
-   * REQUIRED when removing the panel-internal useState('') slots and
-   * removing the panel-internal <SearchBar> elements.
+   * Phase 19 UI-01 + D-04 — REQUIRED props for the lifted SearchBar query
+   * state (tightened from interim OPTIONAL set by Plan 19-03). AppShell owns
+   * the source of truth (single sticky-bar SearchBar drives both panels);
+   * the panel-internal useState('') slot and panel-internal SearchBar
+   * element are removed in Plan 19-04.
    */
-  query?: string;
-  onQueryChange?: (q: string) => void;
+  query: string;
+  onQueryChange: (q: string) => void;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
@@ -483,14 +483,17 @@ export function GlobalMaxRenderPanel({
   onOpenOverrideDialog,
   focusAttachmentName,
   onFocusConsumed,
+  query,
+  onQueryChange,
 }: GlobalMaxRenderPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
   const overridesMap: ReadonlyMap<string, number> = overrides ?? EMPTY_OVERRIDES;
   const openDialog = onOpenOverrideDialog ?? NOOP_OPEN_DIALOG;
 
-  // State: plain useState per D-32 (no Zustand / Jotai / Context).
-  const [query, setQuery] = useState('');
+  // Phase 19 UI-01 + D-04 — query state lifted to AppShell (single sticky-bar
+  // SearchBar drives the panel via props.query + props.onQueryChange).
+  // Panel-internal useState('') slot REMOVED in Plan 19-04.
   // Gap-fix C (human-verify 2026-04-24): default sort is (attachmentName, asc)
   // so the just-edited row stays visible in a long list. Supersedes the
   // Phase 2 D-29 default (peakScale desc).
@@ -713,9 +716,16 @@ export function GlobalMaxRenderPanel({
 
   return (
     <div className="w-full max-w-6xl mx-auto p-8">
-      <header className="mb-4 flex items-center gap-4">
-        <SearchBar value={query} onChange={setQuery} />
-        <span className="text-fg-muted font-mono text-sm ml-auto">
+      <section className="border border-border rounded-md bg-panel p-4 mb-4">
+      <header className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
+        <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5 text-fg">
+          <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
+            <rect x="2" y="6" width="16" height="8" rx="1" />
+            <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3" />
+          </svg>
+        </span>
+        <span>Global Max Render Scale</span>
+        <span className="text-fg-muted font-mono text-sm font-normal ml-auto">
           {selected.size} selected / {sorted.length} total
         </span>
       </header>
@@ -984,6 +994,7 @@ export function GlobalMaxRenderPanel({
           </tbody>
         </table>
       )}
+      </section>
     </div>
   );
 }
