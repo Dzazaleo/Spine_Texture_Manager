@@ -69,6 +69,19 @@ export interface AtlasPreviewModalProps {
   overrides: ReadonlyMap<string, number>;
   onJumpToAttachment: (attachmentName: string) => void;
   onClose: () => void;
+  /**
+   * Phase 19 UI-03 + D-11/D-12 — interim OPTIONAL cross-nav handler. When
+   * present, the modal (Plan 19-07) will render a footer-LEFT outlined-
+   * secondary button that invokes `props.onClose()` THEN
+   * `props.onOpenOptimizeDialog()` (sequential mount per D-11; AppShell's
+   * onClickOptimize re-runs the full async output-picker + plan-builder
+   * flow — the user re-picks the output directory on cross-nav, acceptable
+   * phase-scope behaviour per orchestrator's revision-pass lock). Plan
+   * 19-03 pre-emptively adds the prop type definition + the AppShell-side
+   * binding `onOpenOptimizeDialog={onClickOptimize}`; Plan 19-07 will
+   * tighten to REQUIRED when adding the modal-side button.
+   */
+  onOpenOptimizeDialog?: () => void;
 }
 
 export function AtlasPreviewModal(props: AtlasPreviewModalProps) {

@@ -1361,6 +1361,7 @@ export function AppShell({
           onRunStart={() => setExportInFlight(true)}
           onRunEnd={() => setExportInFlight(false)}
           onConfirmStart={onConfirmStart}
+          onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}
         />
       )}
       {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
@@ -1390,6 +1391,7 @@ export function AppShell({
           overrides={overrides}
           onJumpToAttachment={onJumpToAttachment}
           onClose={() => setAtlasPreviewOpen(false)}
+          onOpenOptimizeDialog={onClickOptimize}
         />
       )}
       {/* Phase 9 Plan 06 — Settings dialog. Edit→Preferences (Plan 09-05)

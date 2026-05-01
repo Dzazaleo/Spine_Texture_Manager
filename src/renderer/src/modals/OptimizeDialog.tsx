@@ -77,6 +77,18 @@ export interface OptimizeDialogProps {
    * behaviour for any caller that has not yet adopted the new flow.
    */
   onConfirmStart?: () => Promise<{ proceed: boolean; overwrite?: boolean }>;
+  /**
+   * Phase 19 UI-03 + D-11/D-12 — interim OPTIONAL cross-nav handler. When
+   * present, the dialog (Plan 19-06) will render a footer-LEFT outlined-
+   * secondary button that invokes `props.onClose()` THEN
+   * `props.onOpenAtlasPreview()` (sequential mount per D-11; useFocusTrap
+   * cleanup runs on unmount before AtlasPreviewModal's mount calls its own
+   * trap — two distinct trap lifecycles, never co-existing). Plan 19-03
+   * pre-emptively adds the prop type definition + the AppShell-side
+   * binding `onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}`; Plan
+   * 19-06 will tighten to REQUIRED when adding the modal-side button.
+   */
+  onOpenAtlasPreview?: () => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
