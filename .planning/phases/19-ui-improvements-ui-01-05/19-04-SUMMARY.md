@@ -2,8 +2,8 @@
 phase: 19
 plan: 04
 subsystem: renderer-global-max-panel
-tags: [card-layout, row-coloring, mb-savings-callout, search-lift-completion, wave-4]
-status: in-progress-at-task-4-checkpoint
+tags: [card-layout, row-coloring, mb-savings-callout, search-lift-completion, wave-4, ui-04-dormant-pending-design-pivot]
+status: complete
 requires:
   - "Plan 19-01 — formatBytes helper + bytesOnDisk?: number on UnusedAttachment + --color-success/--color-warning Tailwind tokens"
   - "Plan 19-02 — main-side fs.statSync writer populating bytesOnDisk"
@@ -260,3 +260,41 @@ Verified commits exist on `worktree-agent-a506471690f72080d` branch:
 - FOUND: `c00c5e1` — feat(19-04): replace ⚠ glyph + add MB-savings callout (UI-04 + D-13/D-14/D-15)
 
 Tasks 1-3 self-check: PASSED.
+
+## Dev-Mode Smoke Approval
+
+**Date:** 2026-05-01
+**Result:** Approved with one verification deferred to Phase 21+
+
+User ran `npm run dev`, opened the Jokerman atlas-packed fixture, and visually verified:
+- Card wrapper around Global panel content — PASS
+- Ruler SVG section glyph left of `Global Max Render Scale` heading — PASS
+- Row state-color left bars + tinted ratio cells (green / warm-honey / transparent) — PASS
+- `⚠` Unicode glyph replaced with stroke-based SVG warning triangle in unused-attachments header — PASS
+- Sticky-bar SearchBar drives Global panel filtering, no panel-internal duplicate SearchBar — PASS
+- Query persists across Global ↔ Animation Breakdown tab switches — PASS
+
+**MB-savings callout (UI-04) — DORMANT pending design pivot.**
+
+The `X.XX MB potential savings` copy was implemented per plan but did not visually fire on the test project (Jokerman). Two compounding reasons:
+
+1. **Loader limitation:** the current loader at `src/core/loader.ts:257` builds `sourcePaths` by joining `path.dirname(skeletonPath) + '/images/' + regionName + '.png'`. All bundled fixtures (Jokerman, Girl, SIMPLE_PROJECT, EXPORT_PROJECT, SPINE_3_8_TEST) are atlas-packed — regions live inside the atlas page PNGs, not as individual per-region files in an `images/` sibling. The app does not currently support `.json + images/` projects (no atlas) — that is the planned scope of Phase 21 (SEED-001 atlas-less mode). With today's loader, every project triggers the D-15 `bytesOnDisk = 0 → count-only fallback`.
+
+2. **Design pivot (user, 2026-05-01):** the unused-attachment MB-savings metric is the *wrong* metric. Animators intentionally exclude attachments from export — those bytes are not "savings." The valuable savings metric is **post-optimization atlas pixel-area savings** (analogous to the old 3.8 app's `Saving est. 77.7% pixels` shown inside OptimizeDialog), which belongs in OptimizeDialog (Wave 5+ territory), NOT in the Global panel unused-attachment callout.
+
+**Disposition for Phase 19:** Code stays as-shipped — the `(u.bytesOnDisk ?? 0)` reader is correct plumbing and will start producing valid totals automatically when Phase 21's per-region loader lands. We do NOT remove the callout in Phase 19 because the unused-attachment count-only fallback (`N unused attachment(s)`) is unchanged from the prior shipped UX and remains useful as a count indicator.
+
+**Follow-up captured for v1.3 / Phase 21+:**
+- Decide whether to KEEP the unused-attachment count callout (informational) or REMOVE it entirely from the Global panel.
+- Add a true post-optimization atlas-savings report to OptimizeDialog (% pixels saved + before/after byte totals), modeled on the old 3.8 app's `Saving est. X.X% pixels` chip visible in the user's reference screenshot.
+- This requires Phase 21 (atlas-less loader, so bytesOnDisk has real values) AND a post-generation report path inside OptimizeDialog.
+
+## Self-Check: PASSED
+
+All four commits verified on main after worktree merge:
+- 3d42e42 — feat(19-04): wrap Global panel in card + ruler section icon + remove internal SearchBar + tighten query props to REQUIRED
+- 70b7017 — feat(19-04): add row state-color bar + tinted ratio cell (D-06)
+- c00c5e1 — feat(19-04): replace ⚠ glyph + add MB-savings callout (UI-04 + D-13/D-14/D-15)
+- ba6a3ed — docs(19-04): in-progress summary at Task 4 checkpoint
+
+Plan 19-04 complete (visible UI changes verified; UI-04 MB-savings dormant pending Phase 21 + design pivot).

@@ -3,7 +3,7 @@ phase: 19
 plan: 05
 subsystem: renderer-animation-breakdown-panel
 tags: [card-section-icon, row-coloring, search-lift-completion, wave-4]
-status: in-progress-at-task-3-checkpoint
+status: complete
 requires:
   - "Plan 19-01 — --color-success / --color-warning Tailwind tokens (independent of this plan; Tailwind utilities consumed via clsx literal branches)"
   - "Plan 19-03 — lifted query state in AppShell + interim OPTIONAL panel-prop posture (query?: string + onQueryChange?: (q: string) => void) + sticky-bar SearchBar wiring"
@@ -215,3 +215,26 @@ Verified commits exist on `worktree-agent-ae8a3f30ec3ad8936` branch:
 - FOUND: `1b30366` — feat(19-05): add row state-color bar + tinted ratio cell (D-06)
 
 Tasks 1-2 self-check: PASSED.
+
+## Dev-Mode Smoke Approval
+
+**Date:** 2026-05-01
+**Result:** Approved
+
+User ran `npm run dev`, opened the Jokerman fixture, switched to the Animation Breakdown tab, and visually verified:
+- Each AnimationCard collapsed-card header shows: caret → play/film SVG glyph (rounded square + right-pointing triangle) → animation name → count label — PASS
+- Expanded rows show state-color left bars + tinted ratio cells (green when scale < 1.0×, warm-honey when > 1.0×, transparent when = 1.0×) — PASS
+- No duplicate SearchBar inside the panel; only the `Animation Breakdown` `<h2>` heading is visible — PASS
+- Sticky-bar SearchBar (from Plan 19-03) filters rows across all AnimationCards — PASS
+- Query persists across Global ↔ Animation Breakdown tab switches — PASS (this closes the Wave 3 step-10 regression)
+
+**Cross-cutting Wave 3 step-10 regression — RESOLVED.** Removing the per-panel `useState('')` slots and the per-panel `<SearchBar>` elements (in both Plans 19-04 and 19-05), plus tightening `query?: string` → `query: string` and `onQueryChange?: (q: string) => void` → `onQueryChange: (q: string) => void` on both panel prop interfaces, makes the AppShell-lifted `query` state the single source of truth that both panels consume via `props.query`.
+
+## Self-Check: PASSED
+
+All three commits verified on main after worktree merge:
+- af761b2 — feat(19-05): add play/film section glyph + remove internal SearchBar + tighten query props to REQUIRED
+- 1b30366 — feat(19-05): add row state-color bar + tinted ratio cell (D-06)
+- 0a289cd — docs(19-05): in-progress summary at Task 3 checkpoint
+
+Plan 19-05 complete.
