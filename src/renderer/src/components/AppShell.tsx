@@ -49,6 +49,7 @@ import type {
   MaterializedProject,
   SaveResponse,
 } from '../../../shared/types.js';
+import { DEFAULT_DOCUMENTATION } from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { SearchBar } from './SearchBar';
@@ -592,6 +593,14 @@ export function AppShell({
       // D-91 default; Phase 9 hoists actual panel sort state.
       sortColumn: 'attachmentName',
       sortDir: 'asc',
+      // Phase 20 Plan 01 D-01 — documentation slot now part of the editable
+      // session. Plan 20-02 hoists actual documentation state into AppShell
+      // (DocumentationBuilderDialog drives the value via setDocumentation).
+      // For Plan 01's contract scope, default to the empty 6-key shape so the
+      // serializer always writes a known-good Documentation; existing Phase
+      // 8-era files that load with `documentation: {}` already back-fill to
+      // DEFAULT_DOCUMENTATION through materializeProjectFile.
+      documentation: DEFAULT_DOCUMENTATION,
     }),
     [summary.skeletonPath, summary.atlasPath, overrides, samplingHzLocal],
   );

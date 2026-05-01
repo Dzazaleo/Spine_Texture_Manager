@@ -13,6 +13,7 @@ import {
   handleProjectOpenFromPath,
 } from '../../src/main/project-io.js';
 import type { AppSessionState } from '../../src/shared/types.js';
+import { DEFAULT_DOCUMENTATION } from '../../src/core/documentation.js';
 
 // Phase 8.2 Plan 03 — extended electron mock to satisfy `src/main/recent.ts`'s
 // module-load `app.getPath('userData')` call. Plan 03 wires addRecent into
@@ -79,6 +80,8 @@ const baseState: AppSessionState = {
   lastOutDir: null,
   sortColumn: 'attachmentName',
   sortDir: 'asc',
+  // Phase 20 D-01 — documentation slot now part of the editable session.
+  documentation: DEFAULT_DOCUMENTATION,
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
@@ -92,7 +95,8 @@ describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
     expect(parsed.version).toBe(1);
     expect(parsed.skeletonPath).toBeDefined();
     expect(parsed.overrides).toEqual({ CIRCLE: 50 });
-    expect(parsed.documentation).toEqual({});
+    // Phase 20 D-01 — serializer now writes state.documentation (was empty {}).
+    expect(parsed.documentation).toEqual(DEFAULT_DOCUMENTATION);
     expect(parsed.samplingHz).toBe(120);
     expect(parsed.sortColumn).toBe('attachmentName');
   });

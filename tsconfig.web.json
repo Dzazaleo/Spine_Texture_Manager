@@ -5,9 +5,19 @@
     "src/renderer/src/**/*.tsx",
     "src/renderer/src/env.d.ts",
     "src/preload/index.d.ts",
-    "src/shared/**/*.ts"
+    "src/shared/**/*.ts",
+    "src/core/documentation.ts"
   ],
-  "exclude": ["node_modules", "dist", "out", "release", "temp", "coverage", "src/core/**"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out",
+    "release",
+    "temp",
+    "coverage",
+    "src/core/!(documentation).ts",
+    "src/core/!(documentation)/**"
+  ],
   "compilerOptions": {
     "composite": true,
     "noEmit": true,

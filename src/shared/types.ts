@@ -16,6 +16,25 @@
  * These interfaces erase at compile time. No runtime code lives in this file.
  */
 
+// Phase 20 D-01 — re-export the Documentation types + drift helper through
+// the shared/types boundary so the renderer (which must NOT import from
+// src/core/* directly per arch.spec.ts:19-34) can pull these through here.
+import type { Documentation } from '../core/documentation.js';
+export type {
+  Documentation,
+  AnimationTrackEntry,
+  EventDescriptionEntry,
+  BoneDescriptionEntry,
+  SkinDescriptionEntry,
+} from '../core/documentation.js';
+// Phase 20 D-01 + drift policy — runtime re-exports so the renderer can
+// access the constants/functions through the shared/types boundary.
+export {
+  DEFAULT_DOCUMENTATION,
+  intersectDocumentationWithSummary,
+  validateDocumentation,
+} from '../core/documentation.js';
+
 /**
  * Flat, serializable row consumed by the renderer panel and (in raw-number
  * form) by the CLI. Produced by `src/core/analyzer.ts` from the sampler's
@@ -474,6 +493,12 @@ export interface SkeletonSummary {
   attachments: { count: number; byType: Record<string, number> };
   skins: { count: number; names: string[] };
   animations: { count: number; names: string[] };
+  /**
+   * Phase 20 D-09 — auto-discovery source for the documentation events
+   * sub-section. Populated from `skeletonData.events` (spine-core EventData[])
+   * in src/main/summary.ts.
+   */
+  events: { count: number; names: string[] };
   /** Sorted by (skinName, slotName, attachmentName) — matches CLI byte-for-byte. */
   peaks: DisplayRow[];
   /** Phase 3: static-pose card first (cardId === 'setup-pose'), then one card per animation in JSON order. */
@@ -647,15 +672,17 @@ export interface ProjectFileV1 {
   lastOutDir: string | null;
   sortColumn: string | null;
   sortDir: 'asc' | 'desc' | null;
-  documentation: object;
+  // Phase 20 D-01 — typed via core/documentation.ts (was reserved object in Phase 8 D-148).
+  documentation: Documentation;
 }
 
 export type ProjectFile = ProjectFileV1;
 
 /**
- * Phase 8 — the renderer-side state snapshot AppShell hands to saveProject /
- * saveProjectAs. Same shape as ProjectFileV1 minus `version` and `documentation`
- * (those are stamped by serializeProjectFile in src/core/project-file.ts).
+ * AppSessionState — the editable session shape AppShell hands to saveProject /
+ * saveProjectAs. Same as ProjectFileV1 minus `version` (stamped by
+ * serializeProjectFile in src/core/project-file.ts). `documentation` is now
+ * part of the editable session per Phase 20 D-01 (was reserved-only in Phase 8).
  */
 export interface AppSessionState {
   skeletonPath: string;
@@ -666,6 +693,8 @@ export interface AppSessionState {
   lastOutDir: string | null;
   sortColumn: string | null;
   sortDir: 'asc' | 'desc' | null;
+  // Phase 20 D-01 — drives serializeProjectFile :254
+  documentation: Documentation;
 }
 
 /**

@@ -42,6 +42,11 @@ import type {
   AppSessionState,
   SkeletonSummary,
 } from '../shared/types.js';
+import {
+  validateDocumentation,
+  DEFAULT_DOCUMENTATION,
+  type Documentation,
+} from './documentation.js';
 
 /**
  * Discriminated envelope for validateProjectFile.
@@ -132,6 +137,22 @@ export function validateProjectFile(input: unknown): ValidateResult {
       error: { kind: 'invalid-shape', message: 'overrides is not an object' },
     };
   }
+  // Phase 20 D-148 forward-compat — Phase 8-era .stmproj files have either no
+  // `documentation` key OR `documentation: {}` (D-148 reserved slot). Pre-massage
+  // so the strict per-field validator below sees a known-shape default. Without
+  // this pre-massage the validator REJECTS Phase 8-era files at the entry point
+  // and the materializer back-fill never runs.
+  if (
+    obj.documentation == null ||
+    (typeof obj.documentation === 'object' &&
+      !Array.isArray(obj.documentation) &&
+      Object.keys(obj.documentation as object).length === 0)
+  ) {
+    obj.documentation = { ...DEFAULT_DOCUMENTATION };
+  }
+
+  // Per-Phase-8 invariant retained: documentation must still be an object after
+  // the pre-massage (rejects null, primitives, arrays).
   if (
     !obj.documentation ||
     typeof obj.documentation !== 'object' ||
@@ -141,6 +162,13 @@ export function validateProjectFile(input: unknown): ValidateResult {
       ok: false,
       error: { kind: 'invalid-shape', message: 'documentation is not an object' },
     };
+  }
+
+  // Phase 20 D-04 — per-field validation of the documentation slot.
+  // Reuses 'invalid-shape' kind (no 9th SerializableError).
+  const docResult = validateDocumentation(obj.documentation);
+  if (!docResult.ok) {
+    return { ok: false, error: docResult.error };
   }
 
   // Optional/nullable fields — null OR matching type both permitted.
@@ -251,7 +279,9 @@ export function serializeProjectFile(
     lastOutDir: state.lastOutDir, // absolute per D-145 — not relativized
     sortColumn: state.sortColumn,
     sortDir: state.sortDir,
-    documentation: {}, // D-148 reserved slot
+    // Phase 20 D-01 — was `documentation: {}` reserved slot in Phase 8 D-148.
+    // Now writes the full 6-key shape from AppSessionState.documentation.
+    documentation: state.documentation,
   };
 }
 
@@ -289,8 +319,12 @@ export interface PartialMaterialized {
   sortColumn: string | null;
   /** Persisted sort direction. */
   sortDir: 'asc' | 'desc' | null;
-  /** Opaque documentation slot (D-148) — preserved verbatim from disk. */
-  documentation: object;
+  /**
+   * Phase 20 D-01 — typed Documentation shape. Materializer back-fills
+   * DEFAULT_DOCUMENTATION for Phase 8-era empty {} slots so consumers can
+   * trust the full 6-key shape.
+   */
+  documentation: Documentation;
   /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
@@ -332,7 +366,15 @@ export function materializeProjectFile(
     lastOutDir: file.lastOutDir,
     sortColumn: file.sortColumn,
     sortDir: file.sortDir,
-    documentation: file.documentation,
+    // Phase 20 — forward-compat default (defence in depth). Phase 8-era
+    // .stmproj files have documentation:{}; back-fill missing keys so the
+    // materialized AppSessionState is always the full 6-key shape the
+    // renderer expects. The validator pre-massage already substitutes
+    // DEFAULT_DOCUMENTATION for empty/missing slots, so this spread is
+    // redundant for the standard Open path — but if any future code path
+    // constructs a ProjectFileV1 literal that bypasses the validator, the
+    // materializer back-fill keeps the renderer safe.
+    documentation: { ...DEFAULT_DOCUMENTATION, ...file.documentation },
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };

@@ -127,6 +127,13 @@ export function buildSummary(
       count: skeletonData.animations.length,
       names: skeletonData.animations.map((a) => a.name),
     },
+    // Phase 20 D-09 — auto-discovery source for the documentation events
+    // sub-section. Reads from spine-core SkeletonData.events: EventData[]
+    // (verified in node_modules/@esotericsoftware/spine-core/dist/SkeletonData.d.ts:55-56).
+    events: {
+      count: skeletonData.events.length,
+      names: skeletonData.events.map((e) => e.name),
+    },
     peaks: peaksArray,
     animationBreakdown,
     unusedAttachments,
