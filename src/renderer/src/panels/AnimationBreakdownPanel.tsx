@@ -150,6 +150,28 @@ type EnrichedCard = Omit<AnimationBreakdown, 'rows'> & {
 
 // ----- Module-top pure helpers -------------------------------------------
 
+/**
+ * Phase 19 UI-02 + D-06 — Row state predicate. Drives the row left-accent
+ * bar (UI-SPEC §5) and the tinted ratio cell. The "ratio" the spec refers
+ * to is the effective render scale (1.0× = source size, < 1.0× = under-
+ * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
+ *
+ * Per UI-SPEC §5: AnimationBreakdownPanel rows are PER-ANIMATION peak rows.
+ * The "unused" state is tracked on the global summary level (not per-
+ * animation), so `isUnused` is always false here — under/over/neutral cover
+ * the typical Animation Breakdown usage. This predicate is co-located here
+ * (mirroring the inline duplication in GlobalMaxRenderPanel.tsx — Plan 19-04
+ * §"Hand-off Notes" allows the duplication; renderer-tree-only, two callsites).
+ */
+type RowState = 'under' | 'over' | 'unused' | 'neutral';
+
+function rowState(peakRatio: number, isUnused: boolean): RowState {
+  if (isUnused) return 'unused';
+  if (peakRatio < 1.0) return 'under';
+  if (peakRatio > 1.0) return 'over';
+  return 'neutral';
+}
+
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */
 const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
@@ -460,7 +482,7 @@ function AnimationCard({
               <tbody>
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="text-fg-muted font-mono text-sm text-center py-8"
                   >
                     No assets referenced
@@ -503,6 +525,15 @@ function BreakdownTableHead() {
   return (
     <thead className="bg-panel sticky top-0 z-10">
       <tr>
+        {/* Phase 19 UI-02 + D-06 — empty cell aligning with the per-row
+            state-color left-accent bar (`<td className="w-1 p-0">`). The
+            aria-label keeps the column count consistent with the body
+            without naming a visible header. */}
+        <th
+          scope="col"
+          className="w-1 p-0 border-b border-border"
+          aria-label="Row state indicator"
+        />
         <th
           scope="col"
           className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left"
@@ -563,6 +594,14 @@ interface BreakdownRowItemProps {
   row: EnrichedBreakdownRow;
   query: string;
   onOpenOverrideDialog: (row: BreakdownRow) => void;
+  /**
+   * Phase 19 UI-02 + D-06 — row state derived from rowState(effectiveScale,
+   * isUnused). Drives the left-accent bar `<td>` color + the tinted ratio
+   * cell. Computed per-row in the parent (BreakdownTable) so the
+   * table-level isUnused predicate (always false in this panel — see
+   * RowState docblock above) feeds in once.
+   */
+  state: RowState;
   style?: CSSProperties;
   measureRef?: (el: HTMLTableRowElement | null) => void;
   dataIndex?: number;
@@ -572,6 +611,7 @@ function BreakdownRowItem({
   row,
   query,
   onOpenOverrideDialog,
+  state,
   style,
   measureRef,
   dataIndex,
@@ -583,6 +623,22 @@ function BreakdownRowItem({
       style={style}
       className="border-b border-border hover:bg-accent/5"
     >
+      {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
+          Mirrors the existing banner pattern at AppShell.tsx:1227 / 1258 +
+          GlobalMaxRenderPanel.tsx (Plan 19-04). clsx with literal-class
+          branches per Tailwind v4 discipline (Pitfall 3 + 8). */}
+      <td className="w-1 p-0">
+        <span
+          className={clsx(
+            'inline-block w-1 h-full',
+            state === 'under' && 'bg-success',
+            state === 'over' && 'bg-warning',
+            state === 'unused' && 'bg-danger',
+            state === 'neutral' && 'bg-transparent',
+          )}
+          aria-hidden="true"
+        />
+      </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
         {highlightMatch(row.attachmentName, query)}
       </td>
@@ -595,10 +651,18 @@ function BreakdownRowItem({
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">
         {row.originalSizeLabel}
       </td>
+      {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
+          State color trumps the prior override-aware text-accent here per
+          the deliberate D-06 visual unification (the override percent badge
+          below still surfaces the override signal). clsx literal branches
+          per Tailwind v4 discipline (no template-string interpolation). */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
-          row.override !== undefined ? 'text-accent' : 'text-fg',
+          state === 'under' && 'bg-success/10 text-success',
+          state === 'over' && 'bg-warning/10 text-warning',
+          state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'neutral' && 'text-fg',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
@@ -687,14 +751,22 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
       <table className="w-full border-collapse">
         <BreakdownTableHead />
         <tbody>
-          {rows.map((row) => (
-            <BreakdownRowItem
-              key={row.attachmentKey}
-              row={row}
-              query={query}
-              onOpenOverrideDialog={onOpenOverrideDialog}
-            />
-          ))}
+          {rows.map((row) => {
+            // Phase 19 UI-02 + D-06 — per-row state. AnimationBreakdownPanel
+            // rows do not surface the global Unused Assets membership (that
+            // lives on the global summary; per-animation rows only carry
+            // peak data), so isUnused is always false here.
+            const state = rowState(row.effectiveScale, false);
+            return (
+              <BreakdownRowItem
+                key={row.attachmentKey}
+                row={row}
+                query={query}
+                onOpenOverrideDialog={onOpenOverrideDialog}
+                state={state}
+              />
+            );
+          })}
         </tbody>
       </table>
     );
@@ -724,12 +796,18 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
           <tbody>
             {virtualizer.getVirtualItems().map((virtualRow, idx) => {
               const row = rows[virtualRow.index];
+              // Phase 19 UI-02 + D-06 — per-row state. AnimationBreakdownPanel
+              // rows do not surface the global Unused Assets membership (that
+              // lives on the global summary; per-animation rows only carry
+              // peak data), so isUnused is always false here.
+              const state = rowState(row.effectiveScale, false);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}
                   row={row}
                   query={query}
                   onOpenOverrideDialog={onOpenOverrideDialog}
+                  state={state}
                   // Per RESEARCH §Q1: translate basis is the row's INITIAL
                   // position, not absolute scroll offset. The
                   // (idx * virtualRow.size) subtraction is REQUIRED for
