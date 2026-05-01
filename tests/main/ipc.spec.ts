@@ -104,9 +104,30 @@ vi.mock('../../src/main/auto-update.js', () => ({
   quitAndInstallUpdate: vi.fn(),
 }));
 
+// Phase 21 Plan 02 — mock src/core/loader.js so the MissingImagesDirError
+// IPC envelope routing test below can drive handleSkeletonLoad's catch
+// branch without needing the (not-yet-implemented) synthetic-atlas
+// synthesizer (Plan 04). loadSkeletonMock is a vi.fn so individual tests
+// can configure throw-vs-return; default impl is a stub that throws so
+// any unintended invocation fails loudly.
+const loadSkeletonMock = vi.hoisted(() =>
+  vi.fn(() => {
+    throw new Error('loadSkeleton mock not configured for this test');
+  }),
+);
+vi.mock('../../src/core/loader.js', () => ({
+  loadSkeleton: loadSkeletonMock,
+  // Re-export createStubTextureLoader and checkSpineVersion as no-ops in
+  // case any other consumer pulls them in transitively. Tests in this
+  // file do not exercise these surfaces.
+  createStubTextureLoader: vi.fn(),
+  checkSpineVersion: vi.fn(),
+}));
+
 // Import AFTER all vi.mock() blocks so module-load side effects (electron's
 // app.on, ipcMain.on, protocol.registerSchemesAsPrivileged) hit the mocks.
-import { registerIpcHandlers } from '../../src/main/ipc.js';
+import { registerIpcHandlers, handleSkeletonLoad } from '../../src/main/ipc.js';
+import { MissingImagesDirError } from '../../src/core/errors.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -385,5 +406,65 @@ describe('Phase 14 Plan 01 D-03 — update:request-pending', () => {
     expect(ipcMainHandleHandlers.has('update:download')).toBe(true);
     expect(ipcMainOnHandlers.has('update:dismiss')).toBe(true);
     expect(ipcMainOnHandlers.has('update:quit-and-install')).toBe(true);
+  });
+});
+
+/**
+ * Phase 21 Plan 02 (LOAD-01) — MissingImagesDirError IPC envelope routing.
+ *
+ * D-10: when the atlas-less synthesizer (Plan 04) cannot find an `images/`
+ * folder beside the .json (or finds it but every per-region PNG read fails),
+ * it throws MissingImagesDirError. The IPC forwarder in handleSkeletonLoad
+ * MUST route this through the typed envelope arm — `kind:
+ * 'MissingImagesDirError'` — so the renderer can show a typed error UI.
+ *
+ * Without the KNOWN_KINDS Set entry the catch-block falls through to the
+ * generic `kind: 'Unknown'` arm and the user sees a generic message.
+ *
+ * T-21-02-03 (spoofing): also asserts the .name discriminator wiring is
+ * intact — if the class accidentally sets a different .name, KNOWN_KINDS.has
+ * misses and routing degrades silently to 'Unknown'.
+ */
+describe('Phase 21 Plan 02 (LOAD-01) — MissingImagesDirError IPC envelope routing', () => {
+  it('forwards MissingImagesDirError as kind: MissingImagesDirError (not Unknown)', async () => {
+    // Drive the catch-branch directly: configure loadSkeleton mock to throw
+    // a MissingImagesDirError exactly as the synthesizer (Plan 04) will.
+    const err = new MissingImagesDirError(
+      '/path/to/images',
+      '/path/to/skeleton.json',
+      ['MISSING.png'],
+    );
+    loadSkeletonMock.mockImplementationOnce(() => {
+      throw err;
+    });
+
+    const resp = await handleSkeletonLoad('/path/to/skeleton.json');
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      // CORE assertion — KNOWN_KINDS Set must include 'MissingImagesDirError'
+      // so the routing produces the typed envelope arm; without the wiring
+      // this would be 'Unknown'.
+      expect(resp.error.kind).toBe('MissingImagesDirError');
+      // D-11 message contract — atlas-less mode + missing PNG list surfaced.
+      expect(resp.error.message).toContain('Atlas-less mode requires');
+      expect(resp.error.message).toContain('MISSING.png');
+      // T-01-02-02 — no stack trace leaked through the IPC envelope.
+      expect(resp.error.message).not.toContain('at ');
+      expect(resp.error.message).not.toContain('.ts:');
+    }
+  });
+
+  it('routing still produces kind: Unknown for non-typed errors (regression guard)', async () => {
+    // Negative case: a vanilla Error (NOT a SpineLoaderError subclass) must
+    // still fall through to the generic 'Unknown' arm. Confirms the new
+    // KNOWN_KINDS entry did not over-broaden the routing predicate.
+    loadSkeletonMock.mockImplementationOnce(() => {
+      throw new Error('synthetic non-typed failure');
+    });
+    const resp = await handleSkeletonLoad('/path/to/skeleton.json');
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      expect(resp.error.kind).toBe('Unknown');
+    }
   });
 });
