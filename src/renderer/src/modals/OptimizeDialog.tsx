@@ -355,56 +355,78 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
           />
         )}
 
-        <div className="flex gap-2 mt-6 justify-end">
-          {state === 'pre-flight' && (
-            <>
+        <div className="flex gap-2 mt-6 justify-between">
+          {/* Phase 19 UI-03 D-11 + D-12 — cross-nav to AtlasPreviewModal at
+              footer LEFT. Sequential mount: onClose() runs FIRST so the
+              focus-trap unmount-cleanup completes BEFORE AtlasPreviewModal's
+              mount installs its own trap (two distinct trap lifecycles, never
+              co-existing). Disabled predicate is plan.rows.length === 0 per
+              orchestrator's revision-pass lock — keeps OptimizeDialogProps
+              tight (no new `summary` prop needed). D-18 outlined-secondary
+              class string is byte-for-byte identical to AppShell.tsx:1165. */}
+          <button
+            type="button"
+            onClick={() => {
+              props.onClose();
+              props.onOpenAtlasPreview();
+            }}
+            disabled={props.plan.rows.length === 0}
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+          >
+            <span aria-hidden="true">→ </span>Atlas Preview
+          </button>
+          {/* Existing state-branched action cluster wrapped at RIGHT. */}
+          <div className="flex gap-2">
+            {state === 'pre-flight' && (
+              <>
+                <button
+                  type="button"
+                  onClick={props.onClose}
+                  className="border border-border rounded-md px-3 py-1 text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  ref={startBtnRef}
+                  type="button"
+                  onClick={onStart}
+                  disabled={total === 0}
+                  className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
+                >
+                  Start
+                </button>
+              </>
+            )}
+            {state === 'in-progress' && (
               <button
+                ref={cancelBtnRef}
                 type="button"
-                onClick={props.onClose}
+                onClick={onCancelInProgress}
                 className="border border-border rounded-md px-3 py-1 text-xs"
               >
                 Cancel
               </button>
-              <button
-                ref={startBtnRef}
-                type="button"
-                onClick={onStart}
-                disabled={total === 0}
-                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
-              >
-                Start
-              </button>
-            </>
-          )}
-          {state === 'in-progress' && (
-            <button
-              ref={cancelBtnRef}
-              type="button"
-              onClick={onCancelInProgress}
-              className="border border-border rounded-md px-3 py-1 text-xs"
-            >
-              Cancel
-            </button>
-          )}
-          {state === 'complete' && (
-            <>
-              <button
-                type="button"
-                onClick={onOpenOutputFolder}
-                className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
-              >
-                Open output folder
-              </button>
-              <button
-                ref={closeBtnRef}
-                type="button"
-                onClick={props.onClose}
-                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
-              >
-                Close
-              </button>
-            </>
-          )}
+            )}
+            {state === 'complete' && (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenOutputFolder}
+                  className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
+                >
+                  Open output folder
+                </button>
+                <button
+                  ref={closeBtnRef}
+                  type="button"
+                  onClick={props.onClose}
+                  className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+                >
+                  Close
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
