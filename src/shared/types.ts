@@ -168,6 +168,23 @@ export interface UnusedAttachment {
   sourceLabel: string;
   /** Preformatted comma-joined list of definedIn (e.g. "default, boy, girl"). */
   definedInLabel: string;
+  /**
+   * Phase 19 UI-04 (D-13) — On-disk byte size of the source PNG for this
+   * unused attachment. Populated main-side in summary.ts via fs.statSync
+   * against load.sourcePaths.get(attachmentName). Absent (or 0) when the
+   * source path is missing OR resolves to a shared atlas page rather than
+   * a per-region PNG (D-15 atlas-packed projects — unused regions in a
+   * shared atlas don't reduce file size unless the atlas is repacked,
+   * which Phase 6 Optimize doesn't do).
+   *
+   * OPTIONAL field (`?` modifier): src/core/usage.ts stays 100% untouched
+   * (Layer 3 invariant — core does no file I/O); summary.ts (allowed file
+   * I/O) is the SOLE writer. Renderer reads with `(u.bytesOnDisk ?? 0)`
+   * fallback. Absence ≡ 0.
+   *
+   * Primitive number — structuredClone-safe per file-top D-21 lock.
+   */
+  bytesOnDisk?: number;
 }
 
 /**
