@@ -1050,7 +1050,11 @@ export function AppShell({
     void (async () => {
       const resp = await window.api.resampleProject({
         skeletonPath: summary.skeletonPath,
-        atlasPath: summary.atlasPath,
+        // Phase 21 D-03: SkeletonSummary.atlasPath is now `string | null`; the
+        // resampleProject IPC contract expects `string | undefined`. Coerce
+        // null → undefined at this seam (project-io.ts:840 already routes
+        // undefined through cleanly per RESEARCH.md §Pitfall 8).
+        atlasPath: summary.atlasPath ?? undefined,
         samplingHz: samplingHzLocal,
         // Pitfall 3 boundary conversion: Map → Record at the IPC seam.
         overrides: Object.fromEntries(overrides),

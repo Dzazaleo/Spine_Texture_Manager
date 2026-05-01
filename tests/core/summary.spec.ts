@@ -49,7 +49,10 @@ describe('buildSummary (D-21, D-22)', () => {
     // carry an attachment named `SQUARE`); they fold to 3 DisplayRows.
     expect(s.peaks.length).toBe(3);
     expect(s.skeletonPath).toBe(FIXTURE);
-    expect(s.atlasPath.endsWith('SIMPLE_TEST.atlas')).toBe(true);
+    // Phase 21 D-03: SkeletonSummary.atlasPath is `string | null`; canonical-mode
+    // SIMPLE_TEST fixture must produce a non-null path (sibling .atlas exists).
+    expect(s.atlasPath).not.toBeNull();
+    expect(s.atlasPath!.endsWith('SIMPLE_TEST.atlas')).toBe(true);
     expect(s.elapsedMs).toBe(0);
     expect(s.attachments.count).toBeGreaterThan(0);
     expect(typeof s.attachments.byType).toBe('object');
