@@ -122,6 +122,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortColumn: 'attachmentName',
       sortDir: 'asc',
       documentation: DEFAULT_DOCUMENTATION,
+      loaderMode: 'auto',
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -137,6 +138,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
+      loaderMode: 'auto',
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -169,6 +171,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortColumn: null,
       sortDir: null,
       documentation: doc,
+      loaderMode: 'auto',
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const json = JSON.stringify(file);
@@ -194,6 +197,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortColumn: null,
       sortDir: null,
       documentation: {} as unknown as Documentation,
+      loaderMode: 'auto' as const,
     };
     const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
     expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -261,6 +265,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
+      loaderMode: 'auto',
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -296,8 +301,73 @@ describe('migrate (D-151)', () => {
       version: 1, skeletonPath: 'x.json', atlasPath: null, imagesDir: null,
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null, documentation: DEFAULT_DOCUMENTATION,
+      loaderMode: 'auto',
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
+  });
+});
+
+describe('Phase 21 — loaderMode (D-08)', () => {
+  it('validateProjectFile pre-massages missing loaderMode to "auto" (forward-compat for Phase 8/20-era files)', () => {
+    const legacy: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      // loaderMode INTENTIONALLY ABSENT (Phase 8/20-era shape)
+    };
+    const result = validateProjectFile(legacy);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).loaderMode).toBe('auto');
+    }
+  });
+
+  it('validateProjectFile rejects loaderMode values other than "auto"/"atlas-less"', () => {
+    const bad: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'packed', // invalid in Phase 21
+    };
+    const result = validateProjectFile(bad);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('invalid-shape');
+      expect(result.error.message).toMatch(/loaderMode/);
+    }
+  });
+
+  it('serialize → materialize round-trips loaderMode: "atlas-less" identically', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'atlas-less',
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.loaderMode).toBe('atlas-less');
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.loaderMode).toBe('atlas-less');
   });
 });
 

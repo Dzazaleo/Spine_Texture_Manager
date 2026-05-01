@@ -82,6 +82,9 @@ const baseState: AppSessionState = {
   sortDir: 'asc',
   // Phase 20 D-01 — documentation slot now part of the editable session.
   documentation: DEFAULT_DOCUMENTATION,
+  // Phase 21 D-08 — loaderMode default 'auto' (canonical mode); Task 4 wires
+  // resampleProject + recovery paths to thread this field.
+  loaderMode: 'auto',
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {

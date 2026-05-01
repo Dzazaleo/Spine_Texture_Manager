@@ -171,6 +171,20 @@ export function validateProjectFile(input: unknown): ValidateResult {
     return { ok: false, error: docResult.error };
   }
 
+  // Phase 21 D-08 forward-compat — Phase 8/20-era .stmproj files have no
+  // `loaderMode` field; default to 'auto' so legacy projects load through
+  // the canonical (atlas-by-default) path unchanged. Mirrors the Phase 20
+  // documentation pre-massage immediately above (RESEARCH.md §Pitfall 6).
+  if (obj.loaderMode === undefined) {
+    obj.loaderMode = 'auto';
+  }
+  if (obj.loaderMode !== 'auto' && obj.loaderMode !== 'atlas-less') {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: "loaderMode is not 'auto' | 'atlas-less'" },
+    };
+  }
+
   // Optional/nullable fields — null OR matching type both permitted.
   if (obj.atlasPath !== null && typeof obj.atlasPath !== 'string') {
     return {
@@ -282,6 +296,8 @@ export function serializeProjectFile(
     // Phase 20 D-01 — was `documentation: {}` reserved slot in Phase 8 D-148.
     // Now writes the full 6-key shape from AppSessionState.documentation.
     documentation: state.documentation,
+    // Phase 21 D-08 — per-project loader mode override.
+    loaderMode: state.loaderMode,
   };
 }
 
@@ -325,6 +341,12 @@ export interface PartialMaterialized {
    * trust the full 6-key shape.
    */
   documentation: Documentation;
+  /**
+   * Phase 21 D-08 — per-project loader mode. Defaulted to 'auto' by the
+   * validator pre-massage; back-fill in materializeProjectFile is defence-
+   * in-depth for any future code path that bypasses the validator.
+   */
+  loaderMode: 'auto' | 'atlas-less';
   /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
@@ -375,6 +397,10 @@ export function materializeProjectFile(
     // constructs a ProjectFileV1 literal that bypasses the validator, the
     // materializer back-fill keeps the renderer safe.
     documentation: { ...DEFAULT_DOCUMENTATION, ...file.documentation },
+    // Phase 21 D-08 — defence-in-depth fallback (validator pre-massage
+    // already substitutes 'auto', but defaults here too in case any
+    // future code path bypasses the validator).
+    loaderMode: file.loaderMode ?? 'auto',
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };
