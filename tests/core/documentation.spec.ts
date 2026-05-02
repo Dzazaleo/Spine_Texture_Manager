@@ -241,6 +241,10 @@ function makeSummary(
     events: { count: events.length, names: events },
     peaks: [],
     animationBreakdown: [],
+    // Phase 21 Plan 21-10 G-02 — required field on SkeletonSummary.
+    // Empty stub satisfies the contract for drift-helper tests that don't
+    // exercise the missing-PNG surface.
+    skippedAttachments: [],
     elapsedMs: 0,
     editorFps: 30,
   } as SkeletonSummary;
