@@ -17,17 +17,22 @@
  * typed error hierarchy, atlas auto-detect) into CI independently of downstream
  * modules.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { loadSkeleton } from '../../src/core/loader.js';
+import { readPngDims } from '../../src/core/png-header.js';
 import {
   AtlasNotFoundError,
   SkeletonJsonNotFoundError,
 } from '../../src/core/errors.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+const ATLAS_LESS_FIXTURE = path.resolve(
+  'fixtures/SIMPLE_PROJECT_NO_ATLAS/SIMPLE_TEST.json',
+);
+const EXPORT_FIXTURE = path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json');
 
 describe('loader (F1.1, F1.2, F1.4)', () => {
   it('F1.1+F1.2: loads the fixture and auto-detects sibling .atlas', () => {
@@ -362,6 +367,173 @@ describe('Phase 21 — atlas-less mode (LOAD-01 + ROADMAP success criterion #5)'
       }
       expect(pngHeaderCount).toBeGreaterThanOrEqual(3);
     } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('loader (DIMS-01 canonical-vs-actual dim mapping)', () => {
+  // Phase 22 Plan 22-02: walk parsedJson.skins[*].attachments to harvest
+  // canonical width/height per region (D-01 — JSON is unified canonical
+  // dims source for both atlas-less and canonical-atlas modes), and read
+  // PNG IHDR per-region for actual dims (Phase 21's readPngDims).
+
+  it('DIMS-01: canonical-atlas mode populates canonicalDimsByRegion from JSON skin attachments', () => {
+    const r = loadSkeleton(FIXTURE);
+    // SIMPLE_TEST.json default skin: SQUARE 1000×1000 (region), TRIANGLE
+    // 833×759 (region), CIRCLE 699×699 (mesh). PATH attachment is type=path
+    // and skipped by the type filter (per Phase 21 walkSyntheticRegionPaths
+    // template). SQUARE2 slot has type=region with att.path absent → keys to
+    // entry name 'SQUARE' which collides with SQUARE/SQUARE — last-write-wins
+    // is the locked behavior (canonical dims are PNG-property, not skin-variant).
+    expect(r.canonicalDimsByRegion.size).toBeGreaterThanOrEqual(3);
+    expect(r.canonicalDimsByRegion.get('SQUARE')).toEqual({
+      canonicalW: 1000,
+      canonicalH: 1000,
+    });
+    expect(r.canonicalDimsByRegion.get('TRIANGLE')).toEqual({
+      canonicalW: 833,
+      canonicalH: 759,
+    });
+    expect(r.canonicalDimsByRegion.get('CIRCLE')).toEqual({
+      canonicalW: 699,
+      canonicalH: 699,
+    });
+  });
+
+  it('DIMS-01: atlas-less mode populates canonicalDimsByRegion identically (same JSON)', () => {
+    const r = loadSkeleton(ATLAS_LESS_FIXTURE);
+    // Atlas-less fixture shares the JSON-skin-attachment width/height —
+    // canonical map is identical to canonical-atlas mode.
+    expect(r.canonicalDimsByRegion.get('SQUARE')).toEqual({
+      canonicalW: 1000,
+      canonicalH: 1000,
+    });
+    expect(r.canonicalDimsByRegion.get('TRIANGLE')).toEqual({
+      canonicalW: 833,
+      canonicalH: 759,
+    });
+    expect(r.canonicalDimsByRegion.get('CIRCLE')).toEqual({
+      canonicalW: 699,
+      canonicalH: 699,
+    });
+  });
+
+  it('DIMS-01: atlas-less mode populates actualDimsByRegion from readPngDims', () => {
+    const r = loadSkeleton(ATLAS_LESS_FIXTURE);
+    // SIMPLE_PROJECT_NO_ATLAS has CIRCLE.png/SQUARE.png/SQUARE2.png/TRIANGLE.png
+    // on disk; sourcePaths resolves to existing files; readPngDims succeeds for
+    // all four. Map size matches sourcePaths size (every per-region PNG read).
+    expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
+    // Verify each map entry matches readPngDims called directly on the same PNG.
+    for (const [regionName, dims] of r.actualDimsByRegion) {
+      const pngPath = r.sourcePaths.get(regionName);
+      expect(pngPath, `sourcePaths must have entry for ${regionName}`).toBeDefined();
+      const direct = readPngDims(pngPath!);
+      expect(dims).toEqual({
+        actualSourceW: direct.width,
+        actualSourceH: direct.height,
+      });
+    }
+  });
+
+  it('DIMS-01: canonical-atlas mode with per-region PNGs (EXPORT_PROJECT) populates actualDimsByRegion', () => {
+    // EXPORT_PROJECT has BOTH a sibling .atlas AND per-region PNGs in images/.
+    // The loader should still read each per-region PNG header and populate
+    // actualDimsByRegion (canonical-atlas mode does NOT skip the PNG-read
+    // loop — D-01 says one drift-detection path covers BOTH modes).
+    const r = loadSkeleton(EXPORT_FIXTURE);
+    expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
+    // Spot-check: every entry in actualDimsByRegion has a corresponding
+    // sourcePath that EXISTS on disk (no orphan map entries).
+    for (const [regionName, _dims] of r.actualDimsByRegion) {
+      const pngPath = r.sourcePaths.get(regionName);
+      expect(pngPath, `sourcePaths must have entry for ${regionName}`).toBeDefined();
+      expect(fs.existsSync(pngPath!), `${pngPath} must exist`).toBe(true);
+    }
+  });
+
+  it('DIMS-01 atlas-extract path: actualDimsByRegion is empty when per-region PNGs are absent', () => {
+    // SIMPLE_PROJECT has a sibling .atlas but NO images/ folder. sourcePaths
+    // resolves to <skeletonDir>/images/<region>.png — those files do not
+    // exist, so readPngDims throws and actualDimsByRegion stays empty.
+    // Canonical map is still fully populated from the JSON walk.
+    const r = loadSkeleton(FIXTURE);
+    expect(r.actualDimsByRegion.size).toBe(0);
+    // Canonical still populates.
+    expect(r.canonicalDimsByRegion.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('DIMS-01 missing-PNG resilience: loadSkeleton does not throw when one PNG is missing; partial actualDimsByRegion', () => {
+    // Construct a tmpdir with the atlas-less fixture but with one PNG
+    // deliberately missing. The loader must not throw — it leaves the
+    // missing region's actualDimsByRegion entry absent.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-dims01-miss-'));
+    const sourceImages = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/images');
+    const skelPath = path.join(tmpDir, 'SIMPLE_TEST.json');
+    const imagesDir = path.join(tmpDir, 'images');
+    fs.copyFileSync(ATLAS_LESS_FIXTURE, skelPath);
+    fs.mkdirSync(imagesDir);
+    // Copy all PNGs EXCEPT TRIANGLE.png — leaving it missing.
+    for (const png of fs.readdirSync(sourceImages)) {
+      if (png === 'TRIANGLE.png') continue;
+      fs.copyFileSync(path.join(sourceImages, png), path.join(imagesDir, png));
+    }
+    try {
+      // Phase 21 G-01 fix: missing PNGs in atlas-less mode are surfaced via
+      // skippedAttachments; loadSkeleton does NOT throw. Phase 22's per-region
+      // readPngDims loop sits inside try/catch, so the missing PNG simply
+      // omits its actualDimsByRegion entry.
+      const r = loadSkeleton(skelPath);
+      // TRIANGLE PNG was missing → actualDimsByRegion does NOT have an
+      // entry for TRIANGLE.
+      expect(r.actualDimsByRegion.has('TRIANGLE')).toBe(false);
+      // Other regions still populate.
+      expect(r.actualDimsByRegion.has('SQUARE')).toBe(true);
+      expect(r.actualDimsByRegion.has('CIRCLE')).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('DIMS-01 R5 fallback: malformed JSON with attachment width:0 logs dev warning and skips entry', () => {
+    // Phase 22 R5: when att.width === 0 || att.height === 0 (linkedmesh
+    // without explicit dims, or malformed JSON), skip the entry — leave
+    // canonicalDimsByRegion without an entry; emit dev-mode console.warn
+    // for visibility. Analyzer's CLI fallback (canonicalW = p.sourceW)
+    // covers downstream.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-dims01-r5-'));
+    try {
+      // Copy the SIMPLE_TEST atlas + one PNG so the loader resolves cleanly.
+      const sourceJson = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
+      // Mutate first skin's first slot's first entry to have width:0,height:0.
+      const firstSkin = sourceJson.skins[0];
+      const slotName = Object.keys(firstSkin.attachments)[0];
+      const entryName = Object.keys(firstSkin.attachments[slotName])[0];
+      firstSkin.attachments[slotName][entryName].width = 0;
+      firstSkin.attachments[slotName][entryName].height = 0;
+      fs.writeFileSync(
+        path.join(tmpDir, 'SIMPLE_TEST.json'),
+        JSON.stringify(sourceJson),
+      );
+      fs.copyFileSync(
+        path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.atlas'),
+        path.join(tmpDir, 'SIMPLE_TEST.atlas'),
+      );
+      fs.copyFileSync(
+        path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.png'),
+        path.join(tmpDir, 'SIMPLE_TEST.png'),
+      );
+      const r = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      // Mutated region not in canonical map — only 2 of 3 regions present.
+      expect(r.canonicalDimsByRegion.size).toBeLessThan(3);
+      // Dev-mode warn fired with the canonical-dims fallback substring.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('canonical-dims fallback'),
+      );
+    } finally {
+      warnSpy.mockRestore();
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
