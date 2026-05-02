@@ -104,9 +104,19 @@ export async function runSamplerJob(params: {
 
     // Phase 21 D-08 — thread loaderMode through to the loader so atlas-less
     // override survives the worker boundary.
+    //
+    // Plan 21-12 G-04 — caller-side precedence fix (worker-side mirror of
+    // project-io.ts Sites 1 + 4). When params.loaderMode === 'atlas-less',
+    // omit atlasPath so the loader's D-08 synthesis branch runs (produces
+    // synth.missingPngs → LoadResult.skippedAttachments). Otherwise, set
+    // atlasPath from params.atlasRoot for canonical-mode behavior.
     const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
-    if (params.atlasRoot) loaderOpts.atlasPath = params.atlasRoot;
-    if (params.loaderMode) loaderOpts.loaderMode = params.loaderMode;
+    if (params.loaderMode === 'atlas-less') {
+      loaderOpts.loaderMode = 'atlas-less';
+      // atlasPath intentionally OMITTED — D-08 synthesis must run.
+    } else if (params.atlasRoot) {
+      loaderOpts.atlasPath = params.atlasRoot;
+    }
     const load = loadSkeleton(params.skeletonPath, loaderOpts);
 
     if (params.isCancelled()) return { type: 'cancelled' };
