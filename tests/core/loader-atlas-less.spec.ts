@@ -237,4 +237,88 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('G-04 caller-contract: explicit atlasPath WINS over loaderMode:"atlas-less" (loader D-06 branch — callers must clear atlasPath when forcing atlas-less)', () => {
+    // Documents the loader's documented branch order at src/core/loader.ts:219-254:
+    // when both opts.atlasPath and opts.loaderMode === 'atlas-less' are set, D-06
+    // wins (atlasPath is read; synthesis is NEVER reached). This is the loader
+    // contract; the bug is on the caller side (project-io.ts / sampler-worker.ts).
+    // This test locks the contract — a future refactor that accidentally inverts
+    // the branch order will FAIL this test, surfacing the regression.
+    //
+    // The HUMAN-UAT G-04 reproducer hits this contract from the wrong side: the
+    // resample IPC handler in project-io.ts:874-876 sets BOTH options, expecting
+    // atlas-less synthesis, but gets D-06 canonical-mode behavior. Plan 21-12 fixes
+    // the caller-side build of loaderOpts (Sites 1, 4, 5).
+    //
+    // ATLAS SYNTHESIS: D-06 hands MESH_REGION to the stock AtlasAttachmentLoader
+    // (loader.ts:352, NOT SilentSkip). If the .atlas lacks MESH_REGION the stock
+    // loader throws "Region not found in atlas: MESH_REGION (mesh attachment:
+    // MESH_REGION)" per AtlasAttachmentLoader.js:62. We synthesize a tmp .atlas
+    // containing MESH_REGION with stub-region bounds so the D-06 read SUCCEEDS
+    // and the assertion shape is reachable.
+    const SRC_NO_ATLAS_MESH = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-aless-g04-contract-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpAtlas = path.join(tmpDir, 'canonical.atlas');
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_NO_ATLAS_MESH, 'MeshOnly_TEST.json'), tmpJson);
+    // Synthesize a tmp .atlas containing MESH_REGION (libgdx 4.2 grammar):
+    fs.writeFileSync(
+      tmpAtlas,
+      'tmp_page.png\n' +
+      'size: 1,1\n' +
+      'filter: Linear,Linear\n' +
+      'MESH_REGION\n' +
+      'bounds: 0,0,1,1\n',
+      'utf8',
+    );
+    // Intentionally do NOT copy MESH_REGION.png — the missing-PNG case.
+    try {
+      // Caller passes BOTH options — the toggle-resample IPC payload shape pre-fix.
+      const result = loadSkeleton(tmpJson, {
+        atlasPath: tmpAtlas,
+        loaderMode: 'atlas-less',
+      });
+      // D-06 wins: atlasPath is resolved (canonical mode), synthesis never runs.
+      expect(result.atlasPath).not.toBeNull();
+      expect(result.atlasPath).toBe(path.resolve(tmpAtlas));
+      // skippedAttachments is undefined or empty — D-06 branch doesn't set it.
+      expect(result.skippedAttachments ?? []).toEqual([]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('G-04 caller-correct: loaderMode:"atlas-less" with atlasPath OMITTED routes to D-08 synthesis and surfaces missing PNG via skippedAttachments', () => {
+    // Documents the POST-FIX caller behavior: project-io.ts / sampler-worker.ts
+    // build loaderOpts WITHOUT atlasPath when loaderMode === 'atlas-less', so the
+    // loader's D-08 synthesis branch runs, synth.missingPngs is populated, and
+    // LoadResult.skippedAttachments cascades through. Mirror of cold-load Test 6
+    // (G-01) but explicitly via the loaderMode override (the toggle-resample
+    // shape, post-fix).
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-aless-g04-correct-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'MeshOnly_TEST.json'), tmpJson);
+    // Intentionally do NOT copy MESH_REGION.png — the missing-PNG case.
+    try {
+      // Post-fix caller shape: loaderMode set, atlasPath OMITTED (even if available).
+      const result = loadSkeleton(tmpJson, { loaderMode: 'atlas-less' });
+      expect(result.atlasPath).toBeNull();
+      expect(result.skippedAttachments).toBeDefined();
+      expect(result.skippedAttachments!.length).toBe(1);
+      expect(result.skippedAttachments![0].name).toBe('MESH_REGION');
+      expect(
+        result.skippedAttachments![0].expectedPngPath.endsWith(
+          path.join('images', 'MESH_REGION.png'),
+        ),
+      ).toBe(true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
