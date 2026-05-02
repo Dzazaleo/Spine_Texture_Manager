@@ -149,9 +149,19 @@ export function buildExportPlan(
 
   // 2. Group by sourcePath; per group keep highest-effective-scale row +
   //    union attachmentNames (D-108).
+  //
+  // Phase 22 DIMS-04 (D-04 REVISED 2026-05-02): Acc carries `isPassthrough`
+  // alongside the existing fields. The dedup keep-max is computed on the
+  // POST-CAP effScale (cappedEffScale below) — when two attachments share a
+  // sourcePath and one is passthrough but the other isn't, the dedup picks
+  // the higher post-cap effScale, which by construction is NOT passthrough
+  // (if either had higher demand than sourceRatio, the cap would have
+  // trimmed it down to sourceRatio). This preserves the existing dedup
+  // contract while threading isPassthrough through the partition step.
   interface Acc {
     row: DisplayRow;
     effScale: number;
+    isPassthrough: boolean;
     attachmentNames: string[];
   }
   const bySourcePath = new Map<string, Acc>();
@@ -173,18 +183,53 @@ export function buildExportPlan(
     // ceiling and leaving the other reading the unclamped 5.0 value.
     // User-locked Phase 6 export sizing memory: source dims are the
     // ceiling, never extrapolate.
-    const effScale = Math.min(safeScale(rawEffScale), 1);
+    const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1);
+
+    // Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
+    // on both axes when dimsMismatch && actualSource defined. Locked memory
+    // project_phase6_default_scaling.md: cap is single uniform multiplier from
+    // min(...), NEVER per-axis (per-axis would distort aspect ratio and break
+    // Spine UV sampling). Honors "never extrapolate" by ALSO bounding
+    // effectiveScale below actual source dims (Phase 6 Round 1 only bounded by
+    // canonical; Phase 22 extends the same invariant to actualSource).
+    const { actualSourceW, actualSourceH, canonicalW, canonicalH } = row;
+    const sourceRatio =
+      row.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
+        ? Math.min(actualSourceW / canonicalW, actualSourceH / canonicalH)
+        : Infinity;
+    const cappedEffScale = Math.min(downscaleClampedScale, sourceRatio);
+
+    // Phase 22 D-04 REVISED — generous passthrough formula:
+    //   isCapped = cap binds (downscaleClampedScale > sourceRatio); output IS
+    //     actualSource on the binding axis by construction.
+    //   peakAlreadyAtOrBelowSource = user already at or below source ratio
+    //     (no further reduction warranted; DIMS-05 enabler — repeated Optimize
+    //     on already-optimized PNGs).
+    //   isPassthrough = dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)
+    // The original D-04 strict-ceil-equality wording was mathematically wrong
+    // at the cap-binding boundary (it would never flag a capped row as
+    // passthrough — opposite of intended round-trip safety). Revised by user
+    // 2026-05-02 post-research to the generous formulation. See
+    // .planning/phases/22-.../22-CONTEXT.md §"D-04 (REVISED 2026-05-02)".
+    const isCapped = downscaleClampedScale > sourceRatio;
+    const peakAlreadyAtOrBelowSource =
+      downscaleClampedScale <= sourceRatio && actualSourceW !== undefined;
+    const isPassthrough = row.dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource);
+
+    const effScale = cappedEffScale;
     const prev = bySourcePath.get(row.sourcePath);
     if (prev === undefined) {
       bySourcePath.set(row.sourcePath, {
         row,
         effScale,
+        isPassthrough,
         attachmentNames: [row.attachmentName],
       });
     } else {
       if (effScale > prev.effScale) {
         prev.row = row;
         prev.effScale = effScale;
+        prev.isPassthrough = isPassthrough;
       }
       if (!prev.attachmentNames.includes(row.attachmentName)) {
         prev.attachmentNames.push(row.attachmentName);
@@ -202,11 +247,21 @@ export function buildExportPlan(
   // Gap-Fix #2: thread atlasSource through from the winning DisplayRow so
   //    the image-worker can fall back to atlas-page extraction when the
   //    per-region PNG doesn't exist on disk.
+  //
+  // Phase 22 DIMS-04 — partition into rows[] + passthroughCopies[] per the
+  // accumulator's isPassthrough flag (set above by D-04 REVISED predicate).
+  // Output dims for both arrays use the legacy `Math.ceil(sourceW × effScale)`
+  // shape: at the binding-cap edge, cappedEffScale === sourceRatio =
+  // actualSourceW/canonicalW exactly, so Math.ceil(canonicalW × that) ===
+  // actualSourceW (binding axis). The non-binding axis ceils to ≤
+  // actualSource (uniform cap; up to 1px slack — the acknowledged 1px
+  // aspect-ratio noise edge case in CONTEXT D-04). No branch needed.
   const rows: ExportRow[] = [];
+  const passthroughCopies: ExportRow[] = [];
   for (const acc of bySourcePath.values()) {
     const outW = Math.ceil(acc.row.sourceW * acc.effScale);
     const outH = Math.ceil(acc.row.sourceH * acc.effScale);
-    rows.push({
+    const exportRow: ExportRow = {
       sourcePath: acc.row.sourcePath,
       outPath: relativeOutPath(acc.row.sourcePath),
       sourceW: acc.row.sourceW,
@@ -216,21 +271,35 @@ export function buildExportPlan(
       effectiveScale: acc.effScale,
       attachmentNames: acc.attachmentNames.slice(),
       ...(acc.row.atlasSource ? { atlasSource: acc.row.atlasSource } : {}),
-    });
+      // Phase 22 DIMS-04 (CHECKER FIX 2026-05-02) — propagate actualSourceW/H
+      // onto passthrough rows so OptimizeDialog (Plan 22-05 Task 2 Step 1) can
+      // render the "already optimized" label with concrete on-disk dims (e.g.
+      // 811×962) instead of canonical dims (e.g. 1628×1908). Non-passthrough
+      // rows skip the spread — fields stay undefined, matching the
+      // "passthrough-only semantics" docblock on the optional ExportRow
+      // fields. The conditional spread mirrors the existing atlasSource
+      // pattern above. Plan 22-04 export-view.ts mirrors this byte-identically.
+      ...(acc.isPassthrough && acc.row.actualSourceW !== undefined && acc.row.actualSourceH !== undefined
+        ? { actualSourceW: acc.row.actualSourceW, actualSourceH: acc.row.actualSourceH }
+        : {}),
+    };
+    if (acc.isPassthrough) {
+      passthroughCopies.push(exportRow);
+    } else {
+      rows.push(exportRow);
+    }
   }
 
   // 4. Sort by sourcePath for deterministic output.
   rows.sort((a, b) => a.sourcePath.localeCompare(b.sourcePath));
+  passthroughCopies.sort((a, b) => a.sourcePath.localeCompare(b.sourcePath));
   // excludedUnused: sorted, deduped (Set already dedups).
   const excludedUnused = [...excluded].sort((a, b) => a.localeCompare(b));
 
   return {
     rows,
     excludedUnused,
-    // Phase 22 DIMS-04 — empty placeholder for the type contract added in
-    // Plan 22-01. Plan 22-03 Task 1 Step 5 will populate this with the
-    // partition output of the cap step (drifted rows where cap binds).
-    passthroughCopies: [],
-    totals: { count: rows.length },
+    passthroughCopies,
+    totals: { count: rows.length + passthroughCopies.length },
   };
 }
