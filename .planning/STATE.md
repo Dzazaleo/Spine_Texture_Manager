@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-02T17:02:55.376Z"
-last_activity: 2026-05-02 -- Phase 21 execution started
+last_updated: "2026-05-02T20:55:00Z"
+last_activity: 2026-05-02 -- Phase 21 Plan 21-12 complete (G-04 caller-side precedence fix; 630/630 vitest)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -17,9 +17,9 @@ progress:
 ## Current Position
 
 Phase: 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — EXECUTING
-Plan: 1 of 11
-Status: Executing Phase 21
-Last activity: 2026-05-02 -- Phase 21 execution started
+Plan: 12 of 12 (Plan 21-12 complete; all gap closures G-01 / G-02 / G-03 / G-04 closed)
+Status: Phase 21 awaiting HUMAN-UAT and `/gsd-verify-work 21`
+Last activity: 2026-05-02 -- Phase 21 Plan 21-12 complete (G-04 caller-side precedence fix; 630/630 vitest)
 
 ## Last Roadmap Update
 
@@ -56,7 +56,15 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current plan
 
-Phase 20 is complete (4 of 4 plans shipped). Ready for `/gsd-verify-work 20`. Plan 20-04 SUMMARY at `.planning/phases/20-documentation-builder-feature/20-04-html-export-ipc-roundtrip-SUMMARY.md`.
+Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-01 / G-02 / G-03 / G-04). Ready for full HUMAN-UAT (Test 4b Path 1+2 + Test 4c) followed by `/gsd-verify-work 21`. Plan 21-12 SUMMARY at `.planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md`.
+
+## Phase 21 progress
+
+- **21-01..21-08** ✅ COMPLETE (Wave 0..4) — see prior session history; PNG header parser + MissingImagesDirError plumbing + SIMPLE_PROJECT_NO_ATLAS golden fixture + synthetic-atlas + SilentSkipAttachmentLoader + type cascade (LoadResult/SkeletonSummary atlasPath nullable + SourceDims +'png-header' + LoaderOptions.loaderMode) + loader integration with 4-way branch order (D-05/D-06/D-07/D-08; criterion #5 preserved) + .stmproj v1 schema gains loaderMode + sampler-worker + project-io threading + AppShell loaderMode toggle + round-trip integration spec + HUMAN-UAT.
+- **21-09 stub-region-for-missing-pngs** ✅ COMPLETE 2026-05-02 (G-01 fix) — synth.missingPngs threading + LoadResult.skippedAttachments?: optional field + 1x1 stub-region for missing PNGs + fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH/ falsifying-repro fixture; D-10 narrowed to imagesDir-absent only.
+- **21-10 missing-attachments-panel** ✅ COMPLETE 2026-05-02 (G-02 fix) — MissingAttachmentsPanel + skippedAttachments IPC cascade through SkeletonSummary → renderer; user-facing surface for skipped PNGs above the Global Max Render Source panel.
+- **21-11 toolbar-layout-regression** ✅ COMPLETE 2026-05-02 (G-03 fix) — flex-shrink-0 hardening + min-h-screen anchor + scrollbar-gutter:stable on main; toolbar no longer shifts when filters/panels collapse (UAT-2 + UAT-3 root causes resolved).
+- **21-12 toggle-resample-atlas-less-precedence** ✅ COMPLETE 2026-05-02 (G-04 fix) — caller-side LoaderOptions precedence fix at project-io.ts Sites 1+4 + sampler-worker.ts Site 5; Site 3 audit-only (already shape-correct). src/core/loader.ts UNTOUCHED — criterion #5 verbatim AtlasNotFoundError preserved. 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 2 falsifying gates proven via scratch revert. 630/630 vitest passing. Path-symmetric atlas-less behavior restored (cold-load + toggle-resample now produce same skippedAttachments shape). Commits: 179b1dd → de99e84 → 0a31aee → fee0070 → 9b70056. SUMMARY at `.planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md`.
 
 ## Phase 20 progress
 
@@ -79,8 +87,8 @@ Phase 20 is complete (4 of 4 plans shipped). Ready for `/gsd-verify-work 20`. Pl
 
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
-**Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 11 plans — 2026-05-02T16:53:49.465Z
+**Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 12 plans (8 originals + 4 gap closures) — 2026-05-02T16:53:49.465Z
 
-**Last Plan Action:** 20-04 (html-export-ipc-roundtrip) — COMPLETE — 2026-05-01T20:00:31Z (commits ecab501 → 65b0f1c → 4dc8985; SUMMARY at .planning/phases/20-documentation-builder-feature/20-04-html-export-ipc-roundtrip-SUMMARY.md). Phase 20 complete — all 4 plans shipped; DOC-01..DOC-05 all closed end-to-end.
+**Last Plan Action:** 21-12 (toggle-resample-atlas-less-precedence) — COMPLETE — 2026-05-02T20:55:00Z (commits 179b1dd test + de99e84 fix + 0a31aee test + fee0070 fix-recovery + 9b70056 test; SUMMARY at .planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md). G-04 closed via caller-side LoaderOptions precedence fix at IPC + worker boundaries (project-io.ts Sites 1+4 + sampler-worker.ts Site 5; src/core/loader.ts UNTOUCHED — criterion #5 verbatim AtlasNotFoundError preserved). 630/630 vitest passing. 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 2 falsifying gates proven via scratch revert. HUMAN-UAT Test 4b Path 2 + 4c re-runnable post-fix.
 
 **Last Phase Verification:** 20 (Documentation Builder feature) — VERIFIED human_needed → 3/4 PASSED on macOS, 1 deferred — 2026-05-01T22:00:00Z. gsd-verifier scored 5/5 must-haves verified; gsd-code-reviewer found 0 critical / 4 warning / 6 info (non-blocking). HUMAN-UAT outcome on macOS arm64 (Electron dev build): test 1 (live DnD) PASS, test 2 (offline HTML fidelity) PASS with 1 visual gap regression FIXED in commit 10d40e6 (renderTracksCard wrapped in .row div for bottom-margin contract; golden snapshot regenerated; 587/587 vitest passing), test 4 (full save→close→reopen) PASS, test 3 (cross-platform DnD on Win/Linux) DEFERRED — Windows hardware unavailable; NSIS installer ready at release/Spine Texture Manager-1.1.3-x64.exe; pending todo at .planning/todos/pending/2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md captures the test recipe + risk analysis (effectAllowed='copy' is structurally set per RESEARCH §Pattern 4, so failure mode is unlikely). REQUIREMENTS.md DOC-04 stale "Pending" table row corrected to "Complete" (line 125; line 52 canonical bullet was already [x]).

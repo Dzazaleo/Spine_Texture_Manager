@@ -1,14 +1,17 @@
 ---
-status: partial
+status: testing
 phase: 21-seed-001-atlas-less-mode-json-images-folder-no-atlas
 source: [21-VERIFICATION.md]
 started: 2026-05-02T00:51:00Z
-updated: 2026-05-02T11:00:00Z
+updated: 2026-05-02T19:10:00Z
 ---
 
 ## Current Test
 
-All 5 tests run. 4 passed, 1 partial-pass (Test 4 surfaced G-01, G-02). Plus G-03 regression observed during testing.
+number: 4b
+name: Test 4 sub-case (b) — mesh-attachment PNG deleted (G-01 closure verification) — ISSUE FOUND
+result: issue (G-04 surfaced)
+awaiting: next test (4c)
 
 ## Tests
 
@@ -34,6 +37,20 @@ result: [partial-pass with new bugs surfaced]
 
   Sub-case (c) FAILED — see Gaps section, item G-02: deleting a single region-attachment PNG (e.g., `MAGIC_EXPLOSION/00.png`) loads silently with the attachment dropped from the Max Render Scale panel; no warning surfaces.
 
+### 4b (re-test 2026-05-02) — G-01 closure verification (post-21-09 / 21-10 merge)
+expected: With Plan 21-09 stub-region machinery merged: drop an atlas-less project with a single MESH-attachment PNG deleted (e.g. JOKER/BODY.png). App must not crash; missing entry must appear in MissingAttachmentsPanel.
+result: issue — G-04 surfaced
+reported: |
+  Path 1 (atlas-less project — JSON has no .atlas beside it, app reads from images/ on first load):
+  PASSED — load does not crash; MissingAttachmentsPanel correctly shows the missing JOKER/BODY entry.
+
+  Path 2 (canonical project with .atlas present, then user toggles "Use Images Folder as Source" ON to switch into atlas-less mode):
+  FAILED — the resample-into-atlas-less path does NOT detect the missing JOKER/BODY.png. The
+  sampling-skeleton panel renders as if the PNG were still present; the deleted attachment still appears
+  in the Max Render Source list with stale dims. No MissingAttachmentsPanel banner surfaces.
+severity: high (G-01 fix is path-asymmetric — only the cold-load path threads skippedAttachments;
+  the toggle-resample path does not)
+
 ### 5. AtlasNotFoundError verbatim message preserved in user-facing dialog (ROADMAP criterion #5)
 expected: Create a tmpdir with ONLY the JSON. Manually create a `.stmproj` adjacent that pins explicit `atlasPath` to a nonexistent file. Open that `.stmproj`. The error dialog must show the verbatim message: "Spine projects require an .atlas file beside the .json (carries region metadata that the skeleton JSON alone does not have). Re-export from the Spine editor with the atlas included." (locked from `src/core/errors.ts:44-47`).
 result: passed — verified on `fixtures/Girl copy 2/test5-atlas-not-found.stmproj` (atlasPath='DOES_NOT_EXIST.atlas'). Dialog shows the verbatim string word-for-word, with `Skeleton:` + `Expected atlas at:` lines appended after — the locked criterion-#5 message is intact.
@@ -44,10 +61,10 @@ NOTE: surfaced two minor authoring issues on the way (out of Phase 21 scope, no 
 
 ## Summary
 
-total: 5
+total: 5 (+ 1 re-test sub-case 4b post-21-09/21-10 merge)
 passed: 4
-issues: 1 (Test 4 partial-pass with 2 sub-bugs G-01, G-02; plus G-03 regression observed)
-pending: 0
+issues: 2 (Test 4 partial-pass with 2 sub-bugs G-01/G-02 [closed via 21-09/21-10 for cold-load path]; Test 4b re-test surfaced G-04 — path-asymmetric: toggle-resample-into-atlas-less does NOT detect missing PNG)
+pending: 1 (Test 4c re-test deferred — same root cause likely; will be exercised after G-04 fix)
 skipped: 0
 blocked: 0
 
@@ -110,3 +127,28 @@ Dropped: TOPSCREEN_ANIMATION_JOKER.json
 **Root-cause hypothesis:** Plan 21-08 added the "Use Images Folder as Source" checkbox to the AppShell toolbar. The toolbar reflow may have changed flex/grid metrics in a way that interacts with the filter feature's render path. Bisect against base commit `f09c29b` to confirm.
 
 **Fix sketch (for 21.1 plan):** Bisect `git diff f09c29b..HEAD -- src/renderer/src/components/AppShell.tsx` and any modified panel component; restore stable layout while preserving the loaderMode toggle.
+
+**RESOLVED 2026-05-02:** Closed by Plan 21-11 (cumulative fix chain `b8f2a0f` + `30ff95f` + `a9e0c0a` + `8a0a6ec`). Root cause was `h-full` on a height-less parent chain in `AppShell.tsx:1243`; final fix changed it to `min-h-screen`. User confirmation: "issue resolved" (UAT-3, see 21-11-toolbar-layout-regression-SUMMARY.md).
+
+### G-04 — Toggle-resample-into-atlas-less path does NOT re-detect missing PNGs
+
+**Severity:** high — G-01/G-02 fixes are path-asymmetric. The cold-load atlas-less path (Plan 21-09 + 21-10) correctly threads `LoadResult.skippedAttachments` → `SkeletonSummary.skippedAttachments` → MissingAttachmentsPanel. But when the user starts on a CANONICAL project (.atlas present) and then toggles "Use Images Folder as Source" ON to switch into atlas-less mode mid-session, the resample path does not surface missing PNGs.
+
+**Reproduction:**
+1. Start with a canonical project (.atlas present beside JSON), images/ folder also present.
+2. Delete a single PNG (e.g. `images/JOKER/BODY.png`) from the images/ folder while the project is loaded.
+3. Toggle the "Use Images Folder as Source" checkbox ON.
+4. App resamples and switches to atlas-less mode.
+
+**Observed:** The sampling-skeleton panel renders. The deleted JOKER/BODY entry still appears in the Max Render Source list with stale dims (carried over from the canonical .atlas's region metadata). No MissingAttachmentsPanel banner surfaces. The user has no signal that the PNG is missing.
+
+**Expected:** the resample-into-atlas-less path should re-run synthetic-atlas synthesis from the JSON+images/ folder (NOT reuse the canonical .atlas's cached region metadata) and produce the same `skippedAttachments` array that the cold-load path produces. The MissingAttachmentsPanel should then surface the missing entry identically.
+
+**Root-cause hypothesis (to be validated by debug agent):**
+- The resample IPC handler in `src/main/project-io.ts` site 4 (resampleProject, ~line 870-877) threads `loaderMode` through to the worker, but may be reading region metadata from the previously-canonical-mode `MaterializedProject` cache instead of re-running `loadSkeleton()` with `loaderMode: 'atlas-less'` from scratch.
+- OR: `loadSkeleton` is re-run, but the canonical-mode `atlasPath` is still passed in and wins precedence over the `loaderMode === 'atlas-less'` override (Plan 21-06's 4-way branch order: `opts.atlasPath !== undefined` is checked BEFORE `opts.loaderMode === 'atlas-less'` per loader.ts:214 vs :236 — and the explicit-atlasPath branch does not consult the synthetic-atlas pipeline at all, so it never produces `skippedAttachments`).
+- The asymmetry between PASSING-Path-1 (cold-load → no .atlas in tree → loader naturally falls into D-08 branch) and FAILING-Path-2 (canonical-load-then-toggle → .atlas was already loaded, `atlasPath` is non-null in the resample payload → loader takes the canonical D-06 branch even though `loaderMode === 'atlas-less'`) is consistent with this hypothesis.
+
+**Fix sketch (for gap-closure plan 21-12 or similar):**
+- When `loaderMode === 'atlas-less'` is set on a resample, ensure the resample handler builds `loaderOpts` with `atlasPath: undefined` (clearing any cached canonical atlasPath) so that the loader's branch order routes through the synthetic-atlas + SilentSkipAttachmentLoader path. This re-derives `skippedAttachments` from the current images/ folder state.
+- Add a regression test mirroring `tests/core/loader-atlas-less.spec.ts` Test 6 but exercising the toggle-resample path (load with atlas → toggle to atlas-less → assert `skippedAttachments` is populated when a PNG is missing).

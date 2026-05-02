@@ -416,7 +416,7 @@ Plans:
   4. User runs Optimize Assets on an atlas-less project and the export to `images-optimized/` succeeds end-to-end — the same Lanczos3 sharp pipeline that works on canonical `.json + .atlas + .png` projects works on atlas-less projects. A golden fixture exercises load → sample → export round-trip. (LOAD-04)
   5. The `AtlasNotFoundError` message is preserved verbatim for actually-missing-atlas cases (e.g. malformed project where atlas was expected); a user with a malformed project still gets a clear error, distinct from the now-supported atlas-less path.
 
-**Plans:** 11 plans (8 originals + 3 gap closures from HUMAN-UAT G-01/G-02/G-03)
+**Plans:** 12 plans (8 originals + 4 gap closures from HUMAN-UAT G-01/G-02/G-03/G-04)
 - [x] 21-01-PLAN.md — pure-TS PNG IHDR width/height byte parser (LOAD-02)
 - [x] 21-02-PLAN.md — MissingImagesDirError class + KNOWN_KINDS IPC routing (LOAD-01 plumbing)
 - [x] 21-03-PLAN.md — fixtures/SIMPLE_PROJECT_NO_ATLAS golden fixture (LOAD-04 prerequisite)
@@ -428,6 +428,7 @@ Plans:
 - [ ] 21-09-PLAN.md — stub-region for missing PNGs in synthetic-atlas (G-01 fix; closes the deform-timeline crash)
 - [ ] 21-10-PLAN.md — MissingAttachmentsPanel + skippedAttachments IPC cascade (G-02 fix; user-facing surface for skipped PNGs)
 - [ ] 21-11-PLAN.md — toolbar layout regression fix (G-03 fix; flex-shrink-0 hardening)
+- [x] 21-12-PLAN.md — toggle-resample atlas-less precedence fix (G-04 fix; caller-side loaderOpts construction at project-io.ts Sites 1+4 + sampler-worker.ts Site 5) — complete 2026-05-02 (commits 179b1dd test + de99e84 fix + 0a31aee test + fee0070 fix-recovery + 9b70056 test); 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 630/630 vitest passing (was 626 + 4 net); src/core/loader.ts UNTOUCHED (criterion #5 verbatim AtlasNotFoundError preserved); 2 falsifying gates proven via scratch revert (Site 4 IPC test fails with `expected +0 to be 1` pre-fix; Site 5 worker test fails with `expected error to be complete` pre-fix); HUMAN-UAT Test 4b Path 2 + Test 4c readiness signal — path-symmetric atlas-less behavior restored (cold-load + toggle-resample now produce same skippedAttachments shape)
 
 ### Phase 22: SEED-002 dims-badge + override-cap (depends on Phase 21)
 
@@ -477,7 +478,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 18. App quit broken — Cmd+Q + AppleScript | v1.2 | 2/2 | Complete 2026-04-30 (lift + vitest spec + arch-grep + dev-mode smoke approved; live UAT deferred to v1.2.0 ship round per CONTEXT D-10) | 2026-04-30 |
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
-| 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 8/8 | Awaiting verification (all 4 waves merged + cross-plan loaderMode IPC fix; 617/617 vitest; 30 new tests; HUMAN-UAT pending) | — |
+| 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | All 8 originals + 4 gap closures complete (G-01 / G-02 / G-03 / G-04). 630/630 vitest passing. HUMAN-UAT Test 4b Path 2 + Test 4c re-runnable post-fix (path-symmetric atlas-less restored). Awaiting full HUMAN-UAT round on cold-load + toggle paths. | — |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; depends on Phase 21; DIMS-01..05) | — |
 
 ## Deferred (post-v1.1)
