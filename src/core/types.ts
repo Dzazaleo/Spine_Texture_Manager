@@ -130,6 +130,27 @@ export interface LoadResult {
    * rate stays at the configured `samplingHz`.
    */
   editorFps: number;
+  /**
+   * Phase 21 Plan 21-09 G-01 fix — attachments whose PNG was missing in
+   * atlas-less mode. OPTIONAL: absent in canonical-atlas mode and in
+   * atlas-less mode where every referenced PNG resolved successfully.
+   * Optional shape follows the existing `unusedAttachments?:` precedent on
+   * SkeletonSummary to avoid TS2741 cascades on every existing LoadResult
+   * test/mock site (Plan 21-09 ISSUE-007).
+   *
+   * Each entry: `name` = region name (e.g. 'JOKER_FULL_BODY/BODY'),
+   * `expectedPngPath` = absolute path the synthesizer tried to read.
+   *
+   * Renderer (Plan 21-10 MissingAttachmentsPanel) surfaces this list above
+   * the Global Max Render Source panel when length > 0. The panel renders
+   * conditionally: hidden when undefined or length === 0.
+   *
+   * Pairs with the synthesizer's stub-region emission: each entry here
+   * corresponds to a 1x1 stub region in the parsed atlas (so the loaded
+   * skeleton has the attachment present in the skin, but the renderer hides
+   * it from the main panels and lists it here for explicit user visibility).
+   */
+  skippedAttachments?: { name: string; expectedPngPath: string }[];
 }
 
 export interface AABB {

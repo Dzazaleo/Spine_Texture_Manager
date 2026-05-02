@@ -93,10 +93,11 @@ export interface SynthResult {
    * synthesizer emitted a 1x1 stub region in atlasText for each so spine-core's
    * animation/skin parser can resolve them without crashing on
    * `attachment.bones`. Note: the EXACT spine-core path that reads
-   * `attachment.bones` without a null-check is not pinpointed — the original
-   * draft of Plan 21-09 claimed `SkeletonJson.js:929-940` (deform timeline
-   * parser), but that claim was NOT verified end-to-end against every
-   * reproducer. The fix works regardless because the stub region makes
+   * `attachment.bones` without a null-check is not pinpointed in this
+   * docblock — earlier draft language attempted a specific line-number
+   * citation that was not verified end-to-end against every reproducer,
+   * so we deliberately leave the exact site unstated. The fix works
+   * regardless because the stub region makes
    * `skin.getAttachment(...)` return a real (stubbed) MeshAttachment instead
    * of null, satisfying any downstream `attachment.bones` read.
    *
@@ -204,12 +205,12 @@ export function synthesizeAtlasText(
   }
 
   // Plan 21-09 G-01 fix: REMOVED the pre-existing second-variant catastrophic
-  // throw (`if (regionPaths.size > 0 && pngPathsByRegionName.size === 0) throw
-  // new MissingImagesDirError(...)`). An images dir that exists but is fully
-  // empty is no longer catastrophic — each region got a 1x1 stub above; the
-  // user sees them in skippedAttachments (Plan 21-10 panel). The folder-absent
-  // first-variant guard above (line ~96-102) is still catastrophic and remains
-  // unchanged. (See Plan 21-09 ISSUE-006 note in the module docblock.)
+  // throw that previously fired when the images dir existed but every per-region
+  // PNG read failed. An images dir that exists but is fully empty is no longer
+  // catastrophic — each region got a 1x1 stub above; the user sees them in
+  // skippedAttachments (Plan 21-10 panel). The folder-absent first-variant
+  // guard above (line ~96-102) is still catastrophic and remains unchanged.
+  // (See Plan 21-09 ISSUE-006 note in the module docblock.)
 
   return {
     atlasText: lines.join('\n'),

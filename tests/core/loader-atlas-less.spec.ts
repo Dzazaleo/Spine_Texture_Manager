@@ -53,6 +53,9 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
       expect(src?.x).toBe(0);
       expect(src?.y).toBe(0);
     }
+    // Phase 21 Plan 21-09 G-01 — happy path has all PNGs present;
+    // skippedAttachments is undefined or empty (optional field per ISSUE-007).
+    expect(result.skippedAttachments ?? []).toEqual([]);
   });
 
   it('D-10 catastrophic: loaderMode: "atlas-less" override on tmpdir with JSON only (no images/) throws MissingImagesDirError end-to-end', () => {
@@ -168,6 +171,70 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
       // doesn't mutate the source field; loader's 'png-header' value stays.
       expect(row.sourceW).toBeGreaterThan(0);
       expect(row.sourceH).toBeGreaterThan(0);
+    }
+  });
+
+  it('G-01: load atlas-less mesh-only project with missing PNG does NOT crash; skippedAttachments surfaces the entry (falsifying regression)', () => {
+    // Reproduces the gap surfaced in 21-HUMAN-UAT.md G-01: deleting a single
+    // mesh-attachment PNG used to crash with `Cannot read properties of null
+    // (reading 'bones')` because spine-core's animation/skin parser reads
+    // attachment.bones without null-check when the attachment was silently
+    // dropped from the skin. Plan 21-09's stub-region fix synthesizes a 1x1
+    // region for missing PNGs so the attachment exists in the skin and the
+    // parser succeeds.
+    //
+    // FALSIFYING: this test uses the new fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH/
+    // fixture, which was empirically verified to crash pre-fix via
+    // scripts/probe-g01-prefix-crash.ts (TypeError: Cannot read properties of
+    // null (reading 'bones')). The pre-existing SIMPLE_PROJECT_NO_ATLAS
+    // fixture does NOT reproduce G-01 because its SIMPLE_TEST.json has zero
+    // animations with deform timelines that read attachment.bones (Plan 21-09
+    // ISSUE-001).
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-aless-g01-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'MeshOnly_TEST.json'), tmpJson);
+    // Intentionally do NOT copy MESH_REGION.png — that's the missing-PNG case.
+    try {
+      let caught: unknown = null;
+      let result: ReturnType<typeof loadSkeleton> | undefined;
+      try {
+        result = loadSkeleton(tmpJson);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught, 'load should not throw — G-01 regression').toBeNull();
+      expect(result).toBeDefined();
+      // skippedAttachments contains exactly the one missing region.
+      expect(result!.skippedAttachments).toBeDefined();
+      expect(result!.skippedAttachments!.length).toBe(1);
+      expect(result!.skippedAttachments![0].name).toBe('MESH_REGION');
+      expect(
+        result!.skippedAttachments![0].expectedPngPath.endsWith(
+          path.join('images', 'MESH_REGION.png'),
+        ),
+      ).toBe(true);
+      // The MESH_REGION attachment EXISTS in the loaded skeleton (with stub
+      // dims) — proving spine-core's animation/skin parser succeeded against a
+      // resolved-but-stubbed region. Walk the default skin to find it.
+      const defaultSkin = result!.skeletonData.defaultSkin;
+      expect(defaultSkin).toBeDefined();
+      let meshAttachment: unknown = null;
+      for (let slotIdx = 0; slotIdx < defaultSkin!.attachments.length; slotIdx++) {
+        const dict = defaultSkin!.attachments[slotIdx];
+        if (dict && dict['MESH_REGION']) {
+          meshAttachment = dict['MESH_REGION'];
+          break;
+        }
+      }
+      expect(
+        meshAttachment,
+        'MESH_REGION attachment must exist in default skin (stub region)',
+      ).not.toBeNull();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 });
