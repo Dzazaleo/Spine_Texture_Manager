@@ -114,6 +114,29 @@ export interface DisplayRow {
     h: number;
     rotated: boolean;
   };
+  /**
+   * Phase 22 DIMS-01 — Canonical region dims from JSON skin attachments.
+   * Always populated for region/mesh attachments (every 4.2 JSON skin
+   * attachment carries width/height per SkeletonJson.js:379-380, 410-411).
+   * Source of truth for "what the rig was authored against" — NOT what's
+   * on disk. CLI fallback (no canonical map): canonicalW = p.sourceW.
+   */
+  canonicalW: number;
+  canonicalH: number;
+  /**
+   * Phase 22 DIMS-01 — Actual on-disk PNG dims from IHDR byte parse
+   * (Phase 21's readPngDims). Undefined when the per-region PNG is absent
+   * (atlas-extract path on Jokerman-style atlas-only projects). When
+   * present, dimsMismatch compares against canonicalW/H with 1px tolerance.
+   */
+  actualSourceW: number | undefined;
+  actualSourceH: number | undefined;
+  /**
+   * Phase 22 DIMS-01 — true when actualSource differs from canonical by
+   * more than 1px on EITHER axis. Always false when actualSourceW/H are
+   * undefined (atlas-extract path).
+   */
+  dimsMismatch: boolean;
 }
 
 /**
@@ -259,6 +282,23 @@ export interface ExportRow {
     h: number;
     rotated: boolean;
   };
+  /**
+   * Phase 22 DIMS-04 — actual on-disk PNG dims (only set on passthrough rows
+   * where dimsMismatch is true and the cap binds). Mirrors DisplayRow.actualSource{W,H}.
+   * Optional because non-drifted rows have no actualSource — undefined is the default.
+   *
+   * Consumed by OptimizeDialog (Plan 22-05 Task 2 Step 1) to label muted "already
+   * optimized" rows with the actual on-disk dims (e.g. 811×962) rather than canonical
+   * dims (e.g. 1628×1908). The dialog renders:
+   *   {row.actualSourceW ?? row.sourceW}×{row.actualSourceH ?? row.sourceH}
+   * The ?? fallback is defensive (covers the rare case where actualSourceW is
+   * undefined despite being a passthrough row).
+   *
+   * Population happens in Plan 22-03 Task 1 Step 5 (buildExportPlan) and is
+   * mirrored byte-identically in Plan 22-04 export-view.ts.
+   */
+  actualSourceW?: number;
+  actualSourceH?: number;
 }
 
 /**
@@ -269,6 +309,15 @@ export interface ExportRow {
 export interface ExportPlan {
   rows: ExportRow[];
   excludedUnused: string[];
+  /**
+   * Phase 22 DIMS-04 — Rows where the export cap fired AND/OR peakScale
+   * already at-or-below source ratio (D-04 REVISED generous formula:
+   * isPassthrough = dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)).
+   * These rows produce zero net change if Lanczos'd; image-worker writes
+   * them via fs.promises.copyFile (D-03 byte-copy). OptimizeDialog renders
+   * them with muted treatment + "COPY" indicator.
+   */
+  passthroughCopies: ExportRow[];
   totals: { count: number };
 }
 

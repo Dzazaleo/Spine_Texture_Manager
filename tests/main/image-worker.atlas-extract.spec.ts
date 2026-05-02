@@ -78,6 +78,7 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
         },
       }],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
 
@@ -138,6 +139,7 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
         },
       }],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
 
@@ -183,6 +185,7 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
         },
       }],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
 

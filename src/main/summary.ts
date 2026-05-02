@@ -71,7 +71,18 @@ export function buildSummary(
   // Phase 6 Gap-Fix #2 — also thread load.atlasSources so atlas-packed
   // projects (e.g. fixtures/Jokerman/) can extract from the atlas page
   // when per-region PNGs don't exist.
-  const peaksArrayRaw = analyze(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
+  const peaksArrayRaw = analyze(
+    sampled.globalPeaks,
+    load.sourcePaths,
+    load.atlasSources,
+    // Phase 22 DIMS-01 — thread canonical/actual dim maps through. Plan 22-01
+    // ships empty Map placeholders from loader.ts; Plan 22-02 replaces with
+    // populated walks. Empty Maps yield the same fallback behavior as
+    // undefined (canonicalW=p.sourceW; dimsMismatch=false) — CLI byte-for-byte
+    // preserved (D-102) at this checkpoint.
+    load.canonicalDimsByRegion,
+    load.actualDimsByRegion,
+  );
   // Phase 21 Plan 21-10 G-02 — drop stub-region attachments from the regular
   // Global panel; they surface only via skippedAttachments below.
   const peaksArray = peaksArrayRaw.filter((p) => !skippedNames.has(p.attachmentName));
@@ -89,6 +100,9 @@ export function buildSummary(
     skeleton.slots,
     load.sourcePaths,
     load.atlasSources,
+    // Phase 22 DIMS-01 — same canonical/actual dim threading as analyze() above.
+    load.canonicalDimsByRegion,
+    load.actualDimsByRegion,
   );
   // Phase 21 Plan 21-10 G-02 — filter each animation card's rows to drop
   // stub-region attachments. uniqueAssetCount is recomputed to match

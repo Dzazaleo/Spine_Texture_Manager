@@ -51,6 +51,7 @@ describe('runExport — real-bytes end-to-end (F8.2 + N3.1 + D-121)', () => {
         attachmentNames: ['CIRCLE'],
       }],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
 

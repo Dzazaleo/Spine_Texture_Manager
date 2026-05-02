@@ -74,6 +74,7 @@ function buildPlan(rows: number): ExportPlan {
       attachmentNames: [`att${i}`],
     })),
     excludedUnused: [],
+    passthroughCopies: [],
     totals: { count: rows },
   };
 }
@@ -429,6 +430,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 3 },
     };
     const events: ExportProgressEvent[] = [];
@@ -485,6 +487,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 3 },
     };
     const events: ExportProgressEvent[] = [];
@@ -537,6 +540,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const events: ExportProgressEvent[] = [];
