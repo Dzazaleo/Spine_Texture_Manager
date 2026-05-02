@@ -318,8 +318,11 @@ describe('GlobalMaxRenderPanel — DIMS-02 dims-mismatch badge (Phase 22)', () =
   it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
     const rows = [makeDriftedRow(0)];
     render(<PanelRowsHarness rows={rows} />);
+    // Per project test convention (tests/renderer/missing-attachments-panel.spec.tsx:13-14)
+    // use not.toBeNull() rather than @testing-library/jest-dom matchers — no
+    // jest-dom imports anywhere in tests/renderer.
     const badge = screen.getByLabelText(/source png dims differ/i);
-    expect(badge).toBeInTheDocument();
+    expect(badge).not.toBeNull();
     // Title attribute carries the verbatim ROADMAP DIMS-02 wording.
     const title = badge.getAttribute('title');
     expect(title).toContain(

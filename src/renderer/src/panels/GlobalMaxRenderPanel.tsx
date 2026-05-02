@@ -429,7 +429,41 @@ function Row({
         {highlightMatch(row.attachmentName, query)}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
-      <td className="py-2 px-3 font-mono text-sm text-fg text-right">{row.originalSizeLabel}</td>
+      <td className="py-2 px-3 font-mono text-sm text-fg text-right">
+        {row.originalSizeLabel}
+        {/* Phase 22 DIMS-02 — dims-mismatch badge. Renders only when the
+            loader detected drift (canonical JSON dims vs actual on-disk PNG
+            dims differ by > 1px) AND actualSource fields are populated.
+            Tooltip wording is locked verbatim from ROADMAP DIMS-02 — both
+            aria-label (paraphrased for screen readers) and title (mouse-
+            hover) carry the full sentence with concrete dim values
+            substituted (no template-literal leakage).
+
+            Iconography: info-circle (small w-4 h-4 inline-flex). The
+            warning-triangle pattern at lines 818-823 is reserved for
+            unused-attachments — info-circle is the dims-mismatch slot per
+            22-RESEARCH §"DIMS-02 > Iconography". */}
+        {row.dimsMismatch &&
+          row.actualSourceW !== undefined &&
+          row.actualSourceH !== undefined && (
+            <span
+              aria-label={`Source PNG dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}`}
+              title={`Source PNG (${row.actualSourceW}×${row.actualSourceH}) is smaller than canonical region dims (${row.canonicalW}×${row.canonicalH}). Optimize will cap at source size.`}
+              className="inline-flex items-center justify-center w-4 h-4 ml-1 align-middle text-warning"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                className="w-4 h-4"
+              >
+                <circle cx="8" cy="8" r="6" />
+                <path d="M8 5 v4 M8 11.5 v0.01" />
+              </svg>
+            </span>
+          )}
+      </td>
       {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims that
           buildExportPlan + the optimize dialog use, NOT the world-AABB.
           Hover tooltip surfaces the world-AABB for power users (rotation /

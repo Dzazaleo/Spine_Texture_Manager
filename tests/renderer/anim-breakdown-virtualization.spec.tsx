@@ -460,8 +460,9 @@ describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', (
   it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
     const rows = [makeDriftedRow('Setup Pose (Default)', 0)];
     render(<PanelRowsHarness rows={rows} />);
+    // Per project test convention (no jest-dom matchers) use not.toBeNull().
     const badge = screen.getByLabelText(/source png dims differ/i);
-    expect(badge).toBeInTheDocument();
+    expect(badge).not.toBeNull();
     const title = badge.getAttribute('title');
     expect(title).toContain(
       'Source PNG (811×962) is smaller than canonical region dims (1628×1908)',
