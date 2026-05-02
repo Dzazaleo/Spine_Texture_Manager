@@ -2,10 +2,10 @@
 phase: 21-seed-001-atlas-less-mode-json-images-folder-no-atlas
 plan: 11
 subsystem: renderer + layout-stability
-tags: [renderer, layout-regression, panel-virtualization, gap-closure, g-03, speculative-fix-2-then-verify, uat-1-falsified-original-hypothesis]
-status: speculative-fix-2-then-verify
+tags: [renderer, layout-regression, panel-virtualization, gap-closure, g-03, passed, root-cause-min-h-screen]
+status: passed
 gap_closure_for: [G-03]
-issue_008_disposition: original-hypothesis-falsified-by-uat-1; revised-diagnosis-applied; uat-2-required
+issue_008_disposition: original-hypothesis-falsified-by-uat-1; uat-2-revised-fix-improved-but-residual-remained; uat-3-root-cause-found-(h-full-vs-min-h-screen)-issue-resolved-2026-05-02
 
 # Dependency graph
 requires:
@@ -167,6 +167,35 @@ The user must re-run **Test 1 specifically**: Global tab + per-attachment filter
 **If Test 1-revised PASSES**: G-03 is closed. The plan's status flips from `speculative-fix-2-then-verify` to `closed`. The original speculative-fix b8f2a0f stays as defense-in-depth.
 
 **If Test 1-revised FAILS**: the revised hypothesis is also wrong. Plan is marked `SPECULATIVE-FIX-FAILED` and the user re-routes to a deeper investigation (likely sitting with Claude in dev mode to do live DOM inspection). At that point, the failure mode is genuinely outside what static analysis can predict, and HUMAN-IN-THE-LOOP investigation is the only path forward.
+
+## UAT-2 + UAT-3 Result (closed 2026-05-02)
+
+**UAT-2** (revised fix `30ff95f` GlobalMaxRenderPanel `min-h-[calc(100vh-200px)]`): PARTIAL PASS — major panel-slide regression closed; user reported "improvement, but toolbar still moves a bit". Tests 2+3 still PASS.
+
+**UAT-2.5** (`a9e0c0a` `[scrollbar-gutter:stable]` on `<main>`): NO EFFECT on residual jitter — falsified the inner-main-scrollbar hypothesis. Kept as defense-in-depth (independently desirable).
+
+**UAT-3 — root cause found (commit `8a0a6ec`).** User-supplied screenshots showed the **entire root container** (toolbar + panel chrome) shifting downward by ~35px when filter narrowed results to < ~5 rows, leaving a black gap above the toolbar. The shift was content-driven page reflow, not a flex/scrollbar issue.
+
+**Root cause:** the root `<div>` in `AppShell.tsx:1243` used `className="w-full h-full flex flex-col"`. `h-full` resolves against the parent's height — but `html`, `body`, and `#root` have NO height set in `src/renderer/src/index.css` or `src/renderer/index.html`. With a height-less parent, `h-full` resolves to 0, and the flex-column root becomes content-driven: short content = short root = the entire page reflows when content collapses below viewport height.
+
+**Final fix:** `AppShell.tsx:1243` `h-full` → `min-h-screen`. The root now anchors to ≥ `100vh` regardless of content, so the toolbar's sticky-top position is stable across all filter states. One-line change; vitest 626/626 passing.
+
+**User confirmation (UAT-3):** "issue resolved" — 2026-05-02.
+
+### Cumulative fix chain
+
+| Commit | Fix | Disposition |
+|--------|-----|-------------|
+| `b8f2a0f` | `flex-shrink-0` × 6 + `whitespace-nowrap` on toolbar children | Preserved (defense-in-depth; UAT-1 Tests 2+3 PASSED) |
+| `30ff95f` | GlobalMaxRenderPanel outer `<section>` `min-h-[calc(100vh-200px)]` | Preserved (closes the major panel-slide-toward-center subregression) |
+| `a9e0c0a` | `[scrollbar-gutter:stable]` on `<main>` | Preserved (independently desirable layout discipline) |
+| `8a0a6ec` | Root `<div>` `h-full` → `min-h-screen` | **Root-cause fix — closes G-03** |
+
+### Lessons (for ISSUE-008 / future speculative-fix loops)
+
+1. **Bisect-by-LoC-touched is unreliable for layout regressions.** 39b72bb was correctly identified as the most-recently-layout-touching commit but was NOT causally responsible — the regression was a latent layout fragility that any content-collapse trigger would expose. The actual root cause (`h-full` on a height-less parent chain) predates Phase 21 entirely.
+2. **User-supplied screenshots are diagnostic gold.** Three rounds of static-analysis hypotheses produced partial fixes; one screenshot showing the black gap above the toolbar made the root cause obvious in seconds.
+3. **Defense-in-depth fixes are not waste** when each one tightens a real layout invariant. All three preserved fixes (`flex-shrink-0` toolbar discipline, panel `min-h` pin, scrollbar-gutter stability) close latent fragility classes orthogonal to the root cause.
 
 ## Verification Outcomes (Tasks 1+2 + Revised Fix)
 
