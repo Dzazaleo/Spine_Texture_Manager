@@ -5,8 +5,10 @@
  *   - synthesizeAtlasText produces atlas text consumed by spine-core
  *   - Each JSON region/mesh/linkedmesh attachment becomes a synthesized region
  *   - Region keys come from att.path ?? entryName (Pitfall 2)
- *   - Per-region missing PNG → silent skip (D-09)
- *   - No images/ dir, or empty + JSON has regions → MissingImagesDirError (D-10)
+ *   - Per-region missing PNG → 1x1 stub region emission (D-09 + Plan 21-09 G-01 fix)
+ *   - No images/ dir → MissingImagesDirError (D-10 first variant; preserved)
+ *   - Empty images/ dir + JSON has regions → all-stubs (D-10 second variant
+ *     refined in Plan 21-09 ISSUE-006)
  *   - SilentSkipAttachmentLoader returns null instead of throwing on missing
  *     region (Pitfall 1)
  *
@@ -56,6 +58,9 @@ describe('synthesizeAtlasText (LOAD-03 happy path; INV-3, INV-4)', () => {
         expect(region.originalHeight).toBe(region.height);
       }
     }
+    // Plan 21-09 G-01 — happy path: missingPngs is an empty array (the
+    // field exists for downstream surfacing even when nothing's missing).
+    expect(synth.missingPngs).toEqual([]);
   });
 
   it('returns SynthResult maps keyed on region name with PNG paths + dims', () => {
@@ -73,15 +78,19 @@ describe('synthesizeAtlasText (LOAD-03 happy path; INV-3, INV-4)', () => {
       expect(dims!.w).toBeGreaterThan(0);
       expect(dims!.h).toBeGreaterThan(0);
     }
+    // Plan 21-09 G-01 — happy path: missingPngs is an empty array.
+    expect(synth.missingPngs).toEqual([]);
   });
 });
 
-describe('synthesizeAtlasText silent-skip per-region missing PNG (INV-5; D-09)', () => {
-  it('drops regions whose PNG is missing; remaining regions still resolve', () => {
+describe('synthesizeAtlasText silent-skip per-region missing PNG (INV-5; D-09; G-01 stub-region fix)', () => {
+  it('emits a 1x1 stub region for missing PNG so spine-core can resolve the attachment; remaining regions still resolve with real dims', () => {
     // Construct a tmpdir with JSON referencing 3 region names but only 2 PNGs
-    // present. The walker should produce 3 paths; readPngDims on the missing
-    // one fails; that region is silently dropped from the synthesized atlas.
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-synth-silentskip-'));
+    // present. The walker produces 3 paths; readPngDims on the missing one
+    // fails; under the G-01 stub-region fix the missing region is emitted as
+    // a 1x1 stub so spine-core's animation/skin parser can resolve it without
+    // null-deref crashes (exact crash site varies — see plan ISSUE-004 note).
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-synth-stubregion-'));
     fs.mkdirSync(path.join(tmpDir, 'images'), { recursive: true });
     fs.copyFileSync(
       path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/images/CIRCLE.png'),
@@ -91,7 +100,7 @@ describe('synthesizeAtlasText silent-skip per-region missing PNG (INV-5; D-09)',
       path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/images/SQUARE.png'),
       path.join(tmpDir, 'images', 'SQUARE.png'),
     );
-    // No TRIANGLE.png — should be silently skipped.
+    // No TRIANGLE.png — should be stubbed (1x1).
     const fakeJson = {
       skeleton: { spine: '4.2.0' },
       skins: [
@@ -112,13 +121,103 @@ describe('synthesizeAtlasText silent-skip per-region missing PNG (INV-5; D-09)',
     try {
       const synth = synthesizeAtlasText(fakeJson, path.join(tmpDir, 'images'), skelPath);
       const atlas = new TextureAtlas(synth.atlasText);
-      // Only the two PNGs that exist become regions.
-      expect(atlas.findRegion('CIRCLE')).not.toBeNull();
-      expect(atlas.findRegion('SQUARE')).not.toBeNull();
-      expect(atlas.findRegion('TRIANGLE')).toBeNull();
-      // Maps mirror the synthesized atlas: 2 entries each.
+      // All 3 regions resolve under the stub-region fix.
+      const circle = atlas.findRegion('CIRCLE');
+      const square = atlas.findRegion('SQUARE');
+      const triangle = atlas.findRegion('TRIANGLE');
+      expect(circle).not.toBeNull();
+      expect(square).not.toBeNull();
+      expect(triangle).not.toBeNull();
+      // CIRCLE + SQUARE have REAL dims from their PNG IHDR.
+      expect(circle!.width).toBeGreaterThan(1);
+      expect(square!.width).toBeGreaterThan(1);
+      // TRIANGLE has STUB dims — exactly 1x1 (G-01 stub-region grammar).
+      expect(triangle!.width).toBe(1);
+      expect(triangle!.height).toBe(1);
+      // Maps mirror PNG truth: only the 2 real PNGs in pngPathsByRegionName + dimsByRegionName.
       expect(synth.pngPathsByRegionName.size).toBe(2);
       expect(synth.dimsByRegionName.size).toBe(2);
+      // missingPngs records the missing one.
+      expect(synth.missingPngs).toEqual(['TRIANGLE.png']);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('exposes missingPngs on SynthResult for downstream surfacing (G-02 plumbing precondition)', () => {
+    // Light test verifying the missingPngs field is present + populated even
+    // for the happy-path-with-one-missing case. Sister test of the above but
+    // narrower scope (just the missingPngs field shape).
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-synth-missingpngs-shape-'));
+    fs.mkdirSync(path.join(tmpDir, 'images'), { recursive: true });
+    fs.copyFileSync(
+      path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/images/CIRCLE.png'),
+      path.join(tmpDir, 'images', 'CIRCLE.png'),
+    );
+    const fakeJson = {
+      skeleton: { spine: '4.2.0' },
+      skins: [
+        {
+          name: 'default',
+          attachments: {
+            slot1: { CIRCLE: { type: 'region' } },
+            slot2: { MISSING: { type: 'mesh' } },
+          },
+        },
+      ],
+    };
+    const skelPath = path.join(tmpDir, 'rig.json');
+    fs.writeFileSync(skelPath, JSON.stringify(fakeJson));
+    try {
+      const synth = synthesizeAtlasText(fakeJson, path.join(tmpDir, 'images'), skelPath);
+      expect(Array.isArray(synth.missingPngs)).toBe(true);
+      expect(synth.missingPngs).toEqual(['MISSING.png']);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('stubs all regions when images/ dir is empty + JSON has region refs (no longer catastrophic under G-01 fix; see plan ISSUE-006 note)', () => {
+    // Pre-G-01 contract: this case threw MissingImagesDirError. Post-G-01:
+    // every region gets a stub, the load succeeds, all 4 region paths show
+    // up in missingPngs for downstream surfacing.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-synth-emptyimg-'));
+    fs.mkdirSync(path.join(tmpDir, 'images'), { recursive: true });
+    const skelPath = path.join(tmpDir, 'rig.json');
+    fs.writeFileSync(
+      skelPath,
+      JSON.stringify({
+        skeleton: { spine: '4.2.0' },
+        skins: [
+          {
+            name: 'default',
+            attachments: {
+              s1: { CIRCLE: { type: 'region' } },
+              s2: { SQUARE: { type: 'region' } },
+              s3: { TRIANGLE: { type: 'region' } },
+              s4: { STAR: { type: 'mesh' } },
+            },
+          },
+        ],
+      }),
+    );
+    try {
+      const synth = synthesizeAtlasText(
+        JSON.parse(fs.readFileSync(skelPath, 'utf8')),
+        path.join(tmpDir, 'images'),
+        skelPath,
+      );
+      const atlas = new TextureAtlas(synth.atlasText);
+      // All 4 regions resolve as stubs.
+      for (const name of ['CIRCLE', 'SQUARE', 'TRIANGLE', 'STAR']) {
+        const region = atlas.findRegion(name);
+        expect(region, `region ${name} should be a 1x1 stub`).not.toBeNull();
+        expect(region!.width).toBe(1);
+        expect(region!.height).toBe(1);
+      }
+      expect(synth.missingPngs.length).toBe(4);
+      expect(synth.pngPathsByRegionName.size).toBe(0);
+      expect(synth.dimsByRegionName.size).toBe(0);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -151,49 +250,6 @@ describe('synthesizeAtlasText catastrophic cases (INV-6; D-10, D-11)', () => {
       const err = caught as MissingImagesDirError;
       expect(err.name).toBe('MissingImagesDirError');
       expect(err.searchedPath.endsWith('images')).toBe(true);
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('throws MissingImagesDirError with full missingPngs list when images/ dir is empty + JSON has region refs', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-synth-emptyimg-'));
-    fs.mkdirSync(path.join(tmpDir, 'images'), { recursive: true });
-    const skelPath = path.join(tmpDir, 'rig.json');
-    // 4 distinct region attachments — none have PNGs in the empty folder.
-    fs.writeFileSync(
-      skelPath,
-      JSON.stringify({
-        skeleton: { spine: '4.2.0' },
-        skins: [
-          {
-            name: 'default',
-            attachments: {
-              s1: { CIRCLE: { type: 'region' } },
-              s2: { SQUARE: { type: 'region' } },
-              s3: { TRIANGLE: { type: 'region' } },
-              s4: { STAR: { type: 'mesh' } },
-            },
-          },
-        ],
-      }),
-    );
-    try {
-      let caught: unknown;
-      try {
-        synthesizeAtlasText(
-          JSON.parse(fs.readFileSync(skelPath, 'utf8')),
-          path.join(tmpDir, 'images'),
-          skelPath,
-        );
-      } catch (e) {
-        caught = e;
-      }
-      expect(caught).toBeInstanceOf(MissingImagesDirError);
-      const err = caught as MissingImagesDirError;
-      expect(err.name).toBe('MissingImagesDirError');
-      expect(err.missingPngs).toBeDefined();
-      expect(err.missingPngs!.length).toBe(4);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
