@@ -194,11 +194,19 @@ function enrichCardsWithEffective(
     ...card,
     rows: card.rows.map((row) => {
       const override = overrides.get(row.attachmentName);
+      // Phase 22 DIMS-03 (Plan 22-04) — pass actualSourceW/H + dimsMismatch
+      // through so the per-card Peak W×H column reflects cap math. Sibling-
+      // symmetric to GlobalMaxRenderPanel.enrichWithEffective per Phase 19
+      // D-06 (both panels read the same enriched shape from the same helper
+      // signature).
       const { effScale, outW, outH } = computeExportDims(
         row.sourceW,
         row.sourceH,
         row.peakScale,
         override,
+        row.actualSourceW,
+        row.actualSourceH,
+        row.dimsMismatch,
       );
       return {
         ...row,
