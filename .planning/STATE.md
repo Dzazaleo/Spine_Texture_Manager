@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: executing
+status: milestone_complete
 last_updated: "2026-05-02T20:55:00Z"
 last_activity: 2026-05-02 -- Phase 21 Plan 21-12 complete (G-04 caller-side precedence fix; 630/630 vitest)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — EXECUTING
-Plan: 12 of 12 (Plan 21-12 complete; all gap closures G-01 / G-02 / G-03 / G-04 closed)
-Status: Phase 21 awaiting HUMAN-UAT and `/gsd-verify-work 21`
-Last activity: 2026-05-02 -- Phase 21 Plan 21-12 complete (G-04 caller-side precedence fix; 630/630 vitest)
+Phase: 21
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-02
 
 ## Last Roadmap Update
 
