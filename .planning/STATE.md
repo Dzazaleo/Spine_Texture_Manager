@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-01T22:49:23.155Z"
+last_updated: "2026-05-02T16:53:49.469Z"
 last_activity: 2026-05-01 -- Phase 21 execution started
 progress:
   total_phases: 4
@@ -79,7 +79,7 @@ Phase 20 is complete (4 of 4 plans shipped). Ready for `/gsd-verify-work 20`. Pl
 
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
-**Planned Phase:** 21 (SEED-001 atlas-less mode (json + images folder, no .atlas)) — 8 plans — 2026-05-01T22:46:01.178Z
+**Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 11 plans — 2026-05-02T16:53:49.465Z
 
 **Last Plan Action:** 20-04 (html-export-ipc-roundtrip) — COMPLETE — 2026-05-01T20:00:31Z (commits ecab501 → 65b0f1c → 4dc8985; SUMMARY at .planning/phases/20-documentation-builder-feature/20-04-html-export-ipc-roundtrip-SUMMARY.md). Phase 20 complete — all 4 plans shipped; DOC-01..DOC-05 all closed end-to-end.
 

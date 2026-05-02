@@ -416,7 +416,7 @@ Plans:
   4. User runs Optimize Assets on an atlas-less project and the export to `images-optimized/` succeeds end-to-end — the same Lanczos3 sharp pipeline that works on canonical `.json + .atlas + .png` projects works on atlas-less projects. A golden fixture exercises load → sample → export round-trip. (LOAD-04)
   5. The `AtlasNotFoundError` message is preserved verbatim for actually-missing-atlas cases (e.g. malformed project where atlas was expected); a user with a malformed project still gets a clear error, distinct from the now-supported atlas-less path.
 
-**Plans:** 8 plans
+**Plans:** 11 plans (8 originals + 3 gap closures from HUMAN-UAT G-01/G-02/G-03)
 - [x] 21-01-PLAN.md — pure-TS PNG IHDR width/height byte parser (LOAD-02)
 - [x] 21-02-PLAN.md — MissingImagesDirError class + KNOWN_KINDS IPC routing (LOAD-01 plumbing)
 - [x] 21-03-PLAN.md — fixtures/SIMPLE_PROJECT_NO_ATLAS golden fixture (LOAD-04 prerequisite)
@@ -425,6 +425,9 @@ Plans:
 - [x] 21-06-PLAN.md — loader integration: 4-way branch order (D-05/D-06/D-07/D-08); AtlasNotFoundError preservation (LOAD-01 + criterion #5)
 - [x] 21-07-PLAN.md — .stmproj v1 schema gains loaderMode; sampler-worker + project-io threading (LOAD-01 persistence)
 - [x] 21-08-PLAN.md — AppShell loaderMode toggle + round-trip integration spec + HUMAN-UAT (LOAD-01 + LOAD-04) — autonomous tasks complete; HUMAN-UAT routes through verifier human_needed path
+- [ ] 21-09-PLAN.md — stub-region for missing PNGs in synthetic-atlas (G-01 fix; closes the deform-timeline crash)
+- [ ] 21-10-PLAN.md — MissingAttachmentsPanel + skippedAttachments IPC cascade (G-02 fix; user-facing surface for skipped PNGs)
+- [ ] 21-11-PLAN.md — toolbar layout regression fix (G-03 fix; flex-shrink-0 hardening)
 
 ### Phase 22: SEED-002 dims-badge + override-cap (depends on Phase 21)
 
