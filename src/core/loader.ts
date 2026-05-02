@@ -48,6 +48,7 @@ import {
   synthesizeAtlasText,
   SilentSkipAttachmentLoader,
 } from './synthetic-atlas.js';
+import { readPngDims } from './png-header.js';
 
 /**
  * Headless stub texture. Fabricated from atlas metadata only. Never decodes
@@ -178,6 +179,67 @@ export function loadSkeleton(
   } else {
     // No skeleton object at all — malformed JSON or wrong file type.
     checkSpineVersion(null, skeletonPath);
+  }
+
+  // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
+  // canonical width/height per region. Pattern verbatim from
+  // synthetic-atlas.ts:walkSyntheticRegionPaths (Phase 21) — same skin/
+  // slot/entry iteration, same type filter (region | mesh | linkedmesh),
+  // same `att.path ?? entryName` keying. Only difference: harvest
+  // att.width + att.height per visited entry. Last-write-wins on duplicate
+  // region across skins (canonical dims are a property of the source PNG,
+  // NOT the skin variant).
+  //
+  // R5 linkedmesh fallback: when att.width === 0 || att.height === 0
+  // (linkedmesh inheriting from a parent without explicit dims, or
+  // malformed JSON), skip the entry. Analyzer's CLI fallback
+  // (canonicalW = p.sourceW) covers downstream. Backlog v1.3:
+  // "linkedmesh canonical-dims fallback via parent mesh resolution."
+  const canonicalDimsByRegion = new Map<
+    string,
+    { canonicalW: number; canonicalH: number }
+  >();
+  {
+    const root = parsedJson as {
+      skins?: Array<{
+        attachments?: Record<
+          string,
+          Record<
+            string,
+            { type?: string; path?: string; width?: number; height?: number }
+          >
+        >;
+      }>;
+    };
+    for (const skin of root.skins ?? []) {
+      for (const slotName in skin.attachments) {
+        const slot = skin.attachments![slotName];
+        for (const entryName in slot) {
+          const att = slot[entryName];
+          const type = att.type ?? 'region'; //                  SkeletonJson.js:366 default
+          if (type !== 'region' && type !== 'mesh' && type !== 'linkedmesh')
+            continue;
+          const regionName = att.path ?? entryName; //           SkeletonJson.js:368, 401
+          const w = att.width ?? 0;
+          const h = att.height ?? 0;
+          if (w === 0 || h === 0) {
+            // R5 — linkedmesh-without-explicit-dims (rare; no in-repo
+            // fixture exercises this). Skip; analyzer's CLI fallback
+            // (canonicalW = p.sourceW) covers downstream.
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn(
+                `Phase 22 DIMS-01: attachment '${regionName}' (type=${type}) has no explicit width/height in JSON; canonical-dims fallback to peakRecord.sourceW.`,
+              );
+            }
+            continue;
+          }
+          canonicalDimsByRegion.set(regionName, {
+            canonicalW: w,
+            canonicalH: h,
+          });
+        }
+      }
+    }
   }
 
   // 2. Resolve atlas — Phase 21 (LOAD-01) introduces a 4-way branch
@@ -414,6 +476,42 @@ export function loadSkeleton(
     }
   }
 
+  // Phase 22 DIMS-01 — read PNG IHDR dims for every region with a
+  // sourcePath that resolves on disk. Reuses Phase 21's readPngDims
+  // (Layer 3-clean byte parser; no decode). Per-region try/catch keeps a
+  // missing/unreadable PNG from breaking the load — actualDimsByRegion
+  // entry stays absent, downstream dimsMismatch evaluates false (atlas-
+  // extract path semantics per CONTEXT D-01).
+  //
+  // This loop runs in BOTH canonical-atlas mode AND atlas-less mode (per
+  // D-01 — JSON canonical drift detection covers both paths). In
+  // atlas-extract mode (Jokerman-style atlas-only project), every PNG read
+  // throws and actualDimsByRegion stays empty — that's the locked behavior.
+  //
+  // Layer-3 invariant honored: readPngDims is byte-parsing IHDR only —
+  // no zlib/IDAT decoding. CLAUDE.md fact #4 ("the math phase does not
+  // decode PNGs") preserved. PNG reads happen during loadSkeleton() only
+  // — never in the sampler hot loop (CLAUDE.md fact #3 boundary).
+  const actualDimsByRegion = new Map<
+    string,
+    { actualSourceW: number; actualSourceH: number }
+  >();
+  for (const [regionName, pngPath] of sourcePaths) {
+    try {
+      const dims = readPngDims(pngPath);
+      actualDimsByRegion.set(regionName, {
+        actualSourceW: dims.width,
+        actualSourceH: dims.height,
+      });
+    } catch {
+      // Per-region PNG missing or unreadable. Atlas-extract path
+      // (Jokerman-style atlas-only project) hits this branch for every
+      // region — actualDimsByRegion stays empty. Don't throw — the
+      // existing loader contract is "best-effort dims population" per
+      // Phase 21 D-12 + CONTEXT D-01.
+    }
+  }
+
   // 8. Build atlasSources map.
   //    Canonical mode: pagePath under atlasDir, x/y/w/h from region (existing
   //    Phase 6 Gap-Fix #2 pattern for atlas-packed projects e.g. Jokerman).
@@ -503,15 +601,18 @@ export function loadSkeleton(
     sourcePaths,
     atlasSources,
     editorFps,
-    // Phase 22 DIMS-01 — empty-Map placeholders so npx tsc --noEmit passes at
-    // the END of Plan 22-01. Plan 22-02 Task 1 Step 4 replaces these with
-    // populated walks (parsedJson skin attachment width/height for canonical;
-    // PNG IHDR reads via Phase 21's readPngDims for actual). Empty Maps yield
-    // the same fallback behavior as undefined when threaded through analyze()
-    // (canonicalW=p.sourceW; dimsMismatch=false) — so CLI byte-for-byte
-    // preservation (D-102) holds at this checkpoint too.
-    canonicalDimsByRegion: new Map(),
-    actualDimsByRegion: new Map(),
+    // Phase 22 DIMS-01 — populated by the parsedJson skin walk (above,
+    // immediately after the version guard) and the per-region readPngDims
+    // loop (above, immediately after sourcePaths is built). canonicalDimsByRegion
+    // is keyed by region name (att.path ?? entryName) and carries
+    // canonicalW/canonicalH from the JSON `width`/`height` fields per D-01.
+    // actualDimsByRegion is keyed identically and carries actualSourceW/
+    // actualSourceH from PNG IHDR bytes — empty for atlas-extract path
+    // projects (Jokerman-style atlas-only) where per-region PNGs are absent.
+    // Analyzer + summary.ts thread BOTH maps through to DisplayRow with a
+    // 1px-tolerance dimsMismatch predicate (Plan 22-01 contract).
+    canonicalDimsByRegion,
+    actualDimsByRegion,
     ...(skippedAttachments !== undefined ? { skippedAttachments } : {}), // Plan 21-09 G-01 (optional)
   };
 }
