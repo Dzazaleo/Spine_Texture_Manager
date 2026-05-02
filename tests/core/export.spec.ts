@@ -701,6 +701,154 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewPlan.rows[0].outW).toBe(100);
     expect(viewPlan.rows[0].outH).toBe(100);
   });
+
+  // ----------------------------------------------------------------------
+  // Phase 22 Plan 22-04 — parity assertions for the renderer mirror of the
+  // DIMS-03 cap formula + DIMS-04 passthrough partition that landed in
+  // src/core/export.ts via Plan 22-03. The cap math + partition body is
+  // mirrored byte-for-byte into src/renderer/src/lib/export-view.ts; these
+  // assertions lock the regex shape AND the behavioral output across both
+  // files. Drift in either copy fails here.
+  // ----------------------------------------------------------------------
+
+  it('Phase 22 DIMS-03 cap formula present in BOTH files', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /Math\.min\([^)]*actualSourceW\s*\/\s*canonicalW/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
+  it('Phase 22 DIMS-04 passthrough partition present in BOTH files', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sigDecl = /const\s+passthroughCopies\s*:\s*ExportRow\[\]\s*=\s*\[\]/;
+    const sigPush = /passthroughCopies\.push\(/;
+    expect(coreText).toMatch(sigDecl);
+    expect(viewText).toMatch(sigDecl);
+    expect(coreText).toMatch(sigPush);
+    expect(viewText).toMatch(sigPush);
+  });
+
+  it('Phase 22 D-04 REVISED isPassthrough predicate in BOTH files', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /isCapped\s*\|\|\s*peakAlreadyAtOrBelowSource/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
+  it('Phase 22 behavioral parity: drifted row produces IDENTICAL passthroughCopies in both files', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+    // canonical 1628×1908, actual 811×962, peakScale 0.7 — cap binds (X axis).
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/DRIFTED',
+          attachmentName: 'DRIFTED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.7,
+          peakScaleX: 0.7,
+          peakScaleY: 0.7,
+          worldW: 1140,
+          worldH: 1336,
+          sourceW: 1628,
+          sourceH: 1908,
+          sourcePath: '/fake/DRIFTED.png',
+          canonicalW: 1628,
+          canonicalH: 1908,
+          actualSourceW: 811,
+          actualSourceH: 962,
+          dimsMismatch: true,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const corePlan = buildExportPlan(summary, new Map());
+    const viewPlan = buildExportPlanView(summary, new Map());
+    expect(viewPlan.passthroughCopies).toEqual(corePlan.passthroughCopies);
+    expect(viewPlan.rows).toEqual(corePlan.rows);
+    expect(viewPlan.totals).toEqual(corePlan.totals);
+  });
+
+  it('Phase 22 behavioral parity: peakAlreadyAtOrBelowSource branch produces IDENTICAL output in both files', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+    // peakScale 0.3 ≤ sourceRatio (0.498) → peakAlreadyAtOrBelowSource branch.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/DRIFTED',
+          attachmentName: 'DRIFTED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.3,
+          peakScaleX: 0.3,
+          peakScaleY: 0.3,
+          worldW: 488,
+          worldH: 572,
+          sourceW: 1628,
+          sourceH: 1908,
+          sourcePath: '/fake/DRIFTED.png',
+          canonicalW: 1628,
+          canonicalH: 1908,
+          actualSourceW: 811,
+          actualSourceH: 962,
+          dimsMismatch: true,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const corePlan = buildExportPlan(summary, new Map());
+    const viewPlan = buildExportPlanView(summary, new Map());
+    expect(viewPlan.passthroughCopies).toEqual(corePlan.passthroughCopies);
+    expect(viewPlan.rows).toEqual(corePlan.rows);
+  });
+
+  it('Phase 22 DIMS-03 computeExportDims surfaces cap math when actualSource defined', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const computeExportDims = viewModule.computeExportDims;
+    // canonical 1628×1908, actual 811×962, peakScale 0.7, no override, dimsMismatch:true.
+    // sourceRatio = min(811/1628, 962/1908) = 811/1628 ≈ 0.49816 (X binds).
+    // effScale = min(safeScale(0.7)=0.7 → clamp 1 → 0.7, 0.49816) = 0.49816.
+    // outW = ceil(1628 × 0.49816) = 811 (binding axis matches actualSourceW).
+    // outH = ceil(1908 × 0.49816) = 951 (non-binding; uniform cap, ≤ actualSourceH).
+    const result = computeExportDims(
+      1628, 1908, 0.7, undefined,
+      811, 962, true,
+    );
+    expect(result.outW).toBe(811);
+    expect(result.outH).toBe(951);
+    expect(result.effScale).toBeCloseTo(811 / 1628, 6);
+  });
+
+  it('Phase 22 DIMS-03 computeExportDims uncapped when dimsMismatch is false', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const computeExportDims = viewModule.computeExportDims;
+    // dimsMismatch:false → sourceRatio = Infinity → cap inert → legacy formula.
+    const result = computeExportDims(1000, 1000, 0.5, undefined, undefined, undefined, false);
+    expect(result.outW).toBe(500);
+    expect(result.outH).toBe(500);
+    expect(result.effScale).toBeCloseTo(0.5, 6);
+  });
+
+  it('Phase 22 DIMS-03 computeExportDims back-compat: omitted Phase-22 args still work', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const computeExportDims = viewModule.computeExportDims;
+    // Pre-Phase-22 call shape (4 args) — back-compat for any non-panel callers.
+    const result = computeExportDims(1000, 1000, 0.5, undefined);
+    expect(result.outW).toBe(500);
+    expect(result.outH).toBe(500);
+    expect(result.effScale).toBeCloseTo(0.5, 6);
+  });
 });
 
 /**

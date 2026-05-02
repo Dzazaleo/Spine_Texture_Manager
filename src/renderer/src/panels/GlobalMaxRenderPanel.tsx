@@ -189,11 +189,19 @@ function enrichWithEffective(
 ): EnrichedRow[] {
   return rows.map((row) => {
     const override = overrides.get(row.attachmentName);
+    // Phase 22 DIMS-03 (Plan 22-04) — pass actualSourceW/H + dimsMismatch
+    // through so the panel's Peak W×H column reflects cap math (drifted rows
+    // show on-disk dims, NOT pre-cap canonical × peakScale). Without these,
+    // the panel would lie to the user about what the export will actually
+    // produce when the cap binds.
     const { effScale, outW, outH } = computeExportDims(
       row.sourceW,
       row.sourceH,
       row.peakScale,
       override,
+      row.actualSourceW,
+      row.actualSourceH,
+      row.dimsMismatch,
     );
     return {
       ...row,
