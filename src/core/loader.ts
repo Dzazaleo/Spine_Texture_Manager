@@ -210,6 +210,11 @@ export function loadSkeleton(
   let isAtlasLess: boolean;
   let synthSourcePaths: Map<string, string> | null = null;
   let synthDims: Map<string, { w: number; h: number }> | null = null;
+  // Phase 21 Plan 21-09 G-01 — names of regions whose PNG was missing in
+  // atlas-less mode. The synthesizer emitted a 1x1 stub region for each so
+  // spine-core can resolve the attachment without crashing; this list
+  // flows into LoadResult.skippedAttachments below for renderer surfacing.
+  let synthMissingPngs: string[] | null = null;
 
   if (opts.atlasPath !== undefined) {
     // D-06: explicit user-provided atlasPath — try to read; throw verbatim
@@ -244,6 +249,7 @@ export function loadSkeleton(
     }
     synthSourcePaths = synth.pngPathsByRegionName;
     synthDims = synth.dimsByRegionName;
+    synthMissingPngs = synth.missingPngs; //                                Plan 21-09 G-01
     resolvedAtlasPath = null;
     isAtlasLess = true;
   } else {
@@ -317,6 +323,7 @@ export function loadSkeleton(
       }
       synthSourcePaths = synth.pngPathsByRegionName;
       synthDims = synth.dimsByRegionName;
+      synthMissingPngs = synth.missingPngs; //                              Plan 21-09 G-01
       resolvedAtlasPath = null;
       isAtlasLess = true;
     }
@@ -465,6 +472,28 @@ export function loadSkeleton(
   // (CLAUDE.md rule #1 forbids fps-driven sampling).
   const editorFps = skeletonData.fps || 30;
 
+  // Phase 21 Plan 21-09 G-01 — surface attachments whose PNGs were missing in
+  // atlas-less mode. Each missingPngs entry from the synthesizer is
+  // `<regionName>.png`; map back to { name: <regionName>, expectedPngPath:
+  // <imagesDir>/<filename> }. Field is OPTIONAL (matches unusedAttachments?:
+  // precedent on SkeletonSummary): we leave it absent when there's nothing
+  // to surface (canonical mode, or atlas-less mode with all PNGs present).
+  // The synthesizer emitted a 1x1 stub region for each entry so spine-core's
+  // animation parser resolved them without null-deref crashes; the renderer
+  // (Plan 21-10 MissingAttachmentsPanel) hides them from the main panels and
+  // surfaces them here for explicit user visibility.
+  //
+  // Uses imagesDir (declared above for canonical sourcePaths construction;
+  // both atlas-less branches compute the same path.dirname(skeletonPath) +
+  // '/images' value; canonical mode never has missingPngs entries to surface).
+  const skippedAttachments: { name: string; expectedPngPath: string }[] | undefined =
+    isAtlasLess && synthMissingPngs !== null && synthMissingPngs.length > 0
+      ? synthMissingPngs.map((filename) => ({
+          name: filename.endsWith('.png') ? filename.slice(0, -4) : filename,
+          expectedPngPath: path.resolve(path.join(imagesDir, filename)),
+        }))
+      : undefined;
+
   return {
     skeletonPath: path.resolve(skeletonPath),
     atlasPath: resolvedAtlasPath, //                                      D-03: string | null
@@ -474,5 +503,6 @@ export function loadSkeleton(
     sourcePaths,
     atlasSources,
     editorFps,
+    ...(skippedAttachments !== undefined ? { skippedAttachments } : {}), // Plan 21-09 G-01 (optional)
   };
 }
