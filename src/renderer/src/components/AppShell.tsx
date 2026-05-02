@@ -1478,7 +1478,7 @@ export function AppShell({
           </button>
         </div>
       )}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto [scrollbar-gutter:stable]">
         {/*
           Phase 21 Plan 21-10 (G-02) — surface skipped-PNG attachments above
           the regular panels. The component renders nothing when
