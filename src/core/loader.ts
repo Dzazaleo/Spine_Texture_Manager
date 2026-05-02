@@ -503,6 +503,15 @@ export function loadSkeleton(
     sourcePaths,
     atlasSources,
     editorFps,
+    // Phase 22 DIMS-01 — empty-Map placeholders so npx tsc --noEmit passes at
+    // the END of Plan 22-01. Plan 22-02 Task 1 Step 4 replaces these with
+    // populated walks (parsedJson skin attachment width/height for canonical;
+    // PNG IHDR reads via Phase 21's readPngDims for actual). Empty Maps yield
+    // the same fallback behavior as undefined when threaded through analyze()
+    // (canonicalW=p.sourceW; dimsMismatch=false) — so CLI byte-for-byte
+    // preservation (D-102) holds at this checkpoint too.
+    canonicalDimsByRegion: new Map(),
+    actualDimsByRegion: new Map(),
     ...(skippedAttachments !== undefined ? { skippedAttachments } : {}), // Plan 21-09 G-01 (optional)
   };
 }

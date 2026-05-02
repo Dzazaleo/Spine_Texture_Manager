@@ -253,6 +253,10 @@ export function buildExportPlan(
   return {
     rows,
     excludedUnused,
+    // Phase 22 DIMS-04 — empty placeholder for the type contract added in
+    // Plan 22-01. Plan 22-03 Task 1 Step 5 will populate this with the
+    // partition output of the cap step (drifted rows where cap binds).
+    passthroughCopies: [],
     totals: { count: rows.length },
   };
 }

@@ -444,3 +444,155 @@ describe('analyzeBreakdown (D-54, D-56, D-57, D-58, D-59, D-60, F4)', () => {
     expect(byName.get('JUMP')?.rows[0].attachmentName).toBe('BODY');
   });
 });
+
+/**
+ * Phase 22 DIMS-01 — analyze() canonical/actual dim threading + dimsMismatch
+ * predicate (1px tolerance per ROADMAP DIMS-01).
+ *
+ * Coverage:
+ *   - CLI fallback (D-102): no maps → canonicalW = p.sourceW, actualSource*
+ *     undefined, dimsMismatch=false. Preserves CLI byte-for-byte stdout.
+ *   - Canonical map populates DisplayRow.canonicalW/H from per-region entries.
+ *   - Actual map populates actualSourceW/H; dimsMismatch true when |delta| > 1
+ *     on EITHER axis; false when ≤ 1 on BOTH axes (1px tolerance).
+ *   - actualSource undefined (atlas-extract path) → dimsMismatch:false even
+ *     when canonical is provided.
+ */
+describe('analyze — DIMS-01 canonical/actual dim threading + dimsMismatch (1px tolerance)', () => {
+  function mkPeak(name: string, sourceW: number, sourceH: number, peakScale = 0.5): PeakRecord {
+    return {
+      attachmentKey: `default/SLOT/${name}`,
+      skinName: 'default',
+      slotName: 'SLOT',
+      attachmentName: name,
+      animationName: 'idle',
+      time: 0,
+      frame: 0,
+      peakScaleX: peakScale,
+      peakScaleY: peakScale,
+      peakScale,
+      worldW: sourceW * peakScale,
+      worldH: sourceH * peakScale,
+      sourceW,
+      sourceH,
+      isSetupPosePeak: false,
+    };
+  }
+
+  it('CLI fallback (D-102): analyze(peaks) with no canonical/actual maps yields canonicalW === sourceW + dimsMismatch:false', () => {
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 1000, 1000)]]);
+    const rows = analyze(peaks);
+    expect(rows[0].canonicalW).toBe(1000);
+    expect(rows[0].canonicalH).toBe(1000);
+    expect(rows[0].actualSourceW).toBeUndefined();
+    expect(rows[0].actualSourceH).toBeUndefined();
+    expect(rows[0].dimsMismatch).toBe(false);
+  });
+
+  it('CLI fallback (D-102): analyze(peaks, sourcePaths) with no canonical/actual maps still falls back', () => {
+    // Threading sourcePaths must NOT change canonical/actual semantics — only
+    // the dim maps drive those fields.
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 700, 800)]]);
+    const sp = new Map<string, string>([['R', '/abs/R.png']]);
+    const rows = analyze(peaks, sp);
+    expect(rows[0].canonicalW).toBe(700);
+    expect(rows[0].canonicalH).toBe(800);
+    expect(rows[0].actualSourceW).toBeUndefined();
+    expect(rows[0].dimsMismatch).toBe(false);
+    expect(rows[0].sourcePath).toBe('/abs/R.png');
+  });
+
+  it('canonicalDims map populates DisplayRow.canonicalW/H per attachmentName', () => {
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 1000, 1000)]]);
+    // Canonical dims diverge from sourceW/H — common case for atlas-less mode
+    // where sourceW/H come from per-region PNG headers but canonical comes
+    // from JSON skin attachment width/height.
+    const canonical = new Map([['R', { canonicalW: 1628, canonicalH: 1908 }]]);
+    const rows = analyze(peaks, undefined, undefined, canonical);
+    expect(rows[0].canonicalW).toBe(1628);
+    expect(rows[0].canonicalH).toBe(1908);
+    expect(rows[0].sourceW).toBe(1000); // sourceW unchanged (separate field)
+    expect(rows[0].dimsMismatch).toBe(false); // no actualSource → false
+  });
+
+  it('dimsMismatch:true when actualSourceW differs from canonicalW by > 1px', () => {
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 811, 962)]]);
+    const canonical = new Map([['R', { canonicalW: 1628, canonicalH: 1908 }]]);
+    const actual = new Map([['R', { actualSourceW: 811, actualSourceH: 962 }]]);
+    const rows = analyze(peaks, undefined, undefined, canonical, actual);
+    expect(rows[0].dimsMismatch).toBe(true);
+    expect(rows[0].canonicalW).toBe(1628);
+    expect(rows[0].canonicalH).toBe(1908);
+    expect(rows[0].actualSourceW).toBe(811);
+    expect(rows[0].actualSourceH).toBe(962);
+  });
+
+  it('dimsMismatch:false when |actualSource - canonical| <= 1 on BOTH axes (1px tolerance)', () => {
+    // Canonical 1000x1000, actual 1000x1001 → tolerance not exceeded on
+    // either axis (|0|<=1, |1|<=1) → dimsMismatch false.
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 1000, 1001)]]);
+    const canonical = new Map([['R', { canonicalW: 1000, canonicalH: 1000 }]]);
+    const actual = new Map([['R', { actualSourceW: 1000, actualSourceH: 1001 }]]);
+    const rows = analyze(peaks, undefined, undefined, canonical, actual);
+    expect(rows[0].dimsMismatch).toBe(false);
+  });
+
+  it('dimsMismatch:true when |delta| > 1 on EITHER axis only (W matches but H drifts > 1)', () => {
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 1000, 800)]]);
+    const canonical = new Map([['R', { canonicalW: 1000, canonicalH: 1000 }]]);
+    // W matches exactly (delta=0), H drifts by 200 (>1) → mismatch on EITHER axis.
+    const actual = new Map([['R', { actualSourceW: 1000, actualSourceH: 800 }]]);
+    const rows = analyze(peaks, undefined, undefined, canonical, actual);
+    expect(rows[0].dimsMismatch).toBe(true);
+  });
+
+  it('dimsMismatch:false when actualSource undefined (atlas-extract path; no comparison possible)', () => {
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 1000, 1000)]]);
+    const canonical = new Map([['R', { canonicalW: 1628, canonicalH: 1908 }]]);
+    // actualDims map is undefined — Jokerman atlas-extract path.
+    const rows = analyze(peaks, undefined, undefined, canonical, undefined);
+    expect(rows[0].dimsMismatch).toBe(false);
+    expect(rows[0].actualSourceW).toBeUndefined();
+    expect(rows[0].actualSourceH).toBeUndefined();
+    expect(rows[0].canonicalW).toBe(1628);
+  });
+
+  it('empty canonicalDims/actualDims Maps yield same fallback behavior as undefined (Plan 22-01 placeholder safety)', () => {
+    // loader.ts returns empty-Map placeholders at Plan 22-01 checkpoint;
+    // verify the analyzer treats empty Maps identically to undefined Maps.
+    const peaks = new Map<string, PeakRecord>([['R', mkPeak('R', 500, 500)]]);
+    const empty1 = new Map<string, { canonicalW: number; canonicalH: number }>();
+    const empty2 = new Map<string, { actualSourceW: number; actualSourceH: number }>();
+    const rows = analyze(peaks, undefined, undefined, empty1, empty2);
+    expect(rows[0].canonicalW).toBe(500); // fallback to p.sourceW
+    expect(rows[0].canonicalH).toBe(500);
+    expect(rows[0].actualSourceW).toBeUndefined();
+    expect(rows[0].dimsMismatch).toBe(false);
+  });
+
+  it('analyzeBreakdown threads canonical/actual maps the same way as analyze()', () => {
+    // Mirror coverage on the breakdown path — summary.ts wires both.
+    const setupPeaks = new Map<string, PeakRecord>([
+      ['R', { ...mkPeak('R', 800, 600), isSetupPosePeak: true }],
+    ]);
+    const perAnim = new Map<string, PeakRecord>();
+    const fakeSkeletonData = { animations: [] } as unknown as Parameters<typeof analyzeBreakdown>[2];
+    const canonical = new Map([['R', { canonicalW: 1600, canonicalH: 1200 }]]);
+    const actual = new Map([['R', { actualSourceW: 800, actualSourceH: 600 }]]);
+    const cards = analyzeBreakdown(
+      perAnim,
+      setupPeaks,
+      fakeSkeletonData,
+      [],
+      undefined,
+      undefined,
+      canonical,
+      actual,
+    );
+    const setupCard = cards.find((c) => c.cardId === 'setup-pose');
+    expect(setupCard).toBeDefined();
+    expect(setupCard!.rows[0].canonicalW).toBe(1600);
+    expect(setupCard!.rows[0].actualSourceW).toBe(800);
+    expect(setupCard!.rows[0].dimsMismatch).toBe(true);
+  });
+});

@@ -123,6 +123,19 @@ export interface LoadResult {
     rotated: boolean;
   }>;
   /**
+   * Phase 22 DIMS-01 — Per-region canonical dims from JSON skin attachments.
+   * Always populated; empty Map for malformed JSON (defensive). CLI fallback
+   * not needed here — analyzer reads via optional param.
+   */
+  canonicalDimsByRegion: Map<string, { canonicalW: number; canonicalH: number }>;
+  /**
+   * Phase 22 DIMS-01 — Per-region ACTUAL source PNG dims from PNG IHDR
+   * reads. Populated only when the per-region PNG resolves on disk
+   * (atlas-less mode AND canonical-atlas-with-images mode). Empty in
+   * atlas-only mode (Jokerman-style projects with only atlas-page PNGs).
+   */
+  actualDimsByRegion: Map<string, { actualSourceW: number; actualSourceH: number }>;
+  /**
    * Editor dopesheet FPS (from `skeleton.fps` in the JSON, default 30 —
    * Spine's own editor default when the field is omitted). DISPLAY-ONLY:
    * drives the `frame` column so animators can cross-reference their

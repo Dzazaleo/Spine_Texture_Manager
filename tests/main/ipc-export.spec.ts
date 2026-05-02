@@ -72,7 +72,7 @@ vi.mock('node:fs/promises', () => ({
 }));
 
 function buildEmptyPlan(): ExportPlan {
-  return { rows: [], excludedUnused: [], totals: { count: 0 } };
+  return { rows: [], excludedUnused: [], passthroughCopies: [], totals: { count: 0 } };
 }
 
 beforeEach(async () => {
@@ -183,6 +183,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -220,6 +221,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -266,6 +268,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const failed = await handleStartExport(
@@ -338,6 +341,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -399,6 +403,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 2 },
     };
     const result = await handleStartExport(
@@ -453,6 +458,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -489,6 +495,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -535,6 +542,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleProbeExportConflicts(plan, '/skel');
@@ -571,6 +579,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     // outDir = /tmp/foo: source is at /proj/images/CIRCLE.png, resolved
@@ -605,6 +614,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleProbeExportConflicts(plan, '/tmp/foo');
@@ -635,6 +645,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -668,6 +679,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -696,6 +708,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -731,6 +744,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleStartExport(
@@ -756,6 +770,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     const result = await handleProbeExportConflicts(plan, '/skel/images');
@@ -802,6 +817,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
 
@@ -867,6 +883,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
         },
       ],
       excludedUnused: [],
+      passthroughCopies: [],
       totals: { count: 1 },
     };
     // outDir = /skel = parent of source-images. PRE-Round-4 the string

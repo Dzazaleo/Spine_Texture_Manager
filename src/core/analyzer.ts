@@ -88,7 +88,24 @@ function toDisplayRow(
   p: PeakRecord,
   sourcePath: string = '',
   atlasSource?: DisplayRow['atlasSource'],
+  // Phase 22 DIMS-01 — canonical/actual dim parameters with CLI fallback per
+  // D-102 (canonicalW defaults to p.sourceW so the CLI's no-map path produces
+  // canonical = source semantics; actualSourceW stays undefined → dimsMismatch
+  // false). Plan 22-02 will populate these via the loader's parsedJson skin
+  // walk + readPngDims; until then, summary.ts threads empty Maps which
+  // resolve to the same fallback behavior.
+  canonicalW: number = p.sourceW,
+  canonicalH: number = p.sourceH,
+  actualSourceW?: number,
+  actualSourceH?: number,
 ): DisplayRow {
+  // Phase 22 DIMS-01 — 1px-tolerance predicate. ROADMAP DIMS-01 wording:
+  // "more than 1px on either axis". False when actualSource is undefined
+  // (atlas-extract path; no comparison possible).
+  const dimsMismatch =
+    actualSourceW !== undefined &&
+    actualSourceH !== undefined &&
+    (Math.abs(actualSourceW - canonicalW) > 1 || Math.abs(actualSourceH - canonicalH) > 1);
   return {
     // raw fields (sort + selection in the panel; CLI reads these directly)
     attachmentKey: p.attachmentKey,
@@ -121,6 +138,12 @@ function toDisplayRow(
     // undefined when analyzer is invoked without an atlasSources map (CLI
     // path) OR when no atlas region matches the attachmentName.
     ...(atlasSource ? { atlasSource } : {}),
+    // Phase 22 DIMS-01 — canonical/actual dims + dimsMismatch predicate.
+    canonicalW,
+    canonicalH,
+    actualSourceW,
+    actualSourceH,
+    dimsMismatch,
   };
 }
 
@@ -178,14 +201,27 @@ export function analyze(
   peaks: Map<string, PeakRecord>,
   sourcePaths?: ReadonlyMap<string, string>,
   atlasSources?: ReadonlyMap<string, NonNullable<DisplayRow['atlasSource']>>,
+  // Phase 22 DIMS-01 — optional canonical/actual dim Maps keyed by attachment
+  // name. When undefined or empty (CLI path; D-102 byte-for-byte lock), the
+  // toDisplayRow defaults yield canonicalW = p.sourceW + actualSource*
+  // undefined + dimsMismatch = false — preserving CLI semantics exactly.
+  canonicalDims?: ReadonlyMap<string, { canonicalW: number; canonicalH: number }>,
+  actualDims?: ReadonlyMap<string, { actualSourceW: number; actualSourceH: number }>,
 ): DisplayRow[] {
-  const allRows = [...peaks.values()].map((p) =>
-    toDisplayRow(
+  const allRows = [...peaks.values()].map((p) => {
+    const cd = canonicalDims?.get(p.attachmentName);
+    const ad = actualDims?.get(p.attachmentName);
+    return toDisplayRow(
       p,
       sourcePaths?.get(p.attachmentName) ?? '',
       atlasSources?.get(p.attachmentName),
-    ),
-  );
+      // undefined when no map entry → toDisplayRow falls back to p.sourceW
+      cd?.canonicalW,
+      cd?.canonicalH,
+      ad?.actualSourceW,
+      ad?.actualSourceH,
+    );
+  });
   return dedupByAttachmentName(allRows).sort(byCliContract);
 }
 
@@ -206,11 +242,21 @@ function toBreakdownRow(
   isSetup: boolean,
   sourcePath: string = '',
   atlasSource?: DisplayRow['atlasSource'],
+  // Phase 22 DIMS-01 — mirror toDisplayRow params (same CLI fallback per D-102).
+  canonicalW: number = p.sourceW,
+  canonicalH: number = p.sourceH,
+  actualSourceW?: number,
+  actualSourceH?: number,
 ): BreakdownRow {
   const bonePath =
     slot !== undefined
       ? boneChainPath(slot, p.attachmentName)
       : [p.slotName, p.attachmentName];
+  // Phase 22 DIMS-01 — 1px-tolerance predicate, matches toDisplayRow.
+  const dimsMismatch =
+    actualSourceW !== undefined &&
+    actualSourceH !== undefined &&
+    (Math.abs(actualSourceW - canonicalW) > 1 || Math.abs(actualSourceH - canonicalH) > 1);
   return {
     // Raw fields — copied from toDisplayRow (15 fields).
     attachmentKey: p.attachmentKey,
@@ -240,6 +286,12 @@ function toBreakdownRow(
     sourcePath,
     // Phase 6 Gap-Fix #2 (2026-04-25) — atlas-page extraction metadata.
     ...(atlasSource ? { atlasSource } : {}),
+    // Phase 22 DIMS-01 — canonical/actual dims + dimsMismatch predicate.
+    canonicalW,
+    canonicalH,
+    actualSourceW,
+    actualSourceH,
+    dimsMismatch,
     // Phase 3 additions (D-67, F4.3):
     bonePath,
     bonePathLabel: bonePath.join(BONE_PATH_SEPARATOR),
@@ -271,6 +323,12 @@ export function analyzeBreakdown(
   skeletonSlots: readonly Slot[],
   sourcePaths?: ReadonlyMap<string, string>,
   atlasSources?: ReadonlyMap<string, NonNullable<DisplayRow['atlasSource']>>,
+  // Phase 22 DIMS-01 — mirror analyze() signature so summary.ts can thread
+  // the loader's canonical/actual maps into per-card rows. CLI fallback
+  // preserved via toBreakdownRow defaults (canonicalW = p.sourceW;
+  // dimsMismatch = false when actualSource is undefined).
+  canonicalDims?: ReadonlyMap<string, { canonicalW: number; canonicalH: number }>,
+  actualDims?: ReadonlyMap<string, { actualSourceW: number; actualSourceH: number }>,
 ): AnimationBreakdown[] {
   const findSlot = (name: string): Slot | undefined =>
     skeletonSlots.find((s) => s.data.name === name);
@@ -284,20 +342,37 @@ export function analyzeBreakdown(
     rec: PeakRecord,
   ): DisplayRow['atlasSource'] | undefined =>
     atlasSources?.get(rec.attachmentName);
+  // Phase 22 DIMS-01 — resolve canonical/actual dims by attachmentName.
+  // Returns undefined when the map is omitted or has no entry; toBreakdownRow
+  // then falls back to p.sourceW for canonicalW (D-102 CLI parity).
+  const resolveCanonical = (
+    rec: PeakRecord,
+  ): { canonicalW: number; canonicalH: number } | undefined =>
+    canonicalDims?.get(rec.attachmentName);
+  const resolveActual = (
+    rec: PeakRecord,
+  ): { actualSourceW: number; actualSourceH: number } | undefined =>
+    actualDims?.get(rec.attachmentName);
 
   const cards: AnimationBreakdown[] = [];
 
   // 1. Setup Pose top card (D-60). Every textured attachment gets a row;
   //    dedupe by attachmentName per D-56; sort Scale DESC per D-59.
-  const setupRows = [...setupPosePeaks.values()].map((rec) =>
-    toBreakdownRow(
+  const setupRows = [...setupPosePeaks.values()].map((rec) => {
+    const cd = resolveCanonical(rec);
+    const ad = resolveActual(rec);
+    return toBreakdownRow(
       rec,
       findSlot(rec.slotName),
       /*isSetup*/ true,
       resolveSourcePath(rec),
       resolveAtlasSource(rec),
-    ),
-  );
+      cd?.canonicalW,
+      cd?.canonicalH,
+      ad?.actualSourceW,
+      ad?.actualSourceH,
+    );
+  });
   const setupDeduped = dedupByAttachmentName<BreakdownRow>(setupRows);
   setupDeduped.sort((a, b) => b.peakScale - a.peakScale);
   cards.push({
@@ -316,12 +391,18 @@ export function analyzeBreakdown(
   const rowsByAnim = new Map<string, BreakdownRow[]>();
   for (const rec of perAnimation.values()) {
     const bucket = rowsByAnim.get(rec.animationName);
+    const cd = resolveCanonical(rec);
+    const ad = resolveActual(rec);
     const row = toBreakdownRow(
       rec,
       findSlot(rec.slotName),
       /*isSetup*/ false,
       resolveSourcePath(rec),
       resolveAtlasSource(rec),
+      cd?.canonicalW,
+      cd?.canonicalH,
+      ad?.actualSourceW,
+      ad?.actualSourceH,
     );
     if (bucket === undefined) rowsByAnim.set(rec.animationName, [row]);
     else bucket.push(row);
