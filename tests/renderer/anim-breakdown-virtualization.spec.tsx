@@ -114,6 +114,29 @@ function makeRow(cardName: string, i: number): BreakdownRow {
     sourcePath: `/fake/${name}.png`,
     bonePath: ['root', `bone-${i}`, `slot-${i}`, name],
     bonePathLabel: `root → bone-${i} → slot-${i} → ${name}`,
+    // Phase 22 DIMS-01 — canonical/actual dim defaults. Same shape as
+    // tests/renderer/global-max-virtualization.spec.tsx happy-path defaults.
+    canonicalW: 64,
+    canonicalH: 64,
+    actualSourceW: undefined,
+    actualSourceH: undefined,
+    dimsMismatch: false,
+  };
+}
+
+/**
+ * Phase 22 DIMS-02 — drifted variant for badge tests on the breakdown panel.
+ * Sibling-symmetric with global-max-virtualization.spec.tsx makeDriftedRow per
+ * Phase 19 D-06 visual unification contract.
+ */
+function makeDriftedRow(cardName: string, i: number): BreakdownRow {
+  return {
+    ...makeRow(cardName, i),
+    canonicalW: 1628,
+    canonicalH: 1908,
+    actualSourceW: 811,
+    actualSourceH: 962,
+    dimsMismatch: true,
   };
 }
 
@@ -209,6 +232,51 @@ function renderPanel(
       rowsPerCard={rowsPerCard}
       onOpenOverrideDialog={onOpenOverrideDialog}
     />,
+  );
+}
+
+/**
+ * Phase 22 DIMS-02 — explicit-rows harness for badge tests on the breakdown
+ * panel. Wraps the supplied rows in a SkeletonSummary fixture with one card
+ * (the setup-pose card seeds expanded by default per D-63/D-64) so every
+ * supplied BreakdownRow renders inside the expanded card body.
+ */
+function PanelRowsHarness({ rows }: { rows: BreakdownRow[] }) {
+  const [query, setQuery] = useState('');
+  const card: AnimationBreakdown = {
+    cardId: 'setup-pose',
+    animationName: 'Setup Pose (Default)',
+    isSetupPose: true,
+    uniqueAssetCount: rows.length,
+    rows,
+  };
+  const summary: SkeletonSummary = {
+    skeletonPath: '/fake/skeleton.json',
+    atlasPath: '/fake/skeleton.atlas',
+    bones: { count: 1, names: ['root'] },
+    slots: { count: rows.length },
+    attachments: { count: rows.length, byType: { RegionAttachment: rows.length } },
+    skins: { count: 1, names: ['default'] },
+    animations: { count: 0, names: [] },
+    peaks: [],
+    animationBreakdown: [card],
+    unusedAttachments: [],
+    elapsedMs: 1,
+    editorFps: 30,
+  };
+  return (
+    <>
+      <SearchBar value={query} onChange={setQuery} />
+      <AnimationBreakdownPanel
+        summary={summary}
+        focusAnimationName={null}
+        onFocusConsumed={vi.fn()}
+        overrides={new Map()}
+        onOpenOverrideDialog={vi.fn()}
+        query={query}
+        onQueryChange={setQuery}
+      />
+    </>
   );
 }
 
@@ -379,5 +447,37 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
       'slot-0',
       calledWithRow.attachmentName,
     ]);
+  });
+});
+
+/**
+ * Phase 22 Plan 22-05 Task 1 — DIMS-02 dims-mismatch badge in the Source W×H
+ * cell of the AnimationBreakdownPanel. Sibling-symmetric with the
+ * GlobalMaxRenderPanel describe block (Phase 19 D-06 visual unification).
+ * ROADMAP DIMS-02 wording locked verbatim.
+ */
+describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', () => {
+  it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
+    const rows = [makeDriftedRow('Setup Pose (Default)', 0)];
+    render(<PanelRowsHarness rows={rows} />);
+    const badge = screen.getByLabelText(/source png dims differ/i);
+    expect(badge).toBeInTheDocument();
+    const title = badge.getAttribute('title');
+    expect(title).toContain(
+      'Source PNG (811×962) is smaller than canonical region dims (1628×1908)',
+    );
+    expect(title).toContain('Optimize will cap at source size');
+  });
+
+  it('does NOT render badge when row.dimsMismatch === false', () => {
+    const rows = [makeRow('Setup Pose (Default)', 0)];
+    render(<PanelRowsHarness rows={rows} />);
+    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+  });
+
+  it('badge is absent when actualSource is undefined (atlas-extract path)', () => {
+    const rows = [{ ...makeRow('Setup Pose (Default)', 0), dimsMismatch: false }];
+    render(<PanelRowsHarness rows={rows} />);
+    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
   });
 });
