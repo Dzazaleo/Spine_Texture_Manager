@@ -1328,7 +1328,7 @@ export function AppShell({
               useEffect dependency array; flips between fall-through and the
               D-08 override branch in src/core/loader.ts). */}
           <label
-            className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer select-none"
+            className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer select-none flex-shrink-0"
             title="When enabled, the loader synthesizes an atlas from per-region PNG headers instead of reading the .atlas file. Useful for the post-Optimize-overwrite workflow."
           >
             <input
@@ -1340,7 +1340,7 @@ export function AppShell({
               aria-label="Use Images Folder as Source"
               className="cursor-pointer"
             />
-            <span>Use Images Folder as Source</span>
+            <span className="whitespace-nowrap">Use Images Folder as Source</span>
           </label>
           {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
               immediately LEFT of Optimize Assets (right-aligned cluster).
@@ -1351,7 +1351,7 @@ export function AppShell({
             type="button"
             onClick={onClickAtlasPreview}
             disabled={effectiveSummary.peaks.length === 0}
-            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
           >
             Atlas Preview
           </button>
@@ -1363,7 +1363,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setDocumentationBuilderOpen(true)}
-            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
           >
             Documentation
           </button>
@@ -1371,7 +1371,7 @@ export function AppShell({
             type="button"
             onClick={onClickOptimize}
             disabled={effectiveSummary.peaks.length === 0 || exportInFlight}
-            className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
             Optimize Assets
           </button>
@@ -1382,7 +1382,7 @@ export function AppShell({
             type="button"
             onClick={() => void onClickSave()}
             disabled={effectiveSummary.peaks.length === 0 || saveInFlight}
-            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
           >
             Save
           </button>
@@ -1392,7 +1392,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => void onClickOpen()}
-            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+            className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 flex-shrink-0"
           >
             Open
           </button>
