@@ -526,6 +526,31 @@ export interface SkeletonSummary {
    * at the same time it wires the write site.
    */
   unusedAttachments?: UnusedAttachment[];
+  /**
+   * Phase 21 Plan 21-10 G-02 — attachments whose PNG was missing in
+   * atlas-less mode. Sourced from LoadResult.skippedAttachments (Plan 21-09
+   * stub-region fix); read via `?? []` since the LoadResult field is
+   * optional (Plan 21-09 ISSUE-007).
+   *
+   * Empty array in:
+   *   - Canonical (atlas-backed) mode (atlas regions are always real).
+   *   - Atlas-less mode where all referenced PNGs resolved successfully.
+   *
+   * IMPORTANT — filter contract: peaks / animationBreakdown.rows /
+   * unusedAttachments are pre-filtered by src/main/summary.ts to EXCLUDE
+   * entries whose attachmentName ∈ skippedAttachments[*].name. These
+   * stub-region attachments live ONLY here, surfaced by
+   * MissingAttachmentsPanel (renderer/panels/MissingAttachmentsPanel.tsx) —
+   * never in the regular Global Max Render or Animation Breakdown panels.
+   *
+   * REQUIRED (not optional): buildSummary always populates this field; the
+   * `?? []` defaulting at the write site means consumers can rely on the
+   * array being present, simplifying the renderer's null-check surface.
+   *
+   * IPC-safe: plain array of plain objects; structured-clone preserves
+   * across the main→renderer boundary.
+   */
+  skippedAttachments: { name: string; expectedPngPath: string }[];
   /** `loadSkeleton + sampleSkeleton` wall-clock time in ms. */
   elapsedMs: number;
   /**

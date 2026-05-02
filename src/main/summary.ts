@@ -50,6 +50,17 @@ export function buildSummary(
     }
   }
 
+  // Phase 21 Plan 21-10 G-02 — set of attachment names whose PNG was missing
+  // in atlas-less mode (from Plan 21-09's LoadResult.skippedAttachments).
+  // peaks / animationBreakdown.rows / unusedAttachments are filtered to
+  // exclude these; the missing attachments are surfaced ONLY via
+  // SkeletonSummary.skippedAttachments below, which the renderer's
+  // MissingAttachmentsPanel reads. LoadResult.skippedAttachments is
+  // OPTIONAL (Plan 21-09 ISSUE-007), hence the `?? []`.
+  const skippedNames = new Set<string>(
+    (load.skippedAttachments ?? []).map((s) => s.name),
+  );
+
   // Fold + sort + preformat delegated to src/core/analyzer.ts (D-33, D-34, D-35).
   // Sort key (skinName, slotName, attachmentName) matches
   // `scripts/cli.ts` renderTable() byte-for-byte — analyzer owns the comparator.
@@ -60,7 +71,10 @@ export function buildSummary(
   // Phase 6 Gap-Fix #2 — also thread load.atlasSources so atlas-packed
   // projects (e.g. fixtures/Jokerman/) can extract from the atlas page
   // when per-region PNGs don't exist.
-  const peaksArray = analyze(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
+  const peaksArrayRaw = analyze(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
+  // Phase 21 Plan 21-10 G-02 — drop stub-region attachments from the regular
+  // Global panel; they surface only via skippedAttachments below.
+  const peaksArray = peaksArrayRaw.filter((p) => !skippedNames.has(p.attachmentName));
 
   // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
   // AnimationBreakdown[] (F4.1/F4.2/F4.3). boneChainPath walks slot.bone.parent
@@ -68,7 +82,7 @@ export function buildSummary(
   // Bone.parent wiring; spine-core's Skeleton constructor resolves it. Cheap
   // (<1 ms on SIMPLE_TEST), runs once per load.
   const skeleton = new Skeleton(load.skeletonData);
-  const animationBreakdown = analyzeBreakdown(
+  const animationBreakdownRaw = analyzeBreakdown(
     sampled.perAnimation,
     sampled.setupPosePeaks,
     load.skeletonData,
@@ -76,6 +90,19 @@ export function buildSummary(
     load.sourcePaths,
     load.atlasSources,
   );
+  // Phase 21 Plan 21-10 G-02 — filter each animation card's rows to drop
+  // stub-region attachments. uniqueAssetCount is recomputed to match
+  // (rows.length is the contractual source of truth; D-58/AnimationBreakdown
+  // docblock at src/shared/types.ts:150-152). isSetupPose / animationName /
+  // cardId pass through unchanged.
+  const animationBreakdown = animationBreakdownRaw.map((card) => {
+    const filteredRows = card.rows.filter((r) => !skippedNames.has(r.attachmentName));
+    return {
+      ...card,
+      rows: filteredRows,
+      uniqueAssetCount: filteredRows.length,
+    };
+  });
 
   // Phase 5 Plan 02 — F6.1 unused-attachment detection. Pure projection per
   // D-35 / D-101: the core module owns the algorithm; summary.ts just
@@ -94,21 +121,27 @@ export function buildSummary(
   // the renderer suppresses the MB suffix and falls back to count-only
   // copy via the `(u.bytesOnDisk ?? 0)` reader.
   const rawUnused = findUnusedAttachments(load, sampled);
-  const unusedAttachments = rawUnused.map((u) => {
-    const path = load.sourcePaths.get(u.attachmentName);
-    let bytesOnDisk = 0;
-    if (path !== undefined) {
-      try {
-        bytesOnDisk = fs.statSync(path).size;
-      } catch {
-        // ENOENT / EACCES / atlas-page resolves elsewhere — D-15: treat as 0
-        // (no MB suffix in renderer callout). Silent — recent.json-style
-        // non-critical UX state (D-177 carry-over rationale).
-        bytesOnDisk = 0;
+  // Phase 21 Plan 21-10 G-02 — drop skipped-PNG attachments from the
+  // unused-attachments list. Different semantic from "unused" (skipped means
+  // PNG missing in atlas-less mode; unused means never rendered) — skipped
+  // attachments are surfaced separately via skippedAttachments below.
+  const unusedAttachments = rawUnused
+    .filter((u) => !skippedNames.has(u.attachmentName))
+    .map((u) => {
+      const path = load.sourcePaths.get(u.attachmentName);
+      let bytesOnDisk = 0;
+      if (path !== undefined) {
+        try {
+          bytesOnDisk = fs.statSync(path).size;
+        } catch {
+          // ENOENT / EACCES / atlas-page resolves elsewhere — D-15: treat as 0
+          // (no MB suffix in renderer callout). Silent — recent.json-style
+          // non-critical UX state (D-177 carry-over rationale).
+          bytesOnDisk = 0;
+        }
       }
-    }
-    return { ...u, bytesOnDisk };
-  });
+      return { ...u, bytesOnDisk };
+    });
 
   return {
     skeletonPath: load.skeletonPath,
@@ -137,6 +170,15 @@ export function buildSummary(
     peaks: peaksArray,
     animationBreakdown,
     unusedAttachments,
+    /**
+     * Phase 21 Plan 21-10 G-02 — surface skipped-PNG attachments to the
+     * renderer (MissingAttachmentsPanel). Always-present array (defaulted
+     * to [] when LoadResult.skippedAttachments is undefined per Plan 21-09
+     * ISSUE-007 OPTIONAL field). peaks / animationBreakdown.rows /
+     * unusedAttachments above are pre-filtered by skippedNames so stub-
+     * region attachments do NOT double-count into the regular panels.
+     */
+    skippedAttachments: load.skippedAttachments ?? [],
     elapsedMs,
     /**
      * Phase 9 Plan 06 — surface the loader's `editorFps` (from
