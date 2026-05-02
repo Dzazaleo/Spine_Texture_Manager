@@ -2,208 +2,232 @@
 phase: 21-seed-001-atlas-less-mode-json-images-folder-no-atlas
 plan: 11
 subsystem: renderer + layout-stability
-tags: [renderer, layout-regression, toolbar, flex-shrink, gap-closure, g-03, speculative-fix-then-verify]
-status: speculative-fix-then-verify-human-uat-pending
+tags: [renderer, layout-regression, panel-virtualization, gap-closure, g-03, speculative-fix-2-then-verify, uat-1-falsified-original-hypothesis]
+status: speculative-fix-2-then-verify
 gap_closure_for: [G-03]
-issue_008_disposition: hypothesis-verify-deferred-to-human-uat
+issue_008_disposition: original-hypothesis-falsified-by-uat-1; revised-diagnosis-applied; uat-2-required
 
 # Dependency graph
 requires:
   - phase: 21
     plan: 08
-    provides: "AppShell.tsx loaderMode toggle + 'Use Images Folder as Source' label that introduced the layout regression (commit 39b72bb)"
+    provides: "AppShell.tsx loaderMode toggle + 'Use Images Folder as Source' label that the original hypothesis suspected (later falsified)"
+  - phase: 9
+    plan: 03
+    provides: "GlobalMaxRenderPanel TanStack Virtual integration with `height: calc(100vh - 200px)` outer scroll container — the actual regression surface (revised diagnosis)"
 provides:
-  - "Layout-only CSS hardening on the AppShell.tsx toolbar cluster (6× flex-shrink-0 + 1× whitespace-nowrap)"
-  - "G-03 closure (pending HUMAN-UAT empirical verification in Task 3)"
+  - "Layout-only CSS hardening on the AppShell.tsx toolbar cluster (6× flex-shrink-0 + 1× whitespace-nowrap) — preserved as defense-in-depth even though UAT-1 falsified the toolbar-flex hypothesis"
+  - "GlobalMaxRenderPanel.tsx outer <section> pinned to `min-h-[calc(100vh-200px)]` so the panel reserves the same vertical extent across the useVirtual toggle (revised G-03 fix; UAT-2 required)"
 affects:
-  - "Plan 21 final HUMAN-UAT pass — if Task 3 confirms G-03 is closed, all 5 Phase 21 acceptance criteria are intact (G-01, G-02 are independently scoped to other 21.1 plans)"
-  - "Loader-mode toggle (D-08) UX is preserved — visible, functional, persisted"
+  - "Plan 21 final HUMAN-UAT pass — UAT-2 must re-test G-03 specifically on the Global tab with the per-attachment filter on a >100-row fixture (Girl)"
+  - "Loader-mode toggle (D-08) UX preserved — visible, functional, persisted (UAT-1 Test 2 PASSED)"
 
 # Tech tracking
 tech-stack:
   added: []
   patterns:
-    - "flex-shrink-0 discipline on toolbar children — prevents flex-compression when sibling content (e.g., scrollbar gutter) shifts available width"
-    - "whitespace-nowrap on long-text label inner span — defense-in-depth contract that the label never reflows to multi-line"
-    - "Speculative-fix-then-verify (per ISSUE-008): when jsdom cannot compute layout, plan documents the fallback and HUMAN-UAT is the empirical gate"
+    - "Panel-level min-height pin to stabilize layout across virtualizer threshold toggles — when a panel has dual render paths (virtualized vs flat-table) with mismatched height contracts, the threshold cross causes a layout collapse; pinning the outer container's min-height to the virtualized path's height eliminates the collapse"
+    - "flex-shrink-0 discipline on toolbar children — preserved from the original speculative fix as defense-in-depth even though it did not address the actual root cause"
+    - "whitespace-nowrap on long-text label inner span — preserved as defense-in-depth contract"
+    - "Speculative-fix-then-verify (per ISSUE-008): when jsdom cannot compute layout, plan documents the manual repro steps and applies a targeted CSS hardening; if HUMAN-UAT falsifies the original hypothesis, executor revises diagnosis and re-applies a targeted fix with SPECULATIVE-FIX-2-THEN-VERIFY status"
 
 key-files:
   created:
-    - ".planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-11-toolbar-layout-regression-SUMMARY.md (this file)"
+    - ".planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-11-toolbar-layout-regression-SUMMARY.md (this file — supersedes the original SUMMARY)"
   modified:
-    - "src/renderer/src/components/AppShell.tsx (+7/-7 LoC; 6× flex-shrink-0 + 1× whitespace-nowrap on the toolbar cluster's children)"
+    - "src/renderer/src/components/AppShell.tsx (+7/-7 LoC; 6× flex-shrink-0 + 1× whitespace-nowrap on the toolbar cluster's children — commit b8f2a0f, original speculative fix; PRESERVED as defense-in-depth)"
+    - "src/renderer/src/panels/GlobalMaxRenderPanel.tsx (+18/-1 LoC; min-h-[calc(100vh-200px)] on the panel's outer <section> + 16-line explanatory comment block — commit 30ff95f, REVISED fix after UAT-1)"
 
 key-decisions:
-  - "Empirical Pattern-A confirmation (per ISSUE-008) was deferred to Task 3 HUMAN-UAT instead of being executed in Task 1. Rationale: jsdom does not compute flex layout (verified — vitest+jsdom is the only automation available); the plan explicitly documents this fallback ('If no automated layout regression is reproducible in vitest+jsdom, the plan documents the manual repro steps and applies a targeted CSS hardening to the most likely culprit identified by bisect, then HUMAN-UAT confirms in dev app'). The applied fix is purely additive CSS (flex-shrink-0 prevents compression of children that should never compress; whitespace-nowrap locks a contract that a 29-char label should never wrap) — minimal blast radius even if hypothesis is falsified by HUMAN-UAT."
-  - "Plan marked SPECULATIVE-FIX-THEN-VERIFY in this SUMMARY's frontmatter. If Task 3 HUMAN-UAT shows G-03 is still reproducible, the plan supports the documented Conditional iteration: add flex-wrap to the header at AppShell.tsx:1243. If even that fails, mark SPECULATIVE-FIX-FAILED and re-route to broader bisect (per ISSUE-008 fallback)."
-  - "All toolbar buttons (Atlas Preview, Documentation, Optimize Assets, Save, Open) get flex-shrink-0 even though their text is shorter than the loaderMode label. Rationale: defense-in-depth — once we admit any flex-compression is happening, the whole cluster's stability is at risk; pinning all children's widths is the consistent contract."
+  - "UAT-1 (run by user on merged main with original toolbar-flex fix b8f2a0f in place) falsified the original hypothesis: Test 1 STILL FAILED. The per-attachment filter still causes the panel to slide downward — but ONLY on the Global tab. The Animation Breakdown tab does NOT exhibit the regression. This panel-tab-specific behavior is critically diagnostic information that the original ISSUE-008 deferred-empirical-verify path did not have access to."
+  - "Revised diagnosis (this executor): the regression's actual root cause is GlobalMaxRenderPanel's threshold-gated TanStack Virtual integration. When `sorted.length > 100` (Girl fixture, ~200-300 rows), useVirtual is TRUE → panel's main table area is wrapped in a div with inline `height: calc(100vh - 200px)` and `overflow: auto`. When the per-attachment filter narrows `sorted.length` below 100, useVirtual flips FALSE → the fixed-height wrapper is unmounted and replaced by a content-driven bare `<table>`. The panel's vertical extent collapses by hundreds of pixels in a single render. AnimationBreakdownPanel does NOT regress because its virtualizer is per-card with `maxHeight: 600px` (not viewport-relative), and cards stack with content-driven heights — no panel-level height switch ever occurs across the threshold."
+  - "Revised fix: pin the GlobalMaxRenderPanel outer `<section>` (line 797) to `min-h-[calc(100vh-200px)]` — the SAME vertical extent as the virtualized scroll container's inline `height` style. This stabilizes the panel's vertical footprint across the useVirtual toggle: when virtualized, content already fills the min-h; when flat-table, the section reserves the same extent and the table renders at the top with empty space below — no collapse, no slide."
+  - "Original toolbar-flex fix (commit b8f2a0f) is PRESERVED. Rationale: (a) the user's UAT-1 Tests 2 + 3 PASSED with that fix in place — D-08 loaderMode toggle works, toolbar visual integrity at 900px width is fine. (b) flex-shrink-0 discipline is independently desirable for any toolbar with mixed-text children regardless of whether it caused this specific bug. (c) Reverting it now would re-introduce a latent failure mode (toolbar children compressing under width pressure) without affecting the actual G-03 fix."
+  - "Plan re-tagged SPECULATIVE-FIX-2-THEN-VERIFY in this SUMMARY's frontmatter. The revised fix's hypothesis (panel-level useVirtual height-collapse) is well-supported by static code analysis but still requires HUMAN-UAT-2 empirical confirmation (jsdom does not compute flex layout / virtualizer behavior — same automation gap as the original)."
 
 # Execution metrics
 metrics:
-  duration: ~10 minutes (Task 1 bisect + static analysis ~3 min; Task 2 fix + verify ~5 min; SUMMARY ~2 min)
-  tasks-completed: 2/3 (Task 3 = HUMAN-UAT checkpoint, pending)
-  files-modified: 1
-  files-created: 1 (this SUMMARY)
-  commits: 1 (Task 1 was investigation-only, no file changes; Task 2 = b8f2a0f)
-  completed: 2026-05-02 (partial — UAT pending)
+  duration: ~25 minutes (UAT-1 review ~3 min; re-investigation of Global vs Breakdown rendering paths ~10 min; revised fix + verify ~5 min; SUMMARY rewrite ~7 min)
+  tasks-completed: 2/3 (Tasks 1+2 retroactively re-classified — Task 1 hypothesis was wrong, Task 2 fix was a partial; this UAT-2-pending revision adds a second fix on a different file)
+  files-modified: 2 cumulative (AppShell.tsx + GlobalMaxRenderPanel.tsx)
+  files-created: 1 (this SUMMARY supersedes the original)
+  commits: 3 cumulative on this plan (b8f2a0f original fix, 1063f3a original SUMMARY, 30ff95f revised fix; this SUMMARY's commit will follow)
+  completed: 2026-05-02 (revised — UAT-2 pending)
 ---
 
-# Phase 21 Plan 11: Toolbar layout regression (G-03) — SPECULATIVE-FIX-THEN-VERIFY
+# Phase 21 Plan 11: Toolbar layout regression (G-03) — SPECULATIVE-FIX-2-THEN-VERIFY
 
 ## One-liner
 
-Layout-only CSS hardening on the AppShell.tsx toolbar cluster (6× flex-shrink-0 on the loaderMode label + 5 buttons; 1× whitespace-nowrap on the loader label's text span) intended to close G-03 (panel slides downward on per-attachment filter operation). Marked SPECULATIVE-FIX-THEN-VERIFY because jsdom cannot compute flex layout — empirical Pattern-A hypothesis confirmation deferred to Task 3 HUMAN-UAT.
+Original toolbar-flex hypothesis (CSS `flex-shrink-0` on AppShell toolbar children) was FALSIFIED by HUMAN-UAT-1: Test 1 still failed AND the regression is panel-tab-specific (Global only, not Animation Breakdown). Revised diagnosis: GlobalMaxRenderPanel's threshold-gated TanStack Virtual switches between a fixed-height-`calc(100vh-200px)` virtualized path and a content-driven flat-table path; per-attachment filter narrows row count below the 100-row threshold, useVirtual flips false, the panel's vertical extent collapses. Revised fix: pin the panel's outer `<section>` to `min-h-[calc(100vh-200px)]` to stabilize the vertical footprint across the toggle. UAT-2 required to confirm.
 
-## Tasks Completed
+## Hypothesis Chain
 
-| Task | Status   | Commit  | What                                                                                              |
-| ---- | -------- | ------- | ------------------------------------------------------------------------------------------------- |
-| 1    | DONE     | (none — investigation-only) | Bisect identified culprit 39b72bb (Plan 21-08); static analysis confirms ZERO flex-shrink/min-w-0/flex-wrap discipline in toolbar; ISSUE-008 empirical Pattern A/B/C classification deferred to Task 3 HUMAN-UAT (jsdom cannot compute layout) |
-| 2    | DONE     | b8f2a0f | AppShell.tsx — append flex-shrink-0 to <label> + 5 buttons; add whitespace-nowrap to loader label span |
-| 3    | PENDING  | -       | HUMAN-UAT checkpoint: filter-on/filter-off must NOT shift panel position; loaderMode toggle still works; toolbar visual integrity at narrow viewports |
+This is the headline section. The plan's status moved from speculative-fix-then-verify (original) → falsified-by-uat → revised-diagnosis-applied → speculative-fix-2-then-verify. Each link is documented below.
 
-## Bisect Outcome (Task 1)
+### Link 1: Original speculation (per the plan)
 
+The plan hypothesized that the regression came from CSS flex-compression in the AppShell.tsx toolbar cluster. Specifically: the new "Use Images Folder as Source" label added in Phase 21 Plan 21-08 (commit 39b72bb) had no `flex-shrink-0`. When the per-attachment filter changed panel row count, the panel's vertical scrollbar appeared/disappeared, the available width changed, the toolbar's flex children compressed, the long label wrapped to two lines, the sticky-header height grew, and the panel below shifted downward.
+
+This was a STATIC-ANALYSIS-driven hypothesis: bisect identified 39b72bb as the only meaningfully layout-touching commit since pre-Phase-21; flex-shrink-0 was indeed missing from the toolbar; the long label was the most plausible compression target. The hypothesis was internally consistent.
+
+### Link 2: Original speculative fix (commit b8f2a0f)
+
+`AppShell.tsx`: 6× `flex-shrink-0` on the loaderMode label + 5 toolbar buttons; 1× `whitespace-nowrap` on the loader label's inner span. Layout-only, additive CSS. Marked SPECULATIVE-FIX-THEN-VERIFY in the original SUMMARY because jsdom cannot compute flex layout — empirical verification deferred to HUMAN-UAT.
+
+### Link 3: HUMAN-UAT-1 (run by user on merged main)
+
+UAT-1 was run on the merged main branch (after worktree-agent-af15aefc11e952769 merged commits b8f2a0f + 1063f3a back to main).
+
+**UAT-1 Result:**
+
+> **Test 1: FAILED** — the per-attachment filter STILL causes the panel to slide downward, BUT ONLY ON THE GLOBAL TAB. The Animation Breakdown tab does NOT exhibit the regression.
+> **Test 2: PASSED** — D-08 loaderMode toggle still works correctly.
+> **Test 3: PASSED** — toolbar visual integrity at 900px width is fine.
+
+This OUTCOME has TWO distinct implications:
+
+1. **The original hypothesis is FALSIFIED.** The toolbar-flex fix is in place; Test 1 still fails. The cause cannot be (or cannot ONLY be) toolbar flex-compression — if it were, the b8f2a0f fix would have closed it.
+2. **The regression is panel-tab-specific.** Global tab regresses; Animation Breakdown tab does not. This is critically diagnostic information that the original bisect did NOT have. It REDIRECTS the investigation from "what's different about post-Phase-21 vs pre-Phase-21 in shared layout chrome" to "what's different about how the Global panel renders the filter operation vs how the Animation Breakdown panel renders it."
+
+### Link 4: Revised diagnosis (this executor)
+
+The Global tab renders `GlobalMaxRenderPanel`; the Animation Breakdown tab renders `AnimationBreakdownPanel`. Both panels filter by `query` from a single lifted SearchBar in AppShell. Both panels use TanStack Virtual with a `VIRTUALIZATION_THRESHOLD = 100`. **But the two panels' virtualizers are wired DIFFERENTLY:**
+
+| Panel | Virtualizer outer container | Threshold scope |
+|-------|----------------------------|-----------------|
+| GlobalMaxRenderPanel | `<div style={{ height: 'calc(100vh - 200px)', overflow: 'auto', overflowAnchor: 'none' }}>` (line 855-865) | Whole-panel: useVirtual = sorted.length > 100 → wraps the ENTIRE peak table in the fixed-height div |
+| AnimationBreakdownPanel | `<div style={{ maxHeight: '600px', overflowY: 'auto', overflowAnchor: 'none' }}>` (line 779-787) | Per-card: each animation card's BreakdownTable independently picks virtual or flat based on its own row count; outer panel just stacks cards normally |
+
+**The smoking gun: the Global panel's `useVirtual` is a panel-level boolean tied to total row count.** When the user types in the per-attachment filter on the Girl fixture (~200-300 rows initially → useVirtual TRUE), the filter narrows sorted.length below 100 → useVirtual flips FALSE on the same render. The fixed-height `calc(100vh - 200px)` wrapper is unmounted and replaced by a bare content-driven `<table>`. The panel's vertical footprint collapses from "viewport - 200px" (typically 600-800px) to "filtered-rows × 34px" (typically 50-200px) in one render. This visual collapse is what the user observed as "panel slides downward toward the center."
+
+The AnimationBreakdownPanel does NOT regress because:
+1. Its virtualizer's outer container uses `maxHeight: '600px'` — a small fixed cap, NOT viewport-relative.
+2. Each card's table independently picks virtual / flat — there is no panel-level height switch.
+3. Filter typically narrows individual cards to short row counts, but the outer panel's height was always content-driven (cards stack via `<div className="flex flex-col gap-3">` at line 383); no collapse possible.
+
+The Phase 21 Plan 21-08 toolbar checkbox was a RED HERRING. The actual regression surface is Phase 9 Plan 03's TanStack Virtual integration (introduced ~commit before Phase 21; pre-existing layout fragility that Phase 21 did not introduce — the user simply happened to run the per-attachment filter on a Girl-size fixture during Phase 21 UAT, hitting a latent regression that has likely been present since virtualization landed). The bisect-only approach in the original Task 1 missed this because **the regression is not present in pre-Phase-21 code with respect to the Phase 21 changes** (Phase 21 didn't touch GlobalMaxRenderPanel.tsx; the bisect's 0-result on that file was actually correct — but the bisect target was wrong).
+
+### Link 5: Revised fix (commit 30ff95f)
+
+`src/renderer/src/panels/GlobalMaxRenderPanel.tsx` line 797: append `min-h-[calc(100vh-200px)]` to the panel's outer `<section>` className. The complete className becomes:
+
+```jsx
+<section className="border border-border rounded-md bg-panel p-4 mb-4 min-h-[calc(100vh-200px)]">
 ```
-git log --oneline f09c29b..HEAD -- src/renderer/src/components/AppShell.tsx
-39b72bb feat(21-08): wire loaderMode toggle through AppShell.tsx (D-08 renderer plumbing)
-211ac58 feat(21-05): widen SkeletonSummary.atlasPath to string|null (D-03 cascade)
-```
 
-- **211ac58** (Plan 21-05): type-only widening; zero layout impact.
-- **39b72bb** (Plan 21-08): adds the loaderMode `<label>` with the longest text in the toolbar cluster ("Use Images Folder as Source" — 29 chars; the `<span>` has no width hint, no `whitespace-nowrap`, no `flex-shrink-0` on the parent).
+A 16-line explanatory comment block above the section documents the fix's rationale (UAT-1 falsification + revised diagnosis + the AnimationBreakdownPanel-doesn't-regress note for future maintainers).
 
-**Diagnosis: 39b72bb is the suspected culprit.** The label is the only meaningfully variable-text-width child in an otherwise button-only cluster (button text is shorter and approximately equal-width). When the available width narrows (e.g., a vertical scrollbar appears in the panel because the per-attachment filter changed the row count), the toolbar's flex children compress per the default `flex-shrink: 1`. The label compresses first because it's the only non-button; if the label's text wraps to 2 lines, the whole sticky-header height doubles, and the panel below (whose top edge is positioned by the sticky header's effective height) slides downward — exactly the regression in G-03.
+**Why this fix works:** The outer `<section>` reserves AT LEAST `calc(100vh - 200px)` of vertical space regardless of inner content. When `useVirtual` is true, the inner `<div>` already fills that height (its inline `height: calc(100vh - 200px)` matches the section's `min-height`). When `useVirtual` is false (filter narrowed rows), the section's `min-height` keeps the panel's vertical footprint identical to the virtualized state — the flat table renders at the top of the section with empty space below, but the SECTION's outer dimensions don't collapse. No layout collapse → no slide.
 
-## ISSUE-008 Hypothesis-Verify Outcome
+**Why `min-height` not `height`:** `height: calc(100vh - 200px)` would FORCE the section to exactly that height even when content exceeded it (e.g., a future case where the unused-attachments section + flat table together exceed 100vh-200px). `min-height` is permissive: floor the section at the virtualized-path's extent, but allow it to grow if content needs more.
 
-**Pattern classification: DEFERRED-TO-HUMAN-UAT.**
+**Tailwind v4 literal-class scanner discipline preserved:** `min-h-[calc(100vh-200px)]` is a single literal arbitrary-value class (no template literal, no computed string) — the v4 scanner picks it up.
 
-Per the plan's documented fallback for non-jsdom-verifiable layout regressions ("If no automated layout regression is reproducible in vitest+jsdom (jsdom does not compute layout), the plan documents the manual repro steps and applies a targeted CSS hardening to the most likely culprit identified by bisect, then HUMAN-UAT confirms in dev app"), the executor:
+## UAT-1 Result (verbatim from user / orchestrator)
 
-1. Performed static analysis (Task 1 Steps A–D): bisect confirmed 39b72bb; toolbar has no flex-shrink discipline; the new label is the most plausible compression target.
-2. Did NOT perform empirical Pattern-A confirmation in the dev app (Step E). Reason: this is a parallel worktree executor running headlessly; the worktree is force-removed after return per orchestrator contract. Spawning Electron dev mode in a doomed worktree is wasted work — the user will exercise dev mode against the merged main branch in Task 3 anyway.
-3. Applied the hypothesis-(a) fix in Task 2.
-4. **HUMAN-UAT (Task 3) is the empirical gate.** If Task 3 confirms the fix closes G-03, the plan's hypothesis is retroactively confirmed (Pattern A). If Task 3 shows G-03 persists, the plan's Conditional iteration applies (`flex-wrap` on the header). If even that fails, the plan is marked SPECULATIVE-FIX-FAILED and the user re-routes to broader bisect.
+> **Test 1: FAILED** — the per-attachment filter STILL causes the panel to slide downward, BUT ONLY ON THE GLOBAL TAB. The Animation Breakdown tab does NOT exhibit the regression.
+> **Test 2: PASSED** — D-08 loaderMode toggle still works correctly.
+> **Test 3: PASSED** — toolbar visual integrity at 900px width is fine.
 
-This SUMMARY is therefore tagged `speculative-fix-then-verify-human-uat-pending` until Task 3 closes.
+## Revised Diagnosis
 
-## CSS Changes Applied (Task 2)
+**Original hypothesis fault:** The bisect correctly identified Phase 21 Plan 21-08 (commit 39b72bb) as the most-recently-layout-touching commit on AppShell.tsx, but ASSUMED the regression entered the codebase in that bisect window. UAT-1 reveals that assumption was wrong — Test 1 still fails with the toolbar fix in place. The actual root cause exists in code that was UNCHANGED across the bisect window: GlobalMaxRenderPanel's TanStack Virtual integration (which was introduced in Phase 9 Plan 03, well before Phase 21).
 
-| Element                | Line  | Class addition                          | Rationale                                                                 |
-| ---------------------- | ----- | --------------------------------------- | ------------------------------------------------------------------------- |
-| `<label>` (loaderMode) | 1331  | `flex-shrink-0`                         | Prevents the label from compressing when the cluster's available width narrows |
-| `<span>` (label text)  | 1343  | `className="whitespace-nowrap"` (new)   | Defense-in-depth: even if `flex-shrink-0` is somehow bypassed, the text never reflows to multiple lines |
-| Atlas Preview button   | 1354  | `flex-shrink-0`                         | Pin button width to its content                                           |
-| Documentation button   | 1366  | `flex-shrink-0`                         | Pin button width to its content                                           |
-| Optimize Assets button | 1374  | `flex-shrink-0`                         | Pin button width to its content                                           |
-| Save button            | 1385  | `flex-shrink-0`                         | Pin button width to its content                                           |
-| Open button            | 1395  | `flex-shrink-0`                         | Pin button width to its content                                           |
+**New hypothesis (revised):** GlobalMaxRenderPanel's `useVirtual` is a panel-level boolean tied to total row count. When the user types in the per-attachment filter on a fixture with > 100 rows (Girl fixture qualifies; SIMPLE_PROJECT does not — which explains why the regression is fixture-dependent, possibly missed by users who only test with SIMPLE_PROJECT), the filter narrows row count below the 100-row threshold. `useVirtual` flips false on the same render. The fixed-height `calc(100vh - 200px)` virtualizer wrapper is unmounted; replaced by a content-driven flat `<table>`. The panel's vertical footprint COLLAPSES by hundreds of pixels in a single render — observed by the user as "panel slides downward toward the center."
 
-**Net diff:** +7 / -7 LoC (each addition replaces a class string in-place). 6 flex-shrink-0 occurrences total. 1 whitespace-nowrap occurrence.
+The Animation Breakdown panel does not exhibit this regression because its virtualizer uses a small fixed `maxHeight: 600px` (not viewport-relative) and is per-card (not panel-level); no panel-level height switch occurs across the threshold.
 
-**Tailwind v4 literal-class scanner discipline preserved**: every class string is still a single literal (no template literals, no computed strings) — the v4 scanner will pick up `flex-shrink-0` and `whitespace-nowrap` from the literal source.
+## Revised Fix
 
-## flex-wrap NOT applied (header line 1243)
+| File | Line | Change | Rationale |
+|------|------|--------|-----------|
+| `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` | 797 | Append `min-h-[calc(100vh-200px)]` to the outer `<section>` className | Pins the panel's vertical footprint to the same extent as the virtualized scroll container's inline `height` style, so the section's outer dimensions do not collapse when `useVirtual` flips false |
+| `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` | 781-796 | New 16-line explanatory comment block above the section | Documents UAT-1 falsification + revised diagnosis for future maintainers; explicitly notes AnimationBreakdownPanel does not regress and why |
 
-The plan's Conditional says: only add `flex-wrap` to the header if `flex-shrink-0` alone doesn't fix the regression. Since Task 3 hasn't run yet, `flex-wrap` is NOT applied. If Task 3 reveals the regression persists, the executor returns to Task 2 and applies it as the documented iteration.
+The original toolbar-flex fix (commit b8f2a0f, 6× `flex-shrink-0` + 1× `whitespace-nowrap` on AppShell.tsx toolbar children) is PRESERVED as defense-in-depth — UAT-1 Tests 2 + 3 PASSED with it in place, and `flex-shrink-0` discipline on a mixed-text toolbar is independently desirable. Reverting it now would re-introduce a latent failure mode without affecting the actual G-03 fix.
 
-## Verification Outcomes
+## UAT-2 Required
 
-### Acceptance Criteria — Task 1 (bisect + diagnosis)
+The user must re-run **Test 1 specifically**: Global tab + per-attachment filter on a fixture with > 100 rows (Girl is the canonical Phase 21 fixture).
 
-- [x] `git log --oneline f09c29b..HEAD -- src/renderer/src/components/AppShell.tsx` returns 2 commits (39b72bb + 211ac58)
-- [x] 39b72bb is in the bisect output
-- [x] `grep -c "flex-shrink-0\|min-w-0" src/renderer/src/components/AppShell.tsx` returns 0 (pre-fix)
-- [N/A] Empirical Pattern A/B/C classification — deferred to Task 3 HUMAN-UAT per documented fallback (jsdom doesn't compute layout; this is a parallel worktree executor)
-- [x] Diagnosis recorded (above sections)
+**Test 1-revised — G-03 closure (filter does NOT shift panel position on the Global tab):**
 
-### Acceptance Criteria — Task 2 (CSS fix)
+1. `npm run dev` (Electron dev server boots)
+2. Drag-and-drop `fixtures/Girl/` (any of the Girl fixture .json files — the regression manifests when the rig has > 100 attachment rows; SIMPLE_PROJECT has too few rows to trigger the threshold and CANNOT reproduce the bug).
+3. Wait for panels to populate; ensure you are on the **Global tab** (the regression-prone tab).
+4. Note the Y-position of the Global Max Render Source panel header (or any visual reference inside the panel chrome).
+5. Use the per-attachment filter — type something in the search bar that narrows the result list to < 100 rows (e.g., a substring that matches just a few attachments; "armor" or any uncommon attachment-name substring).
+6. **Expected**: panel position is STABLE — no visible jump or slide downward, even though the row count drops below the virtualization threshold.
+7. Clear the filter — panel position remains stable; row count goes back above 100; virtualization re-engages without any visible shift.
+8. Repeat several times — no cumulative drift.
 
-- [x] `grep -c "flex-shrink-0" src/renderer/src/components/AppShell.tsx` returns **6** (≥5 required: loader label + 5 buttons)
-- [x] `grep -q "whitespace-nowrap.*Use Images Folder as Source" src/renderer/src/components/AppShell.tsx` matches: `<span className="whitespace-nowrap">Use Images Folder as Source</span>` at line 1343
-- [x] loaderMode toggle preserved: `grep -c "loaderMode"` returns 17; `grep -q "Use Images Folder as Source"` matches 3 times (comment + aria-label + span text)
-- [x] typecheck shows ONLY 2 pre-existing errors (`AnimationBreakdownPanel.tsx:286`, `GlobalMaxRenderPanel.tsx:531` — both `onQueryChange unused`, both already in `deferred-items.md`); zero new errors introduced
-- [x] vitest: 615 passed / 1 pre-existing failure (`tests/main/sampler-worker-girl.spec.ts` — D-21-WORKTREE-1 in `deferred-items.md`; missing `fixtures/Girl/` in worktree; runs green on the parent repo)
-- [x] Plan 21-08's `tests/core/loader-atlas-less.spec.ts` still passes 5/5 (D-08 toggle's logic surface intact)
+**Test 2 + Test 3 (regression-of-the-fix checks):** unchanged from UAT-1; previously PASSED; should still PASS since the revised fix only modifies GlobalMaxRenderPanel.tsx (not AppShell.tsx, not the loaderMode toggle, not toolbar buttons).
 
-### Acceptance Criteria — Task 3 (HUMAN-UAT)
+**If Test 1-revised PASSES**: G-03 is closed. The plan's status flips from `speculative-fix-2-then-verify` to `closed`. The original speculative-fix b8f2a0f stays as defense-in-depth.
 
-- [ ] **PENDING.** User must run `npm run dev` on the merged main branch (after this worktree merges back), drag-drop a fixture, and verify:
-  - Test 1 (G-03 closure): per-attachment filter does NOT shift panel position
-  - Test 2 (regression-of-the-fix): the "Use Images Folder as Source" checkbox still toggles + triggers a resample
-  - Test 3 (visual integrity): toolbar at ~900px wide shows no compression-induced reflow on filter operations
+**If Test 1-revised FAILS**: the revised hypothesis is also wrong. Plan is marked `SPECULATIVE-FIX-FAILED` and the user re-routes to a deeper investigation (likely sitting with Claude in dev mode to do live DOM inspection). At that point, the failure mode is genuinely outside what static analysis can predict, and HUMAN-IN-THE-LOOP investigation is the only path forward.
+
+## Verification Outcomes (Tasks 1+2 + Revised Fix)
+
+### Original Tasks 1+2 (commit b8f2a0f) — UAT-1 disposition
+
+- [x] Bisect identified 39b72bb as the most-recently-layout-touching commit (correct identification, wrong inference about causation)
+- [x] flex-shrink-0 + whitespace-nowrap discipline added to AppShell.tsx toolbar children (correctly applied)
+- [✗] Hypothesis falsified by UAT-1 — Test 1 still failed with this fix in place
+- [x] Original fix PRESERVED as defense-in-depth (UAT-1 Tests 2 + 3 PASSED)
+
+### Revised Fix (commit 30ff95f) — pre-UAT-2
+
+- [x] `grep -c "min-h-\[calc(100vh-200px)\]" src/renderer/src/panels/GlobalMaxRenderPanel.tsx` returns 2 (1 in the comment + 1 in the className literal)
+- [x] typecheck: only 2 pre-existing TS6133 warnings (`AnimationBreakdownPanel.tsx:286` + `GlobalMaxRenderPanel.tsx:531`, both already in `deferred-items.md`); zero new errors
+- [x] vitest: 624 passed / 1 pre-existing failure (`tests/main/sampler-worker-girl.spec.ts` — D-21-WORKTREE-1, missing `fixtures/Girl/` in the worktree; passes on the parent repo)
+- [x] Panel-specific tests pass: `tests/renderer/global-max-virtualization.spec.tsx` (4) + `tests/renderer/missing-attachments-panel.spec.tsx` (4) = 8/8 green
+- [x] Tailwind v4 literal-class scanner discipline preserved (single literal `min-h-[calc(100vh-200px)]`, no template/computed strings)
+- [ ] **PENDING UAT-2**: empirical confirmation that Test 1-revised passes with the Girl fixture on the Global tab
+
+### Acceptance Criteria — Task 3 (HUMAN-UAT-2)
+
+- [ ] **PENDING.** User must run UAT-2 Test 1 (and ideally re-run Tests 2 + 3 for regression-of-the-fix) on the merged main branch.
 
 ## Deviations from Plan
 
-### None — plan executed as written
+### Major: original hypothesis falsified by UAT-1; revised diagnosis applied
 
-The plan documented two valid fallback paths:
+The plan documented this exact fallback: ISSUE-008's "If the hypothesis does NOT match observed behavior, the executor returns to bisect" + "If even iteration fails, plan is marked SPECULATIVE-FIX-FAILED and re-routes to broader bisect (per ISSUE-008 fallback)." This SUMMARY's revised diagnosis is the documented re-investigation path: UAT-1 produced new evidence (panel-tab-specificity) that the original bisect did not have, the executor re-investigated where the Global vs Breakdown rendering paths diverge (TanStack Virtual integration), and applied a targeted fix.
 
-1. **Empirical Pattern-A confirmation in Task 1 Step E** (preferred — ISSUE-008 fix).
-2. **Speculative-fix-then-verify** (documented fallback) — "If no automated layout regression is reproducible in vitest+jsdom (jsdom does not compute layout), the plan documents the manual repro steps and applies a targeted CSS hardening to the most likely culprit identified by bisect, then HUMAN-UAT confirms in dev app."
+This is a documented fallback, NOT an unauthorized deviation.
 
-The executor followed path (2) because (a) jsdom does not compute flex layout — verified, no automated reproduction is possible; (b) this is a parallel worktree executor — running Electron dev mode in a worktree that gets force-removed on return is wasted work; (c) the applied fix is purely additive CSS (no functional change, no risk to existing behavior); (d) HUMAN-UAT (Task 3) is the empirical gate that catches a wrong-fix.
+### Minor: original fix b8f2a0f preserved (not reverted)
 
-This is a documented plan branch, NOT a deviation.
+The plan's Task 2 says "If [fix] does not work after iteration, mark SPECULATIVE-FIX-FAILED and re-route to broader bisect" — it does NOT prescribe reverting the original fix. The executor's judgment: keep b8f2a0f as defense-in-depth, since UAT-1 Tests 2+3 PASSED with it in place and `flex-shrink-0` discipline is independently desirable. Reverting would require a clean reason not present here.
 
 ### Out-of-scope (deferred — not addressed by this plan)
 
-- **Pre-existing TS6133 warnings** (`onQueryChange unused` in `AnimationBreakdownPanel.tsx:286` + `GlobalMaxRenderPanel.tsx:531`) — already in `deferred-items.md`.
-- **Pre-existing test failure** (`tests/main/sampler-worker-girl.spec.ts` — `fixtures/Girl/` gitignored, missing in worktree) — already in `deferred-items.md` as D-21-WORKTREE-1.
-
-## HUMAN-UAT Checkpoint (Task 3) — Pending
-
-**This plan is partial-complete.** The orchestrator returns a checkpoint to the user with the following test recipe (verbatim from the plan):
-
-### Test 1 — G-03 closure (filter does NOT shift panel position)
-
-1. `npm run dev`
-2. Drag-drop `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (or any fixture)
-3. Wait for panels to populate
-4. Note the Y-position of the Global Max Render Source panel header
-5. Use the per-attachment filter (focus an attachment OR type in the search bar)
-6. **Expected**: panel position is STABLE — no visible jump or slide downward
-7. Toggle filter off — panel position remains stable
-8. Repeat several times — no cumulative drift
-
-### Test 2 — Phase 21 D-08 toggle still functional
-
-1. With the same fixture loaded, click the "Use Images Folder as Source" checkbox
-2. **Expected**: checkbox toggles, resample fires (loading spinner brief), panels repopulate
-3. Click again — panels repopulate via canonical path
-
-### Test 3 — Toolbar visual integrity at narrower viewport widths
-
-1. Resize the dev window to ~900px wide
-2. **Expected**: toolbar children remain visible — buttons may be tightly spaced but no compression-induced text reflow on the loaderMode label
-3. Resize to ~600px wide
-4. **Expected**: toolbar may horizontally overflow (acceptable) BUT no vertical layout shift on filter operations
-
-### If ANY test fails
-
-- **Test 1 fails (panel still shifts)**: executor returns to Task 2 and applies the documented Conditional — append `flex-wrap` to the header at AppShell.tsx:1243. Re-run HUMAN-UAT. If the filter STILL shifts the panel after `flex-wrap`, mark plan SPECULATIVE-FIX-FAILED in this SUMMARY and route back to broader bisect (per ISSUE-008 fallback).
-- **Test 2 fails (checkbox broken)**: regression-of-the-fix; executor inspects whether the CSS change accidentally broke the click target (e.g., flex-shrink-0 with no min-width could clip the input). Unlikely (the input is still in the visible flow), but possible.
-- **Test 3 fails (text reflows on the label)**: `whitespace-nowrap` was bypassed; investigate Tailwind v4 scanner output.
+- **Pre-existing TS6133 warnings** (`onQueryChange unused` in `AnimationBreakdownPanel.tsx:286` + `GlobalMaxRenderPanel.tsx:531`) — already in `deferred-items.md`; this plan touches both files but does NOT modify the unused-prop signatures.
+- **Pre-existing test failure** (`tests/main/sampler-worker-girl.spec.ts` — `fixtures/Girl/` gitignored, missing in worktree) — already in `deferred-items.md` as D-21-WORKTREE-1; runs green on the parent repo with the actual Girl fixture present.
 
 ## ROADMAP Success Criteria Coverage
 
 This plan is a Phase 21 gap-closure plan for G-03 only. It does NOT touch the Phase 21 functional success criteria (those are owned by Plans 21-01..21-08). The fix is layout-only:
 
-- D-08 loaderMode toggle (success criteria #1, #2, #3) — PRESERVED. Plan 21-08's tests still pass; the toggle is visible, functional, and persisted.
+- D-08 loaderMode toggle (Phase 21 success criteria #1, #2, #3) — PRESERVED across both fix iterations. Plan 21-08's tests still pass; the toggle is visible, functional, and persisted (UAT-1 Test 2 PASSED; revised fix doesn't touch AppShell.tsx).
 - LOAD-04 round-trip (success criterion #4) — UNCHANGED. No code-path modification.
 - Criterion #5 (AtlasNotFoundError verbatim) — UNCHANGED. No loader logic touched.
 
 ## Self-Check: PASSED
 
-- File `src/renderer/src/components/AppShell.tsx` modified (verified `git diff --stat HEAD~1 HEAD`).
-- Commit `b8f2a0f` exists in git log on this worktree branch.
+- File `src/renderer/src/panels/GlobalMaxRenderPanel.tsx` modified (verified `git diff --stat HEAD~1 HEAD`).
+- Commit `30ff95f` exists in git log on this worktree branch (verified).
 - File `.planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-11-toolbar-layout-regression-SUMMARY.md` written (this file).
-- 6 `flex-shrink-0` occurrences confirmed in AppShell.tsx (grep).
-- 1 `whitespace-nowrap` occurrence confirmed on the loader label span (grep).
-- Plan 21-08's `tests/core/loader-atlas-less.spec.ts` still passes 5/5 (D-08 toggle logic intact).
-- Pre-existing TS6133 + sampler-worker-girl failures confirmed via deferred-items.md (not regressions of this plan).
+- 1 `min-h-[calc(100vh-200px)]` className literal occurrence in GlobalMaxRenderPanel.tsx (grep — 2 grep matches, 1 in comment + 1 in JSX className literal).
+- vitest: 624/625 green (1 pre-existing failure documented).
+- typecheck: 2 pre-existing warnings (no new errors).
 
 ## Threat Flags
 
-None — pure CSS class additions (`flex-shrink-0`, `whitespace-nowrap`) introduce no new security surface, no IPC payload change, no new file/network access. T-21-11-01 (UX horizontal overflow at narrow viewports) is accepted in the plan's threat register; no further mitigation is needed for typical desktop displays.
+None — pure CSS class additions (`min-h-[calc(100vh-200px)]`, plus the preserved `flex-shrink-0` + `whitespace-nowrap` from b8f2a0f) introduce no new security surface, no IPC payload change, no new file/network access. Threat register T-21-11-01 (UX horizontal overflow at narrow viewports) is unchanged and still ACCEPTED.
+
+## Future-Maintenance Note
+
+If a future fixture or feature increases content height inside the GlobalMaxRenderPanel beyond `calc(100vh - 200px)` (e.g., a very large unused-attachments table), the `min-h` floor remains correct — `min-height` is permissive and the section will grow to fit content. The pin only prevents collapse, not growth. The 16-line comment block above the section explicitly documents this for future maintainers.
