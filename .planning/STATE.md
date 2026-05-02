@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: milestone_complete
-last_updated: "2026-05-02T20:55:00Z"
-last_activity: 2026-05-02 -- Phase 21 Plan 21-12 complete (G-04 caller-side precedence fix; 630/630 vitest)
+status: completed
+last_updated: "2026-05-02T22:00:00Z"
+last_activity: 2026-05-02 -- Phase 22 context gathered (4 areas discussed → D-01..D-04 locked); ready for /gsd-plan-phase 22
 progress:
-  total_phases: 4
-  completed_phases: 1
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 15
+  completed_phases: 7
+  total_plans: 43
+  completed_plans: 43
+  percent: 100
 ---
 
 # State
@@ -48,7 +49,7 @@ REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22
 
 ## Current phase
 
-— (no active phase yet; ready for `/gsd-discuss-phase 21` — SEED-001 atlas-less mode, next in recommended execution order; or `/gsd-discuss-phase 13.1` if a Linux/macOS/Windows host becomes available first)
+Phase 22 (SEED-002 dims-badge + override-cap) — context gathered 2026-05-02. 22-CONTEXT.md authored; 4 implementation decisions locked (D-01 JSON canonical dims unified across both modes; D-02 override % stays % of canonical; D-03 already-optimized rows become passthrough byte-copies with "COPY" indicator — new `passthroughCopies[]` array on ExportPlan; D-04 strict ceil-equality on both axes for passthrough qualification). Resolves Phase 21 open research item (Spine 4.2 JSON skin attachment width/height is the canonical source — NOT nonessential data). Ready for `/gsd-plan-phase 22`.
 
 ## Phase 17 skip rationale
 
@@ -88,6 +89,8 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 **Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
 **Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 12 plans (8 originals + 4 gap closures) — 2026-05-02T16:53:49.465Z
+
+**Last Phase Discussion:** 22 (seed-002-dims-badge-override-cap-depends-on-phase-21) — CONTEXT GATHERED — 2026-05-02T22:00:00Z (commit 435c462; 4 areas discussed → D-01 JSON canonical unified across modes; D-02 override % stays % of canonical; D-03 passthrough byte-copies with "COPY" indicator on muted rows; D-04 strict ceil-equality on both axes; resolves Phase 21 open research item; Phase 22 ready for /gsd-plan-phase 22).
 
 **Last Plan Action:** 21-12 (toggle-resample-atlas-less-precedence) — COMPLETE — 2026-05-02T20:55:00Z (commits 179b1dd test + de99e84 fix + 0a31aee test + fee0070 fix-recovery + 9b70056 test; SUMMARY at .planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md). G-04 closed via caller-side LoaderOptions precedence fix at IPC + worker boundaries (project-io.ts Sites 1+4 + sampler-worker.ts Site 5; src/core/loader.ts UNTOUCHED — criterion #5 verbatim AtlasNotFoundError preserved). 630/630 vitest passing. 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 2 falsifying gates proven via scratch revert. HUMAN-UAT Test 4b Path 2 + 4c re-runnable post-fix.
 
