@@ -54,7 +54,7 @@
  * mirroring tests/core/ipc.spec.ts handler-extraction discipline.
  */
 import sharp from 'sharp';
-import { access, mkdir, rename, constants as fsConstants } from 'node:fs/promises';
+import { access, copyFile, mkdir, rename, constants as fsConstants } from 'node:fs/promises';
 import { dirname, resolve as pathResolve, relative as pathRelative, isAbsolute } from 'node:path';
 import type {
   ExportError,
@@ -79,7 +79,11 @@ export async function runExport(
   const t0 = performance.now();
   const errors: ExportError[] = [];
   let successes = 0;
-  const total = plan.rows.length;
+  // Phase 22 DIMS-04 (Plan 22-04) — single index space across passthrough +
+  // resize rows per RESEARCH Item #2 Option B. Total event count = both
+  // arrays combined; passthrough rows fire FIRST with index 0..N-1, then
+  // resize rows fire with index N..total-1.
+  const total = plan.passthroughCopies.length + plan.rows.length;
   const resolvedOutDir = pathResolve(outDir);
   // Phase 6 REVIEW M-03 (2026-04-25) — track whether the loop ACTUALLY
   // broke out of cancellation rather than completing naturally. The
@@ -94,7 +98,144 @@ export async function runExport(
   // cancel" signal.
   let bailedOnCancel = false;
 
-  for (let i = 0; i < plan.rows.length; i++) {
+  // ---------------------------------------------------------------------
+  // Phase 22 DIMS-04 — passthrough byte-copies (D-03). Iterate FIRST so
+  // progress events for these rows carry absolute indices 0..N-1 where
+  // N = plan.passthroughCopies.length. Resize rows then carry indices
+  // N..total-1. Single index space per RESEARCH Item #2 Option B (cleaner
+  // for IPC progress event indexing and matches the byte-copy-before-Lanczos
+  // user mental model — fast pass-through rows complete first).
+  //
+  // Steps mirror the resize loop where applicable:
+  //   1. Cooperative cancel check (D-115).
+  //   2. Pre-flight access(R_OK) on sourcePath. Passthrough has NO
+  //      atlas-extract fallback — drift detection requires the per-region
+  //      PNG to exist, otherwise dimsMismatch wouldn't have been set in
+  //      the first place. Failure → 'missing-source' error.
+  //   3. Path-traversal defense (rel.startsWith('..') || isAbsolute || empty).
+  //   4. mkdir-recursive parent dir for R8 subfolder support (e.g.
+  //      AVATAR/FACE.png needs AVATAR/ created first).
+  //   5. copyFile sourcePath → tmpPath, then rename tmpPath → resolvedOut.
+  //      Atomic write per Phase 6 D-121 + R4 macOS delayed-allocation safety:
+  //      output path only appears when fully written.
+  //
+  // SKIP the sharp resize pipeline entirely — D-03 contract is "byte-copy,
+  // no double Lanczos." The cap formula in buildExportPlan guarantees these
+  // rows are at-or-below source ratio, so re-Lanczos would be wasteful AND
+  // degrade quality vs simply shipping the source bytes.
+  // ---------------------------------------------------------------------
+  for (let pi = 0; pi < plan.passthroughCopies.length; pi++) {
+    if (isCancelled()) {
+      bailedOnCancel = true;
+      break;
+    }
+    const row = plan.passthroughCopies[pi];
+    const sourcePath = row.sourcePath;
+    const resolvedOut = pathResolve(outDir, row.outPath);
+    const i = pi; // absolute event index (passthrough rows fire FIRST)
+
+    // 0. Defense-in-depth overwrite guard (parity with resize loop step 0).
+    if (!allowOverwrite) {
+      const exists = await access(resolvedOut, fsConstants.F_OK)
+        .then(() => true)
+        .catch(() => false);
+      if (exists) {
+        const error: ExportError = {
+          kind: 'overwrite-source',
+          path: resolvedOut,
+          message: `Refusing to overwrite existing file: ${resolvedOut}`,
+        };
+        errors.push(error);
+        onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+        continue;
+      }
+    }
+
+    // 1. Pre-flight access(R_OK) on sourcePath. Passthrough has NO
+    //    atlas-extract fallback (drift detection requires per-region PNG
+    //    to exist). Missing source → 'missing-source'.
+    try {
+      await access(sourcePath, fsConstants.R_OK);
+    } catch {
+      const error: ExportError = {
+        kind: 'missing-source',
+        path: sourcePath,
+        message: `Source file not readable: ${sourcePath}`,
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+
+    // 2. Path-traversal defense — same shape as resize loop step 2.
+    const relPassthrough = pathRelative(resolvedOutDir, resolvedOut);
+    if (relPassthrough.startsWith('..') || isAbsolute(relPassthrough) || relPassthrough === '') {
+      const error: ExportError = {
+        kind: 'write-error',
+        path: resolvedOut,
+        message: `Output path escapes outDir or equals outDir: ${row.outPath}`,
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+
+    // 3. mkdir parent for R8 subfolder paths (e.g. AVATAR/FACE.png).
+    try {
+      await mkdir(dirname(resolvedOut), { recursive: true });
+    } catch (e) {
+      const error: ExportError = {
+        kind: 'write-error',
+        path: resolvedOut,
+        message: `Failed to create output directory: ${e instanceof Error ? e.message : String(e)}`,
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+
+    // 4. copyFile to tmpPath, then rename — atomic write per Phase 6 D-121
+    //    + R4 macOS delayed-allocation safety. The output path only appears
+    //    when fully written.
+    const tmpPath = resolvedOut + '.tmp';
+    try {
+      await copyFile(sourcePath, tmpPath);
+    } catch (e) {
+      const error: ExportError = {
+        kind: 'write-error',
+        path: resolvedOut,
+        message: e instanceof Error ? e.message : String(e),
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+    try {
+      await rename(tmpPath, resolvedOut);
+    } catch (e) {
+      const error: ExportError = {
+        kind: 'write-error',
+        path: resolvedOut,
+        message: e instanceof Error ? e.message : String(e),
+      };
+      errors.push(error);
+      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+      continue;
+    }
+
+    // 5. Success.
+    successes++;
+    onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'success' });
+  }
+
+  // Phase 22 DIMS-04 — resize loop now uses absolute event index =
+  // plan.passthroughCopies.length + ri. The base counter `ri` is the
+  // resize-row local index; `i` is the absolute IPC event index. This
+  // preserves the single-index-space contract (RESEARCH Item #2 Option B)
+  // for IPC consumers without changing the resize loop's per-row logic.
+  const passthroughOffset = plan.passthroughCopies.length;
+  for (let ri = 0; ri < plan.rows.length; ri++) {
+    const i = passthroughOffset + ri;
     // D-115: cooperative cancel between files. In-flight cannot be aborted
     // mid-libvips; this check at the top of every iteration is the contract.
     if (isCancelled()) {
@@ -102,7 +243,7 @@ export async function runExport(
       break;
     }
 
-    const row = plan.rows[i];
+    const row = plan.rows[ri];
     const sourcePath = row.sourcePath;
     const resolvedOut = pathResolve(outDir, row.outPath);
 
