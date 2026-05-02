@@ -110,6 +110,30 @@ function makeRow(i: number): DisplayRow {
     sourceLabel: '__SETUP__',
     frameLabel: '—',
     sourcePath: `/fake/${name}.png`,
+    // Phase 22 DIMS-01 — canonical/actual dim fields. Defaults reflect the
+    // happy-path "no drift" case (canonical === source; actualSource undefined;
+    // dimsMismatch false).
+    canonicalW: 64,
+    canonicalH: 64,
+    actualSourceW: undefined,
+    actualSourceH: undefined,
+    dimsMismatch: false,
+  };
+}
+
+/**
+ * Phase 22 DIMS-02 — drifted variant for badge tests. Canonical 1628×1908,
+ * actual on-disk 811×962 (halved-PNG scenario). dimsMismatch:true triggers
+ * the badge SVG + tooltip in the Source W×H cell.
+ */
+function makeDriftedRow(i: number): DisplayRow {
+  return {
+    ...makeRow(i),
+    canonicalW: 1628,
+    canonicalH: 1908,
+    actualSourceW: 811,
+    actualSourceH: 962,
+    dimsMismatch: true,
   };
 }
 
@@ -146,6 +170,42 @@ function PanelTestHarness({ rowCount }: { rowCount: number }) {
       <SearchBar value={query} onChange={setQuery} />
       <GlobalMaxRenderPanel
         summary={makeSummary(rowCount)}
+        onJumpToAnimation={vi.fn()}
+        overrides={new Map()}
+        onOpenOverrideDialog={vi.fn()}
+        query={query}
+        onQueryChange={setQuery}
+      />
+    </>
+  );
+}
+
+/**
+ * Phase 22 DIMS-02 — explicit-rows harness for badge tests. Wraps the supplied
+ * rows in a SkeletonSummary fixture so the panel renders them under the
+ * standard query/onQueryChange contract.
+ */
+function PanelRowsHarness({ rows }: { rows: DisplayRow[] }) {
+  const [query, setQuery] = useState('');
+  const summary: SkeletonSummary = {
+    skeletonPath: '/fake/skeleton.json',
+    atlasPath: '/fake/skeleton.atlas',
+    bones: { count: 1, names: ['root'] },
+    slots: { count: rows.length },
+    attachments: { count: rows.length, byType: { RegionAttachment: rows.length } },
+    skins: { count: 1, names: ['default'] },
+    animations: { count: 0, names: [] },
+    peaks: rows,
+    animationBreakdown: [],
+    unusedAttachments: [],
+    elapsedMs: 1,
+    editorFps: 30,
+  };
+  return (
+    <>
+      <SearchBar value={query} onChange={setQuery} />
+      <GlobalMaxRenderPanel
+        summary={summary}
         onJumpToAnimation={vi.fn()}
         overrides={new Map()}
         onOpenOverrideDialog={vi.fn()}
@@ -233,5 +293,56 @@ describe('GlobalMaxRenderPanel — Wave 2 D-191 / D-195', () => {
     const cls = thead!.className;
     expect(cls).toMatch(/sticky/);
     expect(cls).toMatch(/top-0/);
+  });
+});
+
+/**
+ * Phase 22 Plan 22-05 Task 1 — DIMS-02 dims-mismatch badge in the Source W×H
+ * cell. ROADMAP DIMS-02 wording locked verbatim:
+ *   "Source PNG ({actualW}×{actualH}) is smaller than canonical region dims
+ *    ({canonicalW}×{canonicalH}). Optimize will cap at source size."
+ *
+ * The badge is an inline-SVG info-circle (info-circle reserved for dims-
+ * mismatch; warning-triangle stays reserved for unused-attachments per
+ * RESEARCH §"DIMS-02 > Iconography" + GlobalMaxRenderPanel.tsx:818-823).
+ *
+ * Tests assert:
+ *   - Badge renders when row.dimsMismatch === true (concrete dim values
+ *     substituted into title attribute; no template-literal leakage).
+ *   - Badge does NOT render when row.dimsMismatch === false (default-row case).
+ *   - Badge does NOT render when actualSource is undefined (atlas-extract
+ *     path — even if dimsMismatch were true, the predicate guard short-
+ *     circuits because the tooltip can't substitute concrete dim values).
+ */
+describe('GlobalMaxRenderPanel — DIMS-02 dims-mismatch badge (Phase 22)', () => {
+  it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
+    const rows = [makeDriftedRow(0)];
+    render(<PanelRowsHarness rows={rows} />);
+    // Per project test convention (tests/renderer/missing-attachments-panel.spec.tsx:13-14)
+    // use not.toBeNull() rather than @testing-library/jest-dom matchers — no
+    // jest-dom imports anywhere in tests/renderer.
+    const badge = screen.getByLabelText(/source png dims differ/i);
+    expect(badge).not.toBeNull();
+    // Title attribute carries the verbatim ROADMAP DIMS-02 wording.
+    const title = badge.getAttribute('title');
+    expect(title).toContain(
+      'Source PNG (811×962) is smaller than canonical region dims (1628×1908)',
+    );
+    expect(title).toContain('Optimize will cap at source size');
+  });
+
+  it('does NOT render badge when row.dimsMismatch === false', () => {
+    const rows = [makeRow(0)];
+    render(<PanelRowsHarness rows={rows} />);
+    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+  });
+
+  it('badge is absent when actualSource is undefined (atlas-extract path)', () => {
+    // dimsMismatch:false + actualSource undefined is the locked atlas-extract
+    // contract from Plan 22-01 / 22-02. The badge predicate guard short-
+    // circuits because actualSource fields can't substitute concrete dims.
+    const rows = [{ ...makeRow(0), dimsMismatch: false }];
+    render(<PanelRowsHarness rows={rows} />);
+    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
   });
 });

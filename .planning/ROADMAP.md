@@ -458,7 +458,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
   4. Already-optimized rows (where `actualSource × cappedEffScale` rounds to `actualSource` — i.e. zero net change) are excluded from the export and surfaced in a new `excludedAlreadyOptimized[]` array parallel to Phase 6 D-109 `excludedUnused[]`; the OptimizeDialog pre-flight file list shows these rows with muted treatment + "already-optimized — skipped" indicator (UX parity with the Round 1 `excludedUnused` muted note). (DIMS-04)
   5. User runs Optimize on already-optimized images (Scenario B re-load) and zero exports occur — no double Lanczos resampling, no quality degradation. A vitest fixture where source PNGs are smaller than canonical region dims covers this round-trip and asserts the export-plan length is 0 for the already-optimized rows. (DIMS-05)
 
-**Plans:** 1/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [ ] 22-01-PLAN.md — Types cascade: extend DisplayRow + ExportPlan + LoadResult; analyzer + summary plumbing; CLI fallback preserves D-102 (DIMS-01) [Wave 1]
@@ -486,7 +486,7 @@ Plans:
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
-| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 1/5 | In Progress|  |
+| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 4/5 | In Progress|  |
 
 ## Deferred (post-v1.1)
 

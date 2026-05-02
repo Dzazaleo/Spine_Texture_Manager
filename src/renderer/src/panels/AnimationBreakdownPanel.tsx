@@ -658,6 +658,31 @@ function BreakdownRowItem({
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">
         {row.originalSizeLabel}
+        {/* Phase 22 DIMS-02 — dims-mismatch badge. Sibling-symmetric copy of
+            the GlobalMaxRenderPanel badge per Phase 19 D-06 visual unification
+            contract. Tooltip wording locked verbatim from ROADMAP DIMS-02.
+            Info-circle iconography (warning-triangle is reserved for unused-
+            attachments). */}
+        {row.dimsMismatch &&
+          row.actualSourceW !== undefined &&
+          row.actualSourceH !== undefined && (
+            <span
+              aria-label={`Source PNG dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}`}
+              title={`Source PNG (${row.actualSourceW}×${row.actualSourceH}) is smaller than canonical region dims (${row.canonicalW}×${row.canonicalH}). Optimize will cap at source size.`}
+              className="inline-flex items-center justify-center w-4 h-4 ml-1 align-middle text-warning"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                className="w-4 h-4"
+              >
+                <circle cx="8" cy="8" r="6" />
+                <path d="M8 5 v4 M8 11.5 v0.01" />
+              </svg>
+            </span>
+          )}
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
           State color trumps the prior override-aware text-accent here per
