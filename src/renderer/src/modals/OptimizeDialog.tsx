@@ -101,9 +101,15 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   // 'images/AVATAR/BODY.png') — keys never matched, so all rows stayed ○
   // idle even when errors arrived. Index is unambiguous, doesn't depend on
   // path normalization, and is already on every progress event (event.index).
+  // Phase 22 Plan 22-05 — total now spans [passthroughCopies, ...rows] in a
+  // single absolute index space (image-worker emits passthrough events first
+  // at indices 0..N-1, resize events follow at N..total-1). Mirrors the
+  // image-worker single-index-space contract from Plan 22-04 Task 2.
   const [rowStatuses, setRowStatuses] = useState<Map<number, RowStatus>>(() => {
     const m = new Map<number, RowStatus>();
-    for (let i = 0; i < props.plan.rows.length; i++) m.set(i, 'idle');
+    const totalRows =
+      props.plan.passthroughCopies.length + props.plan.rows.length;
+    for (let i = 0; i < totalRows; i++) m.set(i, 'idle');
     return m;
   });
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map());
@@ -271,11 +277,24 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
 
   if (!props.open) return null;
 
-  const total = props.plan.rows.length;
+  // Phase 22 Plan 22-05 — total spans BOTH passthroughCopies + rows under the
+  // single-index-space contract from Plan 22-04 (image-worker emits passthrough
+  // events first then resize events, all in monotonically-increasing index
+  // 0..total-1). Header title + progress percent + Start-disabled predicate
+  // all reflect both arrays.
+  const total =
+    props.plan.passthroughCopies.length + props.plan.rows.length;
   // Phase 19 UI-03 D-09 — three summary tile values computed in-render from
   // props.plan (no new prop surface required). Zero-guard on the savings
   // calculation handles the empty-plan edge case so we never divide by 0.
-  const totalUsedFiles = props.plan.rows.length;
+  //
+  // Phase 22 Plan 22-05 — "Used Files" includes passthroughCopies (those files
+  // ARE written to outDir via byte-copy per D-03; they are NOT excluded). "to
+  // Resize" still counts only plan.rows (passthrough rows are byte-copied, not
+  // Lanczos'd). Savings calc still operates on plan.rows only — passthrough
+  // rows produce 0 savings by construction (input bytes === output bytes).
+  const totalUsedFiles =
+    props.plan.rows.length + props.plan.passthroughCopies.length;
   const toResize = props.plan.rows.filter((r) => r.outW < r.sourceW).length;
   const sumSourcePixels = props.plan.rows.reduce(
     (acc, r) => acc + r.sourceW * r.sourceH,
@@ -454,6 +473,36 @@ function PreFlightBody({ plan }: { plan: ExportPlan }) {
             </li>
           );
         })}
+        {/* Phase 22 DIMS-04 — passthrough byte-copies (D-03). Muted treatment
+            mirrors Phase 6 D-109 excludedUnused UX. "COPY" indicator label
+            identifies these as byte-copies (no Lanczos). Files DO get
+            written to outDir — image-worker uses fs.promises.copyFile per
+            Plan 22-04.
+
+            CHECKER FIX 2026-05-02 — render the dim label with
+            `row.actualSourceW ?? row.sourceW`. Without the `??` fallback the
+            dialog would label muted "already optimized" rows with canonical
+            dims (e.g. 1628×1908) instead of the actual on-disk dims (e.g.
+            811×962). The math-output bytes are already correct (Plan 22-03
+            Step 5 caps cappedEffScale to sourceRatio, producing
+            outW===actualSourceW); only the dialog label needed the fix.
+            The `??` fallback handles the (defensive) case where actualSourceW
+            is undefined despite being a passthrough row — falls back to
+            canonical sourceW which matches the legacy pre-Phase-22 rendering. */}
+        {plan.passthroughCopies.map((row) => (
+          <li
+            key={row.outPath}
+            className="py-1 border-b border-border last:border-0 opacity-60"
+          >
+            <span className="text-fg-muted">{row.outPath}</span>
+            <span className="ml-2 text-fg-muted">
+              {row.actualSourceW ?? row.sourceW}×{row.actualSourceH ?? row.sourceH} (already optimized)
+            </span>
+            <span className="ml-2 inline-block border border-border rounded-sm px-1 text-[10px] uppercase">
+              COPY
+            </span>
+          </li>
+        ))}
       </ul>
       {plan.excludedUnused.length > 0 && (
         <p className="mt-3 text-xs text-fg-muted">
@@ -493,63 +542,90 @@ function InProgressBody(props: {
         </div>
       </div>
       <ul className="flex-1 overflow-auto text-xs">
-        {props.plan.rows.map((row, rowIndex) => {
-          const status = (props.rowStatuses.get(rowIndex) ?? 'idle') as RowStatus;
-          const errMsg = props.rowErrors.get(rowIndex);
-          const expanded = props.expandedErrors.has(rowIndex);
-          return (
-            <li
-              key={row.outPath}
-              className="py-1 border-b border-border last:border-0"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  if (status === 'error' && errMsg) props.onToggleExpand(rowIndex);
-                }}
-                className="w-full text-left flex items-center gap-2"
-                disabled={status !== 'error'}
+        {/* Phase 22 Plan 22-05 — iterate passthroughCopies FIRST then rows in a
+            single absolute index space (rowIndex 0..N-1 = passthrough,
+            N..total-1 = resize). Matches the image-worker emission order from
+            Plan 22-04 Task 2. Passthrough rows render with opacity-60 muted
+            treatment + bordered "COPY" chip; their dim label uses
+            row.actualSourceW ?? row.sourceW (CHECKER FIX 2026-05-02). */}
+        {[...props.plan.passthroughCopies, ...props.plan.rows].map(
+          (row, rowIndex) => {
+            const isPassthrough =
+              rowIndex < props.plan.passthroughCopies.length;
+            const status = (props.rowStatuses.get(rowIndex) ?? 'idle') as RowStatus;
+            const errMsg = props.rowErrors.get(rowIndex);
+            const expanded = props.expandedErrors.has(rowIndex);
+            // CHECKER FIX 2026-05-02 — passthrough rows render actualSource
+            // dims (cap-aware on-disk dims) NOT canonical sourceW/H.
+            const sourceLabel = isPassthrough
+              ? `${row.actualSourceW ?? row.sourceW}×${row.actualSourceH ?? row.sourceH}`
+              : `${row.sourceW}×${row.sourceH}`;
+            const dimText = isPassthrough
+              ? `${sourceLabel} (already optimized)`
+              : `${sourceLabel} → ${row.outW}×${row.outH}`;
+            return (
+              <li
+                key={row.outPath}
+                className={clsx(
+                  'py-1 border-b border-border last:border-0',
+                  isPassthrough && 'opacity-60',
+                )}
               >
-                <span
-                  aria-hidden
-                  className={clsx(
-                    'inline-block w-3 text-center',
-                    status === 'success' && 'text-fg',
-                    status === 'error' && 'text-[color:var(--color-danger)]',
-                    status === 'in-progress' && 'text-fg-muted animate-pulse',
-                    status === 'idle' && 'text-fg-muted',
-                  )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (status === 'error' && errMsg)
+                      props.onToggleExpand(rowIndex);
+                  }}
+                  className="w-full text-left flex items-center gap-2"
+                  disabled={status !== 'error'}
                 >
-                  {status === 'success'
-                    ? '✓'
-                    : status === 'error'
-                      ? '⚠'
-                      : status === 'in-progress'
-                        ? '·'
-                        : '○'}
-                </span>
-                <span
-                  className={clsx(
-                    'flex-1',
-                    status === 'error'
-                      ? 'text-[color:var(--color-danger)]'
-                      : 'text-fg',
+                  <span
+                    aria-hidden
+                    className={clsx(
+                      'inline-block w-3 text-center',
+                      status === 'success' && 'text-fg',
+                      status === 'error' && 'text-[color:var(--color-danger)]',
+                      status === 'in-progress' && 'text-fg-muted animate-pulse',
+                      status === 'idle' && 'text-fg-muted',
+                    )}
+                  >
+                    {status === 'success'
+                      ? '✓'
+                      : status === 'error'
+                        ? '⚠'
+                        : status === 'in-progress'
+                          ? '·'
+                          : '○'}
+                  </span>
+                  <span
+                    className={clsx(
+                      'flex-1',
+                      status === 'error'
+                        ? 'text-[color:var(--color-danger)]'
+                        : isPassthrough
+                          ? 'text-fg-muted'
+                          : 'text-fg',
+                    )}
+                  >
+                    {row.outPath}
+                  </span>
+                  <span className="text-fg-muted">{dimText}</span>
+                  {isPassthrough && (
+                    <span className="ml-2 inline-block border border-border rounded-sm px-1 text-[10px] uppercase">
+                      COPY
+                    </span>
                   )}
-                >
-                  {row.outPath}
-                </span>
-                <span className="text-fg-muted">
-                  {row.sourceW}×{row.sourceH} → {row.outW}×{row.outH}
-                </span>
-              </button>
-              {expanded && errMsg && (
-                <p className="mt-1 ml-5 text-[color:var(--color-danger)]">
-                  {errMsg}
-                </p>
-              )}
-            </li>
-          );
-        })}
+                </button>
+                {expanded && errMsg && (
+                  <p className="mt-1 ml-5 text-[color:var(--color-danger)]">
+                    {errMsg}
+                  </p>
+                )}
+              </li>
+            );
+          },
+        )}
       </ul>
       {props.summary !== null && (
         <p className="mt-3 text-xs text-fg-muted">
