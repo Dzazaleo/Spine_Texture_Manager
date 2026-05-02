@@ -56,6 +56,7 @@ import {
 } from '../../../shared/types.js';
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
+import { MissingAttachmentsPanel } from '../panels/MissingAttachmentsPanel';
 import { SearchBar } from './SearchBar';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
@@ -1478,6 +1479,36 @@ export function AppShell({
         </div>
       )}
       <main className="flex-1 overflow-auto">
+        {/*
+          Phase 21 Plan 21-10 (G-02) — surface skipped-PNG attachments above
+          the regular panels. The component renders nothing when
+          effectiveSummary.skippedAttachments.length === 0; renders a warning
+          banner with count + expandable list of name → expectedPngPath
+          entries when length > 0. Visible on BOTH tabs (Global + Animation
+          Breakdown) — orthogonal to the activeTab split, since skipped
+          attachments are a project-level concern, not a tab-specific one.
+
+          ISSUE-009 note: during a resample-in-flight transition,
+          effectiveSummary.skippedAttachments may briefly show a stale list.
+          Acceptable — skippedAttachments is stable across resamples (sourced
+          from LoadResult, refreshed on each load), and the fresh resample
+          replaces the panel atomically when complete. No "loading" state on
+          this panel.
+        */}
+        <MissingAttachmentsPanel
+          /*
+           * Defensive `?? []`: SkeletonSummary.skippedAttachments is REQUIRED
+           * in the type (always populated by buildSummary in summary.ts), but
+           * older renderer-side test fixtures cast a partial summary via
+           * `as unknown as SkeletonSummary` and omit the field. The fallback
+           * keeps those fixtures green and avoids
+           * "Cannot read properties of undefined (reading 'length')" at the
+           * panel's empty-check. New code MUST populate skippedAttachments
+           * verbatim — this fallback is a backward-compat affordance, not a
+           * sanctioned shortcut.
+           */
+          skippedAttachments={effectiveSummary.skippedAttachments ?? []}
+        />
         {activeTab === 'global' && (
           <GlobalMaxRenderPanel
             summary={effectiveSummary}
