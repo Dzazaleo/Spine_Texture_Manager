@@ -777,7 +777,24 @@ export function GlobalMaxRenderPanel({
 
   return (
     <div className="w-full max-w-6xl mx-auto p-8">
-      <section className="border border-border rounded-md bg-panel p-4 mb-4">
+      {/*
+        Phase 21 Plan 11 (G-03 UAT-1 revised diagnosis, 2026-05-02) —
+        `min-h-[calc(100vh-200px)]` pins the section to the SAME vertical
+        extent as the virtualized scroll container (line 861 inline-style
+        `height: 'calc(100vh - 200px)'`). Without this min-height, when the
+        per-attachment filter narrows `sorted.length` below
+        VIRTUALIZATION_THRESHOLD (100), `useVirtual` flips false and the
+        panel switches from the fixed-height virtualized path to the
+        content-driven flat-table path — the panel's vertical extent
+        collapses by hundreds of pixels in a single render, which is what
+        the user observed as "panel slides downward toward the center" on
+        the Global tab (HUMAN-UAT Test 1 failure).
+        AnimationBreakdownPanel does not exhibit this regression because
+        its virtualizer is per-card with a small fixed `maxHeight: 600px`
+        cap; cards stack with content-driven heights and no panel-level
+        height switch occurs across the threshold.
+      */}
+      <section className="border border-border rounded-md bg-panel p-4 mb-4 min-h-[calc(100vh-200px)]">
       <header className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
         <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5 text-fg">
           <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
