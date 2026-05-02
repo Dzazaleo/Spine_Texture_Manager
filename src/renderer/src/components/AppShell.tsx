@@ -1240,7 +1240,7 @@ export function AppShell({
   }, [isDirty, dirtyCheckRef]);
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
         {/* Filename chip — hoisted from the prior panel's internal header per D-49.
             Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
