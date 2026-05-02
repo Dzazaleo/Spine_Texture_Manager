@@ -458,7 +458,14 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
   4. Already-optimized rows (where `actualSource × cappedEffScale` rounds to `actualSource` — i.e. zero net change) are excluded from the export and surfaced in a new `excludedAlreadyOptimized[]` array parallel to Phase 6 D-109 `excludedUnused[]`; the OptimizeDialog pre-flight file list shows these rows with muted treatment + "already-optimized — skipped" indicator (UX parity with the Round 1 `excludedUnused` muted note). (DIMS-04)
   5. User runs Optimize on already-optimized images (Scenario B re-load) and zero exports occur — no double Lanczos resampling, no quality degradation. A vitest fixture where source PNGs are smaller than canonical region dims covers this round-trip and asserts the export-plan length is 0 for the already-optimized rows. (DIMS-05)
 
-**Plans:** TBD (run /gsd-plan-phase 22)
+**Plans:** 5 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — Types cascade: extend DisplayRow + ExportPlan + LoadResult; analyzer + summary plumbing; CLI fallback preserves D-102 (DIMS-01) [Wave 1]
+- [ ] 22-02-PLAN.md — Loader extension: parsedJson skin walk + per-region readPngDims for canonical/actual dim Maps (DIMS-01) [Wave 1]
+- [ ] 22-03-PLAN.md — Core export cap formula + D-04 REVISED generous passthrough partition (DIMS-03 + DIMS-04) [Wave 1]
+- [ ] 22-04-PLAN.md — Renderer mirror parity + image-worker copyFile branch with R4/R8 (DIMS-03 + DIMS-04) [Wave 2]
+- [ ] 22-05-PLAN.md — Panel badges + OptimizeDialog COPY chip + DIMS-05 round-trip integration + HUMAN-UAT (DIMS-02 + DIMS-04 + DIMS-05) [Wave 2]
 
 ## Progress
 
@@ -479,7 +486,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
-| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/0 | Pending (long-dormant seed planted 2026-04-25; depends on Phase 21; DIMS-01..05) | — |
+| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 0/5 | Planned 2026-05-02 (5 plans, 2 waves; DIMS-01..05; depends on Phase 21) | — |
 
 ## Deferred (post-v1.1)
 
