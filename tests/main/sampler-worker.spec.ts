@@ -167,3 +167,83 @@ describe('sampler-worker — Wave 1 spawn smoke', () => {
     15000,
   );
 });
+
+describe('sampler-worker — Phase 21 G-04 (Site 5) loaderOpts precedence', () => {
+  // Falsifying-regression gate for Plan 21-12 G-04 Site 5 (sampler-worker.ts
+  // runSamplerJob loaderOpts construction, ~line 105-110). Task 3's IPC test
+  // mocks runSamplerInWorker at the bridge boundary — runSamplerJob is never
+  // invoked by Task 3, so Site 5's fix has no falsifier from that test alone.
+  // This unit test directly invokes runSamplerJob to lock the Site 5 fix.
+  //
+  // Setup: a tmp .atlas that does NOT contain MESH_REGION. The JSON references
+  // MESH_REGION. Pre-fix Site 5 passes BOTH atlasRoot + loaderMode to the
+  // loader; the loader's D-06 branch reads the canonical atlas, then the
+  // stock AtlasAttachmentLoader (loader.ts:352, NOT SilentSkip) throws
+  // "Region not found in atlas: MESH_REGION (mesh attachment: MESH_REGION)"
+  // per AtlasAttachmentLoader.js:62. runSamplerJob's catch arm returns
+  // {type:'error', error:{...}}. Post-fix Site 5's new precedence rule omits
+  // atlasPath when loaderMode='atlas-less', so the loader's D-08 synthesis
+  // branch runs (synthesizes the region from the JSON's mesh data, ignoring
+  // the canonical atlas). Load succeeds; runSamplerJob returns {type:'complete'}.
+  //
+  // Falsifying property: result.type === 'complete'.
+
+  it('runSamplerJob with both atlasRoot + loaderMode:"atlas-less" against atlas WITHOUT MESH_REGION → post-fix complete (G-04 Site 5)', async () => {
+    const fsSync = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'stm-worker-g04-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpAtlas = path.join(tmpDir, 'canonical.atlas');
+    const tmpImages = path.join(tmpDir, 'images');
+    fsSync.mkdirSync(tmpImages, { recursive: true });
+    fsSync.copyFileSync(path.join(SRC_FIXTURE, 'MeshOnly_TEST.json'), tmpJson);
+    // Copy the real PNG so D-08 synthesis SUCCEEDS post-fix (no missing PNG
+    // case here — we want a CLEAN complete result post-fix to keep the
+    // falsifying assertion crisp).
+    fsSync.copyFileSync(
+      path.join(SRC_FIXTURE, 'images', 'MESH_REGION.png'),
+      path.join(tmpImages, 'MESH_REGION.png'),
+    );
+    // Synthesize a tmp .atlas containing OTHER_REGION (NOT MESH_REGION).
+    // Pre-fix D-06 reads this atlas successfully (parses the OTHER_REGION
+    // entry), then hands MESH_REGION to the stock AtlasAttachmentLoader
+    // which throws "Region not found in atlas: MESH_REGION".
+    fsSync.writeFileSync(
+      tmpAtlas,
+      'tmp_page.png\n' +
+      'size: 1,1\n' +
+      'filter: Linear,Linear\n' +
+      'OTHER_REGION\n' +
+      'bounds: 0,0,1,1\n',
+      'utf8',
+    );
+
+    try {
+      const result = await runSamplerJob({
+        skeletonPath: tmpJson,
+        atlasRoot: tmpAtlas,           // Pre-fix: this is passed to loader as atlasPath.
+        samplingHz: 120,
+        loaderMode: 'atlas-less',      // Post-fix: this WINS, atlasRoot is ignored.
+        onProgress: () => {},
+        isCancelled: () => false,
+      });
+
+      // FALSIFYING ASSERTION: pre-fix this is 'error' (stock AtlasAttachmentLoader
+      // throws "Region not found in atlas: MESH_REGION ..."); post-fix this is
+      // 'complete' (D-08 synthesis runs, skips the canonical atlas, succeeds).
+      expect(result.type).toBe('complete');
+      if (result.type !== 'complete') {
+        // Helpful diagnostic for the pre-fix failure mode.
+        throw new Error(
+          `Expected complete; got ${result.type}: ` + JSON.stringify(result),
+        );
+      }
+      // Sanity: the rig actually sampled (non-empty peaks Map).
+      expect(result.output.globalPeaks.size).toBeGreaterThan(0);
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
