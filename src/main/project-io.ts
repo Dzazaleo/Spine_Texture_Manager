@@ -402,22 +402,11 @@ export async function handleProjectOpenFromPath(
   // Phase 21 D-08 — Site 1: thread materialized.loaderMode into the loader
   // so atlas-less projects honor the per-project override even when a
   // sibling .atlas exists.
-  //
-  // Plan 21-12 G-04 — caller-side precedence: when loaderMode === 'atlas-less',
-  // the loader's D-08 synthesis branch must run (produces synth.missingPngs →
-  // LoadResult.skippedAttachments → MissingAttachmentsPanel). The loader's
-  // branch order at src/core/loader.ts:219-254 picks D-06 (explicit atlasPath
-  // wins) when both options are set, which never reaches synthesis. Callers
-  // MUST clear atlasPath when forcing atlas-less mode.
   let load;
   try {
     const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
-    if (materialized.loaderMode === 'atlas-less') {
-      loaderOpts.loaderMode = 'atlas-less';
-      // atlasPath intentionally OMITTED — D-08 synthesis must run.
-    } else if (materialized.atlasPath !== null) {
-      loaderOpts.atlasPath = materialized.atlasPath;
-    }
+    if (materialized.atlasPath !== null) loaderOpts.atlasPath = materialized.atlasPath;
+    if (materialized.loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
     load = loadSkeleton(materialized.skeletonPath, loaderOpts);
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
@@ -691,12 +680,6 @@ export async function handleProjectReloadWithSkeleton(
     // the source of truth here; the main process discarded the original
     // materialized state when the prior Open failed, so threading via args
     // is the only option).
-    //
-    // Plan 21-12 G-04 — caller-side precedence (already shape-correct here):
-    // atlasPath was always omitted at this site per the F1.2 sibling-discovery
-    // semantic, so the loader's D-08 synthesis branch is reached when
-    // loaderMode === 'atlas-less'. This site needs no behavior change; Sites
-    // 1, 4, 5 received the matching fix in the same commit.
     const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
     if (loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
     // atlasPath intentionally omitted: F1.2 sibling auto-discovery applies on
@@ -886,25 +869,11 @@ export async function handleProjectResample(
 
   // Phase 21 D-08 — Site 4 (resample): thread loaderMode from the IPC
   // payload so atlas-less projects survive the SettingsDialog resample.
-  //
-  // Plan 21-12 G-04 — caller-side precedence fix. Empirically-pinned root
-  // cause: when the user starts on a canonical project (.atlas present)
-  // then toggles "Use Images Folder as Source" ON, the resample IPC
-  // payload carries BOTH atlasPath (from prior canonical state) AND
-  // loaderMode='atlas-less'. The loader's branch order picks D-06
-  // (atlasPath wins), never reaches D-08 synthesis, never produces
-  // synth.missingPngs. The MissingAttachmentsPanel then never surfaces the
-  // missing PNG. Fix: when loaderMode='atlas-less', omit atlasPath so the
-  // loader takes the D-08 branch.
   let load;
   try {
     const loaderOpts: { atlasPath?: string; loaderMode?: 'auto' | 'atlas-less' } = {};
-    if (a.loaderMode === 'atlas-less') {
-      loaderOpts.loaderMode = 'atlas-less';
-      // atlasPath intentionally OMITTED — D-08 synthesis must run.
-    } else if (atlasPath !== undefined) {
-      loaderOpts.atlasPath = atlasPath;
-    }
+    if (atlasPath !== undefined) loaderOpts.atlasPath = atlasPath;
+    if (a.loaderMode === 'atlas-less') loaderOpts.loaderMode = 'atlas-less';
     load = loadSkeleton(a.skeletonPath, loaderOpts);
   } catch (err) {
     if (err instanceof SkeletonJsonNotFoundError) {
