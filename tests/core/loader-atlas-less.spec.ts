@@ -155,10 +155,12 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
 
-    // LOAD-04 assertions: plan exists, has rows, each row references a real
-    // fixture PNG via sourcePath.
-    expect(plan.rows.length).toBeGreaterThan(0);
-    for (const row of plan.rows) {
+    // LOAD-04 assertions: plan is non-empty AND every row (in either partition)
+    // references a real fixture PNG via sourcePath.
+    // Phase 22.1 G-04 note: rows with peakScale >= 1.0 land in passthroughCopies
+    // (outW=sourceW), not rows[]. totals.count covers both partitions.
+    expect(plan.totals.count).toBeGreaterThan(0);
+    for (const row of [...plan.rows, ...plan.passthroughCopies]) {
       expect(
         row.sourcePath,
         `row sourcePath should end with .png: ${row.sourcePath}`,

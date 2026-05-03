@@ -299,6 +299,19 @@ export interface ExportRow {
    */
   actualSourceW?: number;
   actualSourceH?: number;
+  /**
+   * Phase 22.1 G-07 D-07 — true when the source-ratio cap clamped effectiveScale
+   * below natural peakScale; surfaced in OptimizeDialog row.
+   *
+   * Set in buildExportPlan emit loop when `downscaleClampedScale > sourceRatio`
+   * (the cap math binding condition). Only meaningful on passthrough rows where
+   * cap fires AND outW === sourceW. Undefined when cap does not fire.
+   *
+   * Consumed by OptimizeDialog (plan 22.1-05 D-07) to render a "(capped)" suffix
+   * on the passthrough row label, signaling to the user that their export will be
+   * capped at the on-disk source dims.
+   */
+  isCapped?: boolean;
 }
 
 /**

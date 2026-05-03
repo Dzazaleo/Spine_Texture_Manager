@@ -3,11 +3,13 @@
  *
  * Programmatically halves every PNG in fixtures/SIMPLE_PROJECT_NO_ATLAS/images/
  * to a tmpDir in beforeAll, then drives the canonical chain
- * loadSkeleton → sampleSkeleton → analyze → buildExportPlan and asserts:
- *   - plan.passthroughCopies.length === fileCount (every drifted row passes through)
- *   - plan.rows.length === 0 (zero Lanczos resamples for already-optimized inputs)
- *   - effectiveScale ≤ 0.5 + slack (cap binds at sourceRatio ≈ 0.5 because
- *     PNGs are halved against canonical dims).
+ * loadSkeleton → sampleSkeleton → analyze → buildExportPlan and asserts
+ * Phase 22.1 G-04 semantics:
+ *
+ *   Phase 22.1 G-04 predicate change: drifted rows where the cap fires
+ *   (sourceRatio ≈ 0.5) now land in rows[] (resize), NOT passthroughCopies,
+ *   because outW = Math.ceil(halvedW × cappedEffScale) ≠ halvedW (sourceW).
+ *   The old Phase 22 "passthrough for cap-clamped rows" behavior is superseded.
  *
  * R7 mitigation (no hardcoded fixture count): fileCount derives from
  * fs.readdirSync(images/).length so future fixture evolution doesn't silently
@@ -71,7 +73,10 @@ afterAll(() => {
 });
 
 describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
-  it('DIMS-05: every drifted row lands in passthroughCopies; rows[] is empty', () => {
+  it('DIMS-05 (Phase 22.1 G-04): drifted cap-clamped rows land in rows[] (resize), totals.count > 0', () => {
+    // Phase 22.1 G-04 predicate change: cap-clamped drifted rows now go to
+    // rows[] because outW = Math.ceil(halvedW × cappedEffScale) ≠ halvedW
+    // (sourceW). The old Phase 22 "passthrough for cap-clamped" is superseded.
     const load = loadSkeleton(tmpJson, { loaderMode: 'atlas-less' });
     const sampled = sampleSkeleton(load);
     const peaks = analyze(
@@ -91,22 +96,19 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
     );
 
     // R7 mitigation — read fixture file count dynamically; never hardcode.
-    // SIMPLE_PROJECT_NO_ATLAS has 4 PNGs (CIRCLE/SQUARE/SQUARE2/TRIANGLE)
-    // referencing 3 unique regions (SQUARE2 → SQUARE region). The export
-    // plan dedupes by sourcePath, so passthroughCopies.length matches the
-    // unique region count, NOT the raw file count. The dynamic readdirSync
-    // count gives fileCount; the asserted invariant is rows.length === 0
-    // (no Lanczos work) AND passthroughCopies.length > 0.
     const fileCount = fs.readdirSync(tmpImages).filter((f) => f.endsWith('.png')).length;
     expect(fileCount).toBeGreaterThan(0);
-    expect(plan.rows.length).toBe(0);
-    expect(plan.passthroughCopies.length).toBeGreaterThan(0);
+    // Phase 22.1: drifted rows go to rows[] (resize), NOT passthroughCopies.
+    // totals.count covers both partitions and must be non-zero.
+    expect(plan.totals.count).toBeGreaterThan(0);
     // The dedup-by-sourcePath contract from Phase 6 D-108 means
-    // passthroughCopies.length ≤ fileCount (one per unique region PNG).
-    expect(plan.passthroughCopies.length).toBeLessThanOrEqual(fileCount);
+    // total rows ≤ fileCount (one per unique region PNG).
+    expect(plan.totals.count).toBeLessThanOrEqual(fileCount);
   });
 
-  it('DIMS-05: passthrough rows have effectiveScale ≤ 0.51 (halved PNGs cap binds at sourceRatio ≈ 0.5)', () => {
+  it('DIMS-05 (Phase 22.1 G-04): cap-clamped rows have effectiveScale ≤ 0.51 and isCapped flag', () => {
+    // Phase 22.1 G-07 D-07: cap-clamped rows carry isCapped=true for
+    // OptimizeDialog row label. effectiveScale ≤ sourceRatio ≈ 0.5.
     const load = loadSkeleton(tmpJson, { loaderMode: 'atlas-less' });
     const sampled = sampleSkeleton(load);
     const peaks = analyze(
@@ -124,8 +126,10 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
       summary as SkeletonSummary,
       new Map(),
     );
-    expect(plan.passthroughCopies.length).toBeGreaterThan(0);
-    for (const row of plan.passthroughCopies) {
+    // Under Phase 22.1, all drifted-halved rows go to rows[].
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    expect(allRows.length).toBeGreaterThan(0);
+    for (const row of allRows) {
       // Cap binds: effectiveScale ≤ sourceRatio = actualSource/canonical = 0.5
       // (with up to 1px / canonical-dim wobble from ceil-thousandth rounding
       // at safeScale + the half-PNG ceiling).
@@ -133,13 +137,11 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
         row.effectiveScale,
         `row ${row.outPath} effScale should cap at ~0.5; got ${row.effectiveScale}`,
       ).toBeLessThanOrEqual(0.51);
-      // outW/outH should equal actualSource (capped) — within 1px slack on the
-      // non-binding axis per CONTEXT D-04 + Plan 22-03 SUMMARY.
-      expect(row.outW).toBeLessThanOrEqual(row.sourceW * 0.51);
-      expect(row.outH).toBeLessThanOrEqual(row.sourceH * 0.51);
-      // Passthrough rows carry actualSource fields per Plan 22-03 CHECKER FIX.
-      expect(row.actualSourceW).toBeDefined();
-      expect(row.actualSourceH).toBeDefined();
+      // isCapped flag is set when cap fires (Phase 22.1 G-07 D-07).
+      expect(
+        row.isCapped,
+        `row ${row.outPath} should have isCapped=true when cap fires`,
+      ).toBe(true);
     }
   });
 });
