@@ -110,6 +110,7 @@ function makeSummary(peaks: DisplayRow[]): SkeletonSummary {
     peaks,
     animationBreakdown: [],
     unusedAttachments: [],
+    skippedAttachments: [],
     elapsedMs: 1,
     editorFps: 30,
   };
