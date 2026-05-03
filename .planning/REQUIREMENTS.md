@@ -19,8 +19,8 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 ### OPT — Optimize Flow
 
-- [ ] **OPT-01**: Clicking the "Optimize Assets" toolbar button opens `OptimizeDialog` immediately — no folder-picker dialog is shown before the modal opens.
-- [ ] **OPT-02**: The output-folder picker is presented only when the user clicks Start/Export inside `OptimizeDialog`; if an output folder was previously saved in the project file, it is pre-filled and the user can change it at that point.
+- [x] **OPT-01**: Clicking the "Optimize Assets" toolbar button opens `OptimizeDialog` immediately — no folder-picker dialog is shown before the modal opens.
+- [x] **OPT-02**: The output-folder picker is presented only when the user clicks Start/Export inside `OptimizeDialog`; if an output folder was previously saved in the project file, it is pre-filled and the user can change it at that point.
 - [ ] **OPT-03**: The MB unused-attachment callout in the Global Max Render Source panel is replaced or redefined with a metric that reflects genuine optimization opportunity (e.g. post-generation atlas pixel-area savings % or a correct pre-flight estimate — to be scoped during plan-phase).
 
 ### UI — Polish (continues v1.2 UI-01..05)
@@ -72,8 +72,8 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 | PANEL-02 | Phase 24 | Pending |
 | PANEL-03 | Phase 25 | Pending |
 | PANEL-04 | Phase 24 | Pending |
-| OPT-01 | Phase 23 | Pending |
-| OPT-02 | Phase 23 | Pending |
+| OPT-01 | Phase 23 | Complete |
+| OPT-02 | Phase 23 | Complete |
 | OPT-03 | Phase 24 | Pending |
 | UI-06 | Phase 26 | Pending |
 | UI-07 | Phase 26 | Pending |
