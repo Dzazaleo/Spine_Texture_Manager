@@ -175,6 +175,7 @@ function PanelTestHarness({ rowCount }: { rowCount: number }) {
         onOpenOverrideDialog={vi.fn()}
         query={query}
         onQueryChange={setQuery}
+        loaderMode="auto"
       />
     </>
   );
@@ -211,6 +212,7 @@ function PanelRowsHarness({ rows }: { rows: DisplayRow[] }) {
         onOpenOverrideDialog={vi.fn()}
         query={query}
         onQueryChange={setQuery}
+        loaderMode="auto"
       />
     </>
   );
@@ -298,51 +300,41 @@ describe('GlobalMaxRenderPanel — Wave 2 D-191 / D-195', () => {
 
 /**
  * Phase 22 Plan 22-05 Task 1 — DIMS-02 dims-mismatch badge in the Source W×H
- * cell. ROADMAP DIMS-02 wording locked verbatim:
- *   "Source PNG ({actualW}×{actualH}) is smaller than canonical region dims
- *    ({canonicalW}×{canonicalH}). Optimize will cap at source size."
- *
- * The badge is an inline-SVG info-circle (info-circle reserved for dims-
- * mismatch; warning-triangle stays reserved for unused-attachments per
- * RESEARCH §"DIMS-02 > Iconography" + GlobalMaxRenderPanel.tsx:818-823).
- *
- * Tests assert:
- *   - Badge renders when row.dimsMismatch === true (concrete dim values
- *     substituted into title attribute; no template-literal leakage).
- *   - Badge does NOT render when row.dimsMismatch === false (default-row case).
- *   - Badge does NOT render when actualSource is undefined (atlas-extract
- *     path — even if dimsMismatch were true, the predicate guard short-
- *     circuits because the tooltip can't substitute concrete dim values).
+ * cell. Updated for Plan 22.1-04 (DimsBadge component — G-02 fix):
+ *   - Badge renders as a hover-tooltip (data-testid="dims-badge-host") instead
+ *     of a native title attribute.
+ *   - Tooltip text uses mode-aware wording (atlas-source 'auto') + cap-aware
+ *     second sentence (peakScale=1 > sourceRatio ~0.50 → capped).
+ *   - Badge absent when dimsMismatch === false or actualSource is undefined.
  */
 describe('GlobalMaxRenderPanel — DIMS-02 dims-mismatch badge (Phase 22)', () => {
   it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
     const rows = [makeDriftedRow(0)];
     render(<PanelRowsHarness rows={rows} />);
-    // Per project test convention (tests/renderer/missing-attachments-panel.spec.tsx:13-14)
-    // use not.toBeNull() rather than @testing-library/jest-dom matchers — no
-    // jest-dom imports anywhere in tests/renderer.
-    const badge = screen.getByLabelText(/source png dims differ/i);
-    expect(badge).not.toBeNull();
-    // Title attribute carries the verbatim ROADMAP DIMS-02 wording.
-    const title = badge.getAttribute('title');
-    expect(title).toContain(
-      'Source PNG (811×962) is smaller than canonical region dims (1628×1908)',
-    );
-    expect(title).toContain('Optimize will cap at source size');
+    // DimsBadge renders a host div with data-testid="dims-badge-host".
+    const host = screen.getByTestId('dims-badge-host');
+    expect(host).not.toBeNull();
+    // Hover to surface the tooltip and verify content.
+    fireEvent.mouseEnter(host);
+    const tooltip = screen.getByRole('tooltip');
+    // Mode-aware wording: loaderMode="auto" → atlas-source sentence.
+    expect(tooltip.textContent).toContain('Atlas region declares 811×962');
+    // Cap-binding: peakScale=1.0 > sourceRatio≈0.50 → cap suffix appears.
+    expect(tooltip.textContent).toContain('Optimize will cap at on-disk size.');
   });
 
   it('does NOT render badge when row.dimsMismatch === false', () => {
     const rows = [makeRow(0)];
     render(<PanelRowsHarness rows={rows} />);
-    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+    expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 
   it('badge is absent when actualSource is undefined (atlas-extract path)', () => {
     // dimsMismatch:false + actualSource undefined is the locked atlas-extract
-    // contract from Plan 22-01 / 22-02. The badge predicate guard short-
-    // circuits because actualSource fields can't substitute concrete dims.
+    // contract from Plan 22-01 / 22-02. DimsBadge returns null when
+    // !row.dimsMismatch or actualSource is undefined.
     const rows = [{ ...makeRow(0), dimsMismatch: false }];
     render(<PanelRowsHarness rows={rows} />);
-    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+    expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 });

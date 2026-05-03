@@ -62,8 +62,9 @@ import {
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
-import { computeExportDims } from '../lib/export-view.js';
+import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { formatBytes } from '../lib/format-bytes';
+import { DimsBadge } from '../components/DimsBadge.js';
 
 /**
  * Phase 9 Plan 03 — Threshold for switching from flat-table render to
@@ -144,6 +145,13 @@ export interface GlobalMaxRenderPanelProps {
    */
   query: string;
   onQueryChange: (q: string) => void;
+  /**
+   * Phase 22.1 G-01 D-02 — loader mode for the dims-mismatch badge tooltip
+   * wording. 'auto' resolves to atlas-source variant; 'atlas-less' to
+   * PNG-source variant. Threaded from AppShell.tsx (already in scope there
+   * via the loaderMode state at line 273).
+   */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
@@ -339,6 +347,11 @@ interface RowProps {
    * cell. Computed per-row in the parent via rowState(effectiveScale, isUnused).
    */
   state: RowState;
+  /**
+   * Phase 22.1 G-01 D-02 — loader mode for DimsBadge tooltip wording.
+   * Threaded from panel-level prop to row-level so DimsBadge receives it.
+   */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 function Row({
@@ -355,6 +368,7 @@ function Row({
   registerRef,
   style,
   state,
+  loaderMode,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -431,38 +445,25 @@ function Row({
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">
         {row.originalSizeLabel}
-        {/* Phase 22 DIMS-02 — dims-mismatch badge. Renders only when the
-            loader detected drift (canonical JSON dims vs actual on-disk PNG
-            dims differ by > 1px) AND actualSource fields are populated.
-            Tooltip wording is locked verbatim from ROADMAP DIMS-02 — both
-            aria-label (paraphrased for screen readers) and title (mouse-
-            hover) carry the full sentence with concrete dim values
-            substituted (no template-literal leakage).
-
-            Iconography: info-circle (small w-4 h-4 inline-flex). The
-            warning-triangle pattern at lines 818-823 is reserved for
-            unused-attachments — info-circle is the dims-mismatch slot per
-            22-RESEARCH §"DIMS-02 > Iconography". */}
-        {row.dimsMismatch &&
-          row.actualSourceW !== undefined &&
-          row.actualSourceH !== undefined && (
-            <span
-              aria-label={`Source PNG dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}`}
-              title={`Source PNG (${row.actualSourceW}×${row.actualSourceH}) is smaller than canonical region dims (${row.canonicalW}×${row.canonicalH}). Optimize will cap at source size.`}
-              className="inline-flex items-center justify-center w-4 h-4 ml-1 align-middle text-warning"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                className="w-4 h-4"
-              >
-                <circle cx="8" cy="8" r="6" />
-                <path d="M8 5 v4 M8 11.5 v0.01" />
-              </svg>
-            </span>
-          )}
+        {/* Phase 22.1 G-02 + G-03 + G-01 D-02 — DimsBadge replaces the
+            native HTML `title` attribute (G-02: fires once-per-session due
+            to small hit-area + virtualizer remount + browser-idle-trigger).
+            Custom React-managed tooltip primitive surfaces on every hover.
+            Mode-aware wording (G-01 D-02) + cap-binding-aware second sentence
+            (G-03). Sibling symmetry (Phase 19 D-06) enforced by sharing the
+            DimsBadge component with AnimationBreakdownPanel. */}
+        {/* Phase 22.1 G-03: pass the pre-sourceRatio-cap scale to DimsBadge
+            so deriveIsCapped can detect whether the cap binds. The panel's
+            row.effectiveScale is the POST-cap value (min(downscaleClamped,
+            sourceRatio)); for cap-binding detection we need the uncapped
+            downscale-clamped scale. */}
+        <DimsBadge
+          row={row}
+          effectiveScale={Math.min(safeScale(
+            row.override !== undefined ? row.override / 100 : row.peakScale
+          ), 1.0)}
+          loaderMode={loaderMode}
+        />
       </td>
       {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims that
           buildExportPlan + the optimize dialog use, NOT the world-AABB.
@@ -571,6 +572,7 @@ export function GlobalMaxRenderPanel({
   onFocusConsumed,
   query,
   onQueryChange,
+  loaderMode,
 }: GlobalMaxRenderPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
@@ -1016,6 +1018,7 @@ export function GlobalMaxRenderPanel({
                       isFlashing={isFlashing === row.attachmentName}
                       registerRef={(el) => registerRowRef(row.attachmentName, el)}
                       state={state}
+                      loaderMode={loaderMode}
                       // Per RESEARCH §Q1: translate basis is the row's
                       // INITIAL position, not absolute scroll offset. The
                       // `idx * virtualRow.size` subtraction is documented
@@ -1134,6 +1137,7 @@ export function GlobalMaxRenderPanel({
                   isFlashing={isFlashing === row.attachmentName}
                   registerRef={(el) => registerRowRef(row.attachmentName, el)}
                   state={state}
+                  loaderMode={loaderMode}
                 />
               );
             })}

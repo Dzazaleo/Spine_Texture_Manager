@@ -275,6 +275,7 @@ function PanelRowsHarness({ rows }: { rows: BreakdownRow[] }) {
         onOpenOverrideDialog={vi.fn()}
         query={query}
         onQueryChange={setQuery}
+        loaderMode="auto"
       />
     </>
   );
@@ -460,25 +461,27 @@ describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', (
   it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
     const rows = [makeDriftedRow('Setup Pose (Default)', 0)];
     render(<PanelRowsHarness rows={rows} />);
-    // Per project test convention (no jest-dom matchers) use not.toBeNull().
-    const badge = screen.getByLabelText(/source png dims differ/i);
-    expect(badge).not.toBeNull();
-    const title = badge.getAttribute('title');
-    expect(title).toContain(
-      'Source PNG (811×962) is smaller than canonical region dims (1628×1908)',
+    // Phase 22.1 G-02 — badge now uses custom React tooltip primitive (DimsBadge).
+    // The host div carries data-testid="dims-badge-host"; no native title attribute.
+    const host = screen.getByTestId('dims-badge-host');
+    expect(host).not.toBeNull();
+    // Tooltip surfaces on hover (not via static title).
+    fireEvent.mouseEnter(host);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain(
+      'Atlas region declares 811×962 but canonical is 1628×1908',
     );
-    expect(title).toContain('Optimize will cap at source size');
   });
 
   it('does NOT render badge when row.dimsMismatch === false', () => {
     const rows = [makeRow('Setup Pose (Default)', 0)];
     render(<PanelRowsHarness rows={rows} />);
-    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+    expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 
   it('badge is absent when actualSource is undefined (atlas-extract path)', () => {
     const rows = [{ ...makeRow('Setup Pose (Default)', 0), dimsMismatch: false }];
     render(<PanelRowsHarness rows={rows} />);
-    expect(screen.queryByLabelText(/source png dims differ/i)).toBeNull();
+    expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 });
