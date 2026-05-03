@@ -42,7 +42,7 @@ export function DimsBadge({
   const tooltipText = buildDimsTooltipText(row, loaderMode, isCapped);
   // tooltipId must be unique per rendered DimsBadge instance to support
   // multiple badges on the same page without ARIA collision.
-  const tooltipId = `dims-badge-tooltip-${row.attachmentName}`;
+  const tooltipId = `dims-badge-tooltip-${row.attachmentKey}`;
   const ariaLabel =
     `Source dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}` +
     (isCapped
