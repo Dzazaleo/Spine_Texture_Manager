@@ -274,6 +274,13 @@ export function AppShell({
     () => initialProject?.loaderMode ?? 'auto',
   );
 
+  // Phase 23 — lastOutDir: session-metadata state slot. Seeded from
+  // initialProject?.lastOutDir on load; updated by onConfirmStart after
+  // the user confirms a folder on Start. Not in the dirty signal (D-08).
+  const [lastOutDir, setLastOutDir] = useState<string | null>(
+    () => initialProject?.lastOutDir ?? null,
+  );
+
   // D-74: plain useState; resets on every mount (new drop remounts AppShell).
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
   // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
@@ -359,7 +366,7 @@ export function AppShell({
   // T-06-18 mitigation (rapid double-click is a no-op until onRunEnd).
   const [exportDialogState, setExportDialogState] = useState<{
     plan: ExportPlan;
-    outDir: string;
+    outDir: string | null;
   } | null>(null);
   const [exportInFlight, setExportInFlight] = useState(false);
 
@@ -489,34 +496,21 @@ export function AppShell({
   // below) — not on this initial toolbar click. This keeps the pre-flight
   // dialog usable as a "review before committing" surface even when
   // collisions exist.
-  const pickOutputDir = useCallback(async (): Promise<string | null> => {
-    // Phase 6 REVIEW L-01 (2026-04-25) — fall back to '.' (process cwd
-    // resolution at the OS picker) when the skeleton path has no parent
-    // segment. Edge case: a skeleton at filesystem root like '/skel.json'
-    // would otherwise produce a leading-separator suggestion (writing to
-    // system root). Realistically nobody drops a skeleton there, but the
-    // regex-strip approach has no defense and a one-token fallback
-    // removes the suggestion entirely.
-    //
-    // Phase 12 F2 fix (per 11-WIN-FINDINGS.md §F2 + 12-RESEARCH.md §"F2
-    // File-Picker Fixes"): drop the '/images-optimized' suffix that made
-    // the native Windows folder picker treat the call as save-as
-    // ("create new file 'images-optimized'?"). Land the picker at the
-    // project's parent directory; the user navigates from there via the
-    // picker's New Folder button or double-click navigation. The
-    // post-pick safeguards at src/main/ipc.ts:415-460 (handleStartExport
-    // "outDir IS source-images-dir" hard-reject) and probeExportConflicts
-    // overwrite-warning are RESEARCH-VERIFIED-CORRECT and unchanged.
-    const skeletonDir = summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.';
-    return window.api.pickOutputDirectory(skeletonDir);
-  }, [summary.skeletonPath]);
+  // Phase 23 — accepts explicit startPath so call sites can pre-fill with
+  // lastOutDir (D-04) or skeletonDir (D-06 first-use default).
+  const pickOutputDir = useCallback(
+    async (startPath: string): Promise<string | null> => {
+      return window.api.pickOutputDirectory(startPath);
+    },
+    [],
+  );
 
+  // Phase 23 OPT-01 — no picker before dialog; pre-flight is immediately
+  // accessible. The picker moves to onConfirmStart (triggered by Start).
   const onClickOptimize = useCallback(async () => {
-    const outDir = await pickOutputDir();
-    if (outDir === null) return; // user cancelled picker
     const plan = buildExportPlan(summary, overrides);
-    setExportDialogState({ plan, outDir });
-  }, [pickOutputDir, summary, overrides]);
+    setExportDialogState({ plan, outDir: lastOutDir });
+  }, [summary, overrides, lastOutDir]);
 
   // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
   //
@@ -543,8 +537,24 @@ export function AppShell({
     overwrite?: boolean;
   }> => {
     if (exportDialogState === null) return { proceed: false };
-    const { plan, outDir } = exportDialogState;
-    const probeResult = await window.api.probeExportConflicts(plan, outDir);
+    const { plan } = exportDialogState;
+
+    // Phase 23 D-03/D-04 — picker always opens on Start; pre-filled with
+    // lastOutDir when saved, otherwise skeletonDir (Phase 12 F2 fix preserved).
+    const startPath =
+      lastOutDir ?? (summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.');
+    const pickedDir = await pickOutputDir(startPath);
+    if (pickedDir === null) {
+      // D-05: user cancelled picker → stay in pre-flight (dialog stays open).
+      return { proceed: false };
+    }
+
+    // Update outDir in state immediately so OptimizeDialog header title
+    // reflects the confirmed folder during the probe wait.
+    setExportDialogState((prev) => (prev ? { ...prev, outDir: pickedDir } : null));
+    setLastOutDir(pickedDir);
+
+    const probeResult = await window.api.probeExportConflicts(plan, pickedDir);
     if (!probeResult.ok) {
       // Hard-reject (e.g. outDir IS source-images-dir). Let the dialog
       // proceed; startExport will fail with the same error and the
@@ -561,7 +571,7 @@ export function AppShell({
       pendingConfirmResolve.current = resolve;
       setConflictState({ conflicts: probeResult.conflicts });
     });
-  }, [exportDialogState]);
+  }, [exportDialogState, lastOutDir, summary.skeletonPath, pickOutputDir]);
 
   const closeBothDialogs = useCallback(() => {
     setConflictState(null);
@@ -599,7 +609,10 @@ export function AppShell({
     pendingConfirmResolve.current = null;
     setConflictState(null);
     if (resolve) resolve({ proceed: false });
-    const newOutDir = await pickOutputDir();
+    // Phase 23: pickOutputDir now requires startPath; pre-fill with
+    // lastOutDir when saved, else skeletonDir (D-04 / Phase 12 F2).
+    const rePick = lastOutDir ?? (summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.');
+    const newOutDir = await pickOutputDir(rePick);
     if (newOutDir === null) {
       // User cancelled the picker — close OptimizeDialog too. The user
       // backed out of the export entirely.
@@ -608,7 +621,7 @@ export function AppShell({
     }
     const plan = buildExportPlan(summary, overrides);
     setExportDialogState({ plan, outDir: newOutDir });
-  }, [pickOutputDir, summary, overrides]);
+  }, [pickOutputDir, summary, overrides, lastOutDir]);
   // closeBothDialogs is referenced in JSDoc above; keep the symbol live
   // for the typechecker even though it's no longer wired to any handler
   // (ConflictDialog Cancel routes through onConflictCancel which is more
@@ -633,9 +646,9 @@ export function AppShell({
       // local on first mount; SettingsDialog.onApply mutates the local,
       // which then drives the dirty derivation AND the next Save's payload.
       samplingHz: samplingHzLocal,
-      // Phase 9 polish — currently null; D-145 schema field present but
-      // not yet hoisted into AppShell state. Documented deferral per D-147.
-      lastOutDir: null,
+      // Phase 23 — lastOutDir now a real AppShell state slot (D-07).
+      // Closes the D-145 / D-147 documented deferral from Phase 9.
+      lastOutDir,
       // D-91 default; Phase 9 hoists actual panel sort state.
       sortColumn: 'attachmentName',
       sortDir: 'asc',
@@ -658,6 +671,7 @@ export function AppShell({
       samplingHzLocal,
       documentation,
       loaderMode,
+      lastOutDir,
     ],
   );
 
@@ -1564,7 +1578,14 @@ export function AppShell({
           outDir={exportDialogState.outDir}
           onClose={() => setExportDialogState(null)}
           onRunStart={() => setExportInFlight(true)}
-          onRunEnd={() => setExportInFlight(false)}
+          onRunEnd={() => {
+            setExportInFlight(false);
+            // Phase 23 D-07 — silently persist lastOutDir to .stmproj after export.
+            // Fire-and-forget: no UI indicator, no dirty-signal change (D-08).
+            if (currentProjectPath !== null) {
+              void window.api.saveProject(buildSessionState(), currentProjectPath);
+            }
+          }}
           onConfirmStart={onConfirmStart}
           onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}
         />

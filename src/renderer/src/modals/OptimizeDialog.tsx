@@ -55,7 +55,7 @@ type RowStatus = 'idle' | 'in-progress' | 'success' | 'error';
 export interface OptimizeDialogProps {
   open: boolean;
   plan: ExportPlan;
-  outDir: string;
+  outDir: string | null;
   onClose: () => void;
   onRunStart?: () => void;
   onRunEnd?: () => void;
@@ -254,7 +254,9 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   }, [state, props.onClose]);
 
   const onOpenOutputFolder = useCallback(() => {
-    window.api.openOutputFolder(props.outDir);
+    if (props.outDir !== null) {
+      window.api.openOutputFolder(props.outDir);
+    }
   }, [props.outDir]);
 
   // Gap-Fix Round 6 (2026-04-25): document-level Escape handler via the
@@ -313,7 +315,9 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       ? `Export complete — ${summary?.successes ?? 0} of ${total} succeeded`
       : state === 'in-progress'
         ? `Optimize Assets — ${progress.current} of ${total} → ${props.outDir}`
-        : `Optimize Assets — ${total} images → ${props.outDir}`;
+        : props.outDir !== null
+          ? `Optimize Assets — ${total} images → ${props.outDir}`
+          : `Optimize Assets — ${total} images`;
 
   return (
     <div
