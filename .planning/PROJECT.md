@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-03 after v1.2 milestone. v1.2.0 shipped — 8 phases executed (16, 18, 19, 20, 21, 22, 22.1; 17 skipped; 13.1 deferred host-blocked). 23/26 v1.2 REQs closed. SEED-001 (atlas-less) + SEED-002 (dims-badge) both shipped. D-148 documentation slot filled. macOS quit + update UX regressions closed. ~20K LOC TS/TSX.*
+*Last updated: 2026-05-03 after Phase 23 complete. v1.2.0 shipped — v1.3 in progress (Phase 23 complete). Optimize Assets flow rewired: OptimizeDialog opens immediately on toolbar click (OPT-01); OS folder picker deferred to Start button with lastOutDir pre-fill (OPT-02). SEED-001 (atlas-less) + SEED-002 (dims-badge) shipped. ~20K LOC TS/TSX.*
