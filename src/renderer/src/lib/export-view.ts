@@ -203,18 +203,14 @@ export function buildExportPlan(
   // 2. Group by sourcePath; per group keep highest-effective-scale row +
   //    union attachmentNames (D-108).
   //
-  // Phase 22 DIMS-04 (D-04 REVISED 2026-05-02): Acc carries `isPassthrough`
-  // alongside the existing fields. The dedup keep-max is computed on the
-  // POST-CAP effScale (cappedEffScale below) — when two attachments share a
-  // sourcePath and one is passthrough but the other isn't, the dedup picks
-  // the higher post-cap effScale, which by construction is NOT passthrough
-  // (if either had higher demand than sourceRatio, the cap would have
-  // trimmed it down to sourceRatio). This preserves the existing dedup
-  // contract while threading isPassthrough through the partition step.
+  // Phase 22.1 G-04 + G-07 D-06 — Acc no longer carries `isPassthrough`
+  // (moved to emit loop where final outW/outH are known). Acc gains `isCapped`
+  // (computed here from cap math; threaded to ExportRow.isCapped for
+  // OptimizeDialog cap-binding signal per D-07).
   interface Acc {
     row: DisplayRow;
     effScale: number;
-    isPassthrough: boolean;
+    isCapped: boolean;  // true when downscaleClampedScale > sourceRatio
     attachmentNames: string[];
   }
   const bySourcePath = new Map<string, Acc>();
@@ -245,29 +241,24 @@ export function buildExportPlan(
     // Spine UV sampling). Honors "never extrapolate" by ALSO bounding
     // effectiveScale below actual source dims (Phase 6 Round 1 only bounded by
     // canonical; Phase 22 extends the same invariant to actualSource).
+    //
+    // Phase 22.1 G-04 + G-07 D-06 — partition decision moved to emit loop
+    // (post-override resolution + post-cap). Phase 22 D-04 REVISED branch
+    // deleted as vestigial: after 22.1-01's
+    // unified actualSource model (sourceW === actualSourceW in BOTH modes),
+    // sourceRatio === 1.0 in atlas-source mode and the cap is effectively
+    // inert. The simple `isPassthrough = (outW === sourceW AND outH === sourceH)`
+    // predicate in the emit loop IS the correct partition. Cap math KEPT
+    // as defense-in-depth — preserves "outW ≤ sourceW always" regardless
+    // of future loader edits. See CONTEXT D-06 + 22.1-01-SUMMARY.md §"Phase 22
+    // Cap Math — Vestigiality Confirmation".
     const { actualSourceW, actualSourceH, canonicalW, canonicalH } = row;
     const sourceRatio =
       row.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
         ? Math.min(actualSourceW / canonicalW, actualSourceH / canonicalH)
         : Infinity;
     const cappedEffScale = Math.min(downscaleClampedScale, sourceRatio);
-
-    // Phase 22 D-04 REVISED — generous passthrough formula:
-    //   isCapped = cap binds (downscaleClampedScale > sourceRatio); output IS
-    //     actualSource on the binding axis by construction.
-    //   peakAlreadyAtOrBelowSource = user already at or below source ratio
-    //     (no further reduction warranted; DIMS-05 enabler — repeated Optimize
-    //     on already-optimized PNGs).
-    //   isPassthrough = dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)
-    // The original D-04 strict-ceil-equality wording was mathematically wrong
-    // at the cap-binding boundary (it would never flag a capped row as
-    // passthrough — opposite of intended round-trip safety). Revised by user
-    // 2026-05-02 post-research to the generous formulation. See
-    // .planning/phases/22-.../22-CONTEXT.md §"D-04 (REVISED 2026-05-02)".
     const isCapped = downscaleClampedScale > sourceRatio;
-    const peakAlreadyAtOrBelowSource =
-      downscaleClampedScale <= sourceRatio && actualSourceW !== undefined;
-    const isPassthrough = row.dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource);
 
     const effScale = cappedEffScale;
     const prev = bySourcePath.get(row.sourcePath);
@@ -275,14 +266,14 @@ export function buildExportPlan(
       bySourcePath.set(row.sourcePath, {
         row,
         effScale,
-        isPassthrough,
+        isCapped,
         attachmentNames: [row.attachmentName],
       });
     } else {
       if (effScale > prev.effScale) {
         prev.row = row;
         prev.effScale = effScale;
-        prev.isPassthrough = isPassthrough;
+        prev.isCapped = isCapped;
       }
       if (!prev.attachmentNames.includes(row.attachmentName)) {
         prev.attachmentNames.push(row.attachmentName);
@@ -301,19 +292,23 @@ export function buildExportPlan(
   //    the image-worker can fall back to atlas-page extraction when the
   //    per-region PNG doesn't exist on disk.
   //
-  // Phase 22 DIMS-04 — partition into rows[] + passthroughCopies[] per the
-  // accumulator's isPassthrough flag (set above by D-04 REVISED predicate).
-  // Output dims for both arrays use the legacy `Math.ceil(sourceW × effScale)`
-  // shape: at the binding-cap edge, cappedEffScale === sourceRatio =
-  // actualSourceW/canonicalW exactly, so Math.ceil(canonicalW × that) ===
-  // actualSourceW (binding axis). The non-binding axis ceils to ≤
-  // actualSource (uniform cap; up to 1px slack — the acknowledged 1px
-  // aspect-ratio noise edge case in CONTEXT D-04). No branch needed.
+  // Phase 22.1 G-04 + G-07 D-06 — generalized passthrough predicate,
+  // evaluated AFTER override resolution AND cap math. Covers:
+  //   (a) TRIANGLE no-drift peakScale=1.0× → outW = sourceW → passthrough
+  //   (b) drifted row, no override → cap binds → outW = sourceW → passthrough
+  //   (c) drifted row, 50% override → outW < sourceW → resize
+  //   (d) drifted row, 100% override → outW = sourceW → passthrough
+  // After 22.1-01's unified model (sourceW === actualSourceW everywhere),
+  // the Phase 22 cap math reduces to a no-op in atlas-source mode; this
+  // predicate IS the partition.
   const rows: ExportRow[] = [];
   const passthroughCopies: ExportRow[] = [];
   for (const acc of bySourcePath.values()) {
     const outW = Math.ceil(acc.row.sourceW * acc.effScale);
     const outH = Math.ceil(acc.row.sourceH * acc.effScale);
+    // G-04 + G-07 D-06 (Phase 22.1) — generalized passthrough predicate,
+    // evaluated AFTER override resolution AND cap math.
+    const isPassthrough = outW === acc.row.sourceW && outH === acc.row.sourceH;
     const exportRow: ExportRow = {
       sourcePath: acc.row.sourcePath,
       outPath: relativeOutPath(acc.row.sourcePath),
@@ -332,11 +327,13 @@ export function buildExportPlan(
       // "passthrough-only semantics" docblock on the optional ExportRow
       // fields. The conditional spread mirrors the existing atlasSource
       // pattern above. Plan 22-04 export-view.ts mirrors this byte-identically.
-      ...(acc.isPassthrough && acc.row.actualSourceW !== undefined && acc.row.actualSourceH !== undefined
+      ...(isPassthrough && acc.row.actualSourceW !== undefined && acc.row.actualSourceH !== undefined
         ? { actualSourceW: acc.row.actualSourceW, actualSourceH: acc.row.actualSourceH }
         : {}),
+      // Phase 22.1 G-07 D-07 — cap-binding signal for OptimizeDialog row label.
+      ...(acc.isCapped ? { isCapped: true } : {}),
     };
-    if (acc.isPassthrough) {
+    if (isPassthrough) {
       passthroughCopies.push(exportRow);
     } else {
       rows.push(exportRow);

@@ -191,7 +191,7 @@ export function buildExportPlan(
     //
     // Phase 22.1 G-04 + G-07 D-06 — partition decision moved to emit loop
     // (post-override resolution + post-cap). Phase 22 D-04 REVISED branch
-    // `peakAlreadyAtOrBelowSource` deleted as vestigial: after 22.1-01's
+    // deleted as vestigial: after 22.1-01's
     // unified actualSource model (sourceW === actualSourceW in BOTH modes),
     // sourceRatio === 1.0 in atlas-source mode and the cap is effectively
     // inert. The simple `isPassthrough = (outW === sourceW AND outH === sourceH)`
