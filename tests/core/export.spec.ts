@@ -632,15 +632,19 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
-  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round; Bug A fix uses canonicalW base)', () => {
+  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round; Bug A fix uses canonicalW base + override source-relative adjustment)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
-    // Bug A fix (Phase 22.1 post-UAT): formula changed from sourceW to
-    // (canonicalW ?? sourceW) so peakScale (relative to canonical) is applied
-    // against the correct base. Both files must match.
-    const sig = /Math\.ceil\(\(acc\.row\.canonicalW \?\? acc\.row\.sourceW\)/;
-    expect(coreText).toMatch(sig);
-    expect(viewText).toMatch(sig);
+    // Bug A fix (Phase 22.1 post-UAT): outW = ceil((canonicalW ?? sourceW) × effScale).
+    // Override fix: rawEffScale pre-adjusted by (sourceW / canonicalW) so
+    // "50% override" means 50% of the actual source PNG, not 50% of canonical.
+    // Both files must match (hygiene).
+    const ceilSig = /Math\.ceil\(\(acc\.row\.canonicalW \?\? acc\.row\.sourceW\)/;
+    expect(coreText).toMatch(ceilSig);
+    expect(viewText).toMatch(ceilSig);
+    const overrideSig = /applyOverride\(overridePct\)\.effectiveScale \* \(row\.sourceW \/ \(row\.canonicalW \?\? row\.sourceW\)\)/;
+    expect(coreText).toMatch(overrideSig);
+    expect(viewText).toMatch(overrideSig);
   });
 
   it('both files export the safeScale helper (ceil-thousandth single source of truth, Round 5)', () => {

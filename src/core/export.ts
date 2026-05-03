@@ -165,10 +165,16 @@ export function buildExportPlan(
     if (excluded.has(row.attachmentName)) continue;
     if (!row.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
     // D-111: override-via-applyOverride or fall back to peakScale.
+    // Override % semantics: user sees sourceW (= actualSourceW after 22.1-01)
+    // and sets "50%" meaning "50% of source". peakScale is relative to
+    // canonicalW. Convert override to canonical-relative so the canonical-base
+    // formula outW = ceil(canonicalW × effScale) produces the source-relative
+    // output: ceil(canonicalW × pct/100 × sourceW/canonicalW) = ceil(sourceW × pct/100).
+    // For non-drifted rows (sourceW = canonicalW) the ratio is 1.0 — no change.
     const overridePct = overrides.get(row.attachmentName);
     const rawEffScale =
       overridePct !== undefined
-        ? applyOverride(overridePct).effectiveScale
+        ? applyOverride(overridePct).effectiveScale * (row.sourceW / (row.canonicalW ?? row.sourceW))
         : row.peakScale;
     // Gap-Fix Round 5 (2026-04-25): round UP to nearest thousandth FIRST so
     // the displayed `0.361×` is a guaranteed lower bound the export math
@@ -244,7 +250,8 @@ export function buildExportPlan(
   //   (a) TRIANGLE no-drift peakScale=1.0× → outW = canonicalW = sourceW → passthrough
   //   (b) drifted row, no override → cap binds effScale to sourceRatio →
   //       outW = ceil(canonicalW × sourceRatio) = actualSourceW = sourceW → passthrough
-  //   (c) drifted row, 50% override → outW = ceil(canonicalW × 0.5) < sourceW → resize
+  //   (c) drifted row, 50% override → rawEffScale adjusted to source-relative →
+  //       outW = ceil(sourceW × 0.5) < sourceW → resize
   //   (d) drifted row, 100% override → cap binds → outW = sourceW → passthrough
   //
   // Bug A fix (Phase 22.1 post-UAT): outW computed from canonicalW, not sourceW.
