@@ -41,7 +41,6 @@ import type { LoadResult, LoaderOptions, SourceDims } from './types.js';
 import {
   AtlasNotFoundError,
   AtlasParseError,
-  MissingImagesDirError,
   RotatedRegionUnsupportedError,
   SkeletonJsonNotFoundError,
   SpineVersionUnsupportedError,
@@ -373,20 +372,9 @@ export function loadSkeleton(
         imagesDirExists = false;
       }
       if (!imagesDirExists) {
-        if (opts.loaderMode === 'atlas-less') {
-          // G-08 D-09 (Phase 22.1) — user explicitly requested atlas-less but no
-          // images/ folder exists. Surface the precise typed error rather than
-          // the misleading shared AtlasNotFoundError. MissingImagesDirError is
-          // already wired through src/main/ipc.ts KNOWN_KINDS and
-          // src/shared/types.ts KnownErrorKind union — no new IPC plumbing.
-          // Note: this branch is structurally unreachable via the 4-way loader
-          // branch order (D-08 at line 303 intercepts loaderMode:'atlas-less'
-          // before this D-05 fall-through is reached), but is present as
-          // defense-in-depth: if the branch order ever changes, the correct
-          // error fires without silent regression.
-          throw new MissingImagesDirError(probeImagesDir, skeletonPath);
-        }
-        // Auto fall-through: no .atlas AND no images/ — legacy malformed case.
+        // D-08 (line ~305) intercepts loaderMode:'atlas-less' before this
+        // D-05 fall-through is reached; loaderMode is 'auto' here by
+        // construction. No atlas AND no images/ → legacy malformed case.
         throw new AtlasNotFoundError(siblingAtlasPath, skeletonPath);
       }
       const synth = synthesizeAtlasText(
