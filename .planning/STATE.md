@@ -1,26 +1,26 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Expansion
-status: milestone_complete
-last_updated: "2026-05-03T20:30:00.000Z"
-last_activity: 2026-05-03 -- v1.2.0 milestone complete; tag v1.2.0 created
+milestone: v1.3
+milestone_name: Polish & UX
+status: planning
+last_updated: "2026-05-03T21:04:40.482Z"
+last_activity: 2026-05-03
 progress:
-  total_phases: 9
-  completed_phases: 8
-  total_plans: 40
-  completed_plans: 40
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: — (milestone complete)
-Status: v1.2.0 shipped — all 40 plans complete across 8 phases. Phase 13.1 deferred (host-blocked; UAT-01..03 carry to v1.3).
-Last activity: 2026-05-03 — v1.2.0 milestone archived; tag v1.2.0 created
-Next recommended run: `/gsd-new-milestone` to start v1.3
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-03 — Milestone v1.3 started
 
 ## Project Reference
 

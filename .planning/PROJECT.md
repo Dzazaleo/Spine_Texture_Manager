@@ -8,6 +8,20 @@ A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSO
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
+## Current Milestone: v1.3 Polish & UX
+
+**Goal:** Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a thorough UI polish pass — no new math or distribution work.
+
+**Target features:**
+- Correct Unused Assets semantics (images-folder-vs-JSON orphaned PNGs; extracted collapsible panel)
+- Missing-attachment rows shown in-context with red accent in main panels
+- AtlasNotFoundError mentions images-folder alternative
+- Optimize modal opens immediately; folder picker deferred to Start/Export click
+- Atlas-savings metric replaces misleading MB unused-attachment callout
+- Sticky-bar height harmonization + Global panel counter cell layout-shift fix
+- Alternating row colors, icon refresh, unified toolbar button heights, draggable modals
+- Phase 4 code-quality carry-forwards (functional setSelected, input validation, localeCompare, dead prop guard)
+
 ## Current State (post v1.2)
 
 **Shipped:** v1.2.0 Expansion — 2026-05-03 (8 phases executed, 40 plans, ~20,174 LOC TS/TSX in `src/`). Tag: `v1.2.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
