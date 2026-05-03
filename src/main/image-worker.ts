@@ -151,20 +151,40 @@ export async function runExport(
       }
     }
 
-    // 1. Pre-flight access(R_OK) on sourcePath. Passthrough has NO
-    //    atlas-extract fallback (drift detection requires per-region PNG
-    //    to exist). Missing source → 'missing-source'.
+    // 1. Pre-flight access(R_OK) on sourcePath. Mirror the resize-loop
+    //    atlas-extract fallback (Gap-Fix #2): if the per-region PNG is
+    //    absent but atlasSource is present, extract the region from the
+    //    atlas page at its native size (no resize). This covers atlas-packed
+    //    projects (atlas-source mode) where sourcePath points to images/ but
+    //    no individual PNGs exist on disk.
+    let passthroughUseAtlasExtract = false;
     try {
       await access(sourcePath, fsConstants.R_OK);
     } catch {
-      const error: ExportError = {
-        kind: 'missing-source',
-        path: sourcePath,
-        message: `Source file not readable: ${sourcePath}`,
-      };
-      errors.push(error);
-      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
-      continue;
+      if (row.atlasSource) {
+        try {
+          await access(row.atlasSource.pagePath, fsConstants.R_OK);
+          passthroughUseAtlasExtract = true;
+        } catch {
+          const error: ExportError = {
+            kind: 'missing-source',
+            path: row.atlasSource.pagePath,
+            message: `Atlas page not readable: ${row.atlasSource.pagePath}`,
+          };
+          errors.push(error);
+          onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+          continue;
+        }
+      } else {
+        const error: ExportError = {
+          kind: 'missing-source',
+          path: sourcePath,
+          message: `Source file not readable: ${sourcePath}`,
+        };
+        errors.push(error);
+        onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+        continue;
+      }
     }
 
     // 2. Path-traversal defense — same shape as resize loop step 2.
@@ -194,12 +214,26 @@ export async function runExport(
       continue;
     }
 
-    // 4. copyFile to tmpPath, then rename — atomic write per Phase 6 D-121
+    // 4. Write to tmpPath, then rename — atomic write per Phase 6 D-121
     //    + R4 macOS delayed-allocation safety. The output path only appears
     //    when fully written.
+    //    Two sub-paths:
+    //    (a) per-region PNG on disk → copyFile (byte-identical, fast)
+    //    (b) atlas-extract fallback → sharp extract at native region size
     const tmpPath = resolvedOut + '.tmp';
     try {
-      await copyFile(sourcePath, tmpPath);
+      if (passthroughUseAtlasExtract && row.atlasSource) {
+        await sharp(row.atlasSource.pagePath)
+          .extract({
+            left: row.atlasSource.x,
+            top: row.atlasSource.y,
+            width: row.atlasSource.w,
+            height: row.atlasSource.h,
+          })
+          .toFile(tmpPath);
+      } else {
+        await copyFile(sourcePath, tmpPath);
+      }
     } catch (e) {
       const error: ExportError = {
         kind: 'write-error',
