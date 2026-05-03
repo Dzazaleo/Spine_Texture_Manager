@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: executing
-last_updated: "2026-05-03T08:05:04.048Z"
-last_activity: 2026-05-03 -- Phase 22 verified (UAT deferred); Phases 13.1 + 18 still open
+status: verifying
+last_updated: "2026-05-03T12:07:14.158Z"
+last_activity: 2026-05-03 -- /gsd-phase --insert 22 → Phase 22.1 created; ROADMAP.md updated (milestone bullet + Phase Details + Progress row); v1.2 milestone summary refreshed to mention 22.1.
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 8
   total_plans: 48
   completed_plans: 48
@@ -17,10 +17,11 @@ progress:
 
 ## Current Position
 
-Phase: 22 — VERIFIED (HUMAN-UAT deferred)
-Plan: 5/5 complete
-Status: Phase 22 implementation complete; gsd-verifier 5/5 PASS at code level; 9-item visual UAT deferred to a future session (todo at `.planning/todos/pending/2026-05-03-phase-22-dims-badge-override-cap-human-uat.md`).
-Last activity: 2026-05-03 -- /gsd-execute-phase 22 closed all 5 waves; gsd-verifier passed; UAT deferred per user
+Phase: 22.1 — INSERTED 2026-05-03 (not planned yet)
+Plan: 0/0 — needs `/gsd-discuss-phase 22.1` then `/gsd-plan-phase 22.1`
+Status: Phase 22 HUMAN-UAT (run 2026-05-03) surfaced 7 gaps in ## Gaps section of `22-HUMAN-UAT.md` — 1 BLOCKER (override silently ignored on passthrough rows; breaks animator glow/blend-mode workflow) + 5 major (badge mode-awareness, tooltip hover reliability, cap-binding-aware copy, generalized passthrough predicate, source→target dim shape parity) + 1 minor (drop "(already optimized)" parenthetical). Phase 22.1 inserted to close all 7. Phase 22 itself remains VERIFIED at code level.
+Last activity: 2026-05-03 -- /gsd-phase --insert 22 → Phase 22.1 created; ROADMAP.md updated (milestone bullet + Phase Details + Progress row); v1.2 milestone summary refreshed to mention 22.1.
+Next recommended run: `/gsd-discuss-phase 22.1` (lock G-01 gate-by-mode-vs-mode-aware-tooltip decision; choose passthrough re-routing semantics for G-07; resolve override semantics interaction with passthrough partition before planning)
 
 ## Last Roadmap Update
 
@@ -39,9 +40,10 @@ Phases (continues numbering from v1.1.2; no `--reset-phase-numbers`):
 - **19** — UI improvements UI-01..05 (sticky header + cards + modal redesign + quantified callouts + button hierarchy; tester feedback)
 - **20** — Documentation Builder feature (.stmproj v1 documentation slot; D-148; DOC-01..05)
 - **21** — SEED-001 atlas-less mode (json + images, no .atlas; PNG header reader + synthetic atlas; LOAD-01..04)
-- **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety; DIMS-01..05)
+- **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety; DIMS-01..05) ✅ COMPLETE 2026-05-02 (HUMAN-UAT 2026-05-03 surfaced 7 gaps → Phase 22.1)
+- **22.1** — Close Phase 22 HUMAN-UAT gaps (INSERTED 2026-05-03; 1 BLOCKER + 5 major + 1 minor; depends on 22)
 
-Recommended execution order: 18 → 19 → 20 → 21 → 22, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
+Recommended execution order: 18 → 19 → 20 → 21 → 22 → 22.1, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
 
 Out of scope for v1.2: Apple Developer ID signing + notarization (declined; manual-download UX is the v1.2 answer); Crash reporting / Sentry (revisit at v1.3); Spine 4.3+ versioned loader; `.skel` binary loader.
 
@@ -86,7 +88,9 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 
 *This file is authored fresh at milestone start. Phase 14 + Phase 15 detailed execution history is preserved in their respective phase directories under `.planning/phases/14-…/` and `.planning/phases/15-…/` (VERIFICATION.md, HUMAN-UAT.md, SUMMARY files). v1.1.2 phases will be archived to `.planning/milestones/v1.1.2-phases/` when /gsd-complete-milestone v1.1.2 is run.*
 
-**Last Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
+**Last Phase Action:** 22.1 (close-7-gaps-from-phase-22-human-uat-dims-02-badge-mode-awar) — INSERTED — 2026-05-03 (after Phase 22; 7 HUMAN-UAT gaps: 1 BLOCKER + 5 major + 1 minor; ROADMAP.md updated with milestone bullet + Phase Details + Progress row; needs `/gsd-discuss-phase 22.1` before planning)
+
+**Prior Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
 
 **Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 12 plans (8 originals + 4 gap closures) — 2026-05-02T16:53:49.465Z
 
@@ -97,3 +101,9 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 **Last Phase Verification:** 22 (SEED-002 dims-badge + override-cap) — VERIFIED human_needed → 5/5 PASSED at code level, 9 visual UAT items deferred — 2026-05-03T08:05:00Z. gsd-verifier scored 5/5 DIMS-NN must-haves PASS (DIMS-01 canonical+actual maps populated; DIMS-02 badge in both panels; DIMS-03 cap formula uniform-only + Phase 6 D-110 byte-identical parity; DIMS-04 generous passthrough partition with `passthroughCopies[]` + COPY chip + fs.copyFile byte-copy + actualSource label propagation; DIMS-05 round-trip byte-identical via Buffer.compare === 0). 1 override applied for the user-approved D-04 REVISED wording (passthroughCopies+COPY vs original ROADMAP excludedAlreadyOptimized — mathematically more correct per 22-CONTEXT.md). 687/690 vitest passing (1 skipped + 2 todo; 0 failures). Layer 3 invariant verified — `grep -rn copyFile src/core/` returns 0 hits; loader.ts + export.ts have 0 sharp/electron imports. Locked memory `project_phase6_default_scaling.md` (uniform-only export scaling) preserved at `src/core/export.ts:262-263` + aspect-ratio invariant test. HUMAN-UAT (9 items: badge rendering at 100%/dark-mode/zoom; tooltip wording; OptimizeDialog COPY chip placement + actualSource label; round-trip byte-fidelity; AppShell layout sanity) DEFERRED per user instruction during /gsd-execute-phase — captured in `.planning/todos/pending/2026-05-03-phase-22-dims-badge-override-cap-human-uat.md` with full recipe.
 
 **Prior Phase Verification:** 20 (Documentation Builder feature) — VERIFIED human_needed → 3/4 PASSED on macOS, 1 deferred — 2026-05-01T22:00:00Z. gsd-verifier scored 5/5 must-haves verified; gsd-code-reviewer found 0 critical / 4 warning / 6 info (non-blocking). HUMAN-UAT outcome on macOS arm64 (Electron dev build): test 1 (live DnD) PASS, test 2 (offline HTML fidelity) PASS with 1 visual gap regression FIXED in commit 10d40e6 (renderTracksCard wrapped in .row div for bottom-margin contract; golden snapshot regenerated; 587/587 vitest passing), test 4 (full save→close→reopen) PASS, test 3 (cross-platform DnD on Win/Linux) DEFERRED — Windows hardware unavailable; NSIS installer ready at release/Spine Texture Manager-1.1.3-x64.exe; pending todo at .planning/todos/pending/2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md captures the test recipe + risk analysis (effectAllowed='copy' is structurally set per RESEARCH §Pattern 4, so failure mode is unlikely). REQUIREMENTS.md DOC-04 stale "Pending" table row corrected to "Complete" (line 125; line 52 canonical bullet was already [x]).
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 22.1 inserted after Phase 22: Close 7 gaps from Phase 22 HUMAN-UAT (1 blocker + 5 major + 1 minor) (URGENT)
