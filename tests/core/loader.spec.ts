@@ -156,31 +156,25 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
 });
 
 describe('loader: sourcePaths map (Phase 6 Plan 02, F8.3, D-108)', () => {
-  it('SIMPLE_TEST → sourcePaths includes all atlas regions mapped to <skeletonDir>/images/<regionName>.png', () => {
+  it('SIMPLE_TEST atlas-source mode → sourcePaths is EMPTY (G-01 D-01, Phase 22.1: atlas-extract fallback handles source extraction)', () => {
+    // Phase 22.1 G-01 D-01: in atlas-source mode, per-region PNG paths are NOT
+    // populated from images/. The export pipeline uses atlasSources (atlas page
+    // extract via image-worker.ts:148-162 fallback) as the source. sourcePaths
+    // is intentionally left empty to avoid reading stale images/ content.
     const r = loadSkeleton(FIXTURE);
-    // SIMPLE_TEST atlas declares 3 regions (CIRCLE, SQUARE, TRIANGLE).
-    expect(r.sourcePaths.size).toBeGreaterThanOrEqual(3);
-    expect(r.sourcePaths.has('CIRCLE')).toBe(true);
-    expect(r.sourcePaths.has('SQUARE')).toBe(true);
-    expect(r.sourcePaths.has('TRIANGLE')).toBe(true);
-    const circlePath = r.sourcePaths.get('CIRCLE')!;
-    // Path-only: SIMPLE_PROJECT has no images/ folder; we still build the
-    // expected target without fs.access. Accept either POSIX or Windows
-    // separator forms.
-    const matchesPosix = circlePath.endsWith('/images/CIRCLE.png');
-    const matchesWindows = circlePath.endsWith('\\images\\CIRCLE.png');
-    expect(matchesPosix || matchesWindows).toBe(true);
-    expect(path.isAbsolute(circlePath)).toBe(true);
+    expect(r.sourcePaths.size).toBe(0);
+    // atlasSources is still fully populated (used by image-worker atlas-extract path).
+    expect(r.atlasSources.size).toBeGreaterThanOrEqual(3);
   });
 
-  it('EXPORT_PROJECT → sourcePaths point to FILES THAT EXIST (Plan 06-01 fixture)', () => {
+  it('EXPORT_PROJECT atlas-source mode → sourcePaths is EMPTY (G-01 D-01, Phase 22.1)', () => {
+    // Phase 22.1 G-01 D-01: even though EXPORT_PROJECT has per-region PNGs in images/,
+    // atlas-source mode no longer reads them into sourcePaths. atlasSources carries
+    // the atlas page pagePath/x/y/w/h for the image-worker atlas-extract path.
     const r = loadSkeleton(path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json'));
-    // EXPORT.atlas declares 4 regions (CIRCLE, SQUARE, SQUARE2, TRIANGLE),
-    // each backed by a real source PNG under fixtures/EXPORT_PROJECT/images/.
-    expect(r.sourcePaths.size).toBe(4);
-    for (const [name, p] of r.sourcePaths) {
-      expect(fs.existsSync(p), `expected ${p} to exist for region ${name}`).toBe(true);
-    }
+    expect(r.sourcePaths.size).toBe(0);
+    // atlasSources still fully populated.
+    expect(r.atlasSources.size).toBeGreaterThan(0);
   });
 });
 
@@ -437,31 +431,36 @@ describe('loader (DIMS-01 canonical-vs-actual dim mapping)', () => {
     }
   });
 
-  it('DIMS-01: canonical-atlas mode with per-region PNGs (EXPORT_PROJECT) populates actualDimsByRegion', () => {
-    // EXPORT_PROJECT has BOTH a sibling .atlas AND per-region PNGs in images/.
-    // The loader should still read each per-region PNG header and populate
-    // actualDimsByRegion (canonical-atlas mode does NOT skip the PNG-read
-    // loop — D-01 says one drift-detection path covers BOTH modes).
+  it('DIMS-01: atlas-source mode (EXPORT_PROJECT) populates actualDimsByRegion from atlas region originalWidth/Height (G-01 D-01, Phase 22.1)', () => {
+    // Phase 22.1 G-01 D-01: atlas-source mode derives actualSource from
+    // atlas.region.originalWidth/Height (spine-core 4.2 auto-backfills from
+    // packed dims when no orig: line is present). sourcePaths is empty in
+    // atlas-source mode (image-worker uses atlasSources extract-fallback path).
     const r = loadSkeleton(EXPORT_FIXTURE);
+    // actualDimsByRegion populated from atlas regions (not PNG file reads).
     expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
-    // Spot-check: every entry in actualDimsByRegion has a corresponding
-    // sourcePath that EXISTS on disk (no orphan map entries).
-    for (const [regionName, _dims] of r.actualDimsByRegion) {
-      const pngPath = r.sourcePaths.get(regionName);
-      expect(pngPath, `sourcePaths must have entry for ${regionName}`).toBeDefined();
-      expect(fs.existsSync(pngPath!), `${pngPath} must exist`).toBe(true);
+    // sourcePaths is now EMPTY in atlas-source mode (G-01 D-01).
+    expect(r.sourcePaths.size).toBe(0);
+    // actualDimsByRegion entries carry positive dims (from atlas, not from PNG reads).
+    for (const [_regionName, dims] of r.actualDimsByRegion) {
+      expect(dims.actualSourceW).toBeGreaterThan(0);
+      expect(dims.actualSourceH).toBeGreaterThan(0);
     }
   });
 
-  it('DIMS-01 atlas-extract path: actualDimsByRegion is empty when per-region PNGs are absent', () => {
-    // SIMPLE_PROJECT has a sibling .atlas but NO images/ folder. sourcePaths
-    // resolves to <skeletonDir>/images/<region>.png — those files do not
-    // exist, so readPngDims throws and actualDimsByRegion stays empty.
-    // Canonical map is still fully populated from the JSON walk.
+  it('DIMS-01 atlas-source mode: actualDimsByRegion populated from atlas even when images/ folder is absent (G-01 D-01, Phase 22.1)', () => {
+    // Phase 22.1 G-01 D-01: SIMPLE_PROJECT has a sibling .atlas but NO images/ folder.
+    // Pre-G-01: sourcePaths resolved to non-existent images/ PNGs; readPngDims threw
+    //           for all regions; actualDimsByRegion was empty.
+    // Post-G-01: actualDimsByRegion populated from atlas.region.originalWidth/Height.
     const r = loadSkeleton(FIXTURE);
-    expect(r.actualDimsByRegion.size).toBe(0);
-    // Canonical still populates.
+    // Post-G-01: actualDimsByRegion is non-empty (from atlas, not from missing PNG reads).
+    expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
+    // Canonical still populates from JSON walk.
     expect(r.canonicalDimsByRegion.size).toBeGreaterThanOrEqual(3);
+    // Values match atlas-declared dimensions.
+    expect(r.actualDimsByRegion.get('CIRCLE')?.actualSourceW).toBe(699);
+    expect(r.actualDimsByRegion.get('SQUARE')?.actualSourceW).toBe(1000);
   });
 
   it('DIMS-01 missing-PNG resilience: loadSkeleton does not throw when one PNG is missing; partial actualDimsByRegion', () => {

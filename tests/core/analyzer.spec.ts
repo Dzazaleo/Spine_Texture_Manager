@@ -249,15 +249,22 @@ describe('analyze (D-33, D-34, D-35)', () => {
 });
 
 describe('analyzer: sourcePath threading (Phase 6 Plan 02, F8.3, D-108)', () => {
-  it('analyze(peaks, sourcePaths) populates DisplayRow.sourcePath via sourcePaths.get(attachmentName)', () => {
+  it('analyze(peaks, sourcePaths) populates DisplayRow.sourcePath from sourcePaths map', () => {
+    // Phase 22.1 G-01 D-01: in atlas-source mode (SIMPLE_PROJECT with .atlas),
+    // sourcePaths is intentionally EMPTY — export uses atlas-extract fallback.
+    // DisplayRow.sourcePath resolves to '' for all atlas-source rows.
+    // The export pipeline routes atlas-source rows through image-worker.ts:148-162
+    // using atlasSources (pagePath/x/y/w/h) instead of per-region PNG paths.
     const load = loadSkeleton(FIXTURE);
     const sampled = sampleSkeleton(load);
     const rows = analyze(sampled.globalPeaks, load.sourcePaths);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
+      // sourcePaths is empty in atlas-source mode (G-01 D-01); sourcePath = ''.
       expect(row.sourcePath).toBe(load.sourcePaths.get(row.attachmentName) ?? '');
-      expect(row.sourcePath.length).toBeGreaterThan(0);
     }
+    // In atlas-source mode sourcePaths is empty → all rows have sourcePath === ''.
+    expect(load.sourcePaths.size).toBe(0);
   });
 
   it('analyze(peaks) WITHOUT sourcePaths defaults DisplayRow.sourcePath to empty string (CLI path, D-102 lock)', () => {
@@ -269,6 +276,8 @@ describe('analyzer: sourcePath threading (Phase 6 Plan 02, F8.3, D-108)', () => 
   });
 
   it('analyzeBreakdown(...sourcePaths) populates BreakdownRow.sourcePath on every card', () => {
+    // Phase 22.1 G-01 D-01: atlas-source mode SIMPLE_PROJECT has empty sourcePaths.
+    // BreakdownRow.sourcePath resolves to '' for all rows (same contract as DisplayRow).
     const load = loadSkeleton(FIXTURE);
     const sampled = sampleSkeleton(load);
     const skeleton = new Skeleton(load.skeletonData);
@@ -283,11 +292,12 @@ describe('analyzer: sourcePath threading (Phase 6 Plan 02, F8.3, D-108)', () => 
     for (const card of cards) {
       for (const row of card.rows) {
         expect(row.sourcePath).toBe(load.sourcePaths.get(row.attachmentName) ?? '');
-        expect(row.sourcePath.length).toBeGreaterThan(0);
         rowsSeen++;
       }
     }
     expect(rowsSeen).toBeGreaterThan(0);
+    // sourcePaths is empty in atlas-source mode; all rows have sourcePath === ''.
+    expect(load.sourcePaths.size).toBe(0);
   });
 });
 

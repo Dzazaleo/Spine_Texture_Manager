@@ -41,6 +41,8 @@ import type { LoadResult, LoaderOptions, SourceDims } from './types.js';
 import {
   AtlasNotFoundError,
   AtlasParseError,
+  MissingImagesDirError,
+  RotatedRegionUnsupportedError,
   SkeletonJsonNotFoundError,
   SpineVersionUnsupportedError,
 } from './errors.js';
@@ -371,6 +373,20 @@ export function loadSkeleton(
         imagesDirExists = false;
       }
       if (!imagesDirExists) {
+        if (opts.loaderMode === 'atlas-less') {
+          // G-08 D-09 (Phase 22.1) — user explicitly requested atlas-less but no
+          // images/ folder exists. Surface the precise typed error rather than
+          // the misleading shared AtlasNotFoundError. MissingImagesDirError is
+          // already wired through src/main/ipc.ts KNOWN_KINDS and
+          // src/shared/types.ts KnownErrorKind union — no new IPC plumbing.
+          // Note: this branch is structurally unreachable via the 4-way loader
+          // branch order (D-08 at line 303 intercepts loaderMode:'atlas-less'
+          // before this D-05 fall-through is reached), but is present as
+          // defense-in-depth: if the branch order ever changes, the correct
+          // error fires without silent regression.
+          throw new MissingImagesDirError(probeImagesDir, skeletonPath);
+        }
+        // Auto fall-through: no .atlas AND no images/ — legacy malformed case.
         throw new AtlasNotFoundError(siblingAtlasPath, skeletonPath);
       }
       const synth = synthesizeAtlasText(
@@ -388,6 +404,23 @@ export function loadSkeleton(
       synthMissingPngs = synth.missingPngs; //                              Plan 21-09 G-01
       resolvedAtlasPath = null;
       isAtlasLess = true;
+    }
+  }
+
+  // G-01b D-03 (Phase 22.1) — atlas-source mode, load-time rejection of
+  // rotated regions. User-locked invariant: rotated atlas regions are
+  // non-negotiable for this app's contract. The existing Optimize-time
+  // check at image-worker.ts:327-338 becomes defense-in-depth (load never
+  // produces a skeleton with rotated regions, so Optimize never sees them).
+  // Skipped in atlas-less mode (synthesizeAtlasText emits rotated:false always).
+  if (!isAtlasLess) {
+    for (const region of atlas!.regions) {
+      if (region.degrees !== 0) {
+        throw new RotatedRegionUnsupportedError(
+          region.name,
+          resolvedAtlasPath ?? skeletonPath,
+        );
+      }
     }
   }
 
@@ -454,9 +487,15 @@ export function loadSkeleton(
   }
 
   // 7. Build sourcePaths map (D-108 + RESEARCH §Pattern 2).
-  //    Canonical mode: <imagesDir>/<region.name>.png (existing pattern).
   //    Atlas-less mode: directly from synthSourcePaths (already absolute,
   //    one entry per synthesized region per D-16).
+  //    Atlas-source mode (G-01 D-01, Phase 22.1): sourcePaths is intentionally
+  //    EMPTY — per-region PNG paths are NOT populated from images/. Export pulls
+  //    from atlas page extracts via the existing image-worker.ts:148-162 fallback
+  //    path (atlasSources carries the page pagePath/x/y/w/h for that path).
+  //    This fixes the original UAT bug: full-scale atlas + manually-shrunk images/
+  //    was producing spurious dimsMismatch badges because the PNG-header read
+  //    loop was comparing stale images/ against canonical dims.
   //
   // Path-only — no fs.access (Phase 6 image-worker pre-flights). Region names
   // may contain '/' (e.g. 'AVATAR/FACE'); the resulting path keeps the
@@ -470,45 +509,59 @@ export function loadSkeleton(
     for (const [name, p] of synthSourcePaths) {
       sourcePaths.set(name, p);
     }
-  } else {
-    for (const region of atlas!.regions) {
-      sourcePaths.set(region.name, path.resolve(path.join(imagesDir, region.name + '.png')));
-    }
   }
+  // Atlas-source mode: sourcePaths is left EMPTY (see docblock above).
 
-  // Phase 22 DIMS-01 — read PNG IHDR dims for every region with a
-  // sourcePath that resolves on disk. Reuses Phase 21's readPngDims
-  // (Layer 3-clean byte parser; no decode). Per-region try/catch keeps a
-  // missing/unreadable PNG from breaking the load — actualDimsByRegion
-  // entry stays absent, downstream dimsMismatch evaluates false (atlas-
-  // extract path semantics per CONTEXT D-01).
+  // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 — actual source dimensions per region.
   //
-  // This loop runs in BOTH canonical-atlas mode AND atlas-less mode (per
-  // D-01 — JSON canonical drift detection covers both paths). In
-  // atlas-extract mode (Jokerman-style atlas-only project), every PNG read
-  // throws and actualDimsByRegion stays empty — that's the locked behavior.
+  // Atlas-less mode (isAtlasLess): read PNG IHDR dims from sourcePaths entries.
+  //   Reuses Phase 21's readPngDims (Layer 3-clean byte parser; no decode).
+  //   Per-region try/catch keeps a missing/unreadable PNG from breaking the
+  //   load — actualDimsByRegion entry stays absent (dimsMismatch evaluates false).
+  //   Layer-3 invariant honored: readPngDims is IHDR-only byte parsing — no
+  //   zlib/IDAT decoding. CLAUDE.md fact #4 ("the math phase does not decode
+  //   PNGs") preserved. PNG reads happen during loadSkeleton() only — never in
+  //   the sampler hot loop (CLAUDE.md fact #3 boundary).
   //
-  // Layer-3 invariant honored: readPngDims is byte-parsing IHDR only —
-  // no zlib/IDAT decoding. CLAUDE.md fact #4 ("the math phase does not
-  // decode PNGs") preserved. PNG reads happen during loadSkeleton() only
-  // — never in the sampler hot loop (CLAUDE.md fact #3 boundary).
+  // Atlas-source mode (!isAtlasLess, G-01 D-01, Phase 22.1): derive actualSource
+  //   from atlas.region.originalWidth/Height. spine-core 4.2 auto-backfills
+  //   originalWidth/Height from packed width/height when the atlas has no `orig:`
+  //   line (TextureAtlas.js:152-155). This works for both TexturePacker scale<1
+  //   (drift — orig < canonical) and the no-orig base case (no drift). No PNG
+  //   header reads needed in this mode — CLAUDE.md fact #4 strictly preserved.
+  //   sourcePaths is empty in atlas-source mode (Site B above), so the old PNG-
+  //   read loop would produce zero entries anyway; the explicit mode-gate makes
+  //   the intent clear and allows for future refactors that add sourcePaths
+  //   back without accidentally re-enabling the PNG-read loop.
   const actualDimsByRegion = new Map<
     string,
     { actualSourceW: number; actualSourceH: number }
   >();
-  for (const [regionName, pngPath] of sourcePaths) {
-    try {
-      const dims = readPngDims(pngPath);
-      actualDimsByRegion.set(regionName, {
-        actualSourceW: dims.width,
-        actualSourceH: dims.height,
+  if (isAtlasLess) {
+    // Atlas-less: read PNG IHDR bytes (Phase 22 behavior preserved verbatim).
+    for (const [regionName, pngPath] of sourcePaths) {
+      try {
+        const dims = readPngDims(pngPath);
+        actualDimsByRegion.set(regionName, {
+          actualSourceW: dims.width,
+          actualSourceH: dims.height,
+        });
+      } catch {
+        // Per-region PNG missing or unreadable — entry stays absent.
+      }
+    }
+  } else {
+    // G-01 D-01 (Phase 22.1) — atlas-source mode derives actualSource from
+    // atlas.region.originalWidth/Height. spine-core 4.2 auto-backfills these
+    // from packed width/height when no `orig:` line is present
+    // (node_modules/@esotericsoftware/spine-core/dist/TextureAtlas.js:152-155),
+    // so this works for both TexturePacker scale<1 (drift) and the no-orig
+    // base case (no drift). No PNG header reads needed in this mode.
+    for (const region of atlas!.regions) {
+      actualDimsByRegion.set(region.name, {
+        actualSourceW: region.originalWidth,
+        actualSourceH: region.originalHeight,
       });
-    } catch {
-      // Per-region PNG missing or unreadable. Atlas-extract path
-      // (Jokerman-style atlas-only project) hits this branch for every
-      // region — actualDimsByRegion stays empty. Don't throw — the
-      // existing loader contract is "best-effort dims population" per
-      // Phase 21 D-12 + CONTEXT D-01.
     }
   }
 
