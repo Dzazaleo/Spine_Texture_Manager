@@ -479,30 +479,51 @@ function PreFlightBody({ plan }: { plan: ExportPlan }) {
             written to outDir — image-worker uses fs.promises.copyFile per
             Plan 22-04.
 
-            CHECKER FIX 2026-05-02 — render the dim label with
-            `row.actualSourceW ?? row.sourceW`. Without the `??` fallback the
-            dialog would label muted "already optimized" rows with canonical
-            dims (e.g. 1628×1908) instead of the actual on-disk dims (e.g.
-            811×962). The math-output bytes are already correct (Plan 22-03
-            Step 5 caps cappedEffScale to sourceRatio, producing
-            outW===actualSourceW); only the dialog label needed the fix.
-            The `??` fallback handles the (defensive) case where actualSourceW
-            is undefined despite being a passthrough row — falls back to
-            canonical sourceW which matches the legacy pre-Phase-22 rendering. */}
-        {plan.passthroughCopies.map((row) => (
-          <li
-            key={row.outPath}
-            className="py-1 border-b border-border last:border-0 opacity-60"
-          >
-            <span className="text-fg-muted">{row.outPath}</span>
-            <span className="ml-2 text-fg-muted">
-              {row.actualSourceW ?? row.sourceW}×{row.actualSourceH ?? row.sourceH} (already optimized)
-            </span>
-            <span className="ml-2 inline-block border border-border rounded-sm px-1 text-[10px] uppercase">
-              COPY
-            </span>
-          </li>
-        ))}
+            Phase 22.1 G-05 — parenthetical text removed from passthrough
+            row label. COPY chip alone communicates the byte-copy semantic.
+
+            Phase 22.1 G-06 D-08 — source→target shape parity with resize
+            rows. For passthrough, outW === sourceW so the "→ X×Y" repeats
+            the source dims; this is intentional (preflight shows the user
+            the row WILL become outW×outH at their current override setting;
+            if they set a 50% override, the row leaves passthrough via
+            plan 22.1-03's G-07 partition and reappears in plan.rows above
+            with the resize dim shape).
+
+            CHECKER FIX 2026-05-02 — `row.actualSourceW ?? row.sourceW`
+            fallback preserved — still correct under the 22.1-01 unified
+            model since both resolve to the same value in atlas-source mode
+            (atlas orig === sourceW). */}
+        {plan.passthroughCopies.map((row) => {
+          // G-06 D-08 (Phase 22.1) — source→target shape parity with resize rows.
+          // For passthrough, outW === sourceW so the "→ X×Y" repeats the source dims;
+          // this is intentional (preflight shows the user the row WILL become outW×outH
+          // at their current override setting; if they set a 50% override, the row
+          // leaves passthrough via plan 22.1-03's G-07 partition and reappears in
+          // plan.rows above with the resize dim shape).
+          // CHECKER FIX 2026-05-02 fallback `row.actualSourceW ?? row.sourceW`
+          // preserved — still correct under the 22.1-01 unified model.
+          const sourceDimW = row.actualSourceW ?? row.sourceW;
+          const sourceDimH = row.actualSourceH ?? row.sourceH;
+          return (
+            <li key={row.outPath} className="py-1 border-b border-border last:border-0 opacity-60">
+              <span className="text-fg-muted">{row.outPath}</span>
+              <span className="ml-2 text-fg-muted">
+                {sourceDimW}×{sourceDimH} → {row.outW}×{row.outH}
+              </span>
+              <span className="ml-2 inline-block border border-border rounded-sm px-1 text-[10px] uppercase">
+                COPY
+              </span>
+              {/* G-07 D-07 (Phase 22.1) — cap-binding signal. Rendered as a small
+                  muted "(capped)" suffix when ExportRow.isCapped (set by plan 22.1-03's
+                  buildExportPlan emit loop when downscaleClampedScale > sourceRatio).
+                  Per CONTEXT D-07: "If it's too noisy we can remove it later." */}
+              {row.isCapped && (
+                <span className="ml-2 text-fg-muted text-[10px]">(capped)</span>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {plan.excludedUnused.length > 0 && (
         <p className="mt-3 text-xs text-fg-muted">
@@ -560,9 +581,10 @@ function InProgressBody(props: {
             const sourceLabel = isPassthrough
               ? `${row.actualSourceW ?? row.sourceW}×${row.actualSourceH ?? row.sourceH}`
               : `${row.sourceW}×${row.sourceH}`;
-            const dimText = isPassthrough
-              ? `${sourceLabel} (already optimized)`
-              : `${sourceLabel} → ${row.outW}×${row.outH}`;
+            // G-05 + G-06 D-08 Phase 22.1 — dimText uses source→target shape for
+            // ALL rows (passthrough and resize) for pre-flight label parity.
+            // COPY chip communicates byte-copy semantic for passthrough rows.
+            const dimText = `${sourceLabel} → ${row.outW}×${row.outH}`;
             return (
               <li
                 key={row.outPath}
