@@ -82,6 +82,7 @@ import type {
   BreakdownRow,
 } from '../../../shared/types.js';
 import { computeExportDims } from '../lib/export-view.js';
+import { DimsBadge } from '../components/DimsBadge.js';
 
 /**
  * Phase 9 Plan 04 (D-195/D-196) — threshold above which a card's INNER row
@@ -117,6 +118,13 @@ export interface AnimationBreakdownPanelProps {
    */
   query: string;
   onQueryChange: (q: string) => void;
+  /**
+   * Phase 22.1 G-01 D-02 — loader mode for the dims-mismatch badge tooltip
+   * wording. 'auto' resolves to atlas-source variant; 'atlas-less' to
+   * PNG-source variant. Sibling-symmetric with GlobalMaxRenderPanelProps
+   * (Phase 19 D-06). Threaded from AppShell.tsx.
+   */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 /**
@@ -292,6 +300,7 @@ export function AnimationBreakdownPanel({
   onOpenOverrideDialog,
   query,
   onQueryChange,
+  loaderMode,
 }: AnimationBreakdownPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
@@ -404,6 +413,7 @@ export function AnimationBreakdownPanel({
               isFlashing={isFlashing === card.cardId}
               registerRef={(el) => registerCardRef(card.cardId, el)}
               onOpenOverrideDialog={openDialog}
+              loaderMode={loaderMode}
             />
           );
         })}
@@ -425,6 +435,8 @@ interface AnimationCardProps {
   registerRef: (el: HTMLElement | null) => void;
   /** Phase 4 D-77 dialog trigger. */
   onOpenOverrideDialog: (row: BreakdownRow) => void;
+  /** Phase 22.1 G-01 D-02 — loader mode for DimsBadge tooltip wording. */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 function AnimationCard({
@@ -437,6 +449,7 @@ function AnimationCard({
   isFlashing,
   registerRef,
   onOpenOverrideDialog,
+  loaderMode,
 }: AnimationCardProps) {
   const headerId = `bd-header-${card.cardId}`;
   const bodyId = `bd-body-${card.cardId}`;
@@ -503,6 +516,7 @@ function AnimationCard({
               rows={card.rows}
               query={query}
               onOpenOverrideDialog={onOpenOverrideDialog}
+              loaderMode={loaderMode}
             />
           )}
         </div>
@@ -518,6 +532,8 @@ interface BreakdownTableProps {
   query: string;
   /** Phase 4 D-77 dialog trigger (per-row only per D-90 — no batch here). */
   onOpenOverrideDialog: (row: BreakdownRow) => void;
+  /** Phase 22.1 G-01 D-02 — loader mode for DimsBadge tooltip wording. */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 /**
@@ -613,6 +629,8 @@ interface BreakdownRowItemProps {
   style?: CSSProperties;
   measureRef?: (el: HTMLTableRowElement | null) => void;
   dataIndex?: number;
+  /** Phase 22.1 G-01 D-02 — loader mode for DimsBadge tooltip wording. */
+  loaderMode: 'auto' | 'atlas-less';
 }
 
 function BreakdownRowItem({
@@ -623,6 +641,7 @@ function BreakdownRowItem({
   style,
   measureRef,
   dataIndex,
+  loaderMode,
 }: BreakdownRowItemProps) {
   return (
     <tr
@@ -658,31 +677,12 @@ function BreakdownRowItem({
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">
         {row.originalSizeLabel}
-        {/* Phase 22 DIMS-02 — dims-mismatch badge. Sibling-symmetric copy of
-            the GlobalMaxRenderPanel badge per Phase 19 D-06 visual unification
-            contract. Tooltip wording locked verbatim from ROADMAP DIMS-02.
-            Info-circle iconography (warning-triangle is reserved for unused-
-            attachments). */}
-        {row.dimsMismatch &&
-          row.actualSourceW !== undefined &&
-          row.actualSourceH !== undefined && (
-            <span
-              aria-label={`Source PNG dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}`}
-              title={`Source PNG (${row.actualSourceW}×${row.actualSourceH}) is smaller than canonical region dims (${row.canonicalW}×${row.canonicalH}). Optimize will cap at source size.`}
-              className="inline-flex items-center justify-center w-4 h-4 ml-1 align-middle text-warning"
-            >
-              <svg
-                viewBox="0 0 16 16"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                fill="none"
-                className="w-4 h-4"
-              >
-                <circle cx="8" cy="8" r="6" />
-                <path d="M8 5 v4 M8 11.5 v0.01" />
-              </svg>
-            </span>
-          )}
+        {/* Phase 22.1 G-02 + G-03 + G-01 D-02 — DimsBadge replaces the
+            native HTML `title` attribute. Sibling-symmetric with
+            GlobalMaxRenderPanel (Phase 19 D-06): the SAME DimsBadge
+            component enforces parity at the shared-component level rather
+            than by copy-paste convention. */}
+        <DimsBadge row={row} effectiveScale={row.effectiveScale} loaderMode={loaderMode} />
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
           State color trumps the prior override-aware text-accent here per
@@ -743,7 +743,7 @@ function BreakdownRowItem({
   );
 }
 
-function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTableProps) {
+function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: BreakdownTableProps) {
   // Phase 9 Plan 04 (D-195/D-196) — threshold-gated per-card inner-row
   // virtualization. Below the threshold the existing flat-table JSX
   // renders unchanged; above it, useVirtualizer + measureElement
@@ -797,6 +797,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
                 query={query}
                 onOpenOverrideDialog={onOpenOverrideDialog}
                 state={state}
+                loaderMode={loaderMode}
               />
             );
           })}
@@ -854,6 +855,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog }: BreakdownTablePro
                   // badges add height — RESEARCH §Q10).
                   measureRef={virtualizer.measureElement}
                   dataIndex={virtualRow.index}
+                  loaderMode={loaderMode}
                 />
               );
             })}

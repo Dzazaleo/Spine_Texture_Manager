@@ -1521,6 +1521,7 @@ export function AppShell({
             onFocusConsumed={onFocusAttachmentConsumed}
             query={query}
             onQueryChange={setQuery}
+            loaderMode={loaderMode}
           />
         )}
         {activeTab === 'animation' && (
@@ -1532,6 +1533,7 @@ export function AppShell({
             onOpenOverrideDialog={onOpenOverrideDialog}
             query={query}
             onQueryChange={setQuery}
+            loaderMode={loaderMode}
           />
         )}
       </main>
