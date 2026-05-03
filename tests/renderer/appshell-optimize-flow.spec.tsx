@@ -89,12 +89,15 @@ const REQUIRED_PROPS = {
 // ---------------------------------------------------------------------------
 
 describe('OptimizeDialog — Phase 23 deferred-picker header title', () => {
-  it('D-01: pre-flight header shows "N images" (no arrow, no path) when outDir is null', () => {
+  it('D-01: pre-flight header shows "N images" (no path) when outDir is null', () => {
     render(<OptimizeDialog {...REQUIRED_PROPS} outDir={null} plan={makePlan()} />);
-    // Must contain "Optimize Assets — N images" without a trailing "→ path"
-    expect(screen.getByText(/Optimize Assets — \d+ images$/)).not.toBeNull();
-    // Must NOT show an arrow or path when no folder is saved.
-    expect(screen.queryByText(/→/)).toBeNull();
+    // The header title must end with "N images" — no "→ /path" suffix.
+    const headerEl = screen.getByText(/Optimize Assets — \d+ images$/);
+    expect(headerEl).not.toBeNull();
+    // Header element itself must NOT contain "→" (the arrow is in the row
+    // body dims display "699 × 699 → 350 × 350", NOT in the header when
+    // outDir is null).
+    expect(headerEl.textContent).not.toMatch(/→.*\//);
   });
 
   it('D-02: pre-flight header shows "N images → /path" when outDir is set', () => {
@@ -147,15 +150,24 @@ describe('AppShell.tsx — Phase 23 source-grep gates', () => {
   }
 
   it('onClickOptimize does NOT call pickOutputDirectory (picker deferred to Start)', async () => {
-    const codeOnly = await readCodeOnly();
-    // Extract the onClickOptimize useCallback body up to the dependency array.
-    const match = codeOnly.match(/const onClickOptimize[\s\S]*?\}\s*,\s*\[/);
+    // Read raw source — comment stripping is unreliable when "/*" appears
+    // inside "//" comments (e.g. "src/core/* per arch.spec.ts gate"). Use
+    // the raw source for these checks; the patterns we search for are not
+    // inside comments in the Phase 23 implementation.
+    const src = await readFile(APPSHELL_PATH, 'utf8');
+    // Extract the onClickOptimize useCallback body up to its dependency array.
+    const match = src.match(/const onClickOptimize[\s\S]*?\}\s*,\s*\[summary,/);
     if (match) {
+      // The body must NOT call pickOutputDirectory
       expect(match[0]).not.toMatch(/pickOutputDirectory/);
+    } else {
+      // If the body isn't found with the expected deps, assert the new
+      // pattern is present (fails RED if not implemented).
+      expect(src).toMatch(/const onClickOptimize/);
+      expect(src).not.toMatch(/onClickOptimize[\s\S]{0,300}pickOutputDirectory/);
     }
-    // Belt-and-suspenders: the new body must contain setExportDialogState
-    // with lastOutDir
-    expect(codeOnly).toMatch(/setExportDialogState\(\s*\{\s*plan,\s*outDir:\s*lastOutDir\s*\}\s*\)/);
+    // Belt-and-suspenders: new body contains setExportDialogState({ plan, outDir: lastOutDir })
+    expect(src).toMatch(/setExportDialogState\(\s*\{\s*plan,\s*outDir:\s*lastOutDir\s*\}\s*\)/);
   });
 
   it('lastOutDir state slot exists in AppShell (useState<string | null>)', async () => {
