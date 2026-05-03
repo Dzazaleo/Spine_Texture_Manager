@@ -279,10 +279,14 @@ export function isReleasesUrl(url: string): boolean {
  */
 function validateExportPlan(plan: unknown): string | null {
   if (!plan || typeof plan !== 'object') return 'plan is not an object';
-  const p = plan as { rows?: unknown; excludedUnused?: unknown; totals?: unknown };
+  const p = plan as { rows?: unknown; excludedUnused?: unknown; totals?: unknown; passthroughCopies?: unknown };
   if (!Array.isArray(p.rows)) return 'plan.rows is not an array';
   if (!Array.isArray(p.excludedUnused)) return 'plan.excludedUnused is not an array';
   if (!p.totals || typeof p.totals !== 'object') return 'plan.totals is not an object';
+  // Phase 22.1 WR-005 — validate passthroughCopies added in Phase 22.1.
+  // A missing or non-array field would cause a runtime TypeError in runExport
+  // when the image-worker iterates it (T-01-02-01 trust-boundary contract).
+  if (!Array.isArray(p.passthroughCopies)) return 'plan.passthroughCopies is not an array';
   for (let i = 0; i < p.rows.length; i++) {
     const r = p.rows[i] as Record<string, unknown>;
     if (
