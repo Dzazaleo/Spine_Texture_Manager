@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
 status: executing
-last_updated: "2026-05-03T13:21:47.317Z"
-last_activity: 2026-05-03 -- Phase 22.1 planning complete
+last_updated: "2026-05-03T13:29:00.810Z"
+last_activity: 2026-05-03 -- Phase 22.1 execution started
 progress:
   total_phases: 16
   completed_phases: 8
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 22.1 — INSERTED 2026-05-03 (not planned yet)
-Plan: 0/0 — needs `/gsd-discuss-phase 22.1` then `/gsd-plan-phase 22.1`
-Status: Ready to execute
-Last activity: 2026-05-03 -- Phase 22.1 planning complete
+Phase: 22.1 (close-7-gaps-from-phase-22-human-uat-dims-02-badge-mode-awar) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 22.1
+Last activity: 2026-05-03 -- Phase 22.1 execution started
 Next recommended run: `/gsd-discuss-phase 22.1` (lock G-01 gate-by-mode-vs-mode-aware-tooltip decision; choose passthrough re-routing semantics for G-07; resolve override semantics interaction with passthrough partition before planning)
 
 ## Last Roadmap Update

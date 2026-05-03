@@ -501,11 +501,11 @@ Plans:
   6. (G-06) OptimizeDialog passthrough rows render source→target dim shape (`670×670 → 670×670` when no override; `670×670 → 335×335` when 50% override applied). Resize-row shape preserved. Pre-flight preview is consistent across both row types so the user can review override outcomes before clicking Start.
   7. (G-05) "(already optimized)" parenthetical removed from OptimizeDialog passthrough row label. COPY chip alone communicates the byte-copy semantic. No regression to chip placement / muted styling parity with `excludedUnused` (Phase 6 D-109).
 
-**Plans:** 4 plans (Wave 1: 22.1-01 + 22.1-03 — independent loader / export-core changes; Wave 2: 22.1-04 + 22.1-05 — renderer changes consuming the Wave 1 outputs). Plan 22.1-02 was folded into 22.1-01 during revision 1 (2026-05-03) — checker BLOCKER 1: both plans modified src/core/loader.ts and could not actually run in parallel.
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 22.1-01-loader-unified-actualsource-and-rotation-rejection-PLAN.md — G-01 unified actualSource model (atlas-source mode reads region.originalWidth/Height; skips images/ PNG header reads + sourcePaths) + G-01b load-time rotation rejection (typed RotatedRegionUnsupportedError) + G-08 D-09 wire existing MissingImagesDirError into loader.ts atlas-less + no-images branch (folded in from former 22.1-02 per revision 1 — same file, same import line)
-- [ ] 22.1-03-export-partition-restructure-PLAN.md — G-04 + G-07 BLOCKER generalized partition predicate (outW===sourceW && outH===sourceH evaluated POST-override + POST-cap); deletes vestigial peakAlreadyAtOrBelowSource branch; adds ExportRow.isCapped; mirrors changes byte-identically into renderer export-view.ts
+- [x] 22.1-01-loader-unified-actualsource-and-rotation-rejection-PLAN.md — G-01 unified actualSource model (atlas-source mode reads region.originalWidth/Height; skips images/ PNG header reads + sourcePaths) + G-01b load-time rotation rejection (typed RotatedRegionUnsupportedError) + G-08 D-09 wire existing MissingImagesDirError into loader.ts atlas-less + no-images branch (folded in from former 22.1-02 per revision 1 — same file, same import line)
+- [x] 22.1-03-export-partition-restructure-PLAN.md — G-04 + G-07 BLOCKER generalized partition predicate (outW===sourceW && outH===sourceH evaluated POST-override + POST-cap); deletes vestigial peakAlreadyAtOrBelowSource branch; adds ExportRow.isCapped; mirrors changes byte-identically into renderer export-view.ts
 - [ ] 22.1-04-dims-badge-tooltip-primitive-PLAN.md — G-02 custom React tooltip primitive replacing native title (analog: AppShell rig-info tooltip) + G-03 cap-binding-aware mode-aware wording via shared dims-tooltip-view helper; sibling-symmetric across both panels; human-UAT at 100/125/150% zoom + dark mode
 - [ ] 22.1-05-optimize-dialog-passthrough-rows-PLAN.md — G-05 drop "(already optimized)" + G-06 source→target dim shape on passthrough rows + G-07 D-07 cap-binding signal ("(capped)" muted suffix when ExportRow.isCapped)
 
@@ -529,7 +529,7 @@ Plans:
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
-| 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 0/4 | Planned (1 blocker + 5 major + 1 minor + 1 bundled-by-user G-08; 4 plans across 2 waves after revision 1 folded former 22.1-02 into 22.1-01; ready for /gsd-execute-phase 22.1) | — |
+| 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 2/4 | In Progress|  |
 
 ## Deferred (post-v1.1)
 
