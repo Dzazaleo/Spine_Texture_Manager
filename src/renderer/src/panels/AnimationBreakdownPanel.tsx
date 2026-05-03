@@ -81,7 +81,7 @@ import type {
   AnimationBreakdown,
   BreakdownRow,
 } from '../../../shared/types.js';
-import { computeExportDims } from '../lib/export-view.js';
+import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 
 /**
@@ -682,7 +682,16 @@ function BreakdownRowItem({
             GlobalMaxRenderPanel (Phase 19 D-06): the SAME DimsBadge
             component enforces parity at the shared-component level rather
             than by copy-paste convention. */}
-        <DimsBadge row={row} effectiveScale={row.effectiveScale} loaderMode={loaderMode} />
+        {/* Phase 22.1 G-03: pass the pre-sourceRatio-cap scale to DimsBadge
+            so deriveIsCapped can detect whether the cap binds. Sibling-symmetric
+            with GlobalMaxRenderPanel (Phase 19 D-06). */}
+        <DimsBadge
+          row={row}
+          effectiveScale={Math.min(safeScale(
+            row.override !== undefined ? row.override / 100 : row.peakScale
+          ), 1.0)}
+          loaderMode={loaderMode}
+        />
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
           State color trumps the prior override-aware text-accent here per

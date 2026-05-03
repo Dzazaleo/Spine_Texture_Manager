@@ -62,7 +62,7 @@ import {
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
-import { computeExportDims } from '../lib/export-view.js';
+import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { formatBytes } from '../lib/format-bytes';
 import { DimsBadge } from '../components/DimsBadge.js';
 
@@ -452,7 +452,18 @@ function Row({
             Mode-aware wording (G-01 D-02) + cap-binding-aware second sentence
             (G-03). Sibling symmetry (Phase 19 D-06) enforced by sharing the
             DimsBadge component with AnimationBreakdownPanel. */}
-        <DimsBadge row={row} effectiveScale={row.effectiveScale} loaderMode={loaderMode} />
+        {/* Phase 22.1 G-03: pass the pre-sourceRatio-cap scale to DimsBadge
+            so deriveIsCapped can detect whether the cap binds. The panel's
+            row.effectiveScale is the POST-cap value (min(downscaleClamped,
+            sourceRatio)); for cap-binding detection we need the uncapped
+            downscale-clamped scale. */}
+        <DimsBadge
+          row={row}
+          effectiveScale={Math.min(safeScale(
+            row.override !== undefined ? row.override / 100 : row.peakScale
+          ), 1.0)}
+          loaderMode={loaderMode}
+        />
       </td>
       {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims that
           buildExportPlan + the optimize dialog use, NOT the world-AABB.
