@@ -55,7 +55,7 @@
 - [x] **Phase 19: UI improvements (UI-01..05)** — Persistent sticky header bar (drop-zone state + primary action buttons + search box never scroll offscreen); card-based section layout with color-coded category icons + semantic state colors (green = under 1.0× scale, yellow = over, red = unused/danger); modal redesign with summary tiles + secondary cross-nav in footer; quantified unused-assets callout (`X.XX MB potential savings`); inline search + clear primary/secondary action-button hierarchy. Sourced from tester feedback + visual diff against an unrelated older Spine 3.8 reference app the user built previously (visual reference only — codebase out of scope). (completed 2026-05-01)
 - [x] **Phase 20: Documentation Builder feature** ✅ COMPLETE 2026-05-01 — Per-skeleton documentation surface filling the `.stmproj` v1 reserved `documentation: object` slot (D-148, reserved during v1.0 Phase 8 schema lock; untested until v2 ladder lands). Animation tracks pane (drag-from-list, mix time + loop flag + notes), sections pane (events, general notes, control-bone descriptions, skin descriptions), HTML export (self-contained `.html` with optimization config snapshot + atlas page count + image-utilization count), persistence in `.stmproj`. All 4 plans shipped + DOC-01..DOC-05 closed.
 - [x] **Phase 21: SEED-001 atlas-less mode (json + images folder, no .atlas)** — Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). Loader detects "no `.atlas` file beside `.json`" and routes through a synthesized atlas instead of failing with `AtlasNotFoundError`. New `src/core/png-header.ts` reads width/height from PNG IHDR chunk via byte parsing only (no `sharp`/libvips/pixel decoding — preserves CLAUDE.md fact #4); new `src/core/synthetic-atlas.ts` constructs an in-memory `TextureAtlas` from per-region PNG headers. Round-trip: load json+images project → sample → export end-to-end. (completed 2026-05-02)
-- [ ] **Phase 22: SEED-002 dims-badge + override-cap (depends on Phase 21)** — Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). Reuses Phase 21's PNG header reader infrastructure. Extends `DisplayRow` with `actualSourceW`/`actualSourceH`/`dimsMismatch` fields; surfaces badge in Global + Animation Breakdown panels when actual source PNG dims differ from canonical region dims; caps export `effectiveScale = min(peakScale, actualSourceW/canonicalW, actualSourceH/canonicalH)` so re-running Optimize on already-optimized images produces zero exports (no double Lanczos resampling). Round-trip safety after Optimize → Overwrite-all → re-load.
+- [x] **Phase 22: SEED-002 dims-badge + override-cap (depends on Phase 21)** — Long-dormant seed since v1.0 Phase 6 close-out (planted 2026-04-25). Reuses Phase 21's PNG header reader infrastructure. Extends `DisplayRow` with `actualSourceW`/`actualSourceH`/`dimsMismatch` fields; surfaces badge in Global + Animation Breakdown panels when actual source PNG dims differ from canonical region dims; caps export `effectiveScale = min(peakScale, actualSourceW/canonicalW, actualSourceH/canonicalH)` so re-running Optimize on already-optimized images produces zero exports (no double Lanczos resampling). Round-trip safety after Optimize → Overwrite-all → re-load. (completed 2026-05-02)
 
 ## Phase Details
 
@@ -458,7 +458,7 @@ User confirmed scope on 2026-04-25 during Phase 6 verification: "Same badge/warn
   4. Already-optimized rows (where `actualSource × cappedEffScale` rounds to `actualSource` — i.e. zero net change) are excluded from the export and surfaced in a new `excludedAlreadyOptimized[]` array parallel to Phase 6 D-109 `excludedUnused[]`; the OptimizeDialog pre-flight file list shows these rows with muted treatment + "already-optimized — skipped" indicator (UX parity with the Round 1 `excludedUnused` muted note). (DIMS-04)
   5. User runs Optimize on already-optimized images (Scenario B re-load) and zero exports occur — no double Lanczos resampling, no quality degradation. A vitest fixture where source PNGs are smaller than canonical region dims covers this round-trip and asserts the export-plan length is 0 for the already-optimized rows. (DIMS-05)
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [ ] 22-01-PLAN.md — Types cascade: extend DisplayRow + ExportPlan + LoadResult; analyzer + summary plumbing; CLI fallback preserves D-102 (DIMS-01) [Wave 1]
@@ -486,7 +486,7 @@ Plans:
 | 19. UI improvements (UI-01..05) | v1.2 | 7/7 | Complete    | 2026-05-01 |
 | 20. Documentation Builder feature | v1.2 | 4/4 | Complete    | 2026-05-01 |
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
-| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 4/5 | In Progress|  |
+| 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
 
 ## Deferred (post-v1.1)
 
