@@ -63,16 +63,19 @@ describe('Phase 22.1 G-01 D-01 — atlas-source mode actualDimsByRegion from atl
     expect(r.actualDimsByRegion.get('SQUARE')?.actualSourceW).toBe(1000);
   });
 
-  it('Test 3 (G-01 D-01 sourcePaths): atlas-source mode does NOT populate sourcePaths from images/ directory', () => {
+  it('Test 3 (G-01 D-01 sourcePaths): atlas-source mode populates sourcePaths from images/ for export output paths (no PNG header reads)', () => {
     const r = loadSkeleton(ATLAS_SOURCE_FIXTURE);
-    // In atlas-source mode, sourcePaths must be empty (export uses atlas-extract fallback).
-    // Per D-01, per-region PNG paths are NOT populated from images/ in atlas-source mode.
-    for (const [_regionName, p] of r.sourcePaths) {
+    // Phase 22.1 fix: sourcePaths IS populated in atlas-source mode so export.ts can
+    // build output paths. PNG IHDR reads do NOT happen — actualDimsByRegion is mode-gated
+    // to atlas-less only. The optimizer was broken when sourcePaths was empty.
+    expect(r.sourcePaths.size).toBeGreaterThanOrEqual(3);
+    for (const [regionName, p] of r.sourcePaths) {
       const normalizedPath = p.replace(/\\/g, '/');
       expect(
         normalizedPath.includes('/images/'),
-        `sourcePath '${p}' should not reference images/ in atlas-source mode`,
-      ).toBe(false);
+        `sourcePath '${p}' for region '${regionName}' should reference images/ dir`,
+      ).toBe(true);
+      expect(normalizedPath.endsWith('.png')).toBe(true);
     }
   });
 

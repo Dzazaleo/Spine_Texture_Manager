@@ -260,11 +260,11 @@ describe('analyzer: sourcePath threading (Phase 6 Plan 02, F8.3, D-108)', () => 
     const rows = analyze(sampled.globalPeaks, load.sourcePaths);
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      // sourcePaths is empty in atlas-source mode (G-01 D-01); sourcePath = ''.
+      // sourcePaths is populated in atlas-source mode (Phase 22.1 fix); sourcePath non-empty.
       expect(row.sourcePath).toBe(load.sourcePaths.get(row.attachmentName) ?? '');
     }
-    // In atlas-source mode sourcePaths is empty → all rows have sourcePath === ''.
-    expect(load.sourcePaths.size).toBe(0);
+    // sourcePaths is populated in atlas-source mode for export output paths.
+    expect(load.sourcePaths.size).toBeGreaterThanOrEqual(3);
   });
 
   it('analyze(peaks) WITHOUT sourcePaths defaults DisplayRow.sourcePath to empty string (CLI path, D-102 lock)', () => {
@@ -296,8 +296,8 @@ describe('analyzer: sourcePath threading (Phase 6 Plan 02, F8.3, D-108)', () => 
       }
     }
     expect(rowsSeen).toBeGreaterThan(0);
-    // sourcePaths is empty in atlas-source mode; all rows have sourcePath === ''.
-    expect(load.sourcePaths.size).toBe(0);
+    // sourcePaths is populated in atlas-source mode for export output paths (Phase 22.1 fix).
+    expect(load.sourcePaths.size).toBeGreaterThanOrEqual(3);
   });
 });
 

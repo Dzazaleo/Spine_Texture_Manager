@@ -489,13 +489,13 @@ export function loadSkeleton(
   // 7. Build sourcePaths map (D-108 + RESEARCH §Pattern 2).
   //    Atlas-less mode: directly from synthSourcePaths (already absolute,
   //    one entry per synthesized region per D-16).
-  //    Atlas-source mode (G-01 D-01, Phase 22.1): sourcePaths is intentionally
-  //    EMPTY — per-region PNG paths are NOT populated from images/. Export pulls
-  //    from atlas page extracts via the existing image-worker.ts:148-162 fallback
-  //    path (atlasSources carries the page pagePath/x/y/w/h for that path).
-  //    This fixes the original UAT bug: full-scale atlas + manually-shrunk images/
-  //    was producing spurious dimsMismatch badges because the PNG-header read
-  //    loop was comparing stale images/ against canonical dims.
+  //    Atlas-source mode (G-01 D-01, Phase 22.1): sourcePaths is populated from
+  //    imagesDir + regionName (same path shape as before) so export.ts can build
+  //    output paths and the image-worker can find per-region PNGs when they exist.
+  //    PNG IHDR reads do NOT happen in atlas-source mode — actualDimsByRegion
+  //    (below) derives dims from atlas.region.originalWidth/Height, and the
+  //    PNG-read loop is mode-gated to isAtlasLess only. This preserves the G-01
+  //    fix (no stale images/ dims) while restoring optimizer functionality.
   //
   // Path-only — no fs.access (Phase 6 image-worker pre-flights). Region names
   // may contain '/' (e.g. 'AVATAR/FACE'); the resulting path keeps the
@@ -509,8 +509,21 @@ export function loadSkeleton(
     for (const [name, p] of synthSourcePaths) {
       sourcePaths.set(name, p);
     }
+  } else if (!isAtlasLess) {
+    // Atlas-source mode: populate sourcePaths from imagesDir + regionName so the
+    // export system can compute output paths (relativeOutPath in export.ts) and the
+    // image-worker can find per-region PNGs when they exist on disk. PNG IHDR reads
+    // do NOT happen here — actualDimsByRegion (below) is mode-gated to atlas-less
+    // only, so re-adding sourcePaths carries no risk of re-enabling stale PNG reads.
+    // The image-worker already falls back to atlasSource extraction when the file is
+    // absent (image-worker.ts:148-162).
+    for (const region of atlas!.regions) {
+      sourcePaths.set(
+        region.name,
+        path.resolve(path.join(imagesDir, region.name + '.png')),
+      );
+    }
   }
-  // Atlas-source mode: sourcePaths is left EMPTY (see docblock above).
 
   // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 — actual source dimensions per region.
   //
@@ -529,10 +542,9 @@ export function loadSkeleton(
   //   line (TextureAtlas.js:152-155). This works for both TexturePacker scale<1
   //   (drift — orig < canonical) and the no-orig base case (no drift). No PNG
   //   header reads needed in this mode — CLAUDE.md fact #4 strictly preserved.
-  //   sourcePaths is empty in atlas-source mode (Site B above), so the old PNG-
-  //   read loop would produce zero entries anyway; the explicit mode-gate makes
-  //   the intent clear and allows for future refactors that add sourcePaths
-  //   back without accidentally re-enabling the PNG-read loop.
+  //   sourcePaths is populated in atlas-source mode (from imagesDir + regionName)
+  //   for the export system, but the PNG-read loop is mode-gated to isAtlasLess
+  //   only — no stale PNG reads occur in atlas-source mode.
   const actualDimsByRegion = new Map<
     string,
     { actualSourceW: number; actualSourceH: number }

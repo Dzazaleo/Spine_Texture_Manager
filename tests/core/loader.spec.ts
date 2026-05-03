@@ -156,23 +156,26 @@ describe('loader (F1.1, F1.2, F1.4)', () => {
 });
 
 describe('loader: sourcePaths map (Phase 6 Plan 02, F8.3, D-108)', () => {
-  it('SIMPLE_TEST atlas-source mode → sourcePaths is EMPTY (G-01 D-01, Phase 22.1: atlas-extract fallback handles source extraction)', () => {
-    // Phase 22.1 G-01 D-01: in atlas-source mode, per-region PNG paths are NOT
-    // populated from images/. The export pipeline uses atlasSources (atlas page
-    // extract via image-worker.ts:148-162 fallback) as the source. sourcePaths
-    // is intentionally left empty to avoid reading stale images/ content.
+  it('SIMPLE_TEST atlas-source mode → sourcePaths populated from imagesDir (Phase 22.1 fix: optimizer needs output paths)', () => {
+    // Phase 22.1 fix: sourcePaths IS populated in atlas-source mode so export.ts can
+    // compute output paths (via relativeOutPath). PNG IHDR reads do NOT occur —
+    // actualDimsByRegion is mode-gated to isAtlasLess only. This restores optimizer
+    // functionality (was broken when sourcePaths was empty: 0 ExportRows built).
     const r = loadSkeleton(FIXTURE);
-    expect(r.sourcePaths.size).toBe(0);
-    // atlasSources is still fully populated (used by image-worker atlas-extract path).
+    expect(r.sourcePaths.size).toBeGreaterThanOrEqual(3);
+    for (const [_name, p] of r.sourcePaths) {
+      expect(path.isAbsolute(p)).toBe(true);
+      expect(p.replace(/\\/g, '/').includes('/images/')).toBe(true);
+    }
+    // atlasSources is still fully populated (image-worker atlas-extract fallback).
     expect(r.atlasSources.size).toBeGreaterThanOrEqual(3);
   });
 
-  it('EXPORT_PROJECT atlas-source mode → sourcePaths is EMPTY (G-01 D-01, Phase 22.1)', () => {
-    // Phase 22.1 G-01 D-01: even though EXPORT_PROJECT has per-region PNGs in images/,
-    // atlas-source mode no longer reads them into sourcePaths. atlasSources carries
-    // the atlas page pagePath/x/y/w/h for the image-worker atlas-extract path.
+  it('EXPORT_PROJECT atlas-source mode → sourcePaths populated from imagesDir (Phase 22.1 fix)', () => {
+    // Same fix as SIMPLE_TEST: sourcePaths populated for export output paths.
+    // atlasSources still carries the atlas page pagePath/x/y/w/h.
     const r = loadSkeleton(path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json'));
-    expect(r.sourcePaths.size).toBe(0);
+    expect(r.sourcePaths.size).toBeGreaterThan(0);
     // atlasSources still fully populated.
     expect(r.atlasSources.size).toBeGreaterThan(0);
   });
@@ -439,8 +442,8 @@ describe('loader (DIMS-01 canonical-vs-actual dim mapping)', () => {
     const r = loadSkeleton(EXPORT_FIXTURE);
     // actualDimsByRegion populated from atlas regions (not PNG file reads).
     expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
-    // sourcePaths is now EMPTY in atlas-source mode (G-01 D-01).
-    expect(r.sourcePaths.size).toBe(0);
+    // sourcePaths is populated in atlas-source mode for export output paths (Phase 22.1 fix).
+    expect(r.sourcePaths.size).toBeGreaterThan(0);
     // actualDimsByRegion entries carry positive dims (from atlas, not from PNG reads).
     for (const [_regionName, dims] of r.actualDimsByRegion) {
       expect(dims.actualSourceW).toBeGreaterThan(0);

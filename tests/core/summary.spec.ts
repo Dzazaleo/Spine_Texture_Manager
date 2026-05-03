@@ -107,30 +107,30 @@ describe('buildSummary (D-21, D-22)', () => {
 });
 
 describe('summary: sourcePath threading on DisplayRow + BreakdownRow (Phase 6 Plan 02, F8.3)', () => {
-  it('every peaks[i].sourcePath is an empty string in atlas-source mode (G-01 D-01, Phase 22.1)', () => {
-    // Phase 22.1 G-01 D-01: atlas-source mode (SIMPLE_PROJECT with .atlas) no longer
-    // populates sourcePaths from images/ — sourcePath is '' for all rows. Export uses
-    // atlasSources (atlas-extract fallback via image-worker.ts:148-162) instead.
+  it('every peaks[i].sourcePath is populated from imagesDir in atlas-source mode (Phase 22.1 fix)', () => {
+    // Phase 22.1 fix: sourcePaths IS populated in atlas-source mode so export.ts can
+    // build output paths. PNG header reads do NOT occur (actualDimsByRegion is
+    // mode-gated to isAtlasLess). Each sourcePath points to imagesDir/<region>.png.
     const load = loadSkeleton(FIXTURE);
     const sampled = sampleSkeleton(load);
     const summary = buildSummary(load, sampled, 0);
     expect(summary.peaks.length).toBeGreaterThan(0);
-    // sourcePaths is empty in atlas-source mode; sourcePath resolves to ''.
-    expect(load.sourcePaths.size).toBe(0);
+    expect(load.sourcePaths.size).toBeGreaterThanOrEqual(3);
     for (const row of summary.peaks) {
-      expect(row.sourcePath).toBe('');
+      expect(row.sourcePath).not.toBe('');
+      expect(row.sourcePath.replace(/\\/g, '/').includes('/images/')).toBe(true);
     }
   });
 
-  it('every animationBreakdown[*].rows[*].sourcePath is empty in atlas-source mode (G-01 D-01, Phase 22.1)', () => {
-    // Same reasoning as above — atlas-source mode uses atlasSources, not sourcePaths.
+  it('every animationBreakdown[*].rows[*].sourcePath is populated in atlas-source mode (Phase 22.1 fix)', () => {
+    // Same fix: sourcePaths populated for export output paths; sourcePath non-empty.
     const load = loadSkeleton(FIXTURE);
     const sampled = sampleSkeleton(load);
     const summary = buildSummary(load, sampled, 0);
     let rowsSeen = 0;
     for (const card of summary.animationBreakdown) {
       for (const row of card.rows) {
-        expect(row.sourcePath).toBe('');
+        expect(row.sourcePath).not.toBe('');
         rowsSeen++;
       }
     }
