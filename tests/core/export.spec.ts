@@ -40,7 +40,7 @@ const FIXTURE_EXPORT = path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json');
 const EXPORT_SRC = path.resolve('src/core/export.ts');
 
 describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
-  it('SIMPLE_TEST → 3 ExportRows with effective scale = peakScale, dims = Math.ceil(sourceW × effScale) (Round 5 ceil)', () => {
+  it('SIMPLE_TEST → 3 ExportRows (rows + passthroughCopies combined) with dims = Math.ceil(sourceW × effScale) (Round 5 ceil)', () => {
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
@@ -54,10 +54,13 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
       unusedAttachments: findUnusedAttachments(load, sampled),
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
+    // Phase 22.1 D-06: rows with outW===sourceW (e.g. TRIANGLE with peakScale≥1.0)
+    // go to passthroughCopies[]; others stay in rows[]. Total must be 3.
     // Post-Plan 02-03 dedup-by-attachmentName: 3 unique names
     // (CIRCLE, SQUARE, TRIANGLE — the two SQUARE-named attachments fold into one).
-    expect(plan.rows.length).toBe(3);
-    for (const row of plan.rows) {
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    expect(allRows.length).toBe(3);
+    for (const row of allRows) {
       // Round 5: outW = Math.ceil(sourceW × effScale) so output dim is never
       // below the per-axis peak demand. effectiveScale is also ceil-thousandth
       // (display lower-bound) but that is internal to the builder.
@@ -122,8 +125,10 @@ describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Ph
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
     const plan: ExportPlan = buildExportPlan(summary, overrides);
-    expect(plan.rows.length).toBe(1);
-    const row = plan.rows[0];
+    // Phase 22.1 D-06: 200% override clamps to 100% → effectiveScale=1.0 → outW=sourceW=1000 → passthroughCopies.
+    expect(plan.rows.length).toBe(0);
+    expect(plan.passthroughCopies.length).toBe(1);
+    const row = plan.passthroughCopies[0];
     // Phase 4 D-91 + clampOverride: 200 clamps to 100 → effectiveScale = 1.0
     expect(row.effectiveScale).toBeCloseTo(1.0, 6);
     expect(row.outW).toBe(1000);
@@ -137,6 +142,8 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
     // ceiling, never extrapolate. Even when the sampler reports a peakScale > 1
     // (an attachment dramatically zoomed in animation), the exported output
     // is never larger than the source PNG.
+    //
+    // Phase 22.1 D-06: peakScale 1.5 clamps to 1.0 → outW = sourceW → passthroughCopies.
     const summary = {
       peaks: [
         {
@@ -160,8 +167,10 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       unusedAttachments: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
-    expect(plan.rows.length).toBe(1);
-    const row = plan.rows[0];
+    // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
+    expect(plan.passthroughCopies.length).toBe(1);
+    expect(plan.rows.length).toBe(0);
+    const row = plan.passthroughCopies[0];
     // Clamped to 1.0 — even though the sampler reported 1.5×.
     expect(row.effectiveScale).toBeCloseTo(1.0, 6);
     // outW must be sourceW (100), NOT Math.round(100 * 1.5) = 150.
@@ -193,9 +202,12 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       unusedAttachments: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
-    expect(plan.rows[0].effectiveScale).toBeCloseTo(1.0, 6);
-    expect(plan.rows[0].outW).toBe(200);
-    expect(plan.rows[0].outH).toBe(200);
+    // Phase 22.1 D-06: outW=200=sourceW → passthroughCopies.
+    expect(plan.passthroughCopies.length).toBe(1);
+    expect(plan.rows.length).toBe(0);
+    expect(plan.passthroughCopies[0].effectiveScale).toBeCloseTo(1.0, 6);
+    expect(plan.passthroughCopies[0].outW).toBe(200);
+    expect(plan.passthroughCopies[0].outH).toBe(200);
   });
 
   it('Gap-Fix #1 dedup interaction: two attachments share source PNG with peaks 0.8 and 5.0 → both clamp to 1.0; kept dims = sourceW (NOT 5×)', () => {
@@ -203,6 +215,8 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
     // the dedup would promote the 5.0-row to "winner" and emit an upscaled
     // ExportRow. With the clamp running first, max(0.8, 1.0) = 1.0 → outW
     // = sourceW.
+    //
+    // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies.
     const summary = {
       peaks: [
         {
@@ -243,10 +257,12 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       unusedAttachments: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
-    expect(plan.rows.length).toBe(1);
-    expect(plan.rows[0].effectiveScale).toBeCloseTo(1.0, 6);
-    expect(plan.rows[0].outW).toBe(100);
-    expect(plan.rows[0].outH).toBe(100);
+    // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
+    expect(plan.passthroughCopies.length).toBe(1);
+    expect(plan.rows.length).toBe(0);
+    expect(plan.passthroughCopies[0].effectiveScale).toBeCloseTo(1.0, 6);
+    expect(plan.passthroughCopies[0].outW).toBe(100);
+    expect(plan.passthroughCopies[0].outH).toBe(100);
   });
 });
 
@@ -695,11 +711,12 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     const corePlan = buildExportPlan(summary, new Map());
     const viewPlan = buildExportPlanView(summary, new Map());
     expect(viewPlan).toEqual(corePlan);
-    // Both must agree on the clamped output dims (NOT 150).
-    expect(corePlan.rows[0].outW).toBe(100);
-    expect(corePlan.rows[0].outH).toBe(100);
-    expect(viewPlan.rows[0].outW).toBe(100);
-    expect(viewPlan.rows[0].outH).toBe(100);
+    // Phase 22.1 D-06: peakScale 1.5 clamps to 1.0 → outW=100=sourceW → passthroughCopies.
+    // Both core and renderer must agree.
+    expect(corePlan.passthroughCopies[0].outW).toBe(100);
+    expect(corePlan.passthroughCopies[0].outH).toBe(100);
+    expect(viewPlan.passthroughCopies[0].outW).toBe(100);
+    expect(viewPlan.passthroughCopies[0].outH).toBe(100);
   });
 
   // ----------------------------------------------------------------------
@@ -730,18 +747,28 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sigPush);
   });
 
-  it('Phase 22 D-04 REVISED isPassthrough predicate in BOTH files', () => {
+  it('Phase 22.1 G-04+G-07 isPassthrough predicate in BOTH files (post-restructure)', () => {
+    // Phase 22.1 D-06 — the vestigial `isCapped || peakAlreadyAtOrBelowSource`
+    // predicate has been replaced with the simpler `outW === acc.row.sourceW && outH === acc.row.sourceH`
+    // evaluated in the emit loop (post-cap, post-override-resolution). Verify
+    // the new predicate is present in both canonical + renderer copies.
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
-    const sig = /isCapped\s*\|\|\s*peakAlreadyAtOrBelowSource/;
+    const sig = /isPassthrough\s*=\s*outW\s*===\s*acc\.row\.sourceW\s*&&\s*outH\s*===\s*acc\.row\.sourceH/;
     expect(coreText).toMatch(sig);
     expect(viewText).toMatch(sig);
+    // Confirm vestigial predicate is deleted from both files.
+    const deletedSig = /peakAlreadyAtOrBelowSource/;
+    expect(coreText).not.toMatch(deletedSig);
+    expect(viewText).not.toMatch(deletedSig);
   });
 
-  it('Phase 22 behavioral parity: drifted row produces IDENTICAL passthroughCopies in both files', async () => {
+  it('Phase 22 behavioral parity: drifted row (cap fires) produces IDENTICAL output in both files', async () => {
     const viewModule = await import('../../src/renderer/src/lib/export-view.js');
     const buildExportPlanView = viewModule.buildExportPlan;
-    // canonical 1628×1908, actual 811×962, peakScale 0.7 — cap binds (X axis).
+    // Phase 22.1 D-06: drifted row with cap firing (peakScale=0.7, sourceRatio≈0.498)
+    // now produces a RESIZE row (rows[]) not passthrough — outW=811 ≠ sourceW=1628.
+    // The parity test still holds: both core and renderer produce IDENTICAL output.
     const summary = {
       peaks: [
         {
@@ -771,15 +798,17 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     } as unknown as SkeletonSummary;
     const corePlan = buildExportPlan(summary, new Map());
     const viewPlan = buildExportPlanView(summary, new Map());
+    // Parity: both produce identical output (both now in rows[], not passthroughCopies).
     expect(viewPlan.passthroughCopies).toEqual(corePlan.passthroughCopies);
     expect(viewPlan.rows).toEqual(corePlan.rows);
     expect(viewPlan.totals).toEqual(corePlan.totals);
   });
 
-  it('Phase 22 behavioral parity: peakAlreadyAtOrBelowSource branch produces IDENTICAL output in both files', async () => {
+  it('Phase 22.1 behavioral parity: peakScale < sourceRatio (drifted row) produces IDENTICAL output in both files', async () => {
     const viewModule = await import('../../src/renderer/src/lib/export-view.js');
     const buildExportPlanView = viewModule.buildExportPlan;
-    // peakScale 0.3 ≤ sourceRatio (0.498) → peakAlreadyAtOrBelowSource branch.
+    // Phase 22.1 D-06: peakScale=0.3 ≤ sourceRatio(0.498) — both core + renderer
+    // now agree: outW=ceil(1628×0.3)=489 ≠ sourceW → rows[] (resize, not passthrough).
     const summary = {
       peaks: [
         {
@@ -959,11 +988,14 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // cappedEffScale = min(0.7, 0.49816) = 0.49816 (cap binds)
     // outW = ceil(1628 × 0.49816) = ceil(811.000) = 811 (matches actualSourceW exactly — binding axis)
     // outH = ceil(1908 × 0.49816) = ceil(950.49) = 951 (NOT 962; Y is non-binding, uniform cap loses up to 1px)
+    //
+    // Phase 22.1 D-06: outW=811 ≠ sourceW=1628 → row goes to rows[] (resize), NOT passthroughCopies.
+    // The new predicate `outW === sourceW` correctly identifies this as a resize operation.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.7);
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.passthroughCopies).toHaveLength(1);
-    expect(plan.rows).toHaveLength(0);
-    const row = plan.passthroughCopies[0];
+    expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
+    expect(plan.passthroughCopies).toHaveLength(0);
+    const row = plan.rows[0];
     expect(row.outW).toBe(811); // binding axis equals actualSourceW exactly
     expect(row.outH).toBe(951); // non-binding axis: ceil(1908 × sourceRatio) — uniform cap, NOT per-axis
     expect(row.effectiveScale).toBeCloseTo(811 / 1628, 6); // sourceRatio precisely
@@ -987,42 +1019,55 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // peakScale 0.9 → downscaleClampedScale = 0.9 → cappedEffScale = min(0.9, 0.5) = 0.5
     // outW = ceil(1000 × 0.5) = 500; outH = ceil(800 × 0.5) = 400
     // outH === 400 ≠ 480 (actualH) — uniform cap, NOT per-axis: aspect-ratio preserved.
+    //
+    // Phase 22.1 D-06: outW=500 ≠ sourceW=1000 → row goes to rows[] (resize), not passthrough.
     const summary = makeDriftedSummary(1000, 800, 500, 480, 0.9);
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.passthroughCopies).toHaveLength(1);
-    const row = plan.passthroughCopies[0];
+    expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
+    expect(plan.passthroughCopies).toHaveLength(0);
+    const row = plan.rows[0];
     expect(row.outW).toBe(500);
     expect(row.outH).toBe(400); // NOT 480 — uniform cap from min over both axes
     expect(row.effectiveScale).toBeCloseTo(0.5, 6);
   });
 
-  it('DIMS-04 generous threshold (isCapped branch): peakScale > sourceRatio → passthrough', () => {
-    // peakScale 0.8 > sourceRatio 0.498 → isCapped=true → passthrough.
+  it('DIMS-04 cap fires (isCapped branch): peakScale > sourceRatio → cap-clamped resize (Phase 22.1 D-06)', () => {
+    // Phase 22.1 D-06: outW=811 ≠ sourceW=1628 → rows[] (resize), NOT passthroughCopies.
+    // The old Phase 22 D-04 REVISED `dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)`
+    // predicate has been superseded by the simpler `outW === sourceW` predicate.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.8);
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.passthroughCopies).toHaveLength(1);
-    expect(plan.rows).toHaveLength(0);
+    expect(plan.rows).toHaveLength(1);   // Phase 22.1 D-06: resize
+    expect(plan.passthroughCopies).toHaveLength(0);
+    // outW is still cap-clamped to actualSourceW (binding axis cap math preserved).
+    expect(plan.rows[0].outW).toBe(811);
+    // isCapped flag is set on the row (D-07 cap-binding signal).
+    expect(plan.rows[0].isCapped).toBe(true);
   });
 
-  it('DIMS-04 generous threshold (peakAlreadyAtOrBelowSource branch): peakScale ≤ sourceRatio → passthrough (DIMS-05 enabler)', () => {
-    // peakScale 0.3 ≤ sourceRatio 0.498 → peakAlreadyAtOrBelowSource=true → passthrough.
-    // NOTE: this branch catches DIMS-05 — repeated Optimize on already-optimized
-    // files where the user's actual on-disk PNG is already at-or-below what
-    // we'd produce without the cap.
+  it('DIMS-04 peakScale ≤ sourceRatio (previously peakAlreadyAtOrBelowSource): produces resize (Phase 22.1 D-06)', () => {
+    // Phase 22.1 D-06: peakScale 0.3 ≤ sourceRatio 0.498 → effScale=0.3 (cap is inert) →
+    // outW = ceil(1628 × 0.3) = 489 ≠ sourceW=1628 → rows[] (resize).
+    // The deleted `peakAlreadyAtOrBelowSource` branch previously sent this to passthrough;
+    // the new predicate correctly identifies it as a resize.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.3);
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.passthroughCopies).toHaveLength(1);
-    expect(plan.rows).toHaveLength(0);
+    expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
+    expect(plan.passthroughCopies).toHaveLength(0);
+    // outW = ceil(1628 × 0.3) = 489 (peakScale < sourceRatio → effScale = peakScale, no cap)
+    expect(plan.rows[0].outW).toBe(Math.ceil(1628 * 0.3)); // 489
   });
 
-  it('DIMS-04 binding-axis ceil-equality redundant guard holds when isCapped (D-04 REVISED test contract)', () => {
-    // Per D-04 REVISED: redundant proof that the cap formula is correct on
-    // the BINDING axis (the more constraining of W/H). The non-binding axis
-    // ceils to ≤ actualSource (may be 1px less due to uniform cap; this is
-    // the acknowledged 1px aspect-ratio noise edge case).
+  it('DIMS-04 binding-axis ceil-equality: cap formula correct on binding axis (defense-in-depth)', () => {
+    // Cap math still runs as defense-in-depth (Phase 22.1 PATTERNS.md).
+    // The binding axis (X) still ceils to actualSourceW by construction.
+    // Row now goes to rows[] (resize) because outW=811 ≠ sourceW=1628.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.9);
     const plan = buildExportPlan(summary, new Map());
-    const row = plan.passthroughCopies[0];
+    // Phase 22.1 D-06: now in rows[], not passthroughCopies.
+    expect(plan.rows).toHaveLength(1);
+    expect(plan.passthroughCopies).toHaveLength(0);
+    const row = plan.rows[0];
     // Binding axis (X here, since 811/1628 < 962/1908): ceil(canonicalW × cappedEffScale) === actualSourceW.
     expect(Math.ceil(1628 * row.effectiveScale)).toBe(811);
     // Non-binding axis: ceil(canonicalH × cappedEffScale) ≤ actualSourceH (allowed 1px slack).
@@ -1030,18 +1075,18 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     expect(Math.ceil(1908 * row.effectiveScale)).toBe(951); // ceil(950.49) — uniform cap result
   });
 
-  it('D-02 override interaction: 100% override on drifted row → cap clamps transparently → passthrough', () => {
+  it('D-02 override interaction: 100% override on drifted row → cap clamps → resize (Phase 22.1 D-06)', () => {
     // canonical 1628×1908, actual 811×962. Override 100% → applyOverride yields
     // effectiveScale = 1.0 → downscaleClampedScale = min(safeScale(1.0)=1, 1) = 1.
     // sourceRatio = 0.498; cappedEffScale = min(1, 0.498) = 0.498 (cap binds).
-    // Row falls into passthrough; output is on-disk dims (binding axis), NOT
-    // 1.0× canonical. Override honored as best-effort but never extrapolates
-    // beyond actualSource (D-02 invariant).
+    // outW = ceil(1628 × 0.498) = 811 ≠ sourceW=1628 → rows[] (resize).
+    // Phase 22.1 D-06: cap-clamped row goes to resize, NOT passthrough.
+    // (In the unified model where sourceW=actualSourceW=811, this would be passthrough.)
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.5, 'OVERRIDE_DRIFTED');
     const plan = buildExportPlan(summary, new Map([['OVERRIDE_DRIFTED', 100]]));
-    expect(plan.passthroughCopies).toHaveLength(1);
-    expect(plan.rows).toHaveLength(0);
-    expect(plan.passthroughCopies[0].outW).toBe(811); // binding-axis cap, not canonicalW
+    expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize
+    expect(plan.passthroughCopies).toHaveLength(0);
+    expect(plan.rows[0].outW).toBe(811); // binding-axis cap, not canonicalW
   });
 
   it('atlas-extract path no cap: actualSourceW undefined → row in plan.rows[]', () => {
@@ -1053,10 +1098,13 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
   });
 
   it('totals.count === rows.length + passthroughCopies.length (mixed plan)', () => {
-    // Mixed plan: 1 drifted (passthrough) + 2 non-drifted (rows).
+    // Phase 22.1 D-06: drifted row (A) now goes to rows[] (resize, not passthrough).
+    // Non-drifted row B (peakScale=0.5 → outW=500 ≠ sourceW=1000): rows[].
+    // Non-drifted row C (peakScale=1.0 → outW=1000 === sourceW=1000): passthroughCopies[].
+    // Total: rows=2 (A + B), passthrough=1 (C).
     const summary = {
       peaks: [
-        // Drifted — passthrough
+        // Drifted — Phase 22.1: now resize (outW=811 ≠ sourceW=1628)
         {
           attachmentKey: 'default/SLOT/A',
           attachmentName: 'A',
@@ -1079,7 +1127,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           actualSourceH: 962,
           dimsMismatch: true,
         },
-        // Non-drifted (no actualSource)
+        // Non-drifted (no actualSource), peakScale=0.5 → outW=500 ≠ 1000 → rows[]
         {
           attachmentKey: 'default/SLOT/B',
           attachmentName: 'B',
@@ -1102,7 +1150,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           actualSourceH: undefined,
           dimsMismatch: false,
         },
-        // Non-drifted matching dims (dimsMismatch:false)
+        // Non-drifted matching dims, peakScale=1.0 → outW=1000 === sourceW=1000 → passthroughCopies[]
         {
           attachmentKey: 'default/SLOT/C',
           attachmentName: 'C',
@@ -1111,11 +1159,11 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           animationName: 'idle',
           time: 0,
           frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 500,
-          worldH: 500,
+          peakScale: 1.0,
+          peakScaleX: 1.0,
+          peakScaleY: 1.0,
+          worldW: 1000,
+          worldH: 1000,
           sourceW: 1000,
           sourceH: 1000,
           sourcePath: '/fake/C.png',
@@ -1129,14 +1177,15 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
       unusedAttachments: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.rows).toHaveLength(2);
-    expect(plan.passthroughCopies).toHaveLength(1);
+    expect(plan.rows).toHaveLength(2);         // A (drifted resize) + B (normal resize)
+    expect(plan.passthroughCopies).toHaveLength(1);  // C (full-size, no resize needed)
     expect(plan.totals.count).toBe(plan.rows.length + plan.passthroughCopies.length);
     expect(plan.totals.count).toBe(3);
   });
 
-  it('passthroughCopies sorted deterministically by sourcePath localeCompare', () => {
-    // 3 drifted rows with shuffled sourcePaths.
+  it('rows[] sorted deterministically by sourcePath localeCompare (was: passthroughCopies sorted)', () => {
+    // Phase 22.1 D-06: drifted rows (peakScale=0.9, sourceRatio=0.5, outW=500 ≠ 1000=sourceW)
+    // now go to rows[] (resize), not passthroughCopies[]. Sort invariant still holds.
     const summary = {
       peaks: [
         {
@@ -1209,20 +1258,100 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
       unusedAttachments: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
-    const paths = plan.passthroughCopies.map((r) => r.sourcePath);
+    // Phase 22.1 D-06: these drifted rows are now resize rows (outW=500 ≠ sourceW=1000).
+    const paths = plan.rows.map((r) => r.sourcePath);
     const sorted = [...paths].sort((a, b) => a.localeCompare(b));
     expect(paths).toEqual(sorted);
     expect(paths).toEqual(['/fake/A.png', '/fake/M.png', '/fake/Z.png']);
+    expect(plan.passthroughCopies).toHaveLength(0);
   });
 
   it('CHECKER FIX 2026-05-02 — passthrough ExportRow carries actualSourceW + actualSourceH from DisplayRow', () => {
-    // Drifted row passthrough: row carries both actualSource fields so OptimizeDialog
-    // can render "811×962 (already optimized)" instead of "1628×1908 (already optimized)".
-    const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.9);
+    // Phase 22.1 D-06: passthrough now requires outW === sourceW.
+    // Use unified model: sourceW=actualSourceW=811, peakScale=1.0 (full-size attach) →
+    // effScale=1.0 → outW=811=sourceW → passthroughCopies.
+    // actualSourceW/H are threaded to ExportRow for OptimizeDialog dim label.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/UNIFIED_DRIFTED',
+          attachmentName: 'UNIFIED_DRIFTED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 1.0,  // full-size → effScale=1.0 → outW=sourceW
+          peakScaleX: 1.0,
+          peakScaleY: 1.0,
+          worldW: 811,
+          worldH: 962,
+          sourceW: 811,   // unified: sourceW === actualSourceW
+          sourceH: 962,
+          sourcePath: '/fake/UNIFIED.png',
+          canonicalW: 1628,
+          canonicalH: 1908,
+          actualSourceW: 811,  // from atlas originalWidth (22.1-01 G-01)
+          actualSourceH: 962,
+          dimsMismatch: true,  // 811 ≠ 1628
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
-    expect(plan.passthroughCopies).toHaveLength(1);
-    expect(plan.passthroughCopies[0].actualSourceW).toBe(811);
-    expect(plan.passthroughCopies[0].actualSourceH).toBe(962);
+    // peakScale=1.0 → effScale=min(1.0, sourceRatio=811/1628)=0.498 — wait, cap fires!
+    // outW = ceil(811 × 0.498) = 404 ≠ 811. Hmm.
+    // The cap fires because peakScale(1.0) > sourceRatio(811/1628≈0.498).
+    // For a true passthrough in the unified model with drift, need peakScale ≤ sourceRatio.
+    // With peakScale=0.4 < sourceRatio=0.498: effScale=0.4, outW=ceil(811×0.4)=325 ≠ 811.
+    // → passthrough requires effScale=1.0 → requires sourceRatio=1.0 → no drift.
+    //
+    // For passthrough in drifted unified model: need sourceW=actualSourceW AND no cap firing.
+    // Cap fires when peakScale > sourceRatio = actualSourceW/canonicalW.
+    // If peakScale=5.0 (clamps to 1.0), cap fires. outW = ceil(811×sourceRatio) ≠ 811.
+    //
+    // Conclusion: with drifted unified shape, passthrough NEVER occurs because
+    // outW = ceil(sourceW × sourceRatio) ≠ sourceW (sourceRatio < 1.0 for drifted rows).
+    // passthrough ONLY occurs for non-drifted rows with peakScale≥1.0.
+    //
+    // Redesign: use non-drifted row with dimsMismatch=false + actualSource set
+    // (covers the "actualSource fields carried to passthrough row" invariant).
+    // Actually: passthrough rows have actualSourceW/H only when explicitly set.
+    // The test was about OptimizeDialog seeing actual dims. Use G-04 TRIANGLE-style
+    // but with actualSource set (simulating unified atlas-source mode, no drift).
+    const nonDriftedSummary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/FULLSIZE',
+          attachmentName: 'FULLSIZE',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 1.0,
+          peakScaleX: 1.0,
+          peakScaleY: 1.0,
+          worldW: 811,
+          worldH: 962,
+          sourceW: 811,
+          sourceH: 962,
+          sourcePath: '/fake/FULLSIZE.png',
+          canonicalW: 811,
+          canonicalH: 962,
+          actualSourceW: 811,  // same as sourceW and canonicalW (no drift)
+          actualSourceH: 962,
+          dimsMismatch: false,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const planND = buildExportPlan(nonDriftedSummary, new Map());
+    // Non-drifted, peakScale=1.0 → effScale=1.0 → outW=811=sourceW → passthrough.
+    expect(planND.passthroughCopies).toHaveLength(1);
+    // actualSourceW/H carried to passthrough row.
+    expect(planND.passthroughCopies[0].actualSourceW).toBe(811);
+    expect(planND.passthroughCopies[0].actualSourceH).toBe(962);
   });
 
   it('CHECKER FIX 2026-05-02 — non-passthrough ExportRow has undefined actualSourceW + actualSourceH', () => {
@@ -1232,5 +1361,330 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     expect(plan.rows).toHaveLength(1);
     expect(plan.rows[0].actualSourceW).toBeUndefined();
     expect(plan.rows[0].actualSourceH).toBeUndefined();
+  });
+});
+
+/**
+ * Phase 22.1 Plan 22.1-03 — G-04 + G-07 partition restructure tests.
+ *
+ * G-04: Generalized passthrough predicate. Replace the Phase 22 D-04 REVISED
+ *   `dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)` with the simpler
+ *   `outW === sourceW AND outH === sourceH` (post-cap, post-override-resolution).
+ *   Covers TRIANGLE-style no-op-resize rows (peakScale=1.0×, no drift) that
+ *   Phase 22 D-04 REVISED missed (dimsMismatch:false → isPassthrough always false).
+ *
+ * G-07 BLOCKER: Override-aware passthrough re-routing. A row is passthrough
+ *   only if `(outW === sourceW AND outH === sourceH) AFTER all overrides resolved`.
+ *   Override on a drifted row that pushes effective scale BELOW source-ratio cap
+ *   re-routes the row from `passthroughCopies[]` to `rows[]` (genuine Lanczos
+ *   resize). Override that keeps row at source-equal dims keeps it in passthrough.
+ *
+ * These tests fail against the Phase 22 D-04 REVISED predicate and pass only
+ * once the partition predicate is moved to the emit loop (post-cap, post-override).
+ */
+describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', () => {
+  // Helper: synthesize a TRIANGLE-style row — no drift, peakScale=1.0, dimsMismatch false.
+  // This row SHOULD be passthrough (outW === sourceW) but the Phase 22 D-04 REVISED
+  // predicate misses it because dimsMismatch is false.
+  function makeTriangleStyleSummary(sourceW: number, sourceH: number, peakScale: number): SkeletonSummary {
+    return {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/TRI',
+          attachmentName: 'TRI',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: sourceW * peakScale,
+          worldH: sourceH * peakScale,
+          sourceW,
+          sourceH,
+          sourcePath: '/fake/TRI.png',
+          canonicalW: sourceW,
+          canonicalH: sourceH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+  }
+
+  // Helper: synthesize a drifted row where sourceW === actualSourceW (unified model).
+  // After 22.1-01, sourceW IS actualSourceW in both modes; cap is effectively a no-op
+  // (sourceRatio = 1.0) but we still synthesize the pre-unification shape to test
+  // the predicate independently.
+  function makeDriftedSummaryUnified(
+    sourceW: number,
+    sourceH: number,
+    peakScale: number,
+    name = 'DRIFT',
+  ): SkeletonSummary {
+    // Post-22.1-01 unified model: actualSourceW === sourceW. The cap math
+    // becomes sourceRatio = min(sourceW/canonicalW, sourceH/canonicalH) = 1.0
+    // (since canonicalW === sourceW). So cappedEffScale === downscaleClampedScale.
+    // The simple predicate `outW === sourceW` is the correct partition.
+    return {
+      peaks: [
+        {
+          attachmentKey: `default/SLOT/${name}`,
+          attachmentName: name,
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: sourceW * peakScale,
+          worldH: sourceH * peakScale,
+          sourceW,
+          sourceH,
+          sourcePath: `/fake/${name}.png`,
+          canonicalW: sourceW,
+          canonicalH: sourceH,
+          actualSourceW: sourceW,   // unified: actualSourceW === sourceW
+          actualSourceH: sourceH,   // unified: actualSourceH === sourceH
+          dimsMismatch: false,      // unified: no mismatch when actual === canonical
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+  }
+
+  it('G-04: TRIANGLE peakScale=1.0 with no drift emits to passthroughCopies (NOT rows)', () => {
+    // TRIANGLE-style: peakScale = 1.0, no dimsMismatch. After the restructure,
+    // outW = ceil(sourceW × 1.0) = sourceW → isPassthrough = true → passthroughCopies.
+    // Phase 22 D-04 REVISED MISSED this case (dimsMismatch:false → isPassthrough:false).
+    const summary = makeTriangleStyleSummary(833, 759, 1.0);
+    const plan = buildExportPlan(summary, new Map());
+    // G-04: generalized predicate catches peakScale=1.0× no-drift row as passthrough.
+    expect(plan.passthroughCopies).toHaveLength(1);
+    expect(plan.rows).toHaveLength(0);
+    const row = plan.passthroughCopies[0];
+    expect(row.outW).toBe(833); // ceil(833 × 1.0) === 833 === sourceW
+    expect(row.outH).toBe(759);
+    expect(row.effectiveScale).toBeCloseTo(1.0, 6);
+  });
+
+  it('G-04: peakScale < 1.0 non-drift row stays in rows[] (not passthrough)', () => {
+    // peakScale = 0.5 → outW = ceil(833 × 0.5) = 417 ≠ 833 → NOT passthrough.
+    const summary = makeTriangleStyleSummary(833, 759, 0.5);
+    const plan = buildExportPlan(summary, new Map());
+    expect(plan.rows).toHaveLength(1);
+    expect(plan.passthroughCopies).toHaveLength(0);
+  });
+
+  it('G-07: 50% override on a drifted-but-unified passthrough row re-routes to rows[] as resize', () => {
+    // Unified model: sourceW === actualSourceW === canonicalW = 1000.
+    // No override: peakScale = 0.9 → effScale = 0.9 → outW = ceil(1000 × 0.9) = 900 ≠ 1000
+    // Wait — with peakScale=0.9, outW would be 900 ≠ 1000, so it goes to rows[].
+    // We need a case where WITHOUT override the row is passthrough:
+    //   → peakScale >= 1.0 (clamps to 1.0) → outW = sourceW → passthrough
+    //   → 50% override → outW = ceil(1000 × 0.5) = 500 ≠ 1000 → resize
+    // Use peakScale=2.0 (clamps to 1.0) as the "no override → passthrough" baseline.
+    //
+    // Without override: effScale = min(safeScale(2.0), 1) = 1.0 → outW = 1000 = sourceW → passthrough.
+    // With 50% override: applyOverride(50).effectiveScale = 0.5 → effScale = 0.5 → outW = 500 → resize.
+    //
+    // G-07 BLOCKER: the override takes the row OUT of passthroughCopies INTO rows[].
+    const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'BIGROW');
+
+    // Baseline: no override → passthrough (peakScale 2.0 clamps to 1.0 → outW = sourceW).
+    const planNoOverride = buildExportPlan(summary, new Map());
+    expect(planNoOverride.passthroughCopies).toHaveLength(1);
+    expect(planNoOverride.rows).toHaveLength(0);
+
+    // 50% override → outW = 500 ≠ sourceW → re-routes to rows[].
+    const plan50 = buildExportPlan(summary, new Map([['BIGROW', 50]]));
+    expect(plan50.rows, 'G-07: 50% override must route to rows[]').toHaveLength(1);
+    expect(plan50.passthroughCopies, 'G-07: 50% override must leave passthroughCopies empty').toHaveLength(0);
+    const resizedRow = plan50.rows[0];
+    expect(resizedRow.outW).toBe(Math.ceil(1000 * 0.5)); // 500
+    expect(resizedRow.outH).toBe(Math.ceil(1000 * 0.5)); // 500
+    expect(resizedRow.effectiveScale).toBeCloseTo(0.5, 6);
+  });
+
+  it('G-07: override that resolves to source-equal dims keeps row in passthroughCopies', () => {
+    // peakScale 2.0 (clamps to 1.0). 100% override → applyOverride(100) = 1.0 → outW = 1000 = sourceW → passthrough.
+    const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'KEEPROW');
+    const plan = buildExportPlan(summary, new Map([['KEEPROW', 100]]));
+    expect(plan.passthroughCopies, 'G-07 reverse: 100% override keeps row in passthroughCopies').toHaveLength(1);
+    expect(plan.rows).toHaveLength(0);
+    expect(plan.passthroughCopies[0].outW).toBe(1000);
+    expect(plan.passthroughCopies[0].outH).toBe(1000);
+  });
+
+  it('G-07: override above source-ratio cap → cap clamps → passthrough preserved', () => {
+    // Pre-unification scenario to test the cap math path:
+    // canonical=1628, actual=811 → sourceRatio ≈ 0.498.
+    // 100% override → downscaleClampedScale = 1.0 → cap clamps to 0.498 →
+    // outW = ceil(1628 × 0.498) = 811 = actualSourceW (binding axis) = sourceW? No—
+    // after 22.1-01 unified model: sourceW === actualSourceW = 811 (loader populates
+    // sourceW from atlas region orig). So ceil(811 × 0.498) ≈ 404 ≠ 811.
+    // To test the old "cap fires → passthrough" path, use dimsMismatch=true with
+    // actualSourceW < sourceW (legacy shape before unification):
+    // canonical/sourceW=1628, actual=811; peakScale=0.7.
+    // WITHOUT override: sourceRatio=811/1628≈0.498; effScale=min(0.7,0.498)=0.498;
+    //   outW=ceil(1628×0.498)=811=actualSourceW → is 811 === sourceW(1628)? NO → rows.
+    // Hmm — the legacy shape has sourceW=canonicalW=1628, actualSourceW=811.
+    // After restructure: outW=ceil(1628 × cappedEffScale).
+    // The isPassthrough = (outW === sourceW AND outH === sourceH) uses sourceW=1628.
+    // ceil(1628 × 0.498) = 811 ≠ 1628 → NOT passthrough.
+    //
+    // So the legacy drifted shape always goes to rows[] under the new predicate
+    // (since outW = actualSourceW ≈ 811 ≠ sourceW = 1628).
+    //
+    // The real G-07 scenario is the UNIFIED model (sourceW=actualSourceW=811):
+    // Then outW = ceil(811 × 1.0) = 811 = sourceW → passthrough.
+    // Already covered by the 100% override test above.
+    //
+    // For explicit cap-fires scenario we use unified model with high peakScale:
+    // sourceW = actualSourceW = 670, canonicalW = 670 (unified).
+    // No override; peakScale 5.0 → clamps to 1.0 → outW = 670 = sourceW → passthrough.
+    // With 100% override: same → passthrough. With 50%: outW=335 → resize.
+    const summary = makeDriftedSummaryUnified(670, 670, 5.0, 'CAPROW');
+
+    // Baseline (no override): passthrough.
+    const planBase = buildExportPlan(summary, new Map());
+    expect(planBase.passthroughCopies).toHaveLength(1);
+    expect(planBase.rows).toHaveLength(0);
+
+    // 100% override → passthrough preserved.
+    const plan100 = buildExportPlan(summary, new Map([['CAPROW', 100]]));
+    expect(plan100.passthroughCopies, 'G-07 cap+override: 100% override keeps passthrough').toHaveLength(1);
+    expect(plan100.rows).toHaveLength(0);
+
+    // 50% override → resize.
+    const plan50 = buildExportPlan(summary, new Map([['CAPROW', 50]]));
+    expect(plan50.rows, 'G-07 cap+override: 50% override routes to resize').toHaveLength(1);
+    expect(plan50.passthroughCopies).toHaveLength(0);
+  });
+
+  it('G-07: isCapped field on ExportRow is set when cap fires (downscaleClampedScale > sourceRatio)', () => {
+    // Legacy shape: canonical=1628, actual=811, peakScale=0.9 → cap fires.
+    // sourceRatio = min(811/1628, 962/1908) ≈ 0.498. downscaleClampedScale=0.9 > 0.498 → isCapped=true.
+    // Phase 22.1 D-06: outW=811 ≠ sourceW=1628 → row goes to rows[] (resize), not passthroughCopies.
+    // G-07 D-07: isCapped field must be true on the row (whether it's resize or passthrough).
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/DRIFTED',
+          attachmentName: 'DRIFTED',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.9,
+          peakScaleX: 0.9,
+          peakScaleY: 0.9,
+          worldW: 1465,
+          worldH: 1717,
+          sourceW: 1628,
+          sourceH: 1908,
+          sourcePath: '/fake/DRIFTED.png',
+          canonicalW: 1628,
+          canonicalH: 1908,
+          actualSourceW: 811,
+          actualSourceH: 962,
+          dimsMismatch: true,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan = buildExportPlan(summary, new Map());
+    // Phase 22.1 D-06: cap fires but outW=811 ≠ sourceW=1628 → rows[] (resize).
+    expect(plan.rows).toHaveLength(1);
+    expect(plan.passthroughCopies).toHaveLength(0);
+    // G-07 D-07: isCapped field must be true when cap fires (regardless of which array the row is in).
+    expect(plan.rows[0].isCapped).toBe(true);
+  });
+
+  it('G-07: isCapped is absent/undefined when cap does NOT fire', () => {
+    // Non-drifted row (dimsMismatch:false, no actualSource) → cap inert → isCapped undefined.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/NODRIFT',
+          attachmentName: 'NODRIFT',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.5,
+          peakScaleX: 0.5,
+          peakScaleY: 0.5,
+          worldW: 500,
+          worldH: 500,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/NODRIFT.png',
+          canonicalW: 1000,
+          canonicalH: 1000,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+    const plan = buildExportPlan(summary, new Map());
+    expect(plan.rows).toHaveLength(1);
+    // isCapped must be absent (undefined) when cap doesn't fire.
+    expect(plan.rows[0].isCapped).toBeUndefined();
+  });
+
+  it('G-07: uniform-scale invariant: for every emitted row, outW/sourceW ratio ≈ outH/sourceH ratio', () => {
+    // Locks the user-locked Phase 6 export sizing memory: uniform single-scale,
+    // never per-axis. Both rows[] and passthroughCopies[] must honor this.
+    const summaryDrifted = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/DRIFT_UNI',
+          attachmentName: 'DRIFT_UNI',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.9,
+          peakScaleX: 0.9,
+          peakScaleY: 0.9,
+          worldW: 1465,
+          worldH: 1717,
+          sourceW: 1628,
+          sourceH: 1908,
+          sourcePath: '/fake/DRIFT_UNI.png',
+          canonicalW: 1628,
+          canonicalH: 1908,
+          actualSourceW: 811,
+          actualSourceH: 962,
+          dimsMismatch: true,
+        },
+      ],
+      unusedAttachments: [],
+    } as unknown as SkeletonSummary;
+
+    const plan = buildExportPlan(summaryDrifted, new Map());
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    for (const row of allRows) {
+      // effectiveScale is the SAME for both axes (D-110 invariant).
+      // outW = ceil(sourceW × effScale), outH = ceil(sourceH × effScale).
+      // Both expressions use the same effScale → uniform scaling preserved.
+      const ratioW = row.outW / row.sourceW;
+      const ratioH = row.outH / row.sourceH;
+      // Ratios must agree within sub-pixel ceil tolerance (at most 1px deviation
+      // due to Math.ceil on different axis magnitudes).
+      expect(Math.abs(ratioW - ratioH)).toBeLessThan(1 / Math.min(row.sourceW, row.sourceH) + 0.001);
+    }
   });
 });
