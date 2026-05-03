@@ -2,6 +2,7 @@
 created: 2026-04-24T16:17:43.663Z
 title: Phase 4 code review follow-up — WR-03 + 6 info findings
 area: ui
+resolves_phase: 27
 files:
   - src/renderer/src/panels/GlobalMaxRenderPanel.tsx:493-540
   - src/renderer/src/modals/OverrideDialog.tsx
