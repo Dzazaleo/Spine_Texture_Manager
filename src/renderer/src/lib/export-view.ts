@@ -185,15 +185,17 @@ export function computeExportDims(
   // Locked memory project_phase6_default_scaling.md: cap is single uniform
   // multiplier from min(...), NEVER per-axis (per-axis would distort aspect
   // ratio and break Spine UV sampling).
+  const canonW = canonicalW ?? sourceW;
+  const canonH = canonicalH ?? sourceH;
   const sourceRatio =
     dimsMismatch === true && actualSourceW !== undefined && actualSourceH !== undefined
-      ? Math.min(actualSourceW / sourceW, actualSourceH / sourceH)
+      ? Math.min(actualSourceW / canonW, actualSourceH / canonH)
       : Infinity;
   const effScale = Math.min(downscaleClampedScale, sourceRatio);
   // Math.ceil per-axis matches the export-builder; preserves aspect within
   // sub-pixel tolerance.
-  const outW = Math.ceil(sourceW * effScale);
-  const outH = Math.ceil(sourceH * effScale);
+  const outW = Math.ceil(canonW * effScale);
+  const outH = Math.ceil(canonH * effScale);
   return { effScale, outW, outH };
 }
 
