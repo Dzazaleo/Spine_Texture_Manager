@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: (in progress)
-status: verifying
-last_updated: "2026-05-03T12:07:14.158Z"
-last_activity: 2026-05-03 -- /gsd-phase --insert 22 → Phase 22.1 created; ROADMAP.md updated (milestone bullet + Phase Details + Progress row); v1.2 milestone summary refreshed to mention 22.1.
+status: executing
+last_updated: "2026-05-03T13:21:47.317Z"
+last_activity: 2026-05-03 -- Phase 22.1 planning complete
 progress:
   total_phases: 16
   completed_phases: 8
-  total_plans: 48
+  total_plans: 52
   completed_plans: 48
-  percent: 100
+  percent: 92
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 22.1 — INSERTED 2026-05-03 (not planned yet)
 Plan: 0/0 — needs `/gsd-discuss-phase 22.1` then `/gsd-plan-phase 22.1`
-Status: Phase 22 HUMAN-UAT (run 2026-05-03) surfaced 7 gaps in ## Gaps section of `22-HUMAN-UAT.md` — 1 BLOCKER (override silently ignored on passthrough rows; breaks animator glow/blend-mode workflow) + 5 major (badge mode-awareness, tooltip hover reliability, cap-binding-aware copy, generalized passthrough predicate, source→target dim shape parity) + 1 minor (drop "(already optimized)" parenthetical). Phase 22.1 inserted to close all 7. Phase 22 itself remains VERIFIED at code level.
-Last activity: 2026-05-03 -- /gsd-phase --insert 22 → Phase 22.1 created; ROADMAP.md updated (milestone bullet + Phase Details + Progress row); v1.2 milestone summary refreshed to mention 22.1.
+Status: Ready to execute
+Last activity: 2026-05-03 -- Phase 22.1 planning complete
 Next recommended run: `/gsd-discuss-phase 22.1` (lock G-01 gate-by-mode-vs-mode-aware-tooltip decision; choose passthrough re-routing semantics for G-07; resolve override semantics interaction with passthrough partition before planning)
 
 ## Last Roadmap Update
