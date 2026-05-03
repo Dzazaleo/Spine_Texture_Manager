@@ -534,7 +534,9 @@ Plans:
   2. The output-folder picker is triggered only when the user clicks Start/Export inside OptimizeDialog; at that point, if an output folder was previously saved in the project file, the picker pre-fills that path and the user can confirm or change it.
   3. A project with a previously saved output folder does not prompt a folder picker on toolbar click — the saved path is silently carried into the modal and shown as the pre-filled destination in the Start/Export flow.
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 23-01-PLAN.md — AppShell.tsx + OptimizeDialog.tsx: restructure optimize flow (5 AppShell edit sites + 2 OptimizeDialog edits)
+- [ ] 23-02-PLAN.md — tests/renderer/appshell-optimize-flow.spec.tsx: 6 regression tests for OPT-01/OPT-02/D-01/D-02/D-07
 **UI hint**: yes
 
 ### Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric
