@@ -62,7 +62,7 @@
 
 ### v1.3 Polish & UX (Phases 23–27)
 
-- [ ] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02)
+- [x] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02) (completed 2026-05-03)
 - [ ] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04)
 - [ ] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03)
 - [ ] **Phase 26: UI polish** — Sticky-bar height token, alternating row colors, icon audit, draggable modals, unified toolbar button heights. (UI-06, UI-07, UI-08, UI-09, UI-10)
@@ -536,7 +536,7 @@ Plans:
 
 **Plans**: 2 plans
 - [x] 23-01-PLAN.md — AppShell.tsx + OptimizeDialog.tsx: restructure optimize flow (5 AppShell edit sites + 2 OptimizeDialog edits)
-- [ ] 23-02-PLAN.md — tests/renderer/appshell-optimize-flow.spec.tsx: 6 regression tests for OPT-01/OPT-02/D-01/D-02/D-07
+- [x] 23-02-PLAN.md — tests/renderer/appshell-optimize-flow.spec.tsx: 6 regression tests for OPT-01/OPT-02/D-01/D-02/D-07
 **UI hint**: yes
 
 ### Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric
@@ -627,7 +627,7 @@ Plans:
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
-| 23. Optimize flow — defer folder picker | v1.3 | 1/2 | In Progress|  |
+| 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete   | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 0/? | Not started | — |
 | 25. Missing attachments in-context display | v1.3 | 0/? | Not started | — |
 | 26. UI polish | v1.3 | 0/? | Not started | — |
