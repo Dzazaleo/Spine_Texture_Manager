@@ -157,9 +157,19 @@ export function computeExportDims(
   actualSourceW?: number,
   actualSourceH?: number,
   dimsMismatch?: boolean,
+  // Phase 22.1 CR-001 fix — needed for override source-ratio adjustment.
+  // Override % is relative to sourceW (= actualSourceW after 22.1-01), but
+  // peakScale and effScale are relative to canonicalW. Convert override to
+  // canonical-relative so outW = ceil(canonicalW × effScale) yields the
+  // correct source-relative output. Mirrors buildExportPlan formula verbatim.
+  // When omitted (legacy call sites), defaults to sourceW (ratio = 1.0, no
+  // change — back-compat preserved).
+  canonicalW?: number,
+  canonicalH?: number,
 ): { effScale: number; outW: number; outH: number } {
   // Match buildExportPlan's effScale derivation exactly:
-  // 1. raw effScale = override-as-fraction OR peakScale fallback
+  // 1. raw effScale = override-as-fraction × source-ratio correction OR
+  //    peakScale fallback
   // 2. ceil-thousandth (display lower-bound)
   // 3. clamp to ≤ 1.0 (downscale-only invariant)
   // 4. Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
@@ -167,7 +177,7 @@ export function computeExportDims(
   // clamps integer percent to [1, 100] before dividing by 100).
   const rawEffScale =
     override !== undefined
-      ? applyOverride(override).effectiveScale
+      ? applyOverride(override).effectiveScale * (sourceW / (canonicalW ?? sourceW))
       : peakScale;
   const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1);
   // Phase 22 DIMS-03 cap — uniform multiplier from min over both axes when

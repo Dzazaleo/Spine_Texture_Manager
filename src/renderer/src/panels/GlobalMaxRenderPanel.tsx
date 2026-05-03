@@ -210,6 +210,8 @@ function enrichWithEffective(
       row.actualSourceW,
       row.actualSourceH,
       row.dimsMismatch,
+      row.canonicalW,
+      row.canonicalH,
     );
     return {
       ...row,
