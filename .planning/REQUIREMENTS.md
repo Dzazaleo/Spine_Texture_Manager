@@ -68,19 +68,19 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PANEL-01 | TBD | Pending |
-| PANEL-02 | TBD | Pending |
-| PANEL-03 | TBD | Pending |
-| PANEL-04 | TBD | Pending |
-| OPT-01 | TBD | Pending |
-| OPT-02 | TBD | Pending |
-| OPT-03 | TBD | Pending |
-| UI-06 | TBD | Pending |
-| UI-07 | TBD | Pending |
-| UI-08 | TBD | Pending |
-| UI-09 | TBD | Pending |
-| UI-10 | TBD | Pending |
-| QA-01 | TBD | Pending |
-| QA-02 | TBD | Pending |
-| QA-03 | TBD | Pending |
-| QA-04 | TBD | Pending |
+| PANEL-01 | Phase 24 | Pending |
+| PANEL-02 | Phase 24 | Pending |
+| PANEL-03 | Phase 25 | Pending |
+| PANEL-04 | Phase 24 | Pending |
+| OPT-01 | Phase 23 | Pending |
+| OPT-02 | Phase 23 | Pending |
+| OPT-03 | Phase 24 | Pending |
+| UI-06 | Phase 26 | Pending |
+| UI-07 | Phase 26 | Pending |
+| UI-08 | Phase 26 | Pending |
+| UI-09 | Phase 26 | Pending |
+| UI-10 | Phase 26 | Pending |
+| QA-01 | Phase 27 | Pending |
+| QA-02 | Phase 27 | Pending |
+| QA-03 | Phase 27 | Pending |
+| QA-04 | Phase 27 | Pending |

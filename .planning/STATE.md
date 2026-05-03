@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-05-03T21:04:40.482Z"
 last_activity: 2026-05-03
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,19 +17,21 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap authored, ready to plan Phase 23)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-03 — Milestone v1.3 started
+Status: Roadmap authored — ready for /gsd-plan-phase 23
+Last activity: 2026-05-03 — v1.3 roadmap created (Phases 23–27)
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-03 after v1.2 milestone)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Planning next milestone (v1.3). Start with `/gsd-new-milestone`.
+**Current focus:** v1.3 roadmap authored (Phases 23–27). Start with `/gsd-plan-phase 23`.
 
 ## Last Roadmap Update
+
+2026-05-03 — v1.3 roadmap created. Phases 23–27 appended to ROADMAP.md (section "v1.3 Polish & UX"); v1.3 milestone bullet added; Progress table extended; Out-of-scope for v1.3 section added. REQUIREMENTS.md traceability table updated with phase assignments. STATE.md total_phases set to 5.
 
 2026-05-03 — v1.2 milestone complete. ROADMAP.md: v1.2 milestone bullet updated to ✅ shipped; phases 16–22.1 collapsed into `<details>` block; Progress table Phase 22.1 marked Complete. v1.0 / v1.1 / v1.1.1 / v1.1.2 historical sections preserved verbatim (append-only). v1.2 milestone bullet expanded from "Phases 16–18 promoted from backlog" → full 8-phase scope summary. v1.2 section header updated to "Phases 13.1, 16–22 (8 phases; promoted from backlog + tester feedback + dormant seeds 2026-04-30)". Phases 16 / 17 / 18 (already-existing rich Phase Details from /gsd-review-backlog commit cc0bc6a) gained `**Requirements:**` lines + `**Success Criteria**` blocks; existing Background / User decision / Scope / Severity / Cross-references sub-blocks preserved verbatim. Phases 13.1, 19, 20, 21, 22 authored from scratch (Phase 13.1 details lifted from 13-VERIFICATION.md gaps; Phase 19 from tester-feedback REQs; Phase 20 from D-148 + DOC-01..05; Phases 21 + 22 narrative lifted from `.planning/seeds/SEED-001-atlas-less-mode.md` + `.planning/seeds/SEED-002-dims-badge-override-cap.md`). Progress table extended with rows for 13.1, 19, 20, 21, 22 (16/17/18 rows preserved). Deferred section updated to strikethrough the 4 items now promoted (SEED-001, SEED-002, UI improvements, Documentation Builder, Phase 13.1 carry-forwards) + new "Out-of-scope for v1.2 specifically" section listing Apple Developer ID + Sentry as declined for v1.2 with v1.3 revisit posture. Backlog section unchanged (still empty post-/gsd-review-backlog 2026-04-29). Commit hash: [committed in next step].
 

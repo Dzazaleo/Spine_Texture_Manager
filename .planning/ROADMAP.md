@@ -7,6 +7,7 @@
 - ✅ **v1.1.1 patch** — Phase 13 (5/5 plans complete; shipped 2026-04-29; v1.1.1 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1; D-10 publish-race fix verified clean across 4 successful CI runs total: rc2 / rc3 / v1.1.0 / v1.1.1; live UAT — Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation — carries forward to Phase 13.1 documented in 13-VERIFICATION.md ## Gaps Summary)
 - ✅ **v1.1.2 Auto-update fixes** — Phases 14–15 (shipped 2026-04-29; v1.1.2 published with broken mac auto-update D-15-LIVE-1; v1.1.3 same-day hotfix at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3 closed UPDFIX-01 / D-15-LIVE-1 empirically via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact at canonical dotted URL. D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc builds) + D-15-LIVE-3 (Help → Check menu gating) routed to backlog 999.2 + 999.3 per user decision — manual-download UX path, NOT Apple Developer Program enrollment. Phase 13.1 — live UAT carry-forwards from v1.1.1 — remains separately tracked, NOT part of v1.1.2)
 - ✅ **v1.2 Expansion** — Phases 13.1 (deferred), 16, 18–22.1 (shipped 2026-05-03; v1.2.0 final; 40 plans across 8 executed phases; 23/26 REQs closed — UAT-01..03 host-blocked, carried to v1.3) — full archive at [.planning/milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
+- **v1.3 Polish & UX** — Phases 23–27 (in progress; 16 REQs — PANEL-01..04, OPT-01..03, UI-06..10, QA-01..04)
 
 ## Phases
 
@@ -58,6 +59,14 @@
 - [x] **Phase 22.1: Close Phase 22 HUMAN-UAT gaps** — G-07 BLOCKER override-aware partition + G-01 badge mode-awareness + G-02 tooltip primitive + G-03 cap-binding wording + G-04 generalized predicate + G-05/G-06 OptimizeDialog passthrough shape. (completed 2026-05-03)
 
 </details>
+
+### v1.3 Polish & UX (Phases 23–27)
+
+- [ ] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02)
+- [ ] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04)
+- [ ] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03)
+- [ ] **Phase 26: UI polish** — Sticky-bar height token, alternating row colors, icon audit, draggable modals, unified toolbar button heights. (UI-06, UI-07, UI-08, UI-09, UI-10)
+- [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
 ## Phase Details
 
@@ -510,6 +519,91 @@ Plans:
 - [ ] 22.1-04-dims-badge-tooltip-primitive-PLAN.md — G-02 custom React tooltip primitive replacing native title (analog: AppShell rig-info tooltip) + G-03 cap-binding-aware mode-aware wording via shared dims-tooltip-view helper; sibling-symmetric across both panels; human-UAT at 100/125/150% zoom + dark mode
 - [ ] 22.1-05-optimize-dialog-passthrough-rows-PLAN.md — G-05 drop "(already optimized)" + G-06 source→target dim shape on passthrough rows + G-07 D-07 cap-binding signal ("(capped)" muted suffix when ExportRow.isCapped)
 
+### v1.3 Polish & UX (Phases 23–27)
+
+### Phase 23: Optimize flow — defer folder picker
+
+**Goal**: OptimizeDialog is immediately accessible; the output-folder choice is made at the moment the user decides to start the export, not before they have seen the pre-flight summary.
+
+**Depends on**: Phase 22.1 (OptimizeDialog surface must be in its final v1.2 shape before the open-path is rewired).
+
+**Requirements**: OPT-01, OPT-02
+
+**Success Criteria** (what must be TRUE):
+  1. User clicks the "Optimize Assets" toolbar button and OptimizeDialog opens immediately — no OS folder-picker dialog appears before the modal is visible.
+  2. The output-folder picker is triggered only when the user clicks Start/Export inside OptimizeDialog; at that point, if an output folder was previously saved in the project file, the picker pre-fills that path and the user can confirm or change it.
+  3. A project with a previously saved output folder does not prompt a folder picker on toolbar click — the saved path is silently carried into the modal and shown as the pre-filled destination in the Start/Export flow.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric
+
+**Goal**: The Unused Assets section reports genuinely orphaned PNG files (images-folder-vs-rig delta) and lives as its own collapsible panel. The atlas-savings metric replaces the misleading MB unused-attachment callout. The AtlasNotFoundError message acknowledges the images-folder alternative.
+
+**Depends on**: Phase 21 (atlas-less loader provides the images-folder inventory needed by the rewritten detector), Phase 23 (OptimizeDialog surface stable before atlas-savings metric is wired in).
+
+**Requirements**: PANEL-01, PANEL-02, OPT-03, PANEL-04
+
+**Success Criteria** (what must be TRUE):
+  1. User loads a json + images folder project where the images/ folder contains PNG files not referenced by the rig; the Unused Assets panel lists those orphaned PNG files — not the atlas-vs-JSON region delta that the old detector reported.
+  2. The Unused Assets section is rendered as a standalone collapsible panel, sibling to Global Max Render Source and Animation Breakdown; it is collapsed by default when the orphaned count is zero and expanded by default when one or more orphaned PNGs are found.
+  3. The MB unused-attachment callout in the Global Max Render Source panel is replaced by a metric that accurately represents optimization opportunity — such as projected atlas pixel-area savings percentage or a pre-flight estimate of pixels that will be reduced; the number shown corresponds to what Optimize Assets would actually change.
+  4. User loads a .json file with no .atlas and no images/ folder and sees an AtlasNotFoundError message that mentions "Use Images Folder as Source" toggle as an alternative recovery path alongside the existing advice to re-export with an atlas.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 25: Missing attachments in-context display
+
+**Goal**: Rows whose source PNG was missing at load time remain visible in their natural panel context with a visual danger signal, so the animator can see exactly which attachments are affected alongside their scale data rather than only in a separate panel.
+
+**Depends on**: Phase 21 (skippedAttachments IPC cascade + MissingAttachmentsPanel landed in Plan 21-10; this phase reverses the filter decision at the summary layer).
+
+**Requirements**: PANEL-03
+
+**Success Criteria** (what must be TRUE):
+  1. User loads a json + images folder project where one or more PNG files are missing; the affected attachment rows appear in the Global Max Render Source panel (not filtered out) with a red left-border accent and a danger-triangle icon (⚠) beside the attachment name.
+  2. The same missing-attachment rows appear in their corresponding Animation Breakdown panel entries with the same red left-border accent and danger-triangle icon, maintaining context within each animation card.
+  3. The dedicated MissingAttachmentsPanel (above the Global panel) continues to show its summary list of skipped attachments — the in-context red-accent rows are additive, not a replacement.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 26: UI polish
+
+**Goal**: The visual surface of the app is internally consistent — uniform heights in the sticky toolbar and action buttons, readable row separation via zebra striping, a coherent icon language throughout, and every modal draggable by its title bar.
+
+**Depends on**: Phase 25 (all panel row shapes finalized before row-level zebra striping is applied).
+
+**Requirements**: UI-06, UI-07, UI-08, UI-09, UI-10
+
+**Success Criteria** (what must be TRUE):
+  1. All elements in the sticky toolbar (project-name chip, load-summary card, search box, button cluster) share a single height token and render at equal height; the Global panel "N selected / N total" counter cell has a fixed minimum width that prevents horizontal panel shift when the digit count changes.
+  2. Rows in Global Max Render Source and Animation Breakdown panels alternate between two distinct background tones; a user scrolling a long list can track individual rows without losing their place.
+  3. All toolbar action buttons (Atlas Preview, Documentation, Optimize Assets, Save, Load) render at a unified height — no button is visually taller or shorter than its neighbors.
+  4. Every hand-rolled modal (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be repositioned by clicking and dragging its title bar; releasing the mouse leaves the modal at the new position.
+  5. Icons across the app follow a consistent visual style; UI areas that previously showed text-only labels where icons would improve clarity (panel section headers, toolbar actions, modal tabs) have been audited and updated.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 27: Code quality sweep
+
+**Goal**: Four v1.0-era code quality carry-forwards are resolved with no functional behavior change — stale-closure risk on fast selection events eliminated, empty override input guarded, numeric sort ordering corrected, and dead prop removed.
+
+**Depends on**: Phase 26 (GlobalMaxRenderPanel.tsx and OverrideDialog.tsx changes finalized before the QA sweep touches the same files to avoid merge conflicts).
+
+**Requirements**: QA-01, QA-02, QA-03, QA-04
+
+**Success Criteria** (what must be TRUE):
+  1. `handleToggleRow` and `handleRangeToggle` in GlobalMaxRenderPanel.tsx use the functional `setSelected(prev => ...)` updater form; rapid keyboard selection events (e.g., holding Shift+↓) produce correct cumulative selection without stale-closure drops.
+  2. The Apply button in OverrideDialog is disabled (or an inline validation message is shown) when the input field is empty; submitting an empty field no longer silently floors the override to zero via `Number('') = 0`.
+  3. Sort comparators that call `localeCompare` pass `{ sensitivity: 'base', numeric: true }` options; attachment names like CHAIN_10 sort after CHAIN_9 in numeric order rather than lexicographically between CHAIN_1 and CHAIN_2.
+  4. The unreachable `if (!props.open) return null` guard and its associated `open` prop are removed from OverrideDialog; the component mounts and unmounts conditionally from AppShell with no dead early-return logic remaining.
+
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -531,6 +625,11 @@ Plans:
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
+| 23. Optimize flow — defer folder picker | v1.3 | 0/? | Not started | — |
+| 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 0/? | Not started | — |
+| 25. Missing attachments in-context display | v1.3 | 0/? | Not started | — |
+| 26. UI polish | v1.3 | 0/? | Not started | — |
+| 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
 ## Deferred (post-v1.1)
 
@@ -567,6 +666,15 @@ Out-of-scope for v1.2 specifically:
 - Spine 4.3+ versioned loader adapters (F1.5). Carried unchanged from v1.0.
 - `.skel` binary loader. Carried unchanged from v1.0.
 - Adaptive bisection refinement; aspect-ratio anomaly flag; in-app atlas re-packing. All carried unchanged from v1.0.
+
+Out-of-scope for v1.3 specifically:
+- Auto-update changes of any kind (distribution surface is stable post-v1.2).
+- Linux testing / AppImage UAT (Phase 13.1 remains host-blocked; carry to v1.4+).
+- New Spine math or sampler changes.
+- `.stmproj` schema-version bump.
+- Per-combined-skin compositing.
+- Code-signing posture changes (Apple Developer ID, Windows EV cert) — declined again; revisit at v1.4+ once tester base justifies enrollment cost.
+- Crash + error reporting (Sentry or equivalent) — declined again; revisit at v1.4+.
 
 ## Backlog
 
