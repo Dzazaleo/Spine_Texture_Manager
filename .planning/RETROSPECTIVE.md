@@ -63,6 +63,56 @@
 
 ---
 
+## Milestone: v1.2 — Expansion
+
+**Shipped:** 2026-05-03
+**Phases:** 8 executed (16, 18, 19, 20, 21, 22, 22.1; 17 skipped; 13.1 deferred) | **Plans:** 40
+**Test baseline at close:** ~700 vitest passing (~20,174 LOC TS/TSX)
+**Timeline:** 2026-04-30 → 2026-05-03 (4 days, 286 commits since v1.1.3)
+
+### What Was Built
+
+- **macOS auto-update → manual-download UX** — Squirrel.Mac strict DR-check failure on ad-hoc builds resolved by routing macOS through the manual-download variant. `windows-fallback` literal renamed end-to-end; `isReleasesUrl()` allow-list helper (9 threat-model tests). UPDFIX-05 closed.
+- **App quit restored on macOS** — `onCheckDirtyBeforeQuit` lifted to App.tsx top-level `useEffect` (mirroring Phase 14 pattern). Cmd+Q + AppleScript both terminate cleanly; dirty-guard preserved.
+- **Complete UI redesign** — Persistent sticky header, card-based semantic panels (green/yellow/red state colors), Optimize + Atlas Preview modal tiles + cross-nav, MB savings callout, Optimize as primary CTA. UI-01..05 closed.
+- **Documentation Builder** — Per-skeleton docs modal (Animation Tracks pane with HTML5 DnD, Sections pane, Export pane); self-contained HTML export; `.stmproj` D-148 `documentation:` slot filled without schema-version bump. DOC-01..05 closed.
+- **Atlas-less mode** — `json + images folder, no .atlas` supported; PNG IHDR byte-parser (no decode, Layer 3 preserved); synthetic TextureAtlas builder; 4-way loader branch; 12 plans + 4 gap closures. LOAD-01..04 closed.
+- **Dims-badge + override-cap** — `actualSourceW/H + dimsMismatch` on DisplayRow; badge UI in both panels; export cap `min(peakScale, sourceW/canonicalW, sourceH/canonicalH)`; generalized passthrough predicate (POST-override evaluation); override-aware re-partition fixed BLOCKER G-07. DIMS-01..05 closed.
+
+### What Worked
+
+- **SEED promotion via `/gsd-review-backlog`** paid off — SEED-001 + SEED-002 went from dormant seeds to fully shipped phases without any coordination friction; the seed files held enough context to plan from.
+- **Decimal phase insertions** (22.1) absorbed 7 visual-UAT gaps without polluting the numbered sequence or requiring replanning. The gap-close pattern established in v1.0 held across the second major feature cluster.
+- **Phase 22 gsd-verifier 5/5 PASS before human UAT** correctly separated code-level correctness from visual-surface correctness — human UAT then found 7 issues the code-level verifier couldn't see. This is the intended workflow; don't conflate the two verification layers.
+- **POST-override passthrough re-partition** (G-07 fix in 22.1) was discovered and fixed during UAT rather than shipping broken. The UAT recipe created at Phase 22 close correctly covered the override interaction.
+
+### What Was Inefficient
+
+- **Phase 22 HUMAN-UAT deferred until after gsd-execute** surfaced 7 gaps including a BLOCKER (G-07 override-aware partition). Earlier manual UAT with an atlas-source-drift fixture during Phase 22 planning would have caught G-07 before execution. **Lesson: for phases that introduce passthrough/cap logic, add override-interaction tests to the UAT recipe during planning.**
+- **Seed status files not auto-updated at phase completion** — the audit tool flagged SEED-001 + SEED-002 as dormant at milestone close, requiring manual fix. **Lesson: add seed status update to the phase completion checklist.**
+- **REQUIREMENTS.md checkbox lag** — 20 of 26 checkboxes were still `[ ]` at milestone close despite the phases being complete; required bulk-fix at close. **Lesson: check off requirements as each phase completes, not at milestone close.**
+
+### Patterns Established
+
+- **Generalized passthrough predicate evaluated POST-override** — partition is `outW === sourceW AND outH === sourceH` after all overrides AND cap resolved; never against pre-override natural peakScale.
+- **DimsBadge as a shared primitive** — badge + React tooltip component usable symmetrically across GlobalMaxRenderPanel + AnimationBreakdownPanel with the same mode-aware tooltip logic.
+- **Atlas-source mode badge disambiguation** — when Source W×H displayed IS the canonical value (atlas-source mode), badge wording must reference the on-disk PNG vs the atlas declaration, not "source < canonical".
+- **HTML5 DnD in Electron with `effectAllowed='copy'`** — standard DnD APIs work in Electron Chromium but require `effectAllowed='copy'` on `dragstart` and `preventDefault` mandatory on `dragover`; MIME type namespacing (`application/x-stm-anim`) avoids OS file-drop collision.
+
+### Key Lessons
+
+1. **Visual-surface UAT should happen during Phase 22-type phases, not just at post-execute gate.** Code verifier + test suite cannot cover tooltip hover reliability, badge mode-awareness, or dim-shape parity in OptimizeDialog.
+2. **POST-override passthrough re-partition is load-bearing for the animator workflow.** Pre-override evaluation silently discards intentional overrides on capped rows — a primary use case for glow/blend-mode attachments.
+3. **Phase 17 skip (UPDFIX-06 closed-by-test)** demonstrates that `/gsd-discuss-phase` investigation before planning is worth the investment — a 20-minute discussion saved a full verification-only phase.
+4. **D-148 forward-compat `.stmproj` reserved slot** worked as designed — Phase 20 filled `documentation:` without a schema bump, and the materializer back-fill kept Phase 8-era files loadable.
+
+### Cost Observations
+
+- Timeline: 4 days, 286 commits (vs 5 days, 386 commits for v1.0 MVP — similar velocity on a smaller surface).
+- Notable: Phase 21 was the largest single phase (12 plans; 4 inserted gap-closure plans). Phase 22.1 was the fastest gap-close (4 plans, 1 day). Most expensive human-time: Phase 19 UI redesign (7 plans, broad renderer surface, visual UAT iteration).
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -70,13 +120,18 @@
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v1.0 | (untracked) | 12 | Initial GSD workflow adoption — Wave-0 RED-spec pattern, decimal-phase insertions, Layer 3 arch invariants. |
+| v1.2 | ~5 | 8 executed | SEED promotion via backlog review, Phase 17 skip via discuss-phase, POST-override partition pattern locked. |
 
 ### Cumulative Quality
 
 | Milestone | Tests | Coverage | Zero-Dep Additions |
 |-----------|-------|----------|-------------------|
 | v1.0 | 333 (331 pass + 1 skip + 1 todo) | (untracked) | spine-core, sharp, maxrects-packer, @tanstack/react-virtual |
+| v1.2 | ~700+ (vitest) | (untracked) | No new deps. PNG IHDR byte-parser in pure TS; synthetic atlas builder in pure TS. |
 
 ### Top Lessons (Verified Across Milestones)
 
-*(To be populated as v1.1+ ships and confirms or contradicts v1.0 lessons.)*
+1. **Layer 3 invariant** (arch.spec grep guard) held across all 22+ phases without a single violation. Confirmed essential.
+2. **Decimal phase insertions** (08.1, 08.2, 22.1) absorb UAT-found gaps without polluting sequence or requiring renumbering. Pattern confirmed.
+3. **Human UAT should cover visual-surface + interaction-layer issues** that test suites can't reach — badge mode-awareness, tooltip reliability, override interaction with partition logic. Budget 1 UAT day per phase with significant UI/UX surface.
+4. **POST-override passthrough partition** is a new invariant: evaluate passthrough AFTER all overrides and caps are resolved, never against pre-override natural peakScale.

@@ -2,23 +2,19 @@
 
 ## What This Is
 
-A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. When no timeline touches an attachment, the setup pose is used as the reference. The animator then exports a per-attachment-optimized `images/` folder via sharp Lanczos3, preserving image quality.
-
-v1.0 ships seven coordinated surfaces: a headless math core, two analysis panels (Global Max Render Source + Animation Breakdown), per-attachment scale overrides (% of source dims), unused-attachment detection, sharp Lanczos3 image export, an atlas-preview modal with maxrects-packer projection, and crash-safe `.stmproj` save/load.
+A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. The animator exports a per-attachment-optimized `images/` folder via sharp Lanczos3. v1.2 adds atlas-less mode (json + images folder, no .atlas), dims-badge round-trip safety (cap export at actual source PNG dims), per-skeleton Documentation Builder with HTML export, a full UI redesign, and two macOS UX regressions closed.
 
 ## Core Value
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-## Current State (post v1.0)
+## Current State (post v1.2)
 
-**Shipped:** v1.0 MVP — 2026-04-26 (12 phases, 62 plans, ~13.3K LOC TS/TSX in `src/`, ~8.4K in `tests/`, 331 vitest passing). Tag: `v1.0`. See `.planning/MILESTONES.md` for full v1.0 record.
+**Shipped:** v1.2.0 Expansion — 2026-05-03 (8 phases executed, 40 plans, ~20,174 LOC TS/TSX in `src/`). Tag: `v1.2.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
 
-**Working:** Drop a Spine `.json` or `.stmproj` → Global + Animation Breakdown panels populate → set per-attachment overrides via dialog (% of source dims, capped at 100%) → preview the resulting atlas pack → export an optimized `images/` folder. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs (~80 attachments / 16 animations) interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under the N2.2 contract).
+**Working:** Drop Spine `.json` + `.atlas` (or `.json` + images folder, no atlas — v1.2 atlas-less mode) or `.stmproj` → Global + Animation Breakdown panels populate → dims-badge surfaces when actual source PNG dims drift from canonical → set per-attachment overrides → preview the resulting atlas pack → export an optimized `images/` folder (cap prevents upscaling beyond actual source dims). Documentation Builder accessible from sticky header. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under N2.2 contract). macOS Cmd+Q + AppleScript quit work correctly (v1.2 fix). Update dialog routes macOS to manual-download (GitHub Releases page).
 
-**v1.1 progress:** Phase 10 + Phase 11 + Phase 12 complete (2026-04-27). Phase 10 landed the installer build pipeline (`npm run build:mac/win/linux` produces per-platform installers via electron-builder; macOS `.dmg` ad-hoc-signed, version `1.1.0-rc1` embedded throughout, `sharp` + libvips bundled in `app.asar.unpacked` — live-verified against SIMPLE_TEST + Girl fixtures). Phase 11 landed the CI release pipeline (`.github/workflows/release.yml` — tag-triggered, 5 jobs (test → 3 parallel builds → atomic publish), 5 SHA-pinned actions, atomicity-by-construction proven empirically across 4 GHA runs). Phase 12 landed the auto-update + tester install docs surface: `electron-updater@^6.8.3` orchestrator behind a single `src/main/auto-update.ts` module (UPD-01..06, ARIA UpdateDialog with Windows-fallback variant under one cohesive code surface per CONTEXT D-04, atomic JSON persistence for "Later" dismissals, 10s startup-check timeout, silent-swallow on offline); `electron-builder.yml` flipped to `publish: github` so `app-update.yml` bakes into resources at build time; CI test matrix expanded to 3 OSes (`ubuntu-latest` + `windows-2022` + `macos-14`) and feed files (`latest*.yml`) now upload alongside installers; three Phase 11 spillover Windows runtime bugs fixed at single audit sites (F1 atlas-image URL via `pathToFileURL` IPC bridge, F2 file-picker `defaultPath` suffix removal, F3 Spine < 4.2 hard-reject via `SpineVersionUnsupportedError`); INSTALL.md cookbook + 4 linking surfaces (release-template prune, README, Help menu, HelpDialog). Two items intentionally deferred to phase 12.1: the live Windows-unsigned auto-update spike (UPD-06 strict-bar three-step verification — manual-fallback ships LIVE on Windows by default; runbook attempted via 3 CI runs but blocked by electron-builder 26.x publish race) and INSTALL.md screenshots (1×1 placeholder PNGs ship today; binary-only swap when first real tester install on rc2 captures the bypass dialogs). 433/433 vitest passing.
-
-**Tech stack (locked, validated through v1.0):**
+**Tech stack (locked, validated through v1.2):**
 - Electron 41 + electron-vite 5 + electron-builder 26
 - TypeScript (strict) + React 19 + Tailwind v4 (`@theme inline`)
 - `@esotericsoftware/spine-core` 4.2.111 — skeleton/animation/constraint/physics math
@@ -27,45 +23,12 @@ Animators ship atlases that are as small as they mathematically can be without v
 - `@tanstack/react-virtual` — Phase 9 row virtualization
 - `vitest` 4 — testing
 
-**Known deferred (carried into next milestone or post-MVP):**
-- F1.5 Spine 4.3+ versioned loader adapters
-- N4.1 signed `.dmg` / `.exe` distribution (electron-builder config landed; signing + notarization not yet)
-- SEED-001 atlas-less mode (json + images folder, no `.atlas`)
-- SEED-002 dims-badge + override-math cap (canonical vs source mismatch)
-- Phase-0 scale-overshoot debug session (`investigating`; v1.0 ships current behavior)
-
-## Previous Milestone: v1.1.2 Auto-update fixes — SHIPPED 2026-04-29
-
-Hotfix milestone closing four auto-update defects observed live on v1.1.1. Phases 14 + 15 closed (5/5 + 6/6 plans); UPDFIX-01..04 validated. v1.1.2 published, then v1.1.3 same-day hotfix closed D-15-LIVE-1 (macOS feed-URL space-vs-dot mismatch) empirically via Test 7-Retry PARTIAL-PASS. 520 vitest passing. Three downstream defects discovered during live UAT (D-15-LIVE-2 ad-hoc code-sig swap; D-15-LIVE-3 menu gating; 999.1 macOS quit) routed to backlog and now promoted to v1.2 phases 16/17/18.
-
-## Current Milestone: v1.2 expansion
-
-**Goal:** Close out three macOS regressions + one host-blocked carry-forward from v1.1.x; refine the UI based on tester feedback; add the Documentation Builder feature (the `.stmproj` v1 reserved `documentation: object` slot from D-148); land the two long-dormant SEEDs (atlas-less mode + dims-badge override-cap).
-
-**Target features (7 phases; Phase 17 skipped 2026-04-30 — UPDFIX-06 closed-by-test):**
-
-- **Phase 13.1 — Live UAT carry-forwards** *(host-blocked from v1.1.1)* — Linux AppImage UAT runbook + libfuse2 PNG capture for INSTALL.md; macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation.
-- **Phase 16 — macOS auto-update → manual-download UX** *(closes D-15-LIVE-2 / former 999.2)* **— ✓ COMPLETE 2026-04-30 (UPDFIX-05).** 6 plans across 4 waves. Renamed gate `SPIKE_PASSED` → `IN_PROCESS_AUTO_UPDATE_OK = process.platform === 'linux'` (auto-update is Linux-only now); renamed variant literal `'windows-fallback'` → `'manual-download'` end-to-end (types/preload/main/renderer/tests + INSTALL.md); switched `fullReleaseUrl` payload to per-release-tag template `…/releases/tag/v{version}`; widened IPC `shell:open-external` allow-list with strict `isReleasesUrl()` helper (`https://` + `hostname === 'github.com'` exact-equals, 9 unit tests covering threat model T-16-04-01..06); added regression-gate spec `tests/integration/no-windows-fallback-literal.spec.ts` (D-07). 531 vitest passing. UAT both items PASS via dev-mode synthetic injection on macOS; full-release-event re-verification deferred to v1.2.0 ship round.
-- **Phase 17 — Help → Check for Updates not gated on project** *(former 999.3)* **— ⊘ SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test).** `/gsd-discuss-phase 17` investigation found the bug already fixed by Phase 14's renderer-lift commit `802a76e`: `onMenuCheckForUpdates` subscription was moved from `AppShell.tsx` (mounts only on `loaded` / `projectLoaded`) to `App.tsx`'s top-level `useEffect` (runs on every AppState branch including idle). The Help menu item at `src/main/index.ts:290-293` has no `enabled:` field — it was never gated in main. Existing regression test `tests/renderer/app-update-subscriptions.spec.tsx` test (14-l) "Help → Check for Updates from idle calls window.api.checkForUpdates()" locks the wiring. D-15-LIVE-3 was observed on the v1.1.1 installed binary (pre-lift); v1.1.3+ already has the fix. No source change committed; phase number preserved as SKIPPED entry for audit traceability (no renumbering of 18..22).
-- **Phase 18 — Cmd+Q + AppleScript quit broken on macOS** *(former 999.1)* — Wire missing `role: 'quit'` on the menu item, or fix `before-quit` handler swallowing the event. Observed in v1.1.1 packaged macOS build during Phase 15 UAT.
-- **Phase 19 — UI improvements (UI-01..05)** *(new for v1.2; sourced from tester feedback + visual diff against an older non-related Spine 3.8 reference app)* — Persistent sticky header bar (drop-zone state + primary action buttons + search box never scroll offscreen); card-based section layout with color-coded category icons + semantic state colors (green = under 1.0× scale, yellow = over, red = unused/danger); modal redesign with summary tiles + secondary cross-nav in footer; quantified unused-assets callout (`X.XX MB potential savings`); inline search + clear primary/secondary action-button hierarchy.
-- **Phase 20 — Documentation Builder feature** *(new for v1.2)* — Fills the `.stmproj` v1 reserved `documentation: object` slot (D-148). Per-skeleton documentation surface: animation tracks with mix times + loop flags + notes, control-bone descriptions, skin descriptions, general notes, optimization config snapshot, export-to-HTML.
-- **Phase 21 — SEED-001 atlas-less mode** *(seed dormant since v1.0 Phase 6 close-out)* — Support `json + images folder, no .atlas` projects. New `src/core/png-header.ts` (IHDR-only byte parsing, no PNG decode — preserves CLAUDE.md fact #4) + `src/core/synthetic-atlas.ts` builds an in-memory `TextureAtlas` from per-region PNG headers when no `.atlas` file is present. Loader routes through synthesized atlas instead of failing with `AtlasNotFoundError`.
-- **Phase 22 — SEED-002 dims-badge + override-cap** *(seed; depends on Phase 21)* — Round-trip safety after Optimize. Extend `DisplayRow` with `actualSourceW/H` + `dimsMismatch` flag; surface badge in Global + Animation Breakdown panels when actual source PNG dims differ from canonical region dims; cap export effective scale at `min(peakScale, sourceW/canonicalW, sourceH/canonicalH)` so re-running Optimize on already-optimized images produces zero exports.
-
-**Out of scope (declined or deferred):**
-
-- Apple Developer ID code-signing + notarization ($99/yr; declined 2026-04-29 — Phase 16's manual-download UX is the v1.2 answer instead). Revisit at v1.3+.
-- Crash + error reporting (Sentry / equivalent) — descoped at v1.1; revisit at v1.3 once tester base + crash-trace volume justifies the SaaS dependency + consent UX overhead.
-- Spine 4.3+ versioned loader adapters; `.skel` binary loader. Carried unchanged from v1.0.
-
-**Key context / constraints:**
-
-- Phase numbering continues from v1.1.2 (no `--reset-phase-numbers`); Phase 13.1 keeps its decimal name to preserve the "split off from Phase 13 so v1.1.1 could ship without being host-blocked" breadcrumb.
-- Phase 22 depends on Phase 21 (shared PNG header reader infrastructure — sequenced 21 → 22 per SEED-001 / SEED-002 author's intent).
-- Phase 16 supersedes the original "Apple Developer Program enrollment" path — manual-download UX is the locked answer; signing posture stays a v1.3 question.
-- UI improvements (Phase 19) work against the *current* PNG-screenshot UI; visual reference from an older 3.8 app exists for inspiration but its codebase is out-of-scope.
-- Existing v1.0 + v1.1 contracts (Layer 3 invariant, sampler lifecycle, override semantics, export uniform-only, `.stmproj` schema, sharp Lanczos3, atomic Pattern-B writes, ARIA modal pattern, distribution + CI surface) are locked; do not regress.
+**Known deferred (carried into v1.3):**
+- Phase 13.1: Linux AppImage + macOS/Windows v1.1.0→v1.1.1 auto-update lifecycle observation (host-blocked)
+- Apple Developer ID code-signing + notarization ($99/yr; declined for v1.2)
+- Crash + error reporting (Sentry / equivalent; declined for v1.2)
+- F1.5 Spine 4.3+ versioned loader adapters; `.skel` binary loader
+- Phase-0 scale-overshoot debug session (`investigating`; long-lived tech debt)
 
 ## Primary user
 
@@ -82,7 +45,10 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 | Override semantics: 100% = source dimensions, never surpassed (D-91) | ✓ Good | Supersedes original D-78/D-79 percent-of-peak semantics. Caught in Phase 4 human-verify; clearer mental model for animators. |
 | Phase 6 export sizing: uniform-only on both axes | ✓ Good | Anisotropic export breaks Spine UV sampling. Locked in memory. |
 | F7.2 reinterpreted: dims + page count + per-page efficiency, no bytes (D-127) | ✓ Good | File-size delta would require encoding every region — contradicts the Lanczos quality preservation contract. |
-| `.stmproj` v1 forward-compat: reserved `documentation: object` slot (D-148) | — Pending | Untested until v2 ladder lands. |
+| `.stmproj` v1 forward-compat: reserved `documentation: object` slot (D-148) | ✓ Good | Documentation Builder (Phase 20) filled this slot without a schema-version bump — D-148 forward-compat design proved out. |
+| macOS auto-update → manual-download UX (Phase 16) | ✓ Good | Squirrel.Mac code-sig strict-validation on ad-hoc builds made in-process swap impossible without Apple Developer ID. Manual-download is simpler, honest, and avoids $99/yr enrollment. |
+| Atlas-less mode via synthetic atlas (Phase 21) | ✓ Good | IHDR byte-parsing (no decode) + synthetic TextureAtlas keeps Layer 3 invariant intact. AtlasNotFoundError preserved verbatim for malformed-project path. |
+| Override-aware passthrough partition evaluated POST-override (Phase 22.1) | ✓ Good | Evaluating passthrough BEFORE override silently dropped animator overrides on capped rows (G-07 BLOCKER). POST-override re-partition was the only correct fix. |
 | `worker_threads` Worker with path-based protocol + terminate-cancel (D-190/D-193/D-194) | ✓ Good | Greenfield in Phase 9. 606 ms wall-time on complex rig. |
 | Discriminated-union typed-error envelope (D-158/D-171) | ✓ Good | 8 kinds including 7-field `SkeletonNotFoundOnLoadError` recovery payload. Caught misuse at compile time during Phase 8.1. |
 | Atomic Pattern-B write (`.tmp` + `fs.rename`) | ✓ Good | Reused across Phase 6 (sharp export) and Phase 8 (.stmproj save) — load-bearing across two subsystems. |
@@ -128,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-04-30 — Milestone v1.2 (expansion) in progress. 7 active phases (Phase 17 skipped 2026-04-30 — UPDFIX-06 closed-by-test 14-l): 13.1 (live UAT carry-forwards), 16 (macOS manual-download UX; ✓ COMPLETE), 18 (Cmd+Q quit fix; promoted from backlog 999.1 via /gsd-review-backlog 2026-04-29), 19 (UI improvements UI-01..05 from tester feedback), 20 (Documentation Builder filling D-148 .stmproj slot), 21 (SEED-001 atlas-less mode), 22 (SEED-002 dims-badge override-cap; depends on 21). Apple Developer ID signing + Sentry crash reporting declined for v1.2; revisit at v1.3.*
+*Last updated: 2026-05-03 after v1.2 milestone. v1.2.0 shipped — 8 phases executed (16, 18, 19, 20, 21, 22, 22.1; 17 skipped; 13.1 deferred host-blocked). 23/26 v1.2 REQs closed. SEED-001 (atlas-less) + SEED-002 (dims-badge) both shipped. D-148 documentation slot filled. macOS quit + update UX regressions closed. ~20K LOC TS/TSX.*

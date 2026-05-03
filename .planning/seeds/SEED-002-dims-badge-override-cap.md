@@ -1,6 +1,6 @@
 ---
 id: SEED-002
-status: dormant
+status: shipped
 planted: 2026-04-25
 planted_during: Milestone 1 / Phase 6 (optimize-assets-image-export) close-out
 trigger_when: when source PNG dims may differ from JSON canonical region dims (e.g. user manually pre-reduced source images, or overwrote source folder during a previous Optimize Assets run); or when a user reports "the app keeps trying to optimize already-optimized images"

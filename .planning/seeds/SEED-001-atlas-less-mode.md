@@ -1,6 +1,6 @@
 ---
 id: SEED-001
-status: dormant
+status: shipped
 planted: 2026-04-25
 planted_during: Milestone 1 / Phase 6 (optimize-assets-image-export) close-out
 trigger_when: user explicitly requests support for json+images-folder projects (no .atlas file) — common real-world Spine workflow where animator keeps pre-pack source PNGs separate from atlas-packed export

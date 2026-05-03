@@ -1,31 +1,37 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.2
-milestone_name: (in progress)
-status: executing
-last_updated: "2026-05-03T13:29:00.810Z"
-last_activity: 2026-05-03 -- Phase 22.1 execution started
+milestone_name: Expansion
+status: milestone_complete
+last_updated: "2026-05-03T20:30:00.000Z"
+last_activity: 2026-05-03 -- v1.2.0 milestone complete; tag v1.2.0 created
 progress:
-  total_phases: 16
+  total_phases: 9
   completed_phases: 8
-  total_plans: 52
-  completed_plans: 48
-  percent: 92
+  total_plans: 40
+  completed_plans: 40
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 22.1 (close-7-gaps-from-phase-22-human-uat-dims-02-badge-mode-awar) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 22.1
-Last activity: 2026-05-03 -- Phase 22.1 execution started
-Next recommended run: `/gsd-discuss-phase 22.1` (lock G-01 gate-by-mode-vs-mode-aware-tooltip decision; choose passthrough re-routing semantics for G-07; resolve override semantics interaction with passthrough partition before planning)
+Phase: — (milestone complete)
+Status: v1.2.0 shipped — all 40 plans complete across 8 phases. Phase 13.1 deferred (host-blocked; UAT-01..03 carry to v1.3).
+Last activity: 2026-05-03 — v1.2.0 milestone archived; tag v1.2.0 created
+Next recommended run: `/gsd-new-milestone` to start v1.3
+
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-05-03 after v1.2 milestone)
+
+**Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
+**Current focus:** Planning next milestone (v1.3). Start with `/gsd-new-milestone`.
 
 ## Last Roadmap Update
 
-2026-04-30 — `.planning/ROADMAP.md` refined to match the v1.2 REQUIREMENTS.md surface authored at commit f36f265. v1.0 / v1.1 / v1.1.1 / v1.1.2 historical sections preserved verbatim (append-only). v1.2 milestone bullet expanded from "Phases 16–18 promoted from backlog" → full 8-phase scope summary. v1.2 section header updated to "Phases 13.1, 16–22 (8 phases; promoted from backlog + tester feedback + dormant seeds 2026-04-30)". Phases 16 / 17 / 18 (already-existing rich Phase Details from /gsd-review-backlog commit cc0bc6a) gained `**Requirements:**` lines + `**Success Criteria**` blocks; existing Background / User decision / Scope / Severity / Cross-references sub-blocks preserved verbatim. Phases 13.1, 19, 20, 21, 22 authored from scratch (Phase 13.1 details lifted from 13-VERIFICATION.md gaps; Phase 19 from tester-feedback REQs; Phase 20 from D-148 + DOC-01..05; Phases 21 + 22 narrative lifted from `.planning/seeds/SEED-001-atlas-less-mode.md` + `.planning/seeds/SEED-002-dims-badge-override-cap.md`). Progress table extended with rows for 13.1, 19, 20, 21, 22 (16/17/18 rows preserved). Deferred section updated to strikethrough the 4 items now promoted (SEED-001, SEED-002, UI improvements, Documentation Builder, Phase 13.1 carry-forwards) + new "Out-of-scope for v1.2 specifically" section listing Apple Developer ID + Sentry as declined for v1.2 with v1.3 revisit posture. Backlog section unchanged (still empty post-/gsd-review-backlog 2026-04-29). Commit hash: [committed in next step].
+2026-05-03 — v1.2 milestone complete. ROADMAP.md: v1.2 milestone bullet updated to ✅ shipped; phases 16–22.1 collapsed into `<details>` block; Progress table Phase 22.1 marked Complete. v1.0 / v1.1 / v1.1.1 / v1.1.2 historical sections preserved verbatim (append-only). v1.2 milestone bullet expanded from "Phases 16–18 promoted from backlog" → full 8-phase scope summary. v1.2 section header updated to "Phases 13.1, 16–22 (8 phases; promoted from backlog + tester feedback + dormant seeds 2026-04-30)". Phases 16 / 17 / 18 (already-existing rich Phase Details from /gsd-review-backlog commit cc0bc6a) gained `**Requirements:**` lines + `**Success Criteria**` blocks; existing Background / User decision / Scope / Severity / Cross-references sub-blocks preserved verbatim. Phases 13.1, 19, 20, 21, 22 authored from scratch (Phase 13.1 details lifted from 13-VERIFICATION.md gaps; Phase 19 from tester-feedback REQs; Phase 20 from D-148 + DOC-01..05; Phases 21 + 22 narrative lifted from `.planning/seeds/SEED-001-atlas-less-mode.md` + `.planning/seeds/SEED-002-dims-badge-override-cap.md`). Progress table extended with rows for 13.1, 19, 20, 21, 22 (16/17/18 rows preserved). Deferred section updated to strikethrough the 4 items now promoted (SEED-001, SEED-002, UI improvements, Documentation Builder, Phase 13.1 carry-forwards) + new "Out-of-scope for v1.2 specifically" section listing Apple Developer ID + Sentry as declined for v1.2 with v1.3 revisit posture. Backlog section unchanged (still empty post-/gsd-review-backlog 2026-04-29). Commit hash: [committed in next step].
 
 ## Current milestone
 
@@ -79,6 +85,24 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 ## Last completed
 
 **Milestone v1.1.2 — Auto-update fixes — SHIPPED 2026-04-29.** Phase 14 closed 5/5 plans (renderer + state machine fixes; UPDFIX-02 / UPDFIX-03 / UPDFIX-04). Phase 15 closed 6/6 plans (build/feed-shape fix + v1.1.2 release + v1.1.3 same-day hotfix; UPDFIX-01 / D-15-LIVE-1 empirically closed via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact 121,848,102 bytes at canonical dotted URL). 520 vitest passing. Three downstream defects (D-15-LIVE-2 ad-hoc code-sig swap; D-15-LIVE-3 menu gating; 999.1 macOS quit) routed to backlog and now promoted to v1.2 phases 16 / 17 / 18 via /gsd-review-backlog (commit cc0bc6a, 2026-04-29).
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-05-03:
+
+| Category | Item | Status |
+|----------|------|--------|
+| debug | phase-0-scale-overshoot | investigating — v1.0-era AABB/rotation tech debt; no regression observed across 4 milestones |
+| uat_gaps | Phase 14 14-HUMAN-UAT.md | signed-off — 6 pending auto-update live-observation scenarios; pre-v1.2 milestone carry-forward |
+| uat_gaps | Phase 15 15-HUMAN-UAT.md | signed-off — 12 pending scenarios; pre-v1.2 milestone carry-forward |
+| uat_gaps | Phase 20 20-HUMAN-UAT.md | partial — Windows/Linux DnD cross-platform UAT; host-unavailable deferred |
+| verification_gaps | Phase 14 14-VERIFICATION.md | human_needed — auto-update live verification; pre-v1.2 carry-forward |
+| verification_gaps | Phase 20 20-VERIFICATION.md | human_needed — Doc Builder Windows/Linux DnD; host-deferred |
+| verification_gaps | Phase 21 21-VERIFICATION.md | human_needed — atlas-less mode HUMAN-UAT; explicitly deferred per user during Phase 21 execute |
+| quick_task | 2026-04-24-phase-4-code-review-follow-up.md | v1.0-era Phase 4 code review todo; long-lived tech debt |
+| quick_task | 2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md | Phase 20 Windows/Linux UAT; host-blocked |
+
+Seeds SEED-001 and SEED-002 were marked dormant by the audit tool but have been shipped as Phases 21 and 22 respectively — status updated to `shipped` in seed files.
 
 ## Accumulated Context (carries across milestones)
 
