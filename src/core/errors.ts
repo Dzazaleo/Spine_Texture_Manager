@@ -130,3 +130,28 @@ export class MissingImagesDirError extends SpineLoaderError {
     this.name = 'MissingImagesDirError';
   }
 }
+
+/**
+ * Phase 22.1 G-01b D-03 — atlas-source mode, load-time rejection of rotated
+ * atlas regions. User-locked invariant: rotated atlas regions are
+ * non-negotiable for this app's contract. The existing Optimize-time
+ * check at src/main/image-worker.ts:327-338 becomes defense-in-depth.
+ *
+ * `.name = 'RotatedRegionUnsupportedError'` is LOAD-BEARING — must be
+ * added to the KNOWN_KINDS Set at src/main/ipc.ts AND to the
+ * KnownErrorKind union at src/shared/types.ts in the same commit, or
+ * the error surfaces as `kind: 'Unknown'` via the IPC envelope.
+ */
+export class RotatedRegionUnsupportedError extends SpineLoaderError {
+  constructor(
+    public readonly regionName: string,
+    public readonly atlasPath: string,
+  ) {
+    super(
+      `Rotated atlas regions are not supported. ` +
+        `Re-export from Spine with rotation disabled.\n` +
+        `  Region: ${regionName}\n  Atlas: ${atlasPath}`,
+    );
+    this.name = 'RotatedRegionUnsupportedError';
+  }
+}
