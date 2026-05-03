@@ -12,6 +12,7 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "cli": "tsx scripts/cli.ts",
+    "fixture:atlas-source-drift": "node scripts/fixture-atlas-source-drift.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
     "build:mac": "electron-vite build && electron-builder --mac --publish never && node scripts/emit-latest-yml.mjs --platform=mac",
