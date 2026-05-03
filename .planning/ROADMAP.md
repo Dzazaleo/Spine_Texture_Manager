@@ -535,7 +535,7 @@ Plans:
   3. A project with a previously saved output folder does not prompt a folder picker on toolbar click — the saved path is silently carried into the modal and shown as the pre-filled destination in the Start/Export flow.
 
 **Plans**: 2 plans
-- [ ] 23-01-PLAN.md — AppShell.tsx + OptimizeDialog.tsx: restructure optimize flow (5 AppShell edit sites + 2 OptimizeDialog edits)
+- [x] 23-01-PLAN.md — AppShell.tsx + OptimizeDialog.tsx: restructure optimize flow (5 AppShell edit sites + 2 OptimizeDialog edits)
 - [ ] 23-02-PLAN.md — tests/renderer/appshell-optimize-flow.spec.tsx: 6 regression tests for OPT-01/OPT-02/D-01/D-02/D-07
 **UI hint**: yes
 
@@ -627,7 +627,7 @@ Plans:
 | 21. SEED-001 atlas-less mode (json + images, no .atlas) | v1.2 | 12/12 | Complete    | 2026-05-02 |
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
-| 23. Optimize flow — defer folder picker | v1.3 | 0/? | Not started | — |
+| 23. Optimize flow — defer folder picker | v1.3 | 1/2 | In Progress|  |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 0/? | Not started | — |
 | 25. Missing attachments in-context display | v1.3 | 0/? | Not started | — |
 | 26. UI polish | v1.3 | 0/? | Not started | — |

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
 status: executing
-last_updated: "2026-05-03T21:54:08.151Z"
-last_activity: 2026-05-03 -- Phase 23 planning complete
+last_updated: "2026-05-03T21:55:46.169Z"
+last_activity: 2026-05-03 -- Phase 23 execution started
 progress:
   total_phases: 21
   completed_phases: 9
@@ -17,17 +17,17 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap authored, ready to plan Phase 23)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-03 -- Phase 23 planning complete
+Phase: 23 (optimize-flow-defer-folder-picker) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 23
+Last activity: 2026-05-03 -- Phase 23 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-03 after v1.2 milestone)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** v1.3 roadmap authored (Phases 23–27). Start with `/gsd-plan-phase 23`.
+**Current focus:** Phase 23 — optimize-flow-defer-folder-picker
 
 ## Last Roadmap Update
 
