@@ -294,18 +294,19 @@ export function buildExportPlan(
   //
   // Phase 22.1 G-04 + G-07 D-06 — generalized passthrough predicate,
   // evaluated AFTER override resolution AND cap math. Covers:
-  //   (a) TRIANGLE no-drift peakScale=1.0× → outW = sourceW → passthrough
-  //   (b) drifted row, no override → cap binds → outW = sourceW → passthrough
-  //   (c) drifted row, 50% override → outW < sourceW → resize
-  //   (d) drifted row, 100% override → outW = sourceW → passthrough
-  // After 22.1-01's unified model (sourceW === actualSourceW everywhere),
-  // the Phase 22 cap math reduces to a no-op in atlas-source mode; this
-  // predicate IS the partition.
+  //   (a) TRIANGLE no-drift peakScale=1.0× → outW = canonicalW = sourceW → passthrough
+  //   (b) drifted row, no override → cap binds effScale to sourceRatio →
+  //       outW = ceil(canonicalW × sourceRatio) = actualSourceW = sourceW → passthrough
+  //   (c) drifted row, 50% override → outW = ceil(canonicalW × 0.5) < sourceW → resize
+  //   (d) drifted row, 100% override → cap binds → outW = sourceW → passthrough
+  //
+  // Bug A fix (Phase 22.1 post-UAT): outW computed from canonicalW, not sourceW.
+  // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
   const rows: ExportRow[] = [];
   const passthroughCopies: ExportRow[] = [];
   for (const acc of bySourcePath.values()) {
-    const outW = Math.ceil(acc.row.sourceW * acc.effScale);
-    const outH = Math.ceil(acc.row.sourceH * acc.effScale);
+    const outW = Math.ceil((acc.row.canonicalW ?? acc.row.sourceW) * acc.effScale);
+    const outH = Math.ceil((acc.row.canonicalH ?? acc.row.sourceH) * acc.effScale);
     // G-04 + G-07 D-06 (Phase 22.1) — generalized passthrough predicate,
     // evaluated AFTER override resolution AND cap math.
     const isPassthrough = outW === acc.row.sourceW && outH === acc.row.sourceH;

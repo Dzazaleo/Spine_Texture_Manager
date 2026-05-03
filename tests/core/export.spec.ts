@@ -632,10 +632,13 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
-  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round)', () => {
+  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round; Bug A fix uses canonicalW base)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
-    const sig = /Math\.ceil\([^)]*sourceW\s*\*/;
+    // Bug A fix (Phase 22.1 post-UAT): formula changed from sourceW to
+    // (canonicalW ?? sourceW) so peakScale (relative to canonical) is applied
+    // against the correct base. Both files must match.
+    const sig = /Math\.ceil\(\(acc\.row\.canonicalW \?\? acc\.row\.sourceW\)/;
     expect(coreText).toMatch(sig);
     expect(viewText).toMatch(sig);
   });

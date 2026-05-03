@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { DisplayRow } from '../../../shared/types.js';
 import { buildDimsTooltipText, deriveIsCapped } from '../lib/dims-tooltip-view.js';
 
@@ -18,9 +19,9 @@ type LoaderMode = 'auto' | 'atlas-less';
  * Tooltip primitive shape mirrors the rig-info tooltip at
  * src/renderer/src/components/AppShell.tsx:1253-1289 (proven pattern).
  *
- * Layout invariant (memory project_layout_fragility_root_min_h_screen.md):
- * tooltip uses position:absolute inside relative inline-block host — no
- * layout shift.
+ * Layout invariant: tooltip uses position:fixed via createPortal so it
+ * escapes any overflow:hidden ancestor (e.g. AnimationBreakdownPanel card
+ * wrapper). Position computed from getBoundingClientRect on mouseEnter.
  *
  * Tailwind v4 literal-class discipline: all className strings are literal.
  * No template-string interpolation.
@@ -34,7 +35,8 @@ export function DimsBadge({
   effectiveScale: number;
   loaderMode: LoaderMode;
 }) {
-  const [tooltipOpen, setTooltipOpen] = useState<boolean>(false);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; right: number } | null>(null);
   if (!row.dimsMismatch) return null;
   const isCapped = deriveIsCapped(row, effectiveScale);
   const tooltipText = buildDimsTooltipText(row, loaderMode, isCapped);
@@ -48,16 +50,28 @@ export function DimsBadge({
         ? ' — Optimize will cap at on-disk size.'
         : ' — Optimize will cap at source size.'
       : '');
+
+  function handleMouseEnter() {
+    const rect = hostRef.current?.getBoundingClientRect();
+    if (rect) {
+      setTooltipPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }
+
   return (
     <div
+      ref={hostRef}
       data-testid="dims-badge-host"
-      className="relative inline-block"
-      onMouseEnter={() => setTooltipOpen(true)}
-      onMouseLeave={() => setTooltipOpen(false)}
+      className="inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setTooltipPos(null)}
     >
       <span
         aria-label={ariaLabel}
-        aria-describedby={tooltipOpen ? tooltipId : undefined}
+        aria-describedby={tooltipPos !== null ? tooltipId : undefined}
         className="inline-flex items-center justify-center w-4 h-4 ml-1 align-middle text-warning"
       >
         {/* Info-circle SVG preserved byte-for-byte from
@@ -76,15 +90,18 @@ export function DimsBadge({
           <path d="M8 5 v4 M8 11.5 v0.01" />
         </svg>
       </span>
-      {tooltipOpen && (
-        <div
-          id={tooltipId}
-          role="tooltip"
-          className="absolute top-full right-0 mt-1 z-30 bg-panel border border-border rounded-md p-2 text-xs font-mono text-fg whitespace-pre min-w-[260px] shadow-lg"
-        >
-          {tooltipText}
-        </div>
-      )}
+      {tooltipPos !== null &&
+        createPortal(
+          <div
+            id={tooltipId}
+            role="tooltip"
+            style={{ position: 'fixed', top: tooltipPos.top, right: tooltipPos.right }}
+            className="z-[9999] bg-panel border border-border rounded-md p-2 text-xs font-mono text-fg whitespace-pre min-w-[260px] shadow-lg"
+          >
+            {tooltipText}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
