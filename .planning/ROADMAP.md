@@ -65,12 +65,12 @@
 - [x] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02) (completed 2026-05-03)
 - [x] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04) (completed 2026-05-04)
 - [x] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03) (completed 2026-05-04)
-- [ ] **Phase 26.1: UI polish — visual wins** — Color scheme (#232732 surface, proportional panel shift), full-width panels, zebra rows, toolbar height unification, missing-row full bg fill, warning icon sizing, atlas-less images counter, danger-themed warning panel headers, stronger section headers. (UI-06, UI-07, UI-10)
+- [x] **Phase 26.1: UI polish — visual wins** — Color scheme (#232732 surface, proportional panel shift), full-width panels, zebra rows, toolbar height unification, missing-row full bg fill, warning icon sizing, atlas-less images counter, danger-themed warning panel headers, stronger section headers. (UI-06, UI-07, UI-10) (completed 2026-05-04)
 Plans:
 - [x] 26.1-01-PLAN.md — Color token update + full-width panels + SearchBar h-8 (Wave 1)
 - [x] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
-- [ ] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
+- [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
 - [ ] **Phase 26.2: UI polish — tab restructure + icon audit** — 3-tab system (Global / Unused / Animation Breakdown); Unused tab hidden when empty, count badge when N > 0; MissingAttachmentsPanel stays above tabs. Icon audit across all surfaces. (UI-08)
 - [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
@@ -661,7 +661,7 @@ Plans:
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
-| 26.1. UI polish — visual wins | v1.3 | 3/4 | In Progress|  |
+| 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete   | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
 ## Deferred (post-v1.1)
