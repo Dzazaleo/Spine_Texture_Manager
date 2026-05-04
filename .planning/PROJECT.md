@@ -24,7 +24,7 @@ Animators ship atlases that are as small as they mathematically can be without v
 
 ## Current State (post v1.2)
 
-**Shipped:** v1.2.0 Expansion — 2026-05-03 (8 phases executed, 40 plans, ~20,174 LOC TS/TSX in `src/`). Tag: `v1.2.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
+**Shipped:** v1.2.0 Expansion — 2026-05-03 (8 phases executed, 40 plans, ~20,174 LOC TS/TSX in `src/`). Tag: `v1.2.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26). Phase 26.1 (UI Polish Visual Wins) complete 2026-05-04 — cool blue-dark color token foundation, full-width panels, zebra striping + danger tint, SVG ⚠ row icon, toolbar height harmonization, atlas-less chip label, danger-themed problem-zone panel headers.
 
 **Working:** Drop Spine `.json` + `.atlas` (or `.json` + images folder, no atlas — v1.2 atlas-less mode) or `.stmproj` → Global + Animation Breakdown panels populate → dims-badge surfaces when actual source PNG dims drift from canonical → set per-attachment overrides → preview the resulting atlas pack → export an optimized `images/` folder (cap prevents upscaling beyond actual source dims). Documentation Builder accessible from sticky header. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under N2.2 contract). macOS Cmd+Q + AppleScript quit work correctly (v1.2 fix). Update dialog routes macOS to manual-download (GitHub Releases page).
 
