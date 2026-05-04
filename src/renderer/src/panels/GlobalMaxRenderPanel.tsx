@@ -465,6 +465,8 @@ function Row({
               aria-hidden="true"
             >
               <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
+              <rect x="7.25" y="5.5" width="1.5" height="4" fill="white" rx="0.5" />
+              <rect x="7.25" y="11" width="1.5" height="1.5" fill="white" rx="0.5" />
             </svg>
           </span>
         )}
