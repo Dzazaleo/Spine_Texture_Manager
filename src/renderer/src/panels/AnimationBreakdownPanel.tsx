@@ -651,7 +651,11 @@ function BreakdownRowItem({
       ref={measureRef}
       data-index={dataIndex}
       style={style}
-      className="border-b border-border hover:bg-accent/5"
+      className={clsx(
+        'border-b border-border hover:bg-accent/5',
+        // Phase 26.1 D-06 + D-10 — danger tint takes priority over zebra for missing rows.
+        state === 'missing' ? 'bg-danger/10' : 'even:bg-white/[0.03]',
+      )}
     >
       {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
           Mirrors the existing banner pattern at AppShell.tsx:1227 / 1258 +
@@ -672,8 +676,18 @@ function BreakdownRowItem({
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
         {row.isMissing && (
-          <span className="text-danger mr-1" aria-label="Missing PNG">
-            ⚠
+          <span
+            className="inline-flex items-center justify-center w-4 h-4 text-danger mr-1 flex-shrink-0"
+            aria-label="Missing PNG"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="w-4 h-4"
+              aria-hidden="true"
+            >
+              <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
+            </svg>
           </span>
         )}
         {highlightMatch(row.attachmentName, query)}
