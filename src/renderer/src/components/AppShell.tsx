@@ -1311,7 +1311,16 @@ export function AppShell({
         >
           <span><span className="text-fg font-semibold">1</span> skeletons</span>
           <span aria-hidden="true" className="text-border">|</span>
-          <span><span className="text-fg font-semibold">1</span> atlases</span>
+          {loaderMode === 'atlas-less' ? (
+            <span>
+              <span className="text-fg font-semibold">
+                {effectiveSummary.attachments.count - (effectiveSummary.skippedAttachments?.length ?? 0)}
+              </span>
+              {' images'}
+            </span>
+          ) : (
+            <span><span className="text-fg font-semibold">1</span> atlases</span>
+          )}
           <span aria-hidden="true" className="text-border">|</span>
           <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
         </div>
