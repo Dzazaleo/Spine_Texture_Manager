@@ -14,7 +14,7 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 - [x] **PANEL-01**: User loads a `json + images folder` project and the Unused Assets section reports PNG files present in the `images/` folder that the rig does NOT reference (orphaned files), not atlas-vs-JSON region delta.
 - [x] **PANEL-02**: Unused Assets section is its own collapsible panel, extracted from `GlobalMaxRenderPanel` and rendered as a sibling to Global Max Render Source + Animation Breakdown; collapsed by default when empty, expanded by default when N > 0.
-- [ ] **PANEL-03**: Rows whose attachment PNG was missing at load time (skipped attachments from atlas-less mode) remain visible in Global Max Render Source + Animation Breakdown panels, marked with a red left-border accent and a danger-triangle (⚠) icon beside the attachment name — not filtered out.
+- [x] **PANEL-03**: Rows whose attachment PNG was missing at load time (skipped attachments from atlas-less mode) remain visible in Global Max Render Source + Animation Breakdown panels, marked with a red left-border accent and a danger-triangle (⚠) icon beside the attachment name — not filtered out.
 - [x] **PANEL-04**: When a user loads a `.json` file with no `.atlas` file and no `images/` folder, the `AtlasNotFoundError` user-facing message mentions "Use Images Folder as Source" toggle as an alternative path, in addition to re-exporting with an atlas.
 
 ### OPT — Optimize Flow
@@ -70,7 +70,7 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 |--------|-------|--------|
 | PANEL-01 | Phase 24 | Complete |
 | PANEL-02 | Phase 24 | Complete |
-| PANEL-03 | Phase 25 | Pending |
+| PANEL-03 | Phase 25 | Complete |
 | PANEL-04 | Phase 24 | Complete |
 | OPT-01 | Phase 23 | Complete |
 | OPT-02 | Phase 23 | Complete |
