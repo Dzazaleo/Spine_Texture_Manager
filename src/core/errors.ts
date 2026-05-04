@@ -38,12 +38,15 @@ export class AtlasNotFoundError extends SpineLoaderError {
     // the Spine editor with the atlas included would see a cryptic
     // failure; the new message points them at the correct fix.
     //
-    // Class + .name + searchedPath + skeletonPath are unchanged — only
-    // the human message is expanded so existing tests that assert on the
-    // class / name / typed fields continue to pass byte-for-byte.
+    // Phase 24 D-12 — added toggle tip sentence per 24-UI-SPEC.md copywriting
+    // contract: users can bypass the atlas requirement by enabling the
+    // images-folder toggle in the toolbar and reloading. Class + .name +
+    // searchedPath + skeletonPath are unchanged — only the human message
+    // is expanded so existing tests that assert on the class / name /
+    // typed fields continue to pass byte-for-byte.
     super(
       `Spine projects require an .atlas file beside the .json (carries region metadata that the skeleton JSON alone does not have). ` +
-        `Re-export from the Spine editor with the atlas included.\n` +
+        `Re-export from the Spine editor with the atlas included, or enable the "Use Images Folder as Source" toggle in the toolbar and reload.\n` +
         `  Skeleton: ${skeletonPath}\n  Expected atlas at: ${searchedPath}`,
     );
     this.name = 'AtlasNotFoundError';
