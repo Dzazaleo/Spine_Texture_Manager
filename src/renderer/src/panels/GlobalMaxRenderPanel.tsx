@@ -846,7 +846,7 @@ export function GlobalMaxRenderPanel({
             {savingsPct.toFixed(1)}% pixel savings
           </span>
         )}
-        <span className="text-fg-muted font-mono text-sm font-normal ml-auto">
+        <span className="text-fg-muted font-mono text-sm font-normal ml-auto min-w-[6rem] text-right">
           {selected.size} selected / {sorted.length} total
         </span>
       </header>
