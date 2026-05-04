@@ -1,7 +1,7 @@
 /**
  * Phase 24 Plan 01 — Pure orphaned-file detection (PANEL-01, D-01, D-02, D-05).
  *
- * Replaces the old findUnusedAttachments (Phase 5) with a simpler pure helper
+ * Replaces the old Phase 5 unused-attachment detector with a simpler pure helper
  * that takes pre-collected inputs and performs zero I/O (CLAUDE.md #5).
  * I/O (fs.readdirSync, fs.statSync, path.join) lives exclusively in
  * src/main/summary.ts (D-05 Layer-3 invariant).
