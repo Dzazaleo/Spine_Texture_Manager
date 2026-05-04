@@ -57,6 +57,7 @@ import {
 import { GlobalMaxRenderPanel } from '../panels/GlobalMaxRenderPanel';
 import { AnimationBreakdownPanel } from '../panels/AnimationBreakdownPanel';
 import { MissingAttachmentsPanel } from '../panels/MissingAttachmentsPanel';
+import { UnusedAssetsPanel } from '../panels/UnusedAssetsPanel';
 import { SearchBar } from './SearchBar';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
@@ -1538,8 +1539,17 @@ export function AppShell({
             query={query}
             onQueryChange={setQuery}
             loaderMode={loaderMode}
+            savingsPct={savingsPctMemo}
           />
         )}
+        {/* Phase 24 PANEL-02 — hidden when 0 orphaned files (D-06); expanded by default
+            when N > 0. Position: Global Max Render → Unused Assets → Animation Breakdown
+            (D-07). The panel self-hides via `return null` when empty — no conditional
+            wrapper needed here. Renders on BOTH tabs (same as MissingAttachmentsPanel)
+            because orphaned files are a project-level concern, not tab-specific. */}
+        <UnusedAssetsPanel
+          orphanedFiles={effectiveSummary.orphanedFiles ?? []}
+        />
         {activeTab === 'animation' && (
           <AnimationBreakdownPanel
             summary={effectiveSummary}
