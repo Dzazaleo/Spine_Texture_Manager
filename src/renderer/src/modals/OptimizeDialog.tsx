@@ -393,7 +393,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
               props.onClose();
               props.onOpenAtlasPreview();
             }}
-            disabled={props.plan.rows.length === 0}
+            disabled={props.plan.rows.length === 0 || state === 'in-progress'}
             className="border border-border rounded-md px-3 py-1 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent"
           >
             <span aria-hidden="true">→ </span>Atlas Preview
