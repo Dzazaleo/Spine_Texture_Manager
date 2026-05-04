@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>001 — Tab Bar Placement</title>
+<link rel="stylesheet" href="../themes/default.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── Variant switcher (fixed top bar) ── */
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+    background: #111318;
+    border-bottom: 1px solid #2a2e3a;
+    padding: 8px 16px;
+    display: flex; gap: 8px; align-items: center;
+    font-family: var(--font-sans); font-size: 12px;
+  }
+  #variant-nav span { color: #666; margin-right: 4px; }
+  .variant-tab {
+    background: none; border: 1px solid #333; border-radius: 4px;
+    color: #aaa; padding: 4px 12px; cursor: pointer; font-size: 12px;
+    transition: all 0.15s ease;
+  }
+  .variant-tab:hover { border-color: #666; color: #ddd; }
+  .variant-tab.active { background: #f97316; border-color: #f97316; color: #fff; font-weight: 600; }
+
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  /* ── Shared app frame ── */
+  .app-frame {
+    padding-top: 42px; /* account for variant nav */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Toolbar (shared between variants — unchanged) ── */
+  .toolbar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel);
+    height: 44px;
+  }
+  .toolbar-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+  .toolbar-right { display: flex; align-items: center; gap: 8px; }
+
+  .file-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px; padding: 2px 8px;
+    font-size: 11px; font-family: var(--font-mono);
+    color: var(--color-fg); cursor: default;
+  }
+  .search-bar {
+    display: flex; align-items: center; gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px; padding: 3px 8px;
+    font-size: 12px; color: var(--color-fg-muted);
+    width: 200px; background: var(--color-surface);
+    cursor: text;
+  }
+  .search-bar svg { flex-shrink: 0; }
+  .toolbar-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: none; color: var(--color-fg-muted);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toolbar-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+  .run-btn {
+    background: var(--color-accent); color: var(--color-panel);
+    border: none; border-radius: 4px; padding: 4px 12px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .run-btn:hover { opacity: 0.85; }
+
+  /* ── Panel content area (shared) ── */
+  .content-area {
+    flex: 1; overflow-y: auto; padding: 16px;
+  }
+  .panel-section {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-panel);
+    padding: 16px;
+    min-height: 400px;
+  }
+  .panel-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+    font-size: 13px; font-weight: 600; color: var(--color-fg);
+  }
+  .panel-header svg { flex-shrink: 0; }
+
+  /* skeleton table mock */
+  .mock-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .mock-table th {
+    text-align: left; padding: 6px 8px;
+    font-size: 11px; font-weight: 500; color: var(--color-fg-muted);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .mock-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    color: var(--color-fg);
+  }
+  .mock-table tr:last-child td { border-bottom: none; }
+  .scale-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .scale-bar { height: 6px; border-radius: 3px; background: var(--color-accent); opacity: 0.7; }
+  .scale-num { font-family: var(--font-mono); font-size: 11px; color: var(--color-accent); }
+
+  /* warning row */
+  .row-missing td { color: var(--color-danger); }
+
+  /* ─────────────────────────────────────────
+     VARIANT A — Tab bar as dedicated sub-toolbar
+     below the main toolbar, above content.
+     Style: underline-on-active, full-width row.
+  ───────────────────────────────────────────── */
+  .tab-subtoolbar {
+    flex-shrink: 0;
+    display: flex; align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-panel);
+    height: 36px;
+  }
+  .subtab {
+    display: inline-flex; align-items: center; gap-6px; gap: 6px;
+    padding: 0 12px; height: 36px;
+    background: none; border: none;
+    color: var(--color-fg-muted);
+    font-size: 13px; font-weight: 400;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.15s;
+    white-space: nowrap;
+  }
+  .subtab:hover { color: var(--color-fg); }
+  .subtab.active {
+    color: var(--color-accent);
+    font-weight: 500;
+  }
+  .subtab.active::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 2px; background: var(--color-accent);
+  }
+  .subtab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    color: var(--color-danger);
+    border-radius: var(--radius-full);
+    font-size: 11px; font-weight: 500;
+    padding: 0 6px; height: 16px;
+    margin-left: 4px; line-height: 1;
+  }
+
+  /* ─────────────────────────────────────────
+     VARIANT B — Tab bar inside the content area,
+     above the panel box. Pill style.
+  ───────────────────────────────────────────── */
+  .tab-row-inset {
+    display: flex; align-items: center;
+    gap: 4px;
+    padding: 12px 16px 0;
+    flex-shrink: 0;
+  }
+  .pilltab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-fg-muted);
+    font-size: 12px; font-weight: 400;
+    cursor: pointer; border: none;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .pilltab:hover { background: color-mix(in srgb, var(--color-border) 60%, transparent); color: var(--color-fg); }
+  .pilltab.active {
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    font-weight: 500;
+  }
+  .pilltab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    color: var(--color-danger);
+    border-radius: var(--radius-full);
+    font-size: 11px; font-weight: 500;
+    padding: 0 6px; height: 16px; line-height: 1;
+  }
+  .tab-row-inset + .content-area { padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ─── Variant switcher ─── -->
+<div id="variant-nav">
+  <span>001 Tab Bar Placement</span>
+  <button class="variant-tab active" onclick="showVariant('a')">A: Sub-toolbar (underline) ★ Selected</button>
+  <button class="variant-tab" onclick="showVariant('b')">B: In-body (pill)</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     VARIANT A — Dedicated sub-toolbar row below toolbar
+     ══════════════════════════════════════════════════ -->
+<div id="variant-a" class="variant active">
+  <div class="app-frame">
+
+    <!-- TOOLBAR (unchanged from current) -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="file-badge">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <path d="M4 4h7l5 5v7a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/>
+            <path d="M11 4v5h5"/>
+          </svg>
+          SIMPLE_TEST.json
+        </div>
+        <div class="search-bar">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+            <circle cx="9" cy="9" r="5.5"/><path d="M13.5 13.5 L17 17"/>
+          </svg>
+          Filter attachments…
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="toolbar-btn" title="Settings">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" width="15" height="15">
+            <circle cx="10" cy="10" r="2.5"/>
+            <path d="M10 3v2M10 15v2M3 10h2M15 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/>
+          </svg>
+        </button>
+        <button class="run-btn" onclick="this.textContent='Running…';setTimeout(()=>this.textContent='Re-sample',1200)">
+          Re-sample
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB BAR — sub-toolbar row (THIS IS THE FIX) -->
+    <div class="tab-subtoolbar">
+      <!-- Global tab uses the filmstrip icon from GlobalMaxRenderPanel header -->
+      <button class="subtab active" onclick="switchTabA('global', this)">
+        <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="14" height="14" aria-hidden="true">
+          <rect x="2" y="6" width="16" height="8" rx="1"/>
+          <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3"/>
+        </svg>
+        Global
+      </button>
+      <!-- Unused tab — conditional, uses warning-triangle from UnusedAssetsPanel header -->
+      <button class="subtab" id="a-unused-tab" onclick="switchTabA('unused', this)">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+          <path d="M10 3.5 L17.5 16.5 H2.5 Z"/>
+          <line x1="10" y1="8" x2="10" y2="12"/>
+          <circle cx="10" cy="14.5" r="0.5" fill="currentColor"/>
+        </svg>
+        Unused
+        <span class="subtab-badge">3</span>
+      </button>
+      <!-- Animation tab uses bar-chart from AnimationBreakdownPanel header -->
+      <button class="subtab" onclick="switchTabA('animation', this)">
+        <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="14" height="14" aria-hidden="true">
+          <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4"/>
+        </svg>
+        Animation Breakdown
+      </button>
+    </div>
+
+    <!-- CONTENT (panel body scrolls independently) -->
+    <div class="content-area">
+
+      <!-- Global panel -->
+      <div id="a-panel-global" class="panel-section">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16" aria-hidden="true">
+            <rect x="2" y="6" width="16" height="8" rx="1"/>
+            <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3"/>
+          </svg>
+          Global Max Render Scale
+        </div>
+        <table class="mock-table">
+          <thead><tr><th>Attachment</th><th>Skin</th><th>Max Scale</th><th>Size</th></tr></thead>
+          <tbody>
+            <tr><td>CIRCLE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:90px"></div><span class="scale-num">2.14×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">128×128</td></tr>
+            <tr><td>SQUARE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:60px"></div><span class="scale-num">1.42×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">64×64</td></tr>
+            <tr><td>TRIANGLE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:40px"></div><span class="scale-num">0.96×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">64×64</td></tr>
+            <tr class="row-missing"><td>CHAIN_8</td><td>default</td><td colspan="2" style="font-size:11px;display:flex;align-items:center;gap:6px;padding-top:8px">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 3.5 L17.5 16.5 H2.5 Z"/><line x1="10" y1="8" x2="10" y2="12"/><circle cx="10" cy="14.5" r="0.5" fill="currentColor"/></svg>
+              Missing PNG
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Unused panel (hidden by default) -->
+      <div id="a-panel-unused" class="panel-section" style="display:none">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true">
+            <path d="M10 3.5 L17.5 16.5 H2.5 Z"/>
+            <line x1="10" y1="8" x2="10" y2="12"/>
+            <circle cx="10" cy="14.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <span style="color:var(--color-danger)">Unused Assets — 3 orphaned files</span>
+        </div>
+        <table class="mock-table">
+          <thead><tr><th>Filename</th><th>Size</th><th>Last modified</th></tr></thead>
+          <tbody>
+            <tr class="row-missing"><td>OLD_TEXTURE.png</td><td style="font-family:var(--font-mono);font-size:11px">48 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-11-03</td></tr>
+            <tr class="row-missing"><td>STALE_BITMAP.png</td><td style="font-family:var(--font-mono);font-size:11px">12 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-09-21</td></tr>
+            <tr class="row-missing"><td>UNUSED_CIRCLE.png</td><td style="font-family:var(--font-mono);font-size:11px">32 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-08-14</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Animation panel (hidden by default) -->
+      <div id="a-panel-animation" class="panel-section" style="display:none">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16" aria-hidden="true">
+            <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4"/>
+          </svg>
+          Animation Breakdown
+          <span style="margin-left:auto;font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--color-fg-muted)">3 animations</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="border:1px solid var(--color-border);border-radius:4px;padding:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">idle</div>
+            <div style="font-size:11px;color:var(--color-fg-muted)">6 attachments · 2.14× peak</div>
+          </div>
+          <div style="border:1px solid var(--color-border);border-radius:4px;padding:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">walk</div>
+            <div style="font-size:11px;color:var(--color-fg-muted)">6 attachments · 1.87× peak</div>
+          </div>
+          <div style="border:1px solid var(--color-border);border-radius:4px;padding:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">run</div>
+            <div style="font-size:11px;color:var(--color-fg-muted)">6 attachments · 2.31× peak</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+  </div><!-- /app-frame -->
+</div><!-- /variant-a -->
+
+
+<!-- ══════════════════════════════════════════════════
+     VARIANT B — Pill tabs inside the body, above the panel box
+     ══════════════════════════════════════════════════ -->
+<div id="variant-b" class="variant">
+  <div class="app-frame">
+
+    <!-- TOOLBAR (identical) -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="file-badge">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+            <path d="M4 4h7l5 5v7a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z"/>
+            <path d="M11 4v5h5"/>
+          </svg>
+          SIMPLE_TEST.json
+        </div>
+        <div class="search-bar">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+            <circle cx="9" cy="9" r="5.5"/><path d="M13.5 13.5 L17 17"/>
+          </svg>
+          Filter attachments…
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="toolbar-btn" title="Settings">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" width="15" height="15">
+            <circle cx="10" cy="10" r="2.5"/>
+            <path d="M10 3v2M10 15v2M3 10h2M15 10h2M4.9 4.9l1.4 1.4M13.7 13.7l1.4 1.4M4.9 15.1l1.4-1.4M13.7 6.3l1.4-1.4"/>
+          </svg>
+        </button>
+        <button class="run-btn" onclick="this.textContent='Running…';setTimeout(()=>this.textContent='Re-sample',1200)">
+          Re-sample
+        </button>
+      </div>
+    </div>
+
+    <!-- NO TAB BAR IN TOOLBAR — toolbar is clean -->
+
+    <!-- PILL TAB ROW inside the body (part of the scrollable content region) -->
+    <div class="tab-row-inset">
+      <button class="pilltab active" onclick="switchTabB('global', this)">
+        <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="14" height="14" aria-hidden="true">
+          <rect x="2" y="6" width="16" height="8" rx="1"/>
+          <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3"/>
+        </svg>
+        Global
+      </button>
+      <button class="pilltab" id="b-unused-tab" onclick="switchTabB('unused', this)">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+          <path d="M10 3.5 L17.5 16.5 H2.5 Z"/>
+          <line x1="10" y1="8" x2="10" y2="12"/>
+          <circle cx="10" cy="14.5" r="0.5" fill="currentColor"/>
+        </svg>
+        Unused
+        <span class="pilltab-badge">3</span>
+      </button>
+      <button class="pilltab" onclick="switchTabB('animation', this)">
+        <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="14" height="14" aria-hidden="true">
+          <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4"/>
+        </svg>
+        Animation Breakdown
+      </button>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content-area" style="padding-top:12px">
+
+      <!-- Global panel -->
+      <div id="b-panel-global" class="panel-section">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16">
+            <rect x="2" y="6" width="16" height="8" rx="1"/>
+            <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3"/>
+          </svg>
+          Global Max Render Scale
+        </div>
+        <table class="mock-table">
+          <thead><tr><th>Attachment</th><th>Skin</th><th>Max Scale</th><th>Size</th></tr></thead>
+          <tbody>
+            <tr><td>CIRCLE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:90px"></div><span class="scale-num">2.14×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">128×128</td></tr>
+            <tr><td>SQUARE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:60px"></div><span class="scale-num">1.42×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">64×64</td></tr>
+            <tr><td>TRIANGLE</td><td>default</td><td><div class="scale-bar-wrap"><div class="scale-bar" style="width:40px"></div><span class="scale-num">0.96×</span></div></td><td style="font-family:var(--font-mono);font-size:11px">64×64</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Unused panel -->
+      <div id="b-panel-unused" class="panel-section" style="display:none">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <path d="M10 3.5 L17.5 16.5 H2.5 Z"/>
+            <line x1="10" y1="8" x2="10" y2="12"/>
+            <circle cx="10" cy="14.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <span style="color:var(--color-danger)">Unused Assets — 3 orphaned files</span>
+        </div>
+        <table class="mock-table">
+          <thead><tr><th>Filename</th><th>Size</th><th>Last modified</th></tr></thead>
+          <tbody>
+            <tr class="row-missing"><td>OLD_TEXTURE.png</td><td style="font-family:var(--font-mono);font-size:11px">48 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-11-03</td></tr>
+            <tr class="row-missing"><td>STALE_BITMAP.png</td><td style="font-family:var(--font-mono);font-size:11px">12 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-09-21</td></tr>
+            <tr class="row-missing"><td>UNUSED_CIRCLE.png</td><td style="font-family:var(--font-mono);font-size:11px">32 KB</td><td style="font-size:11px;color:var(--color-fg-muted)">2024-08-14</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Animation panel -->
+      <div id="b-panel-animation" class="panel-section" style="display:none">
+        <div class="panel-header">
+          <svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16">
+            <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4"/>
+          </svg>
+          Animation Breakdown
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="border:1px solid var(--color-border);border-radius:4px;padding:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">idle</div>
+            <div style="font-size:11px;color:var(--color-fg-muted)">6 attachments · 2.14× peak</div>
+          </div>
+          <div style="border:1px solid var(--color-border);border-radius:4px;padding:12px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px">walk</div>
+            <div style="font-size:11px;color:var(--color-fg-muted)">6 attachments · 1.87× peak</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- /variant-b -->
+
+
+<!-- ─── Sketch toolbar ─── -->
+<div id="sketch-tools" style="position:fixed;bottom:12px;right:12px;z-index:9999;font-family:system-ui;font-size:12px;background:rgba(0,0,0,0.75);color:white;padding:8px 12px;border-radius:8px;opacity:0.35;transition:opacity 0.2s;display:flex;flex-direction:column;gap:6px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.35'">
+  <div style="font-weight:600;font-size:11px;color:#aaa;letter-spacing:.04em">SKETCH TOOLS</div>
+  <label style="display:flex;align-items:center;gap:6px">
+    <span style="color:#aaa">Unused tab:</span>
+    <button onclick="toggleUnused()" style="background:#333;border:1px solid #555;border-radius:4px;color:#fff;padding:2px 8px;cursor:pointer;font-size:11px">Toggle</button>
+  </label>
+  <label style="display:flex;align-items:center;gap:6px">
+    <span style="color:#aaa">Theme:</span>
+    <select onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'" style="background:#333;border:1px solid #555;border-radius:4px;color:#fff;padding:2px 4px;font-size:11px">
+      <option value="default">Default</option>
+    </select>
+  </label>
+</div>
+
+<script>
+  // ─── Variant switching ───
+  function showVariant(id) {
+    document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('variant-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  // ─── Tab switching — Variant A ───
+  function switchTabA(tab, btn) {
+    document.querySelectorAll('#variant-a .subtab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('a-panel-global').style.display = tab === 'global' ? 'block' : 'none';
+    document.getElementById('a-panel-unused').style.display = tab === 'unused' ? 'block' : 'none';
+    document.getElementById('a-panel-animation').style.display = tab === 'animation' ? 'block' : 'none';
+  }
+
+  // ─── Tab switching — Variant B ───
+  function switchTabB(tab, btn) {
+    document.querySelectorAll('#variant-b .pilltab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('b-panel-global').style.display = tab === 'global' ? 'block' : 'none';
+    document.getElementById('b-panel-unused').style.display = tab === 'unused' ? 'block' : 'none';
+    document.getElementById('b-panel-animation').style.display = tab === 'animation' ? 'block' : 'none';
+  }
+
+  // ─── Tool: toggle Unused tab visibility ───
+  let unusedVisible = true;
+  function toggleUnused() {
+    unusedVisible = !unusedVisible;
+    ['a-unused-tab', 'b-unused-tab'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = unusedVisible ? '' : 'none';
+    });
+  }
+</script>
+
+</body>
+</html>

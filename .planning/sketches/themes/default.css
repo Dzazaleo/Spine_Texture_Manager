@@ -1,0 +1,27 @@
+/* Spine Texture Manager — Design Tokens
+   Mirrors src/renderer/src/index.css exactly.
+   All hex values are the resolved Tailwind vars.
+*/
+:root {
+  --color-surface:    #232732;
+  --color-panel:      #232a3e;
+  --color-border:     #384158;
+  --color-fg:         #f5f5f4;
+  --color-fg-muted:   #a8a29e;
+  --color-accent:     #f97316;
+  --color-accent-muted: #fdba74;
+  --color-danger:     #e06b55;
+  --color-success:    #5FA866;
+  --color-warning:    #C9913C;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 8px rgba(0,0,0,0.4);
+}
