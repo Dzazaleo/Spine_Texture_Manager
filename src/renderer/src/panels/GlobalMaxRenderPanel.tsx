@@ -65,6 +65,7 @@ import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
 import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { formatBytes } from '../lib/format-bytes';
 import { DimsBadge } from '../components/DimsBadge.js';
+import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 
 /**
  * Phase 9 Plan 03 — Threshold for switching from flat-table render to
@@ -458,16 +459,7 @@ function Row({
             className="inline-flex items-center justify-center w-4 h-4 text-danger mr-1 flex-shrink-0"
             aria-label="Missing PNG"
           >
-            <svg
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              className="w-4 h-4"
-              aria-hidden="true"
-            >
-              <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
-              <rect x="7.25" y="5.5" width="1.5" height="4" fill="white" rx="0.5" />
-              <rect x="7.25" y="11" width="1.5" height="1.5" fill="white" rx="0.5" />
-            </svg>
+            <WarningTriangleIcon className="w-4 h-4" />
           </span>
         )}
         {highlightMatch(row.attachmentName, query)}
