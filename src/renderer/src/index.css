@@ -45,10 +45,10 @@
    Colors reference Tailwind's built-in stone and orange palette variables,
    which are resolved at utility-generation time rather than render time. */
 @theme inline {
-  /* Neutrals — warm stone base, two layers (D-12, D-13) */
-  --color-surface:   var(--color-stone-950);
-  --color-panel:     var(--color-stone-900);
-  --color-border:    var(--color-stone-800);
+  /* Neutrals — cool blue-dark base, two layers (D-12, D-13) */
+  --color-surface:   #232732;
+  --color-panel:     #2c3347;
+  --color-border:    #384158;
   --color-fg:        var(--color-stone-100);
   --color-fg-muted:  var(--color-stone-400);
 
