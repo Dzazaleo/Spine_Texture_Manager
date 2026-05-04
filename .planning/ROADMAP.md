@@ -582,7 +582,10 @@ Plans:
   2. The same missing-attachment rows appear in their corresponding Animation Breakdown panel entries with the same red left-border accent and danger-triangle icon, maintaining context within each animation card.
   3. The dedicated MissingAttachmentsPanel (above the Global panel) continues to show its summary list of skipped attachments — the in-context red-accent rows are additive, not a replacement.
 
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 25-01-PLAN.md — Data layer: add isMissing to DisplayRow; replace summary.ts filters with marking; update G-02 tests
+- [ ] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
 **UI hint**: yes
 
 ### Phase 26: UI polish
