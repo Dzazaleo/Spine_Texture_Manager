@@ -459,18 +459,14 @@ function Row({
             aria-label="Missing PNG"
           >
             <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              viewBox="0 0 16 16"
+              fill="currentColor"
               className="w-4 h-4"
               aria-hidden="true"
             >
-              <path d="M10 3.5 L17.5 16.5 H2.5 Z" />
-              <line x1="10" y1="8" x2="10" y2="12" />
-              <circle cx="10" cy="14.5" r="0.5" fill="currentColor" />
+              <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
+              <rect x="7.25" y="5.5" width="1.5" height="4" fill="white" rx="0.5" />
+              <rect x="7.25" y="11" width="1.5" height="1.5" fill="white" rx="0.5" />
             </svg>
           </span>
         )}

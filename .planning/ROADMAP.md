@@ -71,10 +71,10 @@ Plans:
 - [x] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
 - [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
-- [x] **Phase 26.2: UI polish — tab restructure + icon audit** — 3-tab system (Global / Unused / Animation Breakdown); Unused tab hidden when empty, count badge when N > 0; MissingAttachmentsPanel stays above tabs. Icon audit across all surfaces. (UI-08) (completed 2026-05-04)
+- [ ] **Phase 26.2: UI polish — tab restructure + icon audit** — 3-tab system (Global / Unused / Animation Breakdown); Unused tab hidden when empty, count badge when N > 0; MissingAttachmentsPanel stays above tabs. Icon audit across all surfaces. (UI-08)
 Plans:
-- [x] 26.2-01-PLAN.md — Tab restructure: AppShell 3-tab type + TabButton icon/badge + Unused tab + auto-redirect + UnusedAssetsPanel query lift + UAP icon (Wave 1)
-- [x] 26.2-02-PLAN.md — Icon audit: MissingAttachmentsPanel + GlobalMaxRenderPanel + AnimationBreakdownPanel fill→stroke (Wave 1, parallel)
+- [ ] 26.2-01-PLAN.md — Tab restructure: AppShell 3-tab type + TabButton icon/badge + Unused tab + auto-redirect + UnusedAssetsPanel query lift + UAP icon (Wave 1)
+- [ ] 26.2-02-PLAN.md — Icon audit: MissingAttachmentsPanel + GlobalMaxRenderPanel + AnimationBreakdownPanel fill→stroke (Wave 1, parallel)
 - [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
