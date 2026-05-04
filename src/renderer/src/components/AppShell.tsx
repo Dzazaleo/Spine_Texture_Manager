@@ -840,6 +840,7 @@ export function AppShell({
     // materializeProjectFile back-fills file.loaderMode ?? 'auto', so legacy
     // .stmproj files without the field default to 'auto' here as well.
     setLoaderMode(project.loaderMode ?? 'auto');
+    setLastOutDir(project.lastOutDir ?? null);
   }, []);
 
   const onClickOpen = useCallback(async () => {
