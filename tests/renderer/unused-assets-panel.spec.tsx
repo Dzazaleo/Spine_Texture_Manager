@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Phase 24 Plan 24-03 — RTL tests for UnusedAssetsPanel.
+ * Phase 26.2 Plan 01 — Updated for lifted query props (D-03).
  *
  * Behavior gates (a)-(i):
  *   (a) Returns null when orphanedFiles is [] (component not in the DOM)
@@ -11,11 +12,15 @@
  *   (f) Header shows formatBytes(totalBytes) alongside count in the header text (e.g. "· 1.2 KB")
  *   (g) "Hide details" button shows when expanded=true; clicking it collapses (shows "Show details")
  *   (h) Table rows: each row shows filename and formatBytes(bytesOnDisk)
- *   (i) Search filter: typing a query filters to matching filenames; typing a non-matching query shows "(no matches)"
+ *   (i) Search filter: passing a query prop filters to matching filenames; non-matching query shows "(no matches)"
  *
  * Mirrors missing-attachments-panel.spec.tsx idiom: vitest + @testing-library/react + jsdom;
  * assertions use `not.toBeNull()` / `toBeDefined()` rather than `@testing-library/jest-dom`
  * matchers (project convention — no jest-dom imports anywhere in tests/renderer).
+ *
+ * Phase 26.2 D-03 change: query and onQueryChange are now required props (lifted to AppShell).
+ * All render calls pass query="" onQueryChange={() => {}}. Test (i) drives filtering via
+ * prop-driven rerender instead of fireEvent on internal textbox.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -37,13 +42,13 @@ const THREE_FILES = [
 describe('UnusedAssetsPanel (PANEL-02)', () => {
   // (a)
   it('returns null when orphanedFiles is empty (component not in the DOM)', () => {
-    const { container } = render(<UnusedAssetsPanel orphanedFiles={[]} />);
+    const { container } = render(<UnusedAssetsPanel orphanedFiles={[]} query="" onQueryChange={() => {}} />);
     expect(container.firstChild).toBeNull();
   });
 
   // (b)
   it('renders with role="alert" and aria-label="Orphaned image files" when N > 0', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
     const panel = screen.getByRole('alert');
     expect(panel).not.toBeNull();
     expect(panel.getAttribute('aria-label')).toBe('Orphaned image files');
@@ -51,7 +56,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (c)
   it('is expanded by default when N > 0 (table rows visible without any click)', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
     // Table with "Filename" header should be visible immediately (no click required)
     expect(screen.queryByText('Filename')).not.toBeNull();
     expect(screen.queryByText('Size on Disk')).not.toBeNull();
@@ -61,7 +66,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (d)
   it('header shows singular "1 orphaned file" when count is 1', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
     // Text is split across elements; use a function matcher that checks textContent of the panel
     const panel = screen.getByRole('alert');
     expect(panel.textContent).toMatch(/1 orphaned file[^s]/i);
@@ -69,21 +74,21 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (e)
   it('header shows plural "N orphaned files" when count > 1', () => {
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
     expect(screen.getByText(/2 orphaned files/i)).not.toBeNull();
   });
 
   // (f)
   it('header shows formatBytes(totalBytes) when totalBytes > 0', () => {
     // TWO_FILES: 1024 + 2048 = 3072 bytes → "3 KB"
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
     // The formatted bytes should appear somewhere in the header area
     expect(screen.queryByText(/3 KB/)).not.toBeNull();
   });
 
   // (g)
   it('"Hide details" button is shown when expanded; clicking collapses to "Show details"', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
     // Default state = expanded → "Hide details"
     const hideBtn = screen.getByRole('button', { name: /hide details/i });
     expect(hideBtn).not.toBeNull();
@@ -103,7 +108,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (h)
   it('table rows show filename and formatted size for each orphaned file', () => {
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
     // Both filenames visible
     expect(screen.queryByText('UNUSED_CIRCLE')).not.toBeNull();
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
@@ -114,22 +119,24 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (i)
   it('search filter narrows rows to matching filenames', () => {
-    render(<UnusedAssetsPanel orphanedFiles={THREE_FILES} />);
-    // All 3 files visible initially
+    let q = '';
+    const onQueryChange = (val: string) => { q = val; };
+    const { rerender } = render(
+      <UnusedAssetsPanel orphanedFiles={THREE_FILES} query={q} onQueryChange={onQueryChange} />
+    );
+    // All 3 visible
     expect(screen.queryByText('UNUSED_CIRCLE')).not.toBeNull();
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
     expect(screen.queryByText('OLD_TEXTURE')).not.toBeNull();
 
-    // Type a query that matches only STALE_BITMAP
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'STALE' } });
-
+    // Rerender with query that matches only STALE_BITMAP
+    rerender(<UnusedAssetsPanel orphanedFiles={THREE_FILES} query="STALE" onQueryChange={onQueryChange} />);
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
     expect(screen.queryByText('UNUSED_CIRCLE')).toBeNull();
     expect(screen.queryByText('OLD_TEXTURE')).toBeNull();
 
-    // Type a query that matches nothing → "(no matches)"
-    fireEvent.change(input, { target: { value: 'XYZNOTFOUND' } });
+    // Rerender with non-matching query → "(no matches)"
+    rerender(<UnusedAssetsPanel orphanedFiles={THREE_FILES} query="XYZNOTFOUND" onQueryChange={onQueryChange} />);
     expect(screen.queryByText('(no matches)')).not.toBeNull();
   });
 });
