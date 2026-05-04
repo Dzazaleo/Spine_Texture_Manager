@@ -1733,19 +1733,21 @@ export function AppShell({
 }
 
 /**
- * One of the two tab strip buttons. Two-weight contract per the design spec:
- * active branch uses weight 600 (font-semibold); inactive branch uses weight
- * 400 (font-normal). Weight 500 is forbidden — active/inactive contrast is
- * carried by three orthogonal channels (weight + color + underline indicator).
+ * One of the two tab strip buttons. Phase 26.2 D-03/D-04 — accepts an optional
+ * leading `icon` (rendered to the left of the label with `gap-1`). The 2-weight
+ * contract is preserved (active = font-semibold, inactive = font-normal); the
+ * active 2px orange underline indicator is preserved verbatim.
  */
 function TabButton({
   isActive,
   onClick,
   children,
+  icon,
 }: {
   isActive: boolean;
   onClick: () => void;
   children: ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <button
@@ -1754,10 +1756,11 @@ function TabButton({
       aria-selected={isActive}
       onClick={onClick}
       className={clsx(
-        'relative px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent',
+        'relative inline-flex items-center gap-1 px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent',
         isActive ? 'font-semibold text-accent' : 'font-normal text-fg-muted hover:text-fg',
       )}
     >
+      {icon}
       {children}
       {isActive && (
         <span
