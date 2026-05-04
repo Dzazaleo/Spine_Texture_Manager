@@ -584,7 +584,10 @@ Plans:
 
 **Plans**: 2 plans
 Plans:
+**Wave 1**
 - [ ] 25-01-PLAN.md — Data layer: add isMissing to DisplayRow; replace summary.ts filters with marking; update G-02 tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
 **UI hint**: yes
 
