@@ -62,8 +62,9 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
   // (d)
   it('header shows singular "1 orphaned file" when count is 1', () => {
     render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
-    // Match "1 orphaned file" (singular — no trailing "s")
-    expect(screen.getByText(/1 orphaned file[^s]/i)).not.toBeNull();
+    // Text is split across elements; use a function matcher that checks textContent of the panel
+    const panel = screen.getByRole('alert');
+    expect(panel.textContent).toMatch(/1 orphaned file[^s]/i);
   });
 
   // (e)
