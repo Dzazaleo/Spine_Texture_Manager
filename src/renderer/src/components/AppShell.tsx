@@ -1324,20 +1324,6 @@ export function AppShell({
           <span aria-hidden="true" className="text-border">|</span>
           <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
         </div>
-        <nav role="tablist" className="flex gap-1 items-center">
-          <TabButton
-            isActive={activeTab === 'global'}
-            onClick={() => setActiveTab('global')}
-          >
-            Global
-          </TabButton>
-          <TabButton
-            isActive={activeTab === 'animation'}
-            onClick={() => setActiveTab('animation')}
-          >
-            Animation Breakdown
-          </TabButton>
-        </nav>
         {/* Phase 6 Plan 06 D-117: persistent toolbar button right-aligned
             via ml-auto. Disabled when no peaks (Pitfall 11 empty-rig) or
             while an export is in flight (T-06-18 — second click is a no-op
@@ -1425,6 +1411,59 @@ export function AppShell({
           </button>
         </div>
       </header>
+      {/* Phase 26.2 D-01 — sub-toolbar: tab strip moved out of the main toolbar
+          <header> per sketch-001 variant A. Resolves AP-01 (the toolbar-inlined
+          tab anti-pattern, two prior reverts). The <nav role="tablist"> is a
+          sibling of <header>, separated by border-t border-border. Tab icons
+          are verbatim reuse of the panel section-header SVGs (D-03):
+          GlobalMaxRenderPanel.tsx:836-839 (filmstrip) and
+          AnimationBreakdownPanel.tsx:415 (bar-chart). */}
+      <nav
+        role="tablist"
+        className="flex gap-1 items-center bg-panel border-t border-border px-6"
+      >
+        <TabButton
+          isActive={activeTab === 'global'}
+          onClick={() => setActiveTab('global')}
+          icon={
+            <svg
+              viewBox="0 0 20 20"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+              className="w-4 h-4"
+              aria-hidden="true"
+            >
+              <rect x="2" y="6" width="16" height="8" rx="1" />
+              <path d="M5 6 v3 M8 6 v2 M11 6 v3 M14 6 v2 M17 6 v3" />
+            </svg>
+          }
+        >
+          Global
+        </TabButton>
+        <TabButton
+          isActive={activeTab === 'animation'}
+          onClick={() => setActiveTab('animation')}
+          icon={
+            <svg
+              viewBox="0 0 20 20"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+              className="w-4 h-4"
+              aria-hidden="true"
+            >
+              <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4" />
+            </svg>
+          }
+        >
+          Animation Breakdown
+        </TabButton>
+      </nav>
       {/* Phase 9 Plan 02 D-194 — indeterminate sampling spinner. Surfaces while
           a sample is in flight (worker spawn → sampleSkeleton → complete/cancel).
           Indeterminate CSS animation per RESEARCH §Q4 (no determinate percent
