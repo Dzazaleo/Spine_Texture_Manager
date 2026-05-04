@@ -621,6 +621,7 @@ export function AppShell({
     }
     const plan = buildExportPlan(summary, overrides);
     setExportDialogState({ plan, outDir: newOutDir });
+    setLastOutDir(newOutDir);
   }, [pickOutputDir, summary, overrides, lastOutDir]);
   // closeBothDialogs is referenced in JSDoc above; keep the symbol live
   // for the typechecker even though it's no longer wired to any handler
