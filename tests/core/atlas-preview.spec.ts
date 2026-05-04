@@ -32,7 +32,6 @@ import * as path from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
 import { analyze } from '../../src/core/analyzer.js';
-import { findUnusedAttachments } from '../../src/core/usage.js';
 import { buildAtlasPreview } from '../../src/core/atlas-preview.js';
 import { buildExportPlan } from '../../src/core/export.js';
 import type { SkeletonSummary } from '../../src/shared/types.js';
@@ -56,8 +55,9 @@ function loadSummary(jsonPath: string): SkeletonSummary {
     ...r,
     sourcePath: '/fake/' + r.attachmentName + '.png',
   }));
-  const unusedAttachments = findUnusedAttachments(load, sampled);
-  return { peaks: peaksWithPath, unusedAttachments } as unknown as SkeletonSummary;
+  // Phase 24 Plan 01: unusedAttachments removed; orphanedFiles replaces it.
+  // The excluded set in buildAtlasPreview is now always empty (Plan 02 wires it).
+  return { peaks: peaksWithPath, orphanedFiles: [] } as unknown as SkeletonSummary;
 }
 
 describe('buildAtlasPreview — case (a) Original @ 2048 (D-124, F7.1)', () => {
@@ -174,11 +174,14 @@ describe('buildAtlasPreview — case (c) Override 50% on TRIANGLE (D-125 + D-111
   });
 });
 
-describe('buildAtlasPreview — case (d) Ghost-fixture excluded from both modes (D-109, F7.1)', () => {
-  it('SIMPLE_TEST_GHOST → GHOST attachment absent from Original AND Optimized projections', () => {
+describe('buildAtlasPreview — case (d) Ghost-fixture (D-109 updated by Phase 24 Plan 01)', () => {
+  it('SIMPLE_TEST_GHOST → GHOST absent from preview (never in peaks, so never packed regardless of exclusion logic)', () => {
+    // Phase 24 Plan 01: The old unusedAttachments-based D-109 exclusion has been
+    // removed. GHOST remains absent from the atlas preview because it was never
+    // sampled by the physics engine → not in globalPeaks → not in summary.peaks
+    // → not in buildAtlasPreview inputs. The exclusion set being empty is now
+    // irrelevant; the sampler filter is the actual gate.
     const summary = loadSummary(FIXTURE_GHOST);
-    // Sanity-check the fixture really declares a GHOST attachment as unused.
-    expect(summary.unusedAttachments?.some((u) => u.attachmentName === 'GHOST')).toBe(true);
     for (const mode of ['original', 'optimized'] as const) {
       const projection = buildAtlasPreview(summary, new Map(), { mode, maxPageDim: 2048 });
       const allNames = projection.pages.flatMap((p) => p.regions.map((r) => r.attachmentName));

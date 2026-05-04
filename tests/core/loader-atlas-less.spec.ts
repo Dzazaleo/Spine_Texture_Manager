@@ -19,7 +19,7 @@ import * as os from 'node:os';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
 import { analyze } from '../../src/core/analyzer.js';
-import { findUnusedAttachments } from '../../src/core/usage.js';
+// Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 import { buildExportPlan } from '../../src/core/export.js';
 import { AtlasNotFoundError, MissingImagesDirError } from '../../src/core/errors.js';
 import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
@@ -149,9 +149,9 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
     const peaks = analyze(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
     // Build the minimal SkeletonSummary slice buildExportPlan reads.
     // (Pattern lifted from tests/core/export.spec.ts:49-55.)
-    const summary: Pick<SkeletonSummary, 'peaks' | 'unusedAttachments'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
       peaks,
-      unusedAttachments: findUnusedAttachments(load, sampled),
+      orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
 

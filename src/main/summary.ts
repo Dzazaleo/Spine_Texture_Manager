@@ -21,8 +21,6 @@ import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
 import type { SkeletonSummary } from '../shared/types.js';
 import { analyze, analyzeBreakdown } from '../core/analyzer.js';
-import { findUnusedAttachments } from '../core/usage.js';
-import * as fs from 'node:fs';
 
 export function buildSummary(
   load: LoadResult,
@@ -118,44 +116,13 @@ export function buildSummary(
     };
   });
 
-  // Phase 5 Plan 02 — F6.1 unused-attachment detection. Pure projection per
-  // D-35 / D-101: the core module owns the algorithm; summary.ts just
-  // threads the result into the IPC payload.
-  //
-  // Phase 19 UI-04 (D-13) — augment each row with on-disk byte size for the
-  // MB-savings callout. Layer 3 invariant: this happens here in summary.ts
-  // (which is allowed to do file I/O) AFTER core/usage.ts returns its raw
-  // rows; core/usage.ts stays 100% untouched. The interface field
-  // `bytesOnDisk?: number` is optional (Plan 19-01), so core's existing
-  // construction satisfies the contract; summary.ts is the SOLE writer.
-  // fs.statSync is synchronous to match summary.ts' existing sync shape —
-  // total cost is one stat per unused row (~µs each), well below the
-  // sampler work upstream. When the path is missing OR resolves to a
-  // shared atlas page (atlas-packed projects per D-15), bytesOnDisk = 0 —
-  // the renderer suppresses the MB suffix and falls back to count-only
-  // copy via the `(u.bytesOnDisk ?? 0)` reader.
-  const rawUnused = findUnusedAttachments(load, sampled);
-  // Phase 21 Plan 21-10 G-02 — drop skipped-PNG attachments from the
-  // unused-attachments list. Different semantic from "unused" (skipped means
-  // PNG missing in atlas-less mode; unused means never rendered) — skipped
-  // attachments are surfaced separately via skippedAttachments below.
-  const unusedAttachments = rawUnused
-    .filter((u) => !skippedNames.has(u.attachmentName))
-    .map((u) => {
-      const path = load.sourcePaths.get(u.attachmentName);
-      let bytesOnDisk = 0;
-      if (path !== undefined) {
-        try {
-          bytesOnDisk = fs.statSync(path).size;
-        } catch {
-          // ENOENT / EACCES / atlas-page resolves elsewhere — D-15: treat as 0
-          // (no MB suffix in renderer callout). Silent — recent.json-style
-          // non-critical UX state (D-177 carry-over rationale).
-          bytesOnDisk = 0;
-        }
-      }
-      return { ...u, bytesOnDisk };
-    });
+  // Phase 24 Plan 01 — stub: orphanedFiles detection is wired in Plan 02
+  // (I/O layer: fs.readdirSync images/ + fs.statSync per PNG). Plan 01 only
+  // establishes the type contract (OrphanedFile in shared/types.ts) and the
+  // pure helper (findOrphanedFiles in core/usage.ts). The empty array here
+  // matches the SkeletonSummary.orphanedFiles?: optional field contract —
+  // no orphan panel surfaces until Plan 02 populates the field.
+  const orphanedFiles: import('../shared/types.js').OrphanedFile[] = [];
 
   return {
     skeletonPath: load.skeletonPath,
@@ -183,14 +150,14 @@ export function buildSummary(
     },
     peaks: peaksArray,
     animationBreakdown,
-    unusedAttachments,
+    orphanedFiles,
     /**
      * Phase 21 Plan 21-10 G-02 — surface skipped-PNG attachments to the
      * renderer (MissingAttachmentsPanel). Always-present array (defaulted
      * to [] when LoadResult.skippedAttachments is undefined per Plan 21-09
-     * ISSUE-007 OPTIONAL field). peaks / animationBreakdown.rows /
-     * unusedAttachments above are pre-filtered by skippedNames so stub-
-     * region attachments do NOT double-count into the regular panels.
+     * ISSUE-007 OPTIONAL field). peaks / animationBreakdown.rows are
+     * pre-filtered by skippedNames so stub-region attachments do NOT
+     * double-count into the regular panels.
      */
     skippedAttachments: load.skippedAttachments ?? [],
     elapsedMs,

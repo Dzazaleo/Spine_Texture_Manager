@@ -64,11 +64,10 @@ export function buildAtlasPreview(
   overrides: ReadonlyMap<string, number>,
   opts: { mode: 'original' | 'optimized'; maxPageDim: 2048 | 4096 },
 ): AtlasPreviewProjection {
-  // 1. D-109 parity (Phase 5): always exclude unusedAttachments from BOTH modes.
+  // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
+  // The excluded set is now always empty — D-109 semantics are superseded by
+  // Phase 24's orphanedFiles concept. Plan 02 will wire the new exclusion.
   const excluded = new Set<string>();
-  if (summary.unusedAttachments) {
-    for (const u of summary.unusedAttachments) excluded.add(u.attachmentName);
-  }
 
   // 2. Derive AtlasPreviewInput[] per mode.
   const allInputs: AtlasPreviewInput[] = deriveInputs(summary, overrides, opts.mode, excluded);
