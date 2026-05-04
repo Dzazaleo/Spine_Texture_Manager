@@ -21,6 +21,9 @@ import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
 import type { SkeletonSummary } from '../shared/types.js';
 import { analyze, analyzeBreakdown } from '../core/analyzer.js';
+import { findOrphanedFiles } from '../core/usage.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export function buildSummary(
   load: LoadResult,
@@ -116,13 +119,65 @@ export function buildSummary(
     };
   });
 
-  // Phase 24 Plan 01 — stub: orphanedFiles detection is wired in Plan 02
-  // (I/O layer: fs.readdirSync images/ + fs.statSync per PNG). Plan 01 only
-  // establishes the type contract (OrphanedFile in shared/types.ts) and the
-  // pure helper (findOrphanedFiles in core/usage.ts). The empty array here
-  // matches the SkeletonSummary.orphanedFiles?: optional field contract —
-  // no orphan panel surfaces until Plan 02 populates the field.
-  const orphanedFiles: import('../shared/types.js').OrphanedFile[] = [];
+  // Phase 24 PANEL-01 — orphaned file detection (D-01, D-02, D-05).
+  // I/O layer: this is the ONLY place that touches fs.readdirSync / fs.statSync
+  // for orphan detection. The pure helper src/core/usage.ts:findOrphanedFiles
+  // receives pre-collected arrays and performs zero I/O (CLAUDE.md #5).
+  const skeletonDir = path.dirname(load.skeletonPath);
+  const imagesDir = path.join(skeletonDir, 'images');
+
+  // Step 1 (D-02): read images/ folder → collect PNG basenames (no extension).
+  let imagesFolderFiles: string[] = [];
+  try {
+    const entries = fs.readdirSync(imagesDir);
+    imagesFolderFiles = entries
+      .filter((e) => e.toLowerCase().endsWith('.png'))
+      .map((e) => e.slice(0, -4)); // strip ".png"
+  } catch {
+    // images/ does not exist → no orphaned files → panel hidden (D-03).
+    imagesFolderFiles = [];
+  }
+
+  // Step 2 (D-02): build in-use name set — depends on mode (D-03).
+  const inUseNames = new Set<string>();
+  if (load.atlasPath !== null) {
+    // Atlas-mode: in-use = union of atlas region names (the manifest authority).
+    for (const region of load.atlas!.regions) {
+      inUseNames.add(region.name);
+    }
+  } else {
+    // Atlas-less mode: in-use = textured attachment names from skins.
+    // Non-textured filter proxy: load.sourceDims.get(name) !== undefined
+    // (same proxy as old findUnusedAttachments:117 — BoundingBox/Path/Clipping/Point
+    // have no sourceDims entry and are excluded; D-02 step 2 spec).
+    for (const skin of load.skeletonData.skins) {
+      for (const perSlot of skin.attachments) {
+        if (perSlot === undefined || perSlot === null) continue;
+        for (const attachmentName of Object.keys(perSlot)) {
+          if (load.sourceDims.get(attachmentName) !== undefined) {
+            inUseNames.add(attachmentName);
+          }
+        }
+      }
+    }
+  }
+
+  // Step 3 (D-02): orphaned = PNG filenames NOT in inUseNames.
+  const orphanedBasenames = findOrphanedFiles(imagesFolderFiles, inUseNames);
+
+  // Augment with on-disk byte size via fs.statSync (same pattern as the old
+  // bytesOnDisk augmentation — summary.ts is the sole writer).
+  const orphanedFiles = orphanedBasenames.map((filename) => {
+    const pngPath = path.join(imagesDir, filename + '.png');
+    let bytesOnDisk = 0;
+    try {
+      bytesOnDisk = fs.statSync(pngPath).size;
+    } catch {
+      // ENOENT / EACCES — treat as 0 (same silent pattern as old block).
+      bytesOnDisk = 0;
+    }
+    return { filename, bytesOnDisk };
+  });
 
   return {
     skeletonPath: load.skeletonPath,

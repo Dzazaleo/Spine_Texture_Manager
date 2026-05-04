@@ -146,6 +146,83 @@ describe('summary: sourcePath threading on DisplayRow + BreakdownRow (Phase 6 Pl
   });
 });
 
+describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)', () => {
+  // RED gate: these tests fail while summary.ts returns the stub [] for orphanedFiles.
+  // They pass only after Plan 02 wires fs.readdirSync + findOrphanedFiles + fs.statSync.
+
+  it('no images/ folder → orphanedFiles: [] (panel hidden, D-06)', () => {
+    // SIMPLE_PROJECT has no images/ folder → readdirSync ENOENT → []
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    expect(Array.isArray(s.orphanedFiles)).toBe(true);
+    expect(s.orphanedFiles).toEqual([]);
+  });
+
+  it('images/ folder with orphaned PNG → orphanedFiles contains filename + bytesOnDisk (D-02)', () => {
+    // Create a tmp skeleton dir with an images/ folder containing one orphaned PNG
+    // (GHOST.png — not referenced by any atlas region in SIMPLE_TEST).
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    // Copy the skeleton + atlas to tmp dir
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
+    // Create a GHOST.png (orphaned — no atlas region named GHOST)
+    const ghostPath = path.join(tmpImages, 'GHOST.png');
+    fs.writeFileSync(ghostPath, Buffer.from('orphaned-png-bytes'));
+    try {
+      const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
+      // Must find GHOST as orphaned
+      expect(Array.isArray(s.orphanedFiles)).toBe(true);
+      const ghost = s.orphanedFiles!.find((f) => f.filename === 'GHOST');
+      expect(ghost).toBeDefined();
+      expect(ghost!.bytesOnDisk).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('atlas-mode: used attachment PNGs in images/ are NOT orphaned (D-02 step 2 atlas-mode)', () => {
+    // Create a tmp skeleton dir with images/ containing only used PNGs (from atlas regions).
+    // SIMPLE_TEST.atlas has regions: CIRCLE, SQUARE, TRIANGLE, SQUARE2.
+    // If images/ contains ONLY CIRCLE.png → not orphaned (CIRCLE is used).
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-used-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
+    // CIRCLE is in the atlas → NOT orphaned
+    fs.writeFileSync(path.join(tmpImages, 'CIRCLE.png'), Buffer.from('used'));
+    try {
+      const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
+      expect(Array.isArray(s.orphanedFiles)).toBe(true);
+      // CIRCLE is in atlas regions → not orphaned
+      const circle = s.orphanedFiles!.find((f) => f.filename === 'CIRCLE');
+      expect(circle).toBeUndefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('orphanedFiles is structuredClone-safe (D-21 IPC invariant)', () => {
+    // Uses SIMPLE_PROJECT (no images/ folder) → orphanedFiles: []; still validates shape.
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    const cloned = structuredClone(s.orphanedFiles!);
+    expect(cloned).toEqual(s.orphanedFiles);
+  });
+});
+
 describe('Phase 21 G-02 — skippedAttachments cascade', () => {
   // Plan 21-10 — Surface skipped-PNG attachments (Plan 21-09 LoadResult.skippedAttachments)
   // through buildSummary so MissingAttachmentsPanel can render them above the regular
