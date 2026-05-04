@@ -64,7 +64,7 @@
 
 - [x] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02) (completed 2026-05-03)
 - [x] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04) (completed 2026-05-04)
-- [ ] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03)
+- [x] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03) (completed 2026-05-04)
 - [ ] **Phase 26: UI polish** — Sticky-bar height token, alternating row colors, icon audit, draggable modals, unified toolbar button heights. (UI-06, UI-07, UI-08, UI-09, UI-10)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
@@ -588,7 +588,7 @@ Plans:
 - [x] 25-01-PLAN.md — Data layer: add isMissing to DisplayRow; replace summary.ts filters with marking; update G-02 tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
+- [x] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
 **UI hint**: yes
 
 ### Phase 26: UI polish
@@ -648,7 +648,7 @@ Plans:
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
-| 25. Missing attachments in-context display | v1.3 | 1/2 | In Progress|  |
+| 25. Missing attachments in-context display | v1.3 | 2/2 | Complete   | 2026-05-04 |
 | 26. UI polish | v1.3 | 0/? | Not started | — |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
