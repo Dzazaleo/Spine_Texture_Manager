@@ -553,7 +553,12 @@ Plans:
   3. The MB unused-attachment callout in the Global Max Render Source panel is replaced by a metric that accurately represents optimization opportunity — such as projected atlas pixel-area savings percentage or a pre-flight estimate of pixels that will be reduced; the number shown corresponds to what Optimize Assets would actually change.
   4. User loads a .json file with no .atlas and no images/ folder and sees an AtlasNotFoundError message that mentions "Use Images Folder as Source" toggle as an alternative recovery path alongside the existing advice to re-export with an atlas.
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 24-01-PLAN.md — Types + core logic: OrphanedFile type, findOrphanedFiles, AtlasNotFoundError message
+- [ ] 24-02-PLAN.md — Main I/O layer: summary.ts orphan detection rewrite (D-02 algorithm)
+- [ ] 24-03-PLAN.md — UnusedAssetsPanel component + RTL tests
+- [ ] 24-04-PLAN.md — GlobalMaxRenderPanel cleanup + savingsPct chip + AppShell wiring
 **UI hint**: yes
 
 ### Phase 25: Missing attachments in-context display
@@ -628,7 +633,7 @@ Plans:
 | 22. SEED-002 dims-badge + override-cap (depends on 21) | v1.2 | 5/5 | Complete   | 2026-05-02 |
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
-| 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 0/? | Not started | — |
+| 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 0/4 | Not started | — |
 | 25. Missing attachments in-context display | v1.3 | 0/? | Not started | — |
 | 26. UI polish | v1.3 | 0/? | Not started | — |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
