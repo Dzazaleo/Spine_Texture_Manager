@@ -7,7 +7,7 @@
 - ✅ **v1.1.1 patch** — Phase 13 (5/5 plans complete; shipped 2026-04-29; v1.1.1 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1; D-10 publish-race fix verified clean across 4 successful CI runs total: rc2 / rc3 / v1.1.0 / v1.1.1; live UAT — Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation — carries forward to Phase 13.1 documented in 13-VERIFICATION.md ## Gaps Summary)
 - ✅ **v1.1.2 Auto-update fixes** — Phases 14–15 (shipped 2026-04-29; v1.1.2 published with broken mac auto-update D-15-LIVE-1; v1.1.3 same-day hotfix at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3 closed UPDFIX-01 / D-15-LIVE-1 empirically via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact at canonical dotted URL. D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc builds) + D-15-LIVE-3 (Help → Check menu gating) routed to backlog 999.2 + 999.3 per user decision — manual-download UX path, NOT Apple Developer Program enrollment. Phase 13.1 — live UAT carry-forwards from v1.1.1 — remains separately tracked, NOT part of v1.1.2)
 - ✅ **v1.2 Expansion** — Phases 13.1 (deferred), 16, 18–22.1 (shipped 2026-05-03; v1.2.0 final; 40 plans across 8 executed phases; 23/26 REQs closed — UAT-01..03 host-blocked, carried to v1.3) — full archive at [.planning/milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
-- **v1.3 Polish & UX** — Phases 23–27 (in progress; 16 REQs — PANEL-01..04, OPT-01..03, UI-06..10, QA-01..04)
+- **v1.3 Polish & UX** — Phases 23–27 (in progress; 16 REQs — PANEL-01..04, OPT-01..03, UI-06..10, QA-01..04) — Phase 26 split into 26.1/26.2/26.3
 
 ## Phases
 
@@ -65,7 +65,9 @@
 - [x] **Phase 23: Optimize flow — defer folder picker** — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to Start/Export. (OPT-01, OPT-02) (completed 2026-05-03)
 - [x] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04) (completed 2026-05-04)
 - [x] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03) (completed 2026-05-04)
-- [ ] **Phase 26: UI polish** — Sticky-bar height token, alternating row colors, icon audit, draggable modals, unified toolbar button heights. (UI-06, UI-07, UI-08, UI-09, UI-10)
+- [ ] **Phase 26.1: UI polish — visual wins** — Color scheme (#232732 surface, proportional panel shift), full-width panels, zebra rows, toolbar height unification, missing-row full bg fill, warning icon sizing, atlas-less images counter, danger-themed warning panel headers, stronger section headers. (UI-06, UI-07, UI-10)
+- [ ] **Phase 26.2: UI polish — tab restructure + icon audit** — 3-tab system (Global / Unused / Animation Breakdown); Unused tab hidden when empty, count badge when N > 0; MissingAttachmentsPanel stays above tabs. Icon audit across all surfaces. (UI-08)
+- [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
 ## Phase Details

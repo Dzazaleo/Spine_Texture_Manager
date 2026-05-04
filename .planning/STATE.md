@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
 status: ready_to_plan
-last_updated: "2026-05-04T13:42:17.153Z"
-last_activity: 2026-05-04 -- Phase 25 execution started
+last_updated: "2026-05-04T15:00:00.000Z"
+last_activity: 2026-05-04 -- Phase 26 context gathered; Phase 26 split into 26.1/26.2/26.3
 progress:
   total_phases: 21
   completed_phases: 12
@@ -17,7 +17,7 @@ progress:
 
 ## Current Position
 
-Phase: 26
+Phase: 26.1
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-05-04
@@ -27,7 +27,7 @@ Last activity: 2026-05-04
 See: .planning/PROJECT.md (updated 2026-05-03 after v1.2 milestone)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 25 — missing-attachments-in-context-display
+**Current focus:** Phase 26.1 — UI polish visual wins (color scheme, full-width panels, zebra rows, toolbar heights, warning icons, atlas-less counter, danger headers)
 
 ## Last Roadmap Update
 
