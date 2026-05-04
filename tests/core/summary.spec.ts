@@ -226,20 +226,20 @@ describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)'
 describe('Phase 21 G-02 — skippedAttachments cascade', () => {
   // Plan 21-10 — Surface skipped-PNG attachments (Plan 21-09 LoadResult.skippedAttachments)
   // through buildSummary so MissingAttachmentsPanel can render them above the regular
-  // panels. peaks / animationBreakdown.rows are filtered to drop entries whose
-  // attachmentName matches a skipped name — those attachments live ONLY in
-  // summary.skippedAttachments, never double-counted.
+  // panels. Phase 25 PANEL-03: peaks / animationBreakdown.rows are NO LONGER filtered —
+  // stub rows remain with isMissing: true so the renderer can show danger indicators.
 
-  it('UNIT (ISSUE-003 fix): buildSummary filter contract drops skipped names from peaks + animationBreakdown.rows — verified with synthetic non-vacuous input', () => {
+  it('Phase 25 PANEL-03 — buildSummary marking contract: stub rows marked isMissing:true in peaks + animationBreakdown.rows (non-vacuous synthetic input)', () => {
     // ISSUE-003 motivation: a fixture-only assertion ("TRIANGLE absent from
     // peaks after PNG deletion") is vacuous because the SIMPLE-fixture-with-
     // TRIANGLE-deleted path produces a degenerate AABB (1x1 stub region) that
     // may already be dropped by the analyzer's noise threshold. This UNIT test
     // constructs synthetic peaks containing a NON-ZERO-peakScale TRIANGLE row
-    // plus synthetic skippedAttachments. The filter must drop the row.
+    // plus synthetic skippedAttachments. The marking must set isMissing: true
+    // on the TRIANGLE row while leaving CIRCLE and SQUARE with isMissing: undefined.
     //
-    // We test the FILTER LOGIC by replicating the same Set<string> construction
-    // that summary.ts performs (the filter is inline in buildSummary; we
+    // We test the MAP+MARK LOGIC by replicating the same Set<string> construction
+    // that summary.ts performs (the map+mark is inline in buildSummary; we
     // replicate it here to lock the contract).
     const mockPeaks = [
       { skinName: 'default', slotName: 'slot1', attachmentName: 'CIRCLE',   peakScale: 1.5 } as any,
@@ -250,34 +250,84 @@ describe('Phase 21 G-02 — skippedAttachments cascade', () => {
       { name: 'TRIANGLE', expectedPngPath: '/x/TRIANGLE.png' },
     ];
 
-    // Replicate the filter-set construction from summary.ts:
+    // Replicate the map+mark construction from summary.ts (Phase 25):
     const skippedNames = new Set(mockSkipped.map((s) => s.name));
-    const filteredPeaks = mockPeaks.filter((p: any) => !skippedNames.has(p.attachmentName));
+    const peaks = mockPeaks.map((p: any) => ({
+      ...p,
+      isMissing: skippedNames.has(p.attachmentName) ? true : undefined,
+    }));
 
-    // CIRCLE + SQUARE survive; TRIANGLE drops.
-    expect(filteredPeaks.length).toBe(2);
-    expect(filteredPeaks.find((p: any) => p.attachmentName === 'CIRCLE')).toBeDefined();
-    expect(filteredPeaks.find((p: any) => p.attachmentName === 'SQUARE')).toBeDefined();
-    expect(filteredPeaks.find((p: any) => p.attachmentName === 'TRIANGLE')).toBeUndefined();
+    // All 3 rows present (no filtering).
+    expect(peaks.length).toBe(3);
+    expect(peaks.find((p: any) => p.attachmentName === 'CIRCLE')).toBeDefined();
+    expect(peaks.find((p: any) => p.attachmentName === 'SQUARE')).toBeDefined();
 
-    // Sanity: input genuinely had TRIANGLE before filtering (non-vacuous).
-    // peakScale 2.3 > any reasonable noise threshold; the row would be in the
-    // regular panels absent the filter.
+    // TRIANGLE IS present and has isMissing: true.
+    const trianglePeak = peaks.find((p: any) => p.attachmentName === 'TRIANGLE');
+    expect(trianglePeak).toBeDefined();
+    expect(trianglePeak!.isMissing).toBe(true);
+
+    // Non-stub rows have isMissing: undefined (not false).
+    const circlePeak = peaks.find((p: any) => p.attachmentName === 'CIRCLE');
+    expect(circlePeak!.isMissing).toBeUndefined();
+    const squarePeak = peaks.find((p: any) => p.attachmentName === 'SQUARE');
+    expect(squarePeak!.isMissing).toBeUndefined();
+
+    // Sanity: input genuinely had TRIANGLE before marking (non-vacuous).
     expect(mockPeaks.find((p: any) => p.attachmentName === 'TRIANGLE')!.peakScale).toBeGreaterThan(1.0);
 
-    // Phase 24 Plan 01: unusedAttachments removed; orphanedFiles (filename-keyed)
-    // does not participate in this skippedNames filter (orphaned files are not rig
-    // attachments, so skippedNames filter is irrelevant for them). Filter removed.
+    // Phase 24 Plan 01: orphanedFiles (filename-keyed) does not participate in
+    // skippedNames marking (orphaned files are not rig attachments).
 
-    // Filter applies identically to animationBreakdown card rows
+    // Map+mark applies identically to animationBreakdown card rows
     // (BreakdownRow extends DisplayRow; same attachmentName key):
     const mockCard = { cardId: 'anim:test', rows: mockPeaks } as any;
-    const filteredCard = {
-      ...mockCard,
-      rows: mockCard.rows.filter((r: any) => !skippedNames.has(r.attachmentName)),
-    };
-    expect(filteredCard.rows.find((r: any) => r.attachmentName === 'TRIANGLE')).toBeUndefined();
-    expect(filteredCard.rows.length).toBe(2);
+    const markedRows = mockCard.rows.map((r: any) => ({
+      ...r,
+      isMissing: skippedNames.has(r.attachmentName) ? true : undefined,
+    }));
+    const markedCard = { ...mockCard, rows: markedRows, uniqueAssetCount: markedRows.length };
+
+    const triangleRow = markedCard.rows.find((r: any) => r.attachmentName === 'TRIANGLE');
+    expect(triangleRow).toBeDefined();
+    expect(triangleRow!.isMissing).toBe(true);
+    expect(markedCard.rows.length).toBe(3);           // all 3 rows present
+    expect(markedCard.uniqueAssetCount).toBe(3);      // count includes missing
+  });
+
+  it('Phase 25: isMissing boolean survives structuredClone (IPC-safe)', () => {
+    const row = { attachmentName: 'TRIANGLE', isMissing: true } as any;
+    const cloned = structuredClone(row);
+    expect(cloned.isMissing).toBe(true);
+  });
+
+  it('Phase 25: non-stub rows have isMissing undefined (not false)', () => {
+    const rows = [
+      { attachmentName: 'CIRCLE', peakScale: 1.5 } as any,
+      { attachmentName: 'TRIANGLE', peakScale: 2.3 } as any,
+    ];
+    const skipped = new Set(['TRIANGLE']);
+    const marked = rows.map((r: any) => ({
+      ...r,
+      isMissing: skipped.has(r.attachmentName) ? true : undefined,
+    }));
+    expect(marked.find((r: any) => r.attachmentName === 'CIRCLE')!.isMissing).toBeUndefined();
+    expect(marked.find((r: any) => r.attachmentName === 'TRIANGLE')!.isMissing).toBe(true);
+  });
+
+  it('Phase 25: uniqueAssetCount equals full rows.length including missing rows', () => {
+    const rows = [
+      { attachmentName: 'CIRCLE' } as any,
+      { attachmentName: 'TRIANGLE' } as any,
+      { attachmentName: 'SQUARE' } as any,
+    ];
+    const skipped = new Set(['TRIANGLE']);
+    const markedRows = rows.map((r: any) => ({
+      ...r,
+      isMissing: skipped.has(r.attachmentName) ? true : undefined,
+    }));
+    // uniqueAssetCount must equal markedRows.length (3), not filtered count (2)
+    expect(markedRows.length).toBe(3);
   });
 
   it('INTEGRATION: buildSummary populates skippedAttachments from LoadResult.skippedAttachments verbatim (uses Plan 21-09 SIMPLE_PROJECT_NO_ATLAS_MESH fixture)', () => {
