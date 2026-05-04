@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-03 after Phase 23 complete. v1.2.0 shipped — v1.3 in progress (Phase 23 complete). Optimize Assets flow rewired: OptimizeDialog opens immediately on toolbar click (OPT-01); OS folder picker deferred to Start button with lastOutDir pre-fill (OPT-02). SEED-001 (atlas-less) + SEED-002 (dims-badge) shipped. ~20K LOC TS/TSX.*
+*Last updated: 2026-05-04 after Phase 24 complete. v1.3 in progress (Phase 24 complete). Unused Assets detection rewritten: images-folder-vs-rig orphaned PNG detection via `findOrphanedFiles`, `UnusedAssetsPanel` extracted as collapsible sibling panel, MB unused-attachment callout replaced by atlas pixel-area savings % chip, AtlasNotFoundError updated with images-folder toggle tip. Phase 26 tab-system idea captured (Global / Unused / Animation tabs). ~21K LOC TS/TSX.*
