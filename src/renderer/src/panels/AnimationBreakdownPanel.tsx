@@ -397,8 +397,28 @@ export function AnimationBreakdownPanel({
 
   return (
     <div className="w-full p-8">
-      <header className="mb-4 flex items-center gap-4">
-        <h2 className="text-lg font-semibold">Animation Breakdown</h2>
+      <header className="mb-4 flex items-center gap-2">
+        <span
+          className="inline-flex items-center justify-center w-5 h-5 text-fg flex-shrink-0"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 20 20"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            className="w-5 h-5"
+            aria-hidden="true"
+          >
+            <path d="M3 17 V10 M8 17 V6 M13 17 V12 M18 17 V4" />
+          </svg>
+        </span>
+        <h2 className="text-sm font-semibold text-fg">Animation Breakdown</h2>
+        <span className="text-fg-muted font-mono text-xs font-normal ml-auto">
+          {filteredCards.length} animations
+        </span>
       </header>
       <div className="flex flex-col gap-3">
         {filteredCards.map((card) => {
