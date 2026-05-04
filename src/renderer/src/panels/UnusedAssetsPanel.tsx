@@ -50,8 +50,16 @@ export function UnusedAssetsPanel({ orphanedFiles }: UnusedAssetsPanelProps) {
     <div
       role="alert"
       aria-label="Orphaned image files"
-      className="border-b border-border bg-panel px-6 py-2 text-xs text-fg flex flex-wrap items-center gap-2"
+      className="border-b border-danger/40 bg-danger/10 px-6 py-2 text-xs text-fg flex flex-wrap items-center gap-2"
     >
+      <span
+        className="inline-flex items-center justify-center w-4 h-4 text-danger flex-shrink-0"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+          <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
+        </svg>
+      </span>
       <span
         className="inline-block w-1 h-4 bg-danger flex-shrink-0"
         aria-hidden="true"
