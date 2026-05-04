@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-04 after Phase 24 complete. v1.3 in progress (Phase 24 complete). Unused Assets detection rewritten: images-folder-vs-rig orphaned PNG detection via `findOrphanedFiles`, `UnusedAssetsPanel` extracted as collapsible sibling panel, MB unused-attachment callout replaced by atlas pixel-area savings % chip, AtlasNotFoundError updated with images-folder toggle tip. Phase 26 tab-system idea captured (Global / Unused / Animation tabs). ~21K LOC TS/TSX.*
+*Last updated: 2026-05-04 after Phase 25 complete. v1.3 in progress (Phase 25 complete). Missing-attachment rows now shown in-context in Global Max Render Source and Animation Breakdown panels with red left-border accent, ⚠ icon, and danger-tinted ratio cell — alongside the existing MissingAttachmentsPanel. Root cause: `synthetic-atlas.ts` intentionally excludes stub regions from sampler; fix synthesizes `DisplayRow` entries from `skippedAttachments` post-sampler. `DisplayRow.isMissing?: boolean` added to IPC contract. Phase 26 (ui-polish) is next.*
