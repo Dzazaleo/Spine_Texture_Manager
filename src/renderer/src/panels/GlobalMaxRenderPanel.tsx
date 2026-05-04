@@ -798,7 +798,7 @@ export function GlobalMaxRenderPanel({
   );
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-8">
+    <div className="w-full p-8">
       {/*
         Phase 21 Plan 11 (G-03 UAT-1 revised diagnosis, 2026-05-02) —
         `min-h-[calc(100vh-200px)]` pins the section to the SAME vertical

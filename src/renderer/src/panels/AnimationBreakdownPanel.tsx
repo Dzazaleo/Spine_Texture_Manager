@@ -396,7 +396,7 @@ export function AnimationBreakdownPanel({
   }, [focusAnimationName, onFocusConsumed]);
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-8">
+    <div className="w-full p-8">
       <header className="mb-4 flex items-center gap-4">
         <h2 className="text-lg font-semibold">Animation Breakdown</h2>
       </header>

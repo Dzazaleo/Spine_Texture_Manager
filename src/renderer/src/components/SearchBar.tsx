@@ -52,7 +52,7 @@ export function SearchBar({ value, onChange, placeholder }: SearchBarProps) {
         type="text"
         value={value}
         placeholder={placeholder ?? 'Filter by attachment name…'}
-        className="w-full bg-panel border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-fg-muted"
+        className="w-full bg-panel border border-border rounded-md px-3 h-8 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-fg-muted"
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         aria-label="Filter rows by attachment name"
