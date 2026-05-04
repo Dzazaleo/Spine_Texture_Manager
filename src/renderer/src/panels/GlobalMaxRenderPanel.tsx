@@ -152,6 +152,13 @@ export interface GlobalMaxRenderPanelProps {
    * via the loaderMode state at line 273).
    */
   loaderMode: 'auto' | 'atlas-less';
+  /**
+   * Phase 24 OPT-03 (D-08, D-09, D-10) — Pixel-area savings % chip in the
+   * section header. Computed by AppShell.tsx:702-712 (savingsPctMemo) via
+   * buildExportPlan. Null when the export plan is empty (no attachments);
+   * chip is hidden when null or 0 (D-11 chip-hidden policy).
+   */
+  savingsPct?: number | null;
 }
 
 // ----- Pure helpers (module-top) -----------------------------------------
@@ -575,6 +582,7 @@ export function GlobalMaxRenderPanel({
   query,
   onQueryChange,
   loaderMode,
+  savingsPct,
 }: GlobalMaxRenderPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone
   // (AppShell always passes non-null values).
@@ -645,46 +653,6 @@ export function GlobalMaxRenderPanel({
   );
   const visibleKeys = useMemo(() => sorted.map((r) => r.attachmentKey), [sorted]);
 
-  // Phase 5 Plan 03 — F6.2 unused-section filter. Inherits the same
-  // substring-lowercase predicate the peak table uses via filterByName
-  // (D-107 inherited SearchBar filter; Pitfall 6 — the section chrome
-  // renders whenever summary.unusedAttachments is non-empty, so the
-  // filter may return 0 rows while chrome stays visible with a
-  // "(no matches)" placeholder in the body).
-  //
-  // Rule-1 bug fix (executor 2026-04-24): SkeletonSummary.unusedAttachments
-  // is declared OPTIONAL in src/shared/types.ts (Plan 02 SUMMARY §key-decisions:
-  // kept optional to preserve source compatibility with pre-Plan-02 consumers),
-  // so a nullish-coalesce to [] is required before .slice/.filter and before
-  // the .length guard in the render block below.
-  const unusedAttachments = summary.unusedAttachments ?? [];
-  // Phase 19 UI-02 + D-06 — set of unused attachment names for O(1) lookup
-  // when computing per-row state (rowState predicate). Names come from the
-  // same IPC field that drives the unused-section table below.
-  const unusedNameSet = useMemo(
-    () => new Set(unusedAttachments.map((u) => u.attachmentName)),
-    [unusedAttachments],
-  );
-  // Phase 19 UI-04 + D-13/D-14/D-15 — aggregate on-disk bytes across unused
-  // rows. Uses (u.bytesOnDisk ?? 0) fallback because the field is OPTIONAL
-  // on UnusedAttachment per Plan 19-01 (orchestrator's revision-pass lock —
-  // bytesOnDisk?: number on the interface; src/main/summary.ts is the sole
-  // writer). When every row is 0 (atlas-packed projects per D-15) the
-  // callout falls back to count-only copy.
-  const aggregateBytes = unusedAttachments.reduce(
-    (acc, u) => acc + (u.bytesOnDisk ?? 0),
-    0,
-  );
-  const filteredUnused = useMemo(
-    () => {
-      const q = query.trim().toLowerCase();
-      if (q === '') return unusedAttachments.slice();
-      return unusedAttachments.filter(
-        (u) => u.attachmentName.toLowerCase().includes(q),
-      );
-    },
-    [unusedAttachments, query],
-  );
 
   // Gap-fix A (human-verify 2026-04-24): convert the internal attachmentKey
   // selection to the outbound attachmentName contract BEFORE handing the set
@@ -849,62 +817,19 @@ export function GlobalMaxRenderPanel({
           </svg>
         </span>
         <span>Global Max Render Scale</span>
+        {/* Phase 24 OPT-03 — pixel-area savings % chip (D-08, D-09, D-10).
+            Hidden when savingsPct is null/undefined/0 (no data or 0% savings).
+            text-warning signals an informational metric distinct from interactive elements.
+            toFixed(1) matches OptimizeDialog.tsx:354 display format. */}
+        {savingsPct !== null && savingsPct !== undefined && savingsPct > 0 && (
+          <span className="font-mono text-xs text-warning border border-border rounded-md px-2 py-1 flex-shrink-0">
+            {savingsPct.toFixed(1)}% pixel savings
+          </span>
+        )}
         <span className="text-fg-muted font-mono text-sm font-normal ml-auto">
           {selected.size} selected / {sorted.length} total
         </span>
       </header>
-      {/* Phase 5 Plan 03 — F6.2 unused attachment section (D-103, D-105, D-107).
-          Chrome visible whenever summary.unusedAttachments is non-empty; body
-          shows "(no matches)" when the search filter excludes every row
-          (Pitfall 6 chrome-visible policy). Red scope is header-only (D-105).
-          Uses the ??-coalesced local `unusedAttachments` because the IPC field
-          is declared optional (see the filteredUnused memo above). */}
-      {unusedAttachments.length > 0 && (
-        <section className="mb-6 border-b border-border pb-4" aria-label="Unused attachments">
-          <header className="flex items-center gap-2 mb-2 text-danger font-mono text-sm font-semibold">
-            <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5">
-              <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
-                <path d="M10 3 L18 16 L2 16 Z" />
-                <path d="M10 8 v4 M10 14.5 v0.01" />
-              </svg>
-            </span>
-            {aggregateBytes > 0 ? (
-              <span className="text-fg-muted font-mono">
-                <span className="font-semibold text-fg">{formatBytes(aggregateBytes)}</span>
-                {' '}potential savings
-              </span>
-            ) : (
-              <span className="text-fg-muted font-mono">
-                {filteredUnused.length === 1
-                  ? '1 unused attachment'
-                  : `${filteredUnused.length} unused attachments`}
-              </span>
-            )}
-          </header>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-panel">
-                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Attachment</th>
-                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Source Size</th>
-                <th className="py-2 px-3 font-mono text-xs font-semibold border-b border-border text-left text-fg">Defined In</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUnused.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="text-fg-muted font-mono text-sm text-center py-4">(no matches)</td>
-                </tr>
-              ) : filteredUnused.map((u) => (
-                <tr key={u.attachmentName} className="border-b border-border">
-                  <td className="py-2 px-3 font-mono text-sm text-fg">{u.attachmentName}</td>
-                  <td className="py-2 px-3 font-mono text-sm text-fg-muted">{u.sourceLabel}</td>
-                  <td className="py-2 px-3 font-mono text-sm text-fg-muted">{u.definedInLabel}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
       {/* Phase 9 Plan 03 — Sticky <thead> via Tailwind `sticky top-0` (D-191
           + RESEARCH §Pitfall 1). MUST stay on <thead>, NEVER on <tr> inside
           <tbody>: virtualizer applies transform: translateY to <tr>s, which
@@ -1003,7 +928,7 @@ export function GlobalMaxRenderPanel({
                   const row = sorted[virtualRow.index];
                   const state = rowState(
                     row.effectiveScale,
-                    unusedNameSet.has(row.attachmentName),
+                    false,
                   );
                   return (
                     <Row
@@ -1121,7 +1046,7 @@ export function GlobalMaxRenderPanel({
             {sorted.map((row) => {
               const state = rowState(
                 row.effectiveScale,
-                unusedNameSet.has(row.attachmentName),
+                false,
               );
               return (
                 <Row
