@@ -15,25 +15,19 @@
  * Returns null when length === 0 — no empty-state placeholder. The panel is
  * invisible when there's nothing to surface. Panel position in render tree:
  * after <GlobalMaxRenderPanel>, before <AnimationBreakdownPanel> (D-07).
- *
- * Phase 26.2 D-03 — query lifted to AppShell (single SearchBar drives all
- * panels). Internal query useState removed; query is now driven by AppShell
- * via props, matching GlobalMaxRenderPanel/AnimationBreakdownPanel shape.
  */
 import { useState, useMemo } from 'react';
 import type { OrphanedFile } from '../../../shared/types.js';
 import { formatBytes } from '../lib/format-bytes';
+import { SearchBar } from '../components/SearchBar';
 
 export interface UnusedAssetsPanelProps {
   orphanedFiles: OrphanedFile[];
-  /** Phase 26.2 D-03 — query lifted to AppShell (single SearchBar drives all panels). */
-  query: string;
-  onQueryChange: (q: string) => void;
 }
 
-export function UnusedAssetsPanel({ orphanedFiles, query, onQueryChange: _onQueryChange }: UnusedAssetsPanelProps) {
+export function UnusedAssetsPanel({ orphanedFiles }: UnusedAssetsPanelProps) {
   const [expanded, setExpanded] = useState(true); // D-06: expanded by default when N > 0
-  // query useState REMOVED (Phase 26.2 D-03) — now driven by AppShell via props
+  const [query, setQuery] = useState('');
 
   // Computed values — must be derived before the early-return so hooks are
   // unconditionally called (Rules of Hooks). `filteredOrphans` is only
@@ -62,19 +56,10 @@ export function UnusedAssetsPanel({ orphanedFiles, query, onQueryChange: _onQuer
         className="inline-flex items-center justify-center w-4 h-4 text-danger flex-shrink-0"
         aria-hidden="true"
       >
-        <svg
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="w-4 h-4"
-          aria-hidden="true"
-        >
-          <path d="M10 3.5 L17.5 16.5 H2.5 Z" />
-          <line x1="10" y1="8" x2="10" y2="12" />
-          <circle cx="10" cy="14.5" r="0.5" fill="currentColor" />
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+          <path d="M8 1.5 L14.5 13.5 H1.5 Z" />
+          <rect x="7.25" y="5.5" width="1.5" height="4" fill="white" rx="0.5" />
+          <rect x="7.25" y="11" width="1.5" height="1.5" fill="white" rx="0.5" />
         </svg>
       </span>
       <span
@@ -99,6 +84,13 @@ export function UnusedAssetsPanel({ orphanedFiles, query, onQueryChange: _onQuer
       </button>
       {expanded && (
         <>
+          <div className="basis-full mt-2">
+            <SearchBar
+              value={query}
+              onChange={setQuery}
+              placeholder="Filter by filename…"
+            />
+          </div>
           <table className="basis-full mt-2 w-full border-collapse">
             <thead>
               <tr className="bg-panel">

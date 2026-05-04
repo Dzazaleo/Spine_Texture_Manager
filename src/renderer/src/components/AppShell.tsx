@@ -75,7 +75,7 @@ import { buildExportPlan } from '../lib/export-view.js';
 // fixed: the chip is a single-line snapshot, not a stepper.
 import { buildAtlasPreview } from '../lib/atlas-preview-view.js';
 
-type ActiveTab = 'global' | 'unused' | 'animation';
+type ActiveTab = 'global' | 'animation';
 
 export interface AppShellProps {
   summary: SkeletonSummary;
@@ -426,16 +426,6 @@ export function AppShell({
   const onClickAtlasPreview = useCallback(() => {
     setAtlasPreviewOpen(true);
   }, []);
-
-  // Phase 26.2 D-02 — auto-redirect: if the Unused tab is active and the
-  // orphaned files list clears (e.g. after resample), redirect to 'global'
-  // to avoid a stranded active-tab state. Watches a primitive (.length) not
-  // the array reference — avoids infinite re-render (T-26.2-03 mitigation).
-  useEffect(() => {
-    if (activeTab === 'unused' && (effectiveSummary.orphanedFiles ?? []).length === 0) {
-      setActiveTab('global');
-    }
-  }, [(effectiveSummary.orphanedFiles ?? []).length, activeTab]);
 
   const onOpenOverrideDialog = useCallback(
     (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
@@ -1338,24 +1328,12 @@ export function AppShell({
           <TabButton
             isActive={activeTab === 'global'}
             onClick={() => setActiveTab('global')}
-            icon={<GridIcon />}
           >
             Global
           </TabButton>
-          {(effectiveSummary.orphanedFiles ?? []).length > 0 && (
-            <TabButton
-              isActive={activeTab === 'unused'}
-              onClick={() => setActiveTab('unused')}
-              icon={<WarningTriangleTabIcon />}
-              badge={(effectiveSummary.orphanedFiles ?? []).length}
-            >
-              Unused
-            </TabButton>
-          )}
           <TabButton
             isActive={activeTab === 'animation'}
             onClick={() => setActiveTab('animation')}
-            icon={<ChartBarsIcon />}
           >
             Animation Breakdown
           </TabButton>
@@ -1573,16 +1551,14 @@ export function AppShell({
             savingsPct={savingsPctMemo}
           />
         )}
-        {/* Phase 26.2 D-01/D-03 — Unused tab gate; query threaded from AppShell.
-            Panel only mounts when the Unused tab is active; unmounts otherwise.
-            orphanedFiles prop still feeds the internal return-null guard. */}
-        {activeTab === 'unused' && (
-          <UnusedAssetsPanel
-            orphanedFiles={effectiveSummary.orphanedFiles ?? []}
-            query={query}
-            onQueryChange={setQuery}
-          />
-        )}
+        {/* Phase 24 PANEL-02 — hidden when 0 orphaned files (D-06); expanded by default
+            when N > 0. Position: Global Max Render → Unused Assets → Animation Breakdown
+            (D-07). The panel self-hides via `return null` when empty — no conditional
+            wrapper needed here. Renders on BOTH tabs (same as MissingAttachmentsPanel)
+            because orphaned files are a project-level concern, not tab-specific. */}
+        <UnusedAssetsPanel
+          orphanedFiles={effectiveSummary.orphanedFiles ?? []}
+        />
         {activeTab === 'animation' && (
           <AnimationBreakdownPanel
             summary={effectiveSummary}
@@ -1757,24 +1733,19 @@ export function AppShell({
 }
 
 /**
- * One of the tab strip buttons. Layout: [icon] [label] [pill badge].
- * Active branch: font-medium text-accent (weight 500).
- * Inactive branch: font-normal text-fg-muted (weight 400).
- * Two-weight contract preserved per UI-SPEC typography.
- * Phase 26.2 D-04/D-06: icon and badge props added.
+ * One of the two tab strip buttons. Two-weight contract per the design spec:
+ * active branch uses weight 600 (font-semibold); inactive branch uses weight
+ * 400 (font-normal). Weight 500 is forbidden — active/inactive contrast is
+ * carried by three orthogonal channels (weight + color + underline indicator).
  */
 function TabButton({
   isActive,
   onClick,
   children,
-  icon,
-  badge,
 }: {
   isActive: boolean;
   onClick: () => void;
   children: ReactNode;
-  icon?: ReactNode;
-  badge?: number;
 }) {
   return (
     <button
@@ -1783,20 +1754,11 @@ function TabButton({
       aria-selected={isActive}
       onClick={onClick}
       className={clsx(
-        'relative px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent inline-flex items-center gap-1',
-        isActive ? 'font-medium text-accent' : 'font-normal text-fg-muted hover:text-fg',
+        'relative px-4 py-2 text-sm font-sans transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent',
+        isActive ? 'font-semibold text-accent' : 'font-normal text-fg-muted hover:text-fg',
       )}
     >
-      {icon}
       {children}
-      {badge !== undefined && badge > 0 && (
-        <span
-          className="bg-danger/20 text-danger rounded-full text-xs font-medium px-1.5 py-0.5 ml-1.5"
-          aria-label={badge + ' orphaned files'}
-        >
-          {badge}
-        </span>
-      )}
       {isActive && (
         <span
           aria-hidden
@@ -1804,68 +1766,5 @@ function TabButton({
         />
       )}
     </button>
-  );
-}
-
-// Phase 26.2 D-06a — Tab strip icon helpers (stroke style, w-4 h-4).
-// Defined as zero-prop arrow functions so they can be passed as icon={<GridIcon />}.
-
-function GridIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-4 h-4"
-      aria-hidden="true"
-    >
-      {/* 2×2 grid cells */}
-      <rect x="3" y="3" width="6" height="6" />
-      <rect x="11" y="3" width="6" height="6" />
-      <rect x="3" y="11" width="6" height="6" />
-      <rect x="11" y="11" width="6" height="6" />
-    </svg>
-  );
-}
-
-function WarningTriangleTabIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-4 h-4"
-      aria-hidden="true"
-    >
-      <path d="M10 3.5 L17.5 16.5 H2.5 Z" />
-      <line x1="10" y1="8" x2="10" y2="12" />
-      <circle cx="10" cy="14.5" r="0.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ChartBarsIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="w-4 h-4"
-      aria-hidden="true"
-    >
-      {/* Three vertical bars of ascending height */}
-      <line x1="4" y1="16" x2="4" y2="10" />
-      <line x1="10" y1="16" x2="10" y2="6" />
-      <line x1="16" y1="16" x2="16" y2="3" />
-    </svg>
   );
 }

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 /**
  * Phase 24 Plan 24-03 — RTL tests for UnusedAssetsPanel.
- * Phase 26.2 — Updated for lifted query props (D-03: query driven by AppShell).
  *
  * Behavior gates (a)-(i):
  *   (a) Returns null when orphanedFiles is [] (component not in the DOM)
@@ -12,8 +11,7 @@
  *   (f) Header shows formatBytes(totalBytes) alongside count in the header text (e.g. "· 1.2 KB")
  *   (g) "Hide details" button shows when expanded=true; clicking it collapses (shows "Show details")
  *   (h) Table rows: each row shows filename and formatBytes(bytesOnDisk)
- *   (i) Search filter: re-rendering with a different query prop filters to matching filenames;
- *       non-matching query shows "(no matches)"
+ *   (i) Search filter: typing a query filters to matching filenames; typing a non-matching query shows "(no matches)"
  *
  * Mirrors missing-attachments-panel.spec.tsx idiom: vitest + @testing-library/react + jsdom;
  * assertions use `not.toBeNull()` / `toBeDefined()` rather than `@testing-library/jest-dom`
@@ -39,13 +37,13 @@ const THREE_FILES = [
 describe('UnusedAssetsPanel (PANEL-02)', () => {
   // (a)
   it('returns null when orphanedFiles is empty (component not in the DOM)', () => {
-    const { container } = render(<UnusedAssetsPanel orphanedFiles={[]} query="" onQueryChange={() => {}} />);
+    const { container } = render(<UnusedAssetsPanel orphanedFiles={[]} />);
     expect(container.firstChild).toBeNull();
   });
 
   // (b)
   it('renders with role="alert" and aria-label="Orphaned image files" when N > 0', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     const panel = screen.getByRole('alert');
     expect(panel).not.toBeNull();
     expect(panel.getAttribute('aria-label')).toBe('Orphaned image files');
@@ -53,7 +51,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (c)
   it('is expanded by default when N > 0 (table rows visible without any click)', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     // Table with "Filename" header should be visible immediately (no click required)
     expect(screen.queryByText('Filename')).not.toBeNull();
     expect(screen.queryByText('Size on Disk')).not.toBeNull();
@@ -63,7 +61,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (d)
   it('header shows singular "1 orphaned file" when count is 1', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     // Text is split across elements; use a function matcher that checks textContent of the panel
     const panel = screen.getByRole('alert');
     expect(panel.textContent).toMatch(/1 orphaned file[^s]/i);
@@ -71,21 +69,21 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (e)
   it('header shows plural "N orphaned files" when count > 1', () => {
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
     expect(screen.getByText(/2 orphaned files/i)).not.toBeNull();
   });
 
   // (f)
   it('header shows formatBytes(totalBytes) when totalBytes > 0', () => {
     // TWO_FILES: 1024 + 2048 = 3072 bytes → "3 KB"
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
     // The formatted bytes should appear somewhere in the header area
     expect(screen.queryByText(/3 KB/)).not.toBeNull();
   });
 
   // (g)
   it('"Hide details" button is shown when expanded; clicking collapses to "Show details"', () => {
-    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     // Default state = expanded → "Hide details"
     const hideBtn = screen.getByRole('button', { name: /hide details/i });
     expect(hideBtn).not.toBeNull();
@@ -105,7 +103,7 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (h)
   it('table rows show filename and formatted size for each orphaned file', () => {
-    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} query="" onQueryChange={() => {}} />);
+    render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
     // Both filenames visible
     expect(screen.queryByText('UNUSED_CIRCLE')).not.toBeNull();
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
@@ -116,24 +114,22 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
 
   // (i)
   it('search filter narrows rows to matching filenames', () => {
-    let q = '';
-    const onQueryChange = (val: string) => { q = val; };
-    const { rerender } = render(
-      <UnusedAssetsPanel orphanedFiles={THREE_FILES} query={q} onQueryChange={onQueryChange} />,
-    );
+    render(<UnusedAssetsPanel orphanedFiles={THREE_FILES} />);
     // All 3 files visible initially
     expect(screen.queryByText('UNUSED_CIRCLE')).not.toBeNull();
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
     expect(screen.queryByText('OLD_TEXTURE')).not.toBeNull();
 
-    // Rerender with query that matches only STALE_BITMAP
-    rerender(<UnusedAssetsPanel orphanedFiles={THREE_FILES} query="STALE" onQueryChange={onQueryChange} />);
+    // Type a query that matches only STALE_BITMAP
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'STALE' } });
+
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
     expect(screen.queryByText('UNUSED_CIRCLE')).toBeNull();
     expect(screen.queryByText('OLD_TEXTURE')).toBeNull();
 
-    // Rerender with non-matching query → "(no matches)"
-    rerender(<UnusedAssetsPanel orphanedFiles={THREE_FILES} query="XYZNOTFOUND" onQueryChange={onQueryChange} />);
+    // Type a query that matches nothing → "(no matches)"
+    fireEvent.change(input, { target: { value: 'XYZNOTFOUND' } });
     expect(screen.queryByText('(no matches)')).not.toBeNull();
   });
 });
