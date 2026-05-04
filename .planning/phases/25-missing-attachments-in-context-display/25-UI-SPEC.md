@@ -1,10 +1,11 @@
 ---
 phase: 25
 slug: missing-attachments-in-context-display
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-04
+reviewed_at: 2026-05-04T00:00:00Z
 ---
 
 # Phase 25 — UI Design Contract
