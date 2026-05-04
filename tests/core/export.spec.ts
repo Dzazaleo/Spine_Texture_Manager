@@ -28,7 +28,7 @@ import * as path from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
 import { analyze } from '../../src/core/analyzer.js';
-import { findUnusedAttachments } from '../../src/core/usage.js';
+// Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 // RED import — Plan 06-03 introduces buildExportPlan in src/core/export.ts.
 import { buildExportPlan } from '../../src/core/export.js';
 // Plan 06-02 introduces these types in src/shared/types.ts.
@@ -46,12 +46,12 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
     const peaks = analyze(sampled.globalPeaks);
     // Plan 06-02 will add `sourcePath: string` to DisplayRow; until then we
     // synthesize a stub path so the export builder has a dedup key.
-    const summary: Pick<SkeletonSummary, 'peaks' | 'unusedAttachments'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
       peaks: peaks.map((r) => ({
         ...r,
         sourcePath: '/fake/' + r.attachmentName + '.png',
       })),
-      unusedAttachments: findUnusedAttachments(load, sampled),
+      orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
     // Phase 22.1 D-06: rows with outW===sourceW (e.g. TRIANGLE with peakScale≥1.0)
@@ -77,12 +77,12 @@ describe('buildExportPlan — case (b) override 50% on TRIANGLE (D-111)', () => 
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
-    const summary: Pick<SkeletonSummary, 'peaks' | 'unusedAttachments'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
       peaks: peaks.map((r) => ({
         ...r,
         sourcePath: '/fake/' + r.attachmentName + '.png',
       })),
-      unusedAttachments: findUnusedAttachments(load, sampled),
+      orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
     const overrides = new Map<string, number>([['TRIANGLE', 50]]);
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, overrides);
@@ -121,7 +121,7 @@ describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Ph
           sourcePath: '/fake/SQUARE.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
     const plan: ExportPlan = buildExportPlan(summary, overrides);
@@ -164,7 +164,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
           sourcePath: '/fake/ZOOMED.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
@@ -199,7 +199,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
           sourcePath: '/fake/MEGAZOOM.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     // Phase 22.1 D-06: outW=200=sourceW → passthroughCopies.
@@ -254,7 +254,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
           sourcePath: '/fake/SHARED.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
@@ -306,7 +306,7 @@ describe('buildExportPlan — case (d) two attachments share atlas region with d
           sourcePath: '/fake/FACE.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     // D-108: one ExportRow per unique sourcePath
@@ -353,7 +353,7 @@ describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through',
           },
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     expect(plan.rows.length).toBe(1);
@@ -388,30 +388,35 @@ describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through',
           sourcePath: '/fake/PER_REGION_PNG.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     expect(plan.rows[0].atlasSource).toBeUndefined();
   });
 });
 
-describe('buildExportPlan — case (e) ghost fixture (D-109)', () => {
-  it('summary.unusedAttachments listing GHOST → ExportPlan.rows excludes GHOST; ExportPlan.excludedUnused includes "GHOST"', () => {
+describe('buildExportPlan — case (e) ghost fixture (Phase 24 Plan 01 update)', () => {
+  it('GHOST absent from peaks (never sampled) → not in ExportPlan.rows; excludedUnused is empty (D-109 exclusion removed)', () => {
+    // Phase 24 Plan 01: D-109 exclusion (unusedAttachments → excluded set) removed.
+    // GHOST is absent from the export plan because it never appears in globalPeaks
+    // (the sampler never rendered it with alpha > 0). The old mechanism excluded it
+    // via unusedAttachments; the new behavior is that only sampled peaks appear.
+    // excludedUnused is now always [] — Plan 02 will wire a new exclusion surface.
     const load = loadSkeleton(FIXTURE_GHOST);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
-    const unused = findUnusedAttachments(load, sampled);
-    expect(unused.some((u) => u.attachmentName === 'GHOST')).toBe(true);
     const summary = {
       peaks: peaks.map((r) => ({
         ...r,
         sourcePath: '/fake/' + r.attachmentName + '.png',
       })),
-      unusedAttachments: unused,
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
+    // GHOST is not in peaks → not in rows (sampler filter is the gate now).
     expect(plan.rows.find((r) => r.attachmentNames.includes('GHOST'))).toBeUndefined();
-    expect(plan.excludedUnused).toContain('GHOST');
+    // excludedUnused is now always empty (D-109 via unusedAttachments removed).
+    expect(plan.excludedUnused).toEqual([]);
   });
 });
 
@@ -448,7 +453,7 @@ describe('buildExportPlan — case (f) Math.ceil sizing semantics (D-110, Round 
           sourcePath: '/fake/EVEN.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     expect(plan.rows[0].outW).toBe(128);
@@ -485,7 +490,7 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
           sourcePath: '/fake/FACE.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     expect(plan.rows.length).toBe(1);
@@ -524,7 +529,7 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
           sourcePath: '/fake/FACE.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
     const row = plan.rows[0];
@@ -666,13 +671,12 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
-    const unused = findUnusedAttachments(load, sampled);
     const summary = {
       peaks: peaks.map((r) => ({
         ...r,
         sourcePath: '/fake/' + r.attachmentName + '.png',
       })),
-      unusedAttachments: unused,
+      orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     } as unknown as SkeletonSummary;
 
     const cases: Array<[string, ReadonlyMap<string, number>]> = [
@@ -712,7 +716,7 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
           sourcePath: '/fake/ZOOMED.png',
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
     const corePlan = buildExportPlan(summary, new Map());
@@ -801,7 +805,7 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const corePlan = buildExportPlan(summary, new Map());
     const viewPlan = buildExportPlanView(summary, new Map());
@@ -841,7 +845,7 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const corePlan = buildExportPlan(summary, new Map());
     const viewPlan = buildExportPlanView(summary, new Map());
@@ -953,7 +957,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
 
@@ -984,7 +988,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: false,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
 
@@ -1181,7 +1185,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: false,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
     expect(plan.rows).toHaveLength(2);         // A (drifted resize) + B (normal resize)
@@ -1262,7 +1266,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
     // Phase 22.1 D-06: these drifted rows are now resize rows (outW=500 ≠ sourceW=1000).
@@ -1303,7 +1307,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: true,  // 811 ≠ 1628
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
     // peakScale=1.0 → effScale=min(1.0, sourceRatio=811/1628)=0.498 — wait, cap fires!
@@ -1351,7 +1355,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           dimsMismatch: false,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const planND = buildExportPlan(nonDriftedSummary, new Map());
     // Non-drifted, peakScale=1.0 → effScale=1.0 → outW=811=sourceW → passthrough.
@@ -1419,7 +1423,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
           dimsMismatch: false,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
 
@@ -1462,7 +1466,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
           dimsMismatch: false,      // unified: no mismatch when actual === canonical
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
 
@@ -1605,7 +1609,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
     // Phase 22.1 D-06: cap fires but outW=811 ≠ sourceW=1628 → rows[] (resize).
@@ -1642,7 +1646,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
           dimsMismatch: false,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
     expect(plan.rows).toHaveLength(1);
@@ -1678,7 +1682,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
           dimsMismatch: true,
         },
       ],
-      unusedAttachments: [],
+      orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
     const plan = buildExportPlan(summaryDrifted, new Map());

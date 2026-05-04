@@ -91,18 +91,17 @@ describe('buildSummary (D-21, D-22)', () => {
     expect(cloned).toEqual(s.animationBreakdown);
   });
 
-  it('F6.2: unusedAttachments present as array, empty on SIMPLE_TEST (baseline zero), structuredClone-safe', () => {
+  it('Phase 24 PANEL-01: orphanedFiles present as array (stub [] until Plan 02 I/O wiring), structuredClone-safe', () => {
     const load = loadSkeleton(FIXTURE);
     const sampled = sampleSkeleton(load);
     const s = buildSummary(load, sampled, 0);
-    // Field exists and is an array (D-101 IPC contract).
-    expect(Array.isArray(s.unusedAttachments)).toBe(true);
-    // SIMPLE_TEST baseline: every CIRCLE/SQUARE/TRIANGLE renders, PATH
-    // is filtered as non-textured per RESEARCH Pitfall 4 → empty array.
-    expect(s.unusedAttachments).toEqual([]);
+    // Phase 24 Plan 01: orphanedFiles replaces unusedAttachments. Stub [] until
+    // Plan 02 wires the images/ folder scan (findOrphanedFiles + fs.statSync).
+    expect(Array.isArray(s.orphanedFiles)).toBe(true);
+    expect(s.orphanedFiles).toEqual([]);
     // D-21 / Pitfall 8: primitive-only fields survive structuredClone round-trip.
-    const cloned = structuredClone(s.unusedAttachments);
-    expect(cloned).toEqual(s.unusedAttachments);
+    const cloned = structuredClone(s.orphanedFiles);
+    expect(cloned).toEqual(s.orphanedFiles);
   });
 });
 
@@ -150,11 +149,11 @@ describe('summary: sourcePath threading on DisplayRow + BreakdownRow (Phase 6 Pl
 describe('Phase 21 G-02 — skippedAttachments cascade', () => {
   // Plan 21-10 — Surface skipped-PNG attachments (Plan 21-09 LoadResult.skippedAttachments)
   // through buildSummary so MissingAttachmentsPanel can render them above the regular
-  // panels. peaks / animationBreakdown.rows / unusedAttachments are filtered to drop
-  // entries whose attachmentName matches a skipped name — those attachments live ONLY
-  // in summary.skippedAttachments, never double-counted.
+  // panels. peaks / animationBreakdown.rows are filtered to drop entries whose
+  // attachmentName matches a skipped name — those attachments live ONLY in
+  // summary.skippedAttachments, never double-counted.
 
-  it('UNIT (ISSUE-003 fix): buildSummary filter contract drops skipped names from peaks + animationBreakdown.rows + unusedAttachments — verified with synthetic non-vacuous input', () => {
+  it('UNIT (ISSUE-003 fix): buildSummary filter contract drops skipped names from peaks + animationBreakdown.rows — verified with synthetic non-vacuous input', () => {
     // ISSUE-003 motivation: a fixture-only assertion ("TRIANGLE absent from
     // peaks after PNG deletion") is vacuous because the SIMPLE-fixture-with-
     // TRIANGLE-deleted path produces a degenerate AABB (1x1 stub region) that
@@ -189,14 +188,9 @@ describe('Phase 21 G-02 — skippedAttachments cascade', () => {
     // regular panels absent the filter.
     expect(mockPeaks.find((p: any) => p.attachmentName === 'TRIANGLE')!.peakScale).toBeGreaterThan(1.0);
 
-    // Filter applies identically to unusedAttachments shape (keyed off attachmentName):
-    const mockUnused = [
-      { attachmentName: 'TRIANGLE' } as any,
-      { attachmentName: 'OTHER' } as any,
-    ];
-    const filteredUnused = mockUnused.filter((u: any) => !skippedNames.has(u.attachmentName));
-    expect(filteredUnused.length).toBe(1);
-    expect(filteredUnused[0].attachmentName).toBe('OTHER');
+    // Phase 24 Plan 01: unusedAttachments removed; orphanedFiles (filename-keyed)
+    // does not participate in this skippedNames filter (orphaned files are not rig
+    // attachments, so skippedNames filter is irrelevant for them). Filter removed.
 
     // Filter applies identically to animationBreakdown card rows
     // (BreakdownRow extends DisplayRow; same attachmentName key):

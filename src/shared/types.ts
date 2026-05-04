@@ -192,46 +192,16 @@ export interface AnimationBreakdown {
  *
  * Keyed by attachmentName per D-96 (name-level aggregation — one row per
  * unique texture name, regardless of how many skins register it).
- * sourceW/H are MAX across all registering skins per D-98. definedIn
- * lists every skin whose attachments map contains the name, preserved
- * in skin-iteration (JSON parse) order — NOT sorted (Pitfall 7 of
- * 05-RESEARCH.md).
- *
- * All fields primitive / arrays of primitives — structuredClone-safe
- * per the file-top docblock D-21 lock.
+ * Phase 24 PANEL-01 — A single physically orphaned PNG file: present in
+ * images/ but not referenced by any rig attachment (D-01). Minimal shape —
+ * only the two fields needed by UnusedAssetsPanel (filename + disk size).
+ * structuredClone-safe: both fields are primitives.
  */
-export interface UnusedAttachment {
-  /** Primary identifier — unique across the returned array (D-96). */
-  attachmentName: string;
-  /** Max source width across all registering skins (D-98). */
-  sourceW: number;
-  /** Max source height across all registering skins (D-98). */
-  sourceH: number;
-  /** Names of every skin whose attachments map contains this name, in skin-iteration order. */
-  definedIn: string[];
-  /** 1 if all registrations share dims, 2+ if any diverge (D-98). */
-  dimVariantCount: number;
-  /** Preformatted label (D-35 + D-45/D-46 reuse): "256×256" when dimVariantCount===1, "256×256 (N variants)" when >1. */
-  sourceLabel: string;
-  /** Preformatted comma-joined list of definedIn (e.g. "default, boy, girl"). */
-  definedInLabel: string;
-  /**
-   * Phase 19 UI-04 (D-13) — On-disk byte size of the source PNG for this
-   * unused attachment. Populated main-side in summary.ts via fs.statSync
-   * against load.sourcePaths.get(attachmentName). Absent (or 0) when the
-   * source path is missing OR resolves to a shared atlas page rather than
-   * a per-region PNG (D-15 atlas-packed projects — unused regions in a
-   * shared atlas don't reduce file size unless the atlas is repacked,
-   * which Phase 6 Optimize doesn't do).
-   *
-   * OPTIONAL field (`?` modifier): src/core/usage.ts stays 100% untouched
-   * (Layer 3 invariant — core does no file I/O); summary.ts (allowed file
-   * I/O) is the SOLE writer. Renderer reads with `(u.bytesOnDisk ?? 0)`
-   * fallback. Absence ≡ 0.
-   *
-   * Primitive number — structuredClone-safe per file-top D-21 lock.
-   */
-  bytesOnDisk?: number;
+export interface OrphanedFile {
+  /** PNG basename without the .png extension (e.g. "UNUSED_CIRCLE"). */
+  filename: string;
+  /** On-disk byte size from fs.statSync. 0 if stat fails (ENOENT / EACCES). */
+  bytesOnDisk: number;
 }
 
 /**
@@ -578,16 +548,18 @@ export interface SkeletonSummary {
   /** Phase 3: static-pose card first (cardId === 'setup-pose'), then one card per animation in JSON order. */
   animationBreakdown: AnimationBreakdown[];
   /**
-   * Phase 5: attachments registered in skins but never rendered (F6.1, D-92, D-101).
+   * Phase 24 PANEL-01 — PNG files in the images/ folder that the rig does not
+   * reference by any attachment (D-01). Built by summary.ts from an
+   * fs.readdirSync of images/ minus the in-use name set (D-02).
    *
-   * Optional in Plan 01 (Wave 0 scaffold) so the node-project typecheck stays
-   * clean while `src/main/summary.ts` has not yet been wired by Plan 02. The
-   * summary.spec.ts F6.2 test still locks the field-shape contract at runtime
-   * (Array.isArray + structuredClone round-trip) — that test is RED in Plan 01
-   * and flips GREEN when Plan 02 lands. Plan 02 MAY promote this to required
-   * at the same time it wires the write site.
+   * Hidden in renderer when empty — UnusedAssetsPanel returns null when
+   * orphanedFiles.length === 0 (D-06). Always written by buildSummary
+   * (empty array = no orphans); renderer reads with `?? []` for IPC
+   * backward-compat with older serialized summaries.
+   *
+   * structuredClone-safe: OrphanedFile has only primitive fields.
    */
-  unusedAttachments?: UnusedAttachment[];
+  orphanedFiles?: OrphanedFile[];
   /**
    * Phase 21 Plan 21-10 G-02 — attachments whose PNG was missing in
    * atlas-less mode. Sourced from LoadResult.skippedAttachments (Plan 21-09
@@ -599,7 +571,7 @@ export interface SkeletonSummary {
    *   - Atlas-less mode where all referenced PNGs resolved successfully.
    *
    * IMPORTANT — filter contract: peaks / animationBreakdown.rows /
-   * unusedAttachments are pre-filtered by src/main/summary.ts to EXCLUDE
+   * orphanedFiles are pre-filtered by src/main/summary.ts to EXCLUDE
    * entries whose attachmentName ∈ skippedAttachments[*].name. These
    * stub-region attachments live ONLY here, surfaced by
    * MissingAttachmentsPanel (renderer/panels/MissingAttachmentsPanel.tsx) —

@@ -204,13 +204,9 @@ export function buildExportPlan(
   overrides: ReadonlyMap<string, number>,
   opts?: BuildExportPlanOptions,
 ): ExportPlan {
-  const includeUnused = opts?.includeUnused ?? false;
-
-  // 1. Excluded set (D-109).
+  // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
+  // excluded set now always empty; Plan 02 wires new exclusion surface.
   const excluded = new Set<string>();
-  if (!includeUnused && summary.unusedAttachments) {
-    for (const u of summary.unusedAttachments) excluded.add(u.attachmentName);
-  }
 
   // 2. Group by sourcePath; per group keep highest-effective-scale row +
   //    union attachmentNames (D-108).

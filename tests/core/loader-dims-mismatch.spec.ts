@@ -29,7 +29,7 @@ import sharp from 'sharp';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
 import { analyze } from '../../src/core/analyzer.js';
-import { findUnusedAttachments } from '../../src/core/usage.js';
+// Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 import { buildExportPlan } from '../../src/core/export.js';
 import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
 
@@ -86,9 +86,9 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'unusedAttachments'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
       peaks,
-      unusedAttachments: findUnusedAttachments(load, sampled),
+      orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(
       summary as SkeletonSummary,
@@ -118,9 +118,9 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'unusedAttachments'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
       peaks,
-      unusedAttachments: findUnusedAttachments(load, sampled),
+      orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(
       summary as SkeletonSummary,
