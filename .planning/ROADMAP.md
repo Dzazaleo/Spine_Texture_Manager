@@ -555,10 +555,18 @@ Plans:
 
 **Plans**: 4 plans
 Plans:
+**Wave 1**
 - [ ] 24-01-PLAN.md — Types + core logic: OrphanedFile type, findOrphanedFiles, AtlasNotFoundError message
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 24-02-PLAN.md — Main I/O layer: summary.ts orphan detection rewrite (D-02 algorithm)
 - [ ] 24-03-PLAN.md — UnusedAssetsPanel component + RTL tests
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 24-04-PLAN.md — GlobalMaxRenderPanel cleanup + savingsPct chip + AppShell wiring
+
+**Cross-cutting constraints:**
+- npm run test exits 0
 **UI hint**: yes
 
 ### Phase 25: Missing attachments in-context display
