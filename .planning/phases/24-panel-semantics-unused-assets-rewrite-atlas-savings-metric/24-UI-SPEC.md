@@ -46,10 +46,9 @@ Declared values (multiples of 4; existing Tailwind v4 arbitrary-value discipline
 
 Exceptions:
 - Panel border-radius: `rounded-md` (6px) — consistent with all existing panels.
-- Chip/badge inner padding: `px-2 py-0.5` (8px / 2px) — consistent with DimsBadge + border-badge pattern.
-- Table cell padding: `py-2 px-3` — inherited verbatim from existing GlobalMaxRenderPanel table rows.
+- Table cell padding: `py-2 px-3` — inherited legacy value; verbatim copy of existing GlobalMaxRenderPanel table row padding (`px-3` = 12px, a multiple of 4 but not in the standard set). Confirmed present on 15+ `<td>`/`<th>` elements in `GlobalMaxRenderPanel.tsx` (lines 302, 431, 444, 447–448, 477, 491, 507, 523, 887–889, 899–901, 939, 1049). Changing to `px-2` or `px-4` would diverge from the established table visual rhythm.
 
-Source: existing GlobalMaxRenderPanel, MissingAttachmentsPanel, DimsBadge patterns.
+Source: existing GlobalMaxRenderPanel, MissingAttachmentsPanel patterns.
 
 ---
 
@@ -124,14 +123,14 @@ Structural analog: `MissingAttachmentsPanel.tsx` (collapsed-by-default banner wi
 - Location: GlobalMaxRenderPanel section `<header>` — right side, after `"N selected / M total"` counter.
 - Renders only when `savingsPct !== null && savingsPct > 0`. Hidden when null (no data) or 0.
 - Visual: `<span>` with `text-warning font-mono text-xs` containing `"{savingsPct.toFixed(1)}% pixel savings"`.
-- Chip framing: `border border-border rounded-md px-2 py-0.5` (consistent with DimsBadge border-button pattern).
+- Chip framing: `border border-border rounded-md px-2 py-1` (8px horizontal / 4px vertical — standard sm token).
 - Prop: `savingsPct?: number | null` added to `GlobalMaxRenderPanelProps`.
 
 **Header final layout (left to right):**
 1. Panel icon SVG (existing, unchanged)
 2. "Global Max Render Scale" label (existing, unchanged)
 3. `ml-auto` spacer
-4. savingsPct chip (new, conditional) — `text-warning font-mono text-xs border border-border rounded-md px-2 py-0.5`
+4. savingsPct chip (new, conditional) — `text-warning font-mono text-xs border border-border rounded-md px-2 py-1`
 5. `"N selected / M total"` counter (existing, `text-fg-muted font-mono text-sm font-normal`)
 
 **Removed from prop surface:** `unusedAttachments?: UnusedAttachment[]` (type deleted upstream).
@@ -219,7 +218,8 @@ No third-party registries. No new npm packages required. Phase 24 reuses existin
 | src/renderer/src/index.css | All color tokens, font definitions, Tailwind v4 architecture |
 | src/renderer/src/panels/MissingAttachmentsPanel.tsx | Panel structure, ARIA pattern, danger strip, expand toggle |
 | src/renderer/src/components/SearchBar.tsx | Filter component reuse, placeholder copy, Escape key behavior |
-| src/renderer/src/components/DimsBadge.tsx | Chip framing pattern (`border border-border rounded-md px-2 py-0.5`) |
+| src/renderer/src/components/DimsBadge.tsx | Inspected for py-0.5 legacy usage — NOT present; DimsBadge is an SVG icon wrapper with no chip framing |
 | src/renderer/src/panels/GlobalMaxRenderPanel.tsx:840-907 | Existing header layout, unused section removal scope |
+| src/renderer/src/panels/GlobalMaxRenderPanel.tsx:302,431,444+ | px-3 table cell padding confirmed as established pattern (15+ occurrences) — documented as inherited legacy carve-out |
 | src/renderer/src/modals/OptimizeDialog.tsx:354-356 | savingsPct display format (`{savingsPct.toFixed(1)}%`) |
 | User input | 0 — all design questions answered by upstream artifacts |
