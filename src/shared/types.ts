@@ -137,6 +137,15 @@ export interface DisplayRow {
    * undefined (atlas-extract path).
    */
   dimsMismatch: boolean;
+  /**
+   * Phase 25 — true when this row's source PNG was missing at load time and
+   * a 1×1 stub region was synthesized (Phase 21 Plan 21-09). Drives the
+   * 'missing' RowState variant in both GlobalMaxRenderPanel and
+   * AnimationBreakdownPanel (red left-border accent + ⚠ icon beside name).
+   * Optional/undefined is equivalent to false — backward-compatible with
+   * existing IPC payloads.
+   */
+  isMissing?: boolean;
 }
 
 /**
@@ -570,12 +579,12 @@ export interface SkeletonSummary {
    *   - Canonical (atlas-backed) mode (atlas regions are always real).
    *   - Atlas-less mode where all referenced PNGs resolved successfully.
    *
-   * IMPORTANT — filter contract: peaks / animationBreakdown.rows /
-   * orphanedFiles are pre-filtered by src/main/summary.ts to EXCLUDE
-   * entries whose attachmentName ∈ skippedAttachments[*].name. These
-   * stub-region attachments live ONLY here, surfaced by
-   * MissingAttachmentsPanel (renderer/panels/MissingAttachmentsPanel.tsx) —
-   * never in the regular Global Max Render or Animation Breakdown panels.
+   * IMPORTANT — Phase 25 marking contract: peaks and animationBreakdown.rows
+   * are NOT filtered — stub rows (Phase 21 Plan 21-09) remain in both arrays
+   * with isMissing: true set on DisplayRow. These rows are visible in
+   * GlobalMaxRenderPanel + AnimationBreakdownPanel with a red left-border
+   * accent and ⚠ icon. orphanedFiles is unrelated (filename-keyed,
+   * not rig-attachment-keyed) and is not affected.
    *
    * REQUIRED (not optional): buildSummary always populates this field; the
    * `?? []` defaulting at the write site means consumers can rely on the
