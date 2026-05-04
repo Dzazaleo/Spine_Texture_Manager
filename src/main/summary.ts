@@ -51,12 +51,12 @@ export function buildSummary(
     }
   }
 
-  // Phase 21 Plan 21-10 G-02 — set of attachment names whose PNG was missing
-  // in atlas-less mode (from Plan 21-09's LoadResult.skippedAttachments).
-  // peaks / animationBreakdown.rows / unusedAttachments are filtered to
-  // exclude these; the missing attachments are surfaced ONLY via
-  // SkeletonSummary.skippedAttachments below, which the renderer's
-  // MissingAttachmentsPanel reads. LoadResult.skippedAttachments is
+  // Phase 25 PANEL-03 — set of attachment names whose PNG was missing in
+  // atlas-less mode (from Plan 21-09's LoadResult.skippedAttachments).
+  // peaks / animationBreakdown.rows are marked with isMissing: true for
+  // entries whose attachmentName matches a skipped name (NOT filtered out).
+  // The missing attachments are also surfaced via SkeletonSummary.skippedAttachments
+  // below, which MissingAttachmentsPanel reads. LoadResult.skippedAttachments is
   // OPTIONAL (Plan 21-09 ISSUE-007), hence the `?? []`.
   const skippedNames = new Set<string>(
     (load.skippedAttachments ?? []).map((s) => s.name),
@@ -84,9 +84,13 @@ export function buildSummary(
     load.canonicalDimsByRegion,
     load.actualDimsByRegion,
   );
-  // Phase 21 Plan 21-10 G-02 — drop stub-region attachments from the regular
-  // Global panel; they surface only via skippedAttachments below.
-  const peaksArray = peaksArrayRaw.filter((p) => !skippedNames.has(p.attachmentName));
+  // Phase 25 PANEL-03 — mark stub-region attachments with isMissing: true
+  // instead of filtering them out. Rows remain visible in GlobalMaxRenderPanel
+  // and AnimationBreakdownPanel with a danger indicator (renderer Plan 25-02).
+  const peaksArray = peaksArrayRaw.map((p) => ({
+    ...p,
+    isMissing: skippedNames.has(p.attachmentName) ? true : undefined,
+  }));
 
   // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
   // AnimationBreakdown[] (F4.1/F4.2/F4.3). boneChainPath walks slot.bone.parent
@@ -105,17 +109,18 @@ export function buildSummary(
     load.canonicalDimsByRegion,
     load.actualDimsByRegion,
   );
-  // Phase 21 Plan 21-10 G-02 — filter each animation card's rows to drop
-  // stub-region attachments. uniqueAssetCount is recomputed to match
-  // (rows.length is the contractual source of truth; D-58/AnimationBreakdown
-  // docblock at src/shared/types.ts:150-152). isSetupPose / animationName /
-  // cardId pass through unchanged.
+  // Phase 25 PANEL-03 — mark stub rows with isMissing: true instead of filtering.
+  // Rows whose PNG was missing at load time remain visible in both main panels;
+  // the 'missing' RowState variant in the renderer carries the danger signal.
   const animationBreakdown = animationBreakdownRaw.map((card) => {
-    const filteredRows = card.rows.filter((r) => !skippedNames.has(r.attachmentName));
+    const rows = card.rows.map((r) => ({
+      ...r,
+      isMissing: skippedNames.has(r.attachmentName) ? true : undefined,
+    }));
     return {
       ...card,
-      rows: filteredRows,
-      uniqueAssetCount: filteredRows.length,
+      rows,
+      uniqueAssetCount: rows.length,
     };
   });
 
@@ -207,12 +212,12 @@ export function buildSummary(
     animationBreakdown,
     orphanedFiles,
     /**
-     * Phase 21 Plan 21-10 G-02 — surface skipped-PNG attachments to the
+     * Phase 25 Plan 25-01 — surface skipped-PNG attachments to the
      * renderer (MissingAttachmentsPanel). Always-present array (defaulted
      * to [] when LoadResult.skippedAttachments is undefined per Plan 21-09
      * ISSUE-007 OPTIONAL field). peaks / animationBreakdown.rows are
-     * pre-filtered by skippedNames so stub-region attachments do NOT
-     * double-count into the regular panels.
+     * marked with isMissing: true for stub-region attachments (Phase 25
+     * marking contract) — they remain visible in both main panels.
      */
     skippedAttachments: load.skippedAttachments ?? [],
     elapsedMs,
