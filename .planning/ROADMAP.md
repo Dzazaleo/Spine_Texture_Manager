@@ -71,11 +71,11 @@ Plans:
 - [x] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
 - [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
-- [ ] **Phase 26.2: UI polish — tab restructure + icon audit** — Move existing 2-tab strip (Global / Animation Breakdown) from inside the main toolbar into a dedicated sub-toolbar row (sketch-001 variant A; resolves AP-01 anti-pattern from 2 prior reverts); add filmstrip + bar-chart icons to the 2 tabs (verbatim panel-header SVG reuse, w-4 h-4); rename "orphaned" → "unused" on 2 user-visible strings in UnusedAssetsPanel; remove inline SearchBar from UnusedAssetsPanel; convert 4 fill warning-triangle icons to stroke style via shared WarningTriangleIcon component (D-06 single source of truth). 3-tab restructure DROPPED 2026-05-04 per user redesign — alert-bar layout retained. (UI-08)
+- [x] **Phase 26.2: UI polish — tab restructure + icon audit** — Move existing 2-tab strip (Global / Animation Breakdown) from inside the main toolbar into a dedicated sub-toolbar row (sketch-001 variant A; resolves AP-01 anti-pattern from 2 prior reverts); add filmstrip + bar-chart icons to the 2 tabs (verbatim panel-header SVG reuse, w-4 h-4); rename "orphaned" → "unused" on 2 user-visible strings in UnusedAssetsPanel; remove inline SearchBar from UnusedAssetsPanel; convert 4 fill warning-triangle icons to stroke style via shared WarningTriangleIcon component (D-06 single source of truth). 3-tab restructure DROPPED 2026-05-04 per user redesign — alert-bar layout retained. (UI-08) (completed 2026-05-04)
 **Plans:** 2 plans
 Plans:
-- [ ] 26.2-01-PLAN.md — Tab strip relocation + tab icons + TabButton extension (AppShell.tsx only) (Wave 1)
-- [ ] 26.2-02-PLAN.md — WarningTriangleIcon component + 4 panel fill→stroke conversions + UnusedAssetsPanel rename + inline-search removal (Wave 1, parallel)
+- [x] 26.2-01-PLAN.md — Tab strip relocation + tab icons + TabButton extension (AppShell.tsx only) (Wave 1)
+- [x] 26.2-02-PLAN.md — WarningTriangleIcon component + 4 panel fill→stroke conversions + UnusedAssetsPanel rename + inline-search removal (Wave 1, parallel)
 - [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
