@@ -12,16 +12,16 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 ### PANEL — Panel Semantics & Display
 
-- [ ] **PANEL-01**: User loads a `json + images folder` project and the Unused Assets section reports PNG files present in the `images/` folder that the rig does NOT reference (orphaned files), not atlas-vs-JSON region delta.
-- [ ] **PANEL-02**: Unused Assets section is its own collapsible panel, extracted from `GlobalMaxRenderPanel` and rendered as a sibling to Global Max Render Source + Animation Breakdown; collapsed by default when empty, expanded by default when N > 0.
+- [x] **PANEL-01**: User loads a `json + images folder` project and the Unused Assets section reports PNG files present in the `images/` folder that the rig does NOT reference (orphaned files), not atlas-vs-JSON region delta.
+- [x] **PANEL-02**: Unused Assets section is its own collapsible panel, extracted from `GlobalMaxRenderPanel` and rendered as a sibling to Global Max Render Source + Animation Breakdown; collapsed by default when empty, expanded by default when N > 0.
 - [ ] **PANEL-03**: Rows whose attachment PNG was missing at load time (skipped attachments from atlas-less mode) remain visible in Global Max Render Source + Animation Breakdown panels, marked with a red left-border accent and a danger-triangle (⚠) icon beside the attachment name — not filtered out.
-- [ ] **PANEL-04**: When a user loads a `.json` file with no `.atlas` file and no `images/` folder, the `AtlasNotFoundError` user-facing message mentions "Use Images Folder as Source" toggle as an alternative path, in addition to re-exporting with an atlas.
+- [x] **PANEL-04**: When a user loads a `.json` file with no `.atlas` file and no `images/` folder, the `AtlasNotFoundError` user-facing message mentions "Use Images Folder as Source" toggle as an alternative path, in addition to re-exporting with an atlas.
 
 ### OPT — Optimize Flow
 
 - [x] **OPT-01**: Clicking the "Optimize Assets" toolbar button opens `OptimizeDialog` immediately — no folder-picker dialog is shown before the modal opens.
 - [x] **OPT-02**: The output-folder picker is presented only when the user clicks Start/Export inside `OptimizeDialog`; if an output folder was previously saved in the project file, it is pre-filled and the user can change it at that point.
-- [ ] **OPT-03**: The MB unused-attachment callout in the Global Max Render Source panel is replaced or redefined with a metric that reflects genuine optimization opportunity (e.g. post-generation atlas pixel-area savings % or a correct pre-flight estimate — to be scoped during plan-phase).
+- [x] **OPT-03**: The MB unused-attachment callout in the Global Max Render Source panel is replaced or redefined with a metric that reflects genuine optimization opportunity (e.g. post-generation atlas pixel-area savings % or a correct pre-flight estimate — to be scoped during plan-phase).
 
 ### UI — Polish (continues v1.2 UI-01..05)
 
@@ -68,13 +68,13 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PANEL-01 | Phase 24 | Pending |
-| PANEL-02 | Phase 24 | Pending |
+| PANEL-01 | Phase 24 | Complete |
+| PANEL-02 | Phase 24 | Complete |
 | PANEL-03 | Phase 25 | Pending |
-| PANEL-04 | Phase 24 | Pending |
+| PANEL-04 | Phase 24 | Complete |
 | OPT-01 | Phase 23 | Complete |
 | OPT-02 | Phase 23 | Complete |
-| OPT-03 | Phase 24 | Pending |
+| OPT-03 | Phase 24 | Complete |
 | UI-06 | Phase 26 | Pending |
 | UI-07 | Phase 26 | Pending |
 | UI-08 | Phase 26 | Pending |
