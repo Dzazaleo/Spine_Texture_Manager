@@ -19,7 +19,7 @@
 import { Skeleton } from '@esotericsoftware/spine-core';
 import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
-import type { SkeletonSummary } from '../shared/types.js';
+import type { DisplayRow, BreakdownRow, SkeletonSummary } from '../shared/types.js';
 import { analyze, analyzeBreakdown } from '../core/analyzer.js';
 import { findOrphanedFiles } from '../core/usage.js';
 import * as fs from 'node:fs';
@@ -87,10 +87,91 @@ export function buildSummary(
   // Phase 25 PANEL-03 — mark stub-region attachments with isMissing: true
   // instead of filtering them out. Rows remain visible in GlobalMaxRenderPanel
   // and AnimationBreakdownPanel with a danger indicator (renderer Plan 25-02).
-  const peaksArray = peaksArrayRaw.map((p) => ({
+  const peaksArray: (DisplayRow & { isMissing?: boolean })[] = peaksArrayRaw.map((p) => ({
     ...p,
     isMissing: skippedNames.has(p.attachmentName) ? true : undefined,
   }));
+
+  // Phase 25 PANEL-03 gap-fix — synthesize stub DisplayRows for missing
+  // attachments that the sampler never recorded. The sampler skips attachments
+  // whose source dims are absent from the sourceDims map; synthetic-atlas.ts
+  // intentionally does NOT add stub regions to dimsByRegionName
+  // (T-21-09-04 mitigation), so stub attachments never reach globalPeaks.
+  // The .map()+mark above can only mark rows that already exist — skipped
+  // attachments produce nothing. We synthesize minimal rows here so both
+  // GlobalMaxRenderPanel and AnimationBreakdownPanel can surface them with
+  // the danger indicator from Plan 25-02.
+  //
+  // For each skipped name absent from peaksArray: walk skeletonData.skins to
+  // find the first (skinName, slotName) that declares it. Use canonical dims
+  // from load.canonicalDimsByRegion if available (sourceW=canonicalW; source
+  // PNG was declared in the JSON). Falls back to 1×1 if not found (same as
+  // the atlas stub dims). peakScale=0 (never sampled); isMissing=true.
+  if (skippedNames.size > 0) {
+    const presentNames = new Set(peaksArray.map((p) => p.attachmentName));
+    for (const entry of (load.skippedAttachments ?? [])) {
+      const { name: attachmentName } = entry;
+      if (presentNames.has(attachmentName)) continue; // already in peaks (shouldn't happen, defensive)
+
+      // Walk skins to find first occurrence (skinName + slotName).
+      let skinName = 'default';
+      let slotName = attachmentName; // fallback: use name as slotName
+      for (const skin of skeletonData.skins) {
+        let found = false;
+        for (let slotIdx = 0; slotIdx < skin.attachments.length; slotIdx++) {
+          const perSlot = skin.attachments[slotIdx];
+          if (perSlot === undefined || perSlot === null) continue;
+          if (Object.prototype.hasOwnProperty.call(perSlot, attachmentName)) {
+            skinName = skin.name;
+            // slotName from skeletonData.slots[slotIdx] if index is in range
+            if (slotIdx < skeletonData.slots.length) {
+              slotName = skeletonData.slots[slotIdx].name;
+            }
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      const cd = load.canonicalDimsByRegion?.get(attachmentName);
+      const canonicalW = cd?.canonicalW ?? 1;
+      const canonicalH = cd?.canonicalH ?? 1;
+      const SETUP_LABEL = 'Setup Pose (Default)';
+
+      const stubRow: DisplayRow & { isMissing: true } = {
+        attachmentKey: `${skinName}/${slotName}/${attachmentName}`,
+        skinName,
+        slotName,
+        attachmentName,
+        animationName: SETUP_LABEL,
+        time: 0,
+        frame: 0,
+        peakScaleX: 0,
+        peakScaleY: 0,
+        peakScale: 0,
+        worldW: 0,
+        worldH: 0,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        isSetupPosePeak: true,
+        originalSizeLabel: `${canonicalW}×${canonicalH}`,
+        peakSizeLabel: '0×0',
+        scaleLabel: '0.000×',
+        sourceLabel: SETUP_LABEL,
+        frameLabel: '—',
+        sourcePath: '',
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isMissing: true,
+      };
+      peaksArray.push(stubRow);
+      presentNames.add(attachmentName); // prevent duplicates if skippedAttachments has dupes
+    }
+  }
 
   // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
   // AnimationBreakdown[] (F4.1/F4.2/F4.3). boneChainPath walks slot.bone.parent
@@ -112,11 +193,87 @@ export function buildSummary(
   // Phase 25 PANEL-03 — mark stub rows with isMissing: true instead of filtering.
   // Rows whose PNG was missing at load time remain visible in both main panels;
   // the 'missing' RowState variant in the renderer carries the danger signal.
+  //
+  // Gap-fix: also synthesize BreakdownRow stubs for missing attachments not in
+  // any card's rows (same root cause as peaksArray gap-fix above — sampler skips
+  // stub attachments so analyzeBreakdown never produces rows for them). The stubs
+  // are injected into the setup-pose card only (first card, cardId='setup-pose'),
+  // sorted to the end of the existing rows so existing sort-by-peakScale is
+  // preserved for the non-missing rows.
   const animationBreakdown = animationBreakdownRaw.map((card) => {
-    const rows = card.rows.map((r) => ({
+    const rows: (BreakdownRow & { isMissing?: boolean })[] = card.rows.map((r) => ({
       ...r,
       isMissing: skippedNames.has(r.attachmentName) ? true : undefined,
     }));
+
+    // Inject missing-attachment stubs into the setup-pose card.
+    if (card.cardId === 'setup-pose' && skippedNames.size > 0) {
+      const presentInCard = new Set(rows.map((r) => r.attachmentName));
+      for (const entry of (load.skippedAttachments ?? [])) {
+        const { name: attachmentName } = entry;
+        if (presentInCard.has(attachmentName)) continue;
+
+        // Find skin/slot (same walk as peaksArray stub synthesis above).
+        let skinName = 'default';
+        let slotName = attachmentName;
+        for (const skin of skeletonData.skins) {
+          let found = false;
+          for (let slotIdx = 0; slotIdx < skin.attachments.length; slotIdx++) {
+            const perSlot = skin.attachments[slotIdx];
+            if (perSlot === undefined || perSlot === null) continue;
+            if (Object.prototype.hasOwnProperty.call(perSlot, attachmentName)) {
+              skinName = skin.name;
+              if (slotIdx < skeletonData.slots.length) {
+                slotName = skeletonData.slots[slotIdx].name;
+              }
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+
+        const cd = load.canonicalDimsByRegion?.get(attachmentName);
+        const canonicalW = cd?.canonicalW ?? 1;
+        const canonicalH = cd?.canonicalH ?? 1;
+        const SETUP_LABEL = 'Setup Pose (Default)';
+
+        const stubBreakdownRow: BreakdownRow & { isMissing: true } = {
+          attachmentKey: `${skinName}/${slotName}/${attachmentName}`,
+          skinName,
+          slotName,
+          attachmentName,
+          animationName: SETUP_LABEL,
+          time: 0,
+          frame: 0,
+          peakScaleX: 0,
+          peakScaleY: 0,
+          peakScale: 0,
+          worldW: 0,
+          worldH: 0,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          isSetupPosePeak: true,
+          originalSizeLabel: `${canonicalW}×${canonicalH}`,
+          peakSizeLabel: '0×0',
+          scaleLabel: '0.000×',
+          sourceLabel: SETUP_LABEL,
+          frameLabel: '—',
+          sourcePath: '',
+          canonicalW,
+          canonicalH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+          bonePath: [slotName, attachmentName],
+          bonePathLabel: `${slotName} → ${attachmentName}`,
+          isMissing: true,
+        };
+        rows.push(stubBreakdownRow);
+        presentInCard.add(attachmentName);
+      }
+    }
+
     return {
       ...card,
       rows,

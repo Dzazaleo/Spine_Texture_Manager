@@ -171,9 +171,10 @@ type EnrichedCard = Omit<AnimationBreakdown, 'rows'> & {
  * (mirroring the inline duplication in GlobalMaxRenderPanel.tsx — Plan 19-04
  * §"Hand-off Notes" allows the duplication; renderer-tree-only, two callsites).
  */
-type RowState = 'under' | 'over' | 'unused' | 'neutral';
+type RowState = 'under' | 'over' | 'unused' | 'neutral' | 'missing';
 
-function rowState(peakRatio: number, isUnused: boolean): RowState {
+function rowState(peakRatio: number, isUnused: boolean, isMissing?: boolean): RowState {
+  if (isMissing) return 'missing';
   if (isUnused) return 'unused';
   if (peakRatio < 1.0) return 'under';
   if (peakRatio > 1.0) return 'over';
@@ -663,12 +664,18 @@ function BreakdownRowItem({
             state === 'under' && 'bg-success',
             state === 'over' && 'bg-warning',
             state === 'unused' && 'bg-danger',
+            state === 'missing' && 'bg-danger',
             state === 'neutral' && 'bg-transparent',
           )}
           aria-hidden="true"
         />
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
+        {row.isMissing && (
+          <span className="text-danger mr-1" aria-label="Missing PNG">
+            ⚠
+          </span>
+        )}
         {highlightMatch(row.attachmentName, query)}
       </td>
       <td
@@ -706,6 +713,7 @@ function BreakdownRowItem({
           state === 'under' && 'bg-success/10 text-success',
           state === 'over' && 'bg-warning/10 text-warning',
           state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'missing' && 'bg-danger/10 text-danger',
           state === 'neutral' && 'text-fg',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row)}
@@ -800,7 +808,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
             // rows do not surface the global Unused Assets membership (that
             // lives on the global summary; per-animation rows only carry
             // peak data), so isUnused is always false here.
-            const state = rowState(row.effectiveScale, false);
+            const state = rowState(row.effectiveScale, false, row.isMissing);
             return (
               <BreakdownRowItem
                 key={row.attachmentKey}
@@ -845,7 +853,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
               // rows do not surface the global Unused Assets membership (that
               // lives on the global summary; per-animation rows only carry
               // peak data), so isUnused is always false here.
-              const state = rowState(row.effectiveScale, false);
+              const state = rowState(row.effectiveScale, false, row.isMissing);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}

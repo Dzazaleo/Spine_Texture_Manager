@@ -169,9 +169,10 @@ export interface GlobalMaxRenderPanelProps {
  * to is the effective render scale (1.0× = source size, < 1.0× = under-
  * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
  */
-type RowState = 'under' | 'over' | 'unused' | 'neutral';
+type RowState = 'under' | 'over' | 'unused' | 'neutral' | 'missing';
 
-function rowState(peakRatio: number, isUnused: boolean): RowState {
+function rowState(peakRatio: number, isUnused: boolean, isMissing?: boolean): RowState {
+  if (isMissing) return 'missing';
   if (isUnused) return 'unused';
   if (peakRatio < 1.0) return 'under';
   if (peakRatio > 1.0) return 'over';
@@ -430,6 +431,7 @@ function Row({
             state === 'under' && 'bg-success',
             state === 'over' && 'bg-warning',
             state === 'unused' && 'bg-danger',
+            state === 'missing' && 'bg-danger',
             state === 'neutral' && 'bg-transparent',
           )}
           aria-hidden="true"
@@ -449,6 +451,11 @@ function Row({
         </label>
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
+        {row.isMissing && (
+          <span className="text-danger mr-1" aria-label="Missing PNG">
+            ⚠
+          </span>
+        )}
         {highlightMatch(row.attachmentName, query)}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
@@ -499,6 +506,7 @@ function Row({
           state === 'under' && 'bg-success/10 text-success',
           state === 'over' && 'bg-warning/10 text-warning',
           state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'missing' && 'bg-danger/10 text-danger',
           state === 'neutral' && 'text-fg',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
@@ -926,10 +934,7 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(
-                    row.effectiveScale,
-                    false,
-                  );
+                  const state = rowState(row.effectiveScale, false, row.isMissing);
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -1044,10 +1049,7 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(
-                row.effectiveScale,
-                false,
-              );
+              const state = rowState(row.effectiveScale, false, row.isMissing);
               return (
                 <Row
                   key={row.attachmentKey}
