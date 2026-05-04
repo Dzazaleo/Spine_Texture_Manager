@@ -1633,7 +1633,7 @@ export function AppShell({
         summary={effectiveSummary}
         atlasPreview={atlasPreviewState}
         exportPlanSavingsPct={savingsPctMemo}
-        lastOutDir={null}
+        lastOutDir={lastOutDir}
         onChange={setDocumentation}
         onClose={() => setDocumentationBuilderOpen(false)}
       />
