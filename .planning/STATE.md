@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
 status: executing
-last_updated: "2026-05-04T17:39:52.896Z"
-last_activity: 2026-05-04 -- Phase 26.2 reverted for redo (revert commit b6de8e8)
+last_updated: "2026-05-04T23:30:00.000Z"
+last_activity: 2026-05-04 -- Phase 26.2 reverted for redo (2nd time; revert commit c13ca9c). Stale PLAN files removed in 2dd0c63. Awaiting /gsd-discuss-phase 26.2 with sketch-001 variant A cited.
 progress:
   total_phases: 21
   completed_phases: 13
@@ -18,9 +18,9 @@ progress:
 ## Current Position
 
 Phase: 26.2
-Plan: Not started
-Status: Ready to re-execute (reverted 2026-05-04 — revert commit b6de8e8)
-Last activity: 2026-05-04 -- Phase 26.2 reverted for redo
+Plan: Not started — needs re-discuss + re-plan
+Status: Ready to re-discuss. Reverted 2nd time on 2026-05-04 (revert commit c13ca9c). Stale PLAN files removed in 2dd0c63. Both prior attempts placed tabs inside the toolbar; sketch-001 variant A locks them to a sub-toolbar underline row with panel-header-matched icons (filmstrip / warning-triangle / bar-chart). Re-discuss must cite sketch-001 explicitly so CONTEXT.md and UI-SPEC.md absorb the verdict before planning.
+Last activity: 2026-05-04 -- Phase 26.2 reverted for redo (2nd time)
 
 ## Project Reference
 
