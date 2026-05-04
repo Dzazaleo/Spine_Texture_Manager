@@ -585,7 +585,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 **Wave 1**
-- [ ] 25-01-PLAN.md — Data layer: add isMissing to DisplayRow; replace summary.ts filters with marking; update G-02 tests
+- [x] 25-01-PLAN.md — Data layer: add isMissing to DisplayRow; replace summary.ts filters with marking; update G-02 tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
@@ -648,7 +648,7 @@ Plans:
 | 22.1. Close Phase 22 HUMAN-UAT gaps (INSERTED) | v1.2 | 4/4 | Complete | 2026-05-03 |
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
-| 25. Missing attachments in-context display | v1.3 | 0/? | Not started | — |
+| 25. Missing attachments in-context display | v1.3 | 1/2 | In Progress|  |
 | 26. UI polish | v1.3 | 0/? | Not started | — |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
