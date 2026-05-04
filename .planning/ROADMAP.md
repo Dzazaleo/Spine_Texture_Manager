@@ -619,7 +619,7 @@ Plans:
 - [x] 26.1-01-PLAN.md — Color token update + full-width panels + SearchBar h-8 (Wave 1)
 - [x] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
-- [ ] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
+- [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
 
 ### Phase 27: Code quality sweep
 
@@ -661,7 +661,7 @@ Plans:
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
-| 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete   | 2026-05-04 |
+| 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
 ## Deferred (post-v1.1)
