@@ -66,6 +66,11 @@
 - [x] **Phase 24: Panel semantics — Unused Assets rewrite + atlas-savings metric** — Unused Assets reports images-folder-vs-JSON orphaned PNGs; extracted as collapsible sibling panel; atlas-savings metric replaces MB unused-attachment callout; AtlasNotFoundError message mentions images-folder alternative. (PANEL-01, PANEL-02, OPT-03, PANEL-04) (completed 2026-05-04)
 - [x] **Phase 25: Missing attachments in-context display** — Rows with missing source PNGs stay visible in Global + Animation Breakdown panels, marked with red left-border accent and danger-triangle icon. (PANEL-03) (completed 2026-05-04)
 - [ ] **Phase 26.1: UI polish — visual wins** — Color scheme (#232732 surface, proportional panel shift), full-width panels, zebra rows, toolbar height unification, missing-row full bg fill, warning icon sizing, atlas-less images counter, danger-themed warning panel headers, stronger section headers. (UI-06, UI-07, UI-10)
+Plans:
+- [ ] 26.1-01-PLAN.md — Color token update + full-width panels + SearchBar h-8 (Wave 1)
+- [ ] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
+- [ ] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
+- [ ] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
 - [ ] **Phase 26.2: UI polish — tab restructure + icon audit** — 3-tab system (Global / Unused / Animation Breakdown); Unused tab hidden when empty, count badge when N > 0; MissingAttachmentsPanel stays above tabs. Icon audit across all surfaces. (UI-08)
 - [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
@@ -593,23 +598,28 @@ Plans:
 - [x] 25-02-PLAN.md — Renderer layer: extend RowState + rowState() + JSX danger indicators in both panels; create renderer tests
 **UI hint**: yes
 
-### Phase 26: UI polish
+### Phase 26.1: UI polish — visual wins
 
-**Goal**: The visual surface of the app is internally consistent — uniform heights in the sticky toolbar and action buttons, readable row separation via zebra striping, a coherent icon language throughout, and every modal draggable by its title bar.
+**Goal**: The visual surface is upgraded to a cool blue-dark color scheme, panels stretch edge-to-edge, table rows are readable via zebra striping, the toolbar uses a single height token, and warning-zone panels have danger-themed headers.
 
-**Depends on**: Phase 25 (all panel row shapes finalized before row-level zebra striping is applied).
+**Depends on**: Phase 25 (panel row shapes with missing-state markers finalized before row-level danger tint and zebra striping are applied).
 
-**Requirements**: UI-06, UI-07, UI-08, UI-09, UI-10
+**Requirements**: UI-06, UI-07, UI-10
 
 **Success Criteria** (what must be TRUE):
-  1. All elements in the sticky toolbar (project-name chip, load-summary card, search box, button cluster) share a single height token and render at equal height; the Global panel "N selected / N total" counter cell has a fixed minimum width that prevents horizontal panel shift when the digit count changes.
-  2. Rows in Global Max Render Source and Animation Breakdown panels alternate between two distinct background tones; a user scrolling a long list can track individual rows without losing their place.
-  3. All toolbar action buttons (Atlas Preview, Documentation, Optimize Assets, Save, Load) render at a unified height — no button is visually taller or shorter than its neighbors.
-  4. Every hand-rolled modal (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be repositioned by clicking and dragging its title bar; releasing the mouse leaves the modal at the new position.
-  5. Icons across the app follow a consistent visual style; UI areas that previously showed text-only labels where icons would improve clarity (panel section headers, toolbar actions, modal tabs) have been audited and updated.
+  1. App background and panel cards use the new blue-dark tokens (#232732 surface, #2c3347 panel); all modals inherit automatically via CSS token cascade.
+  2. Both data panels (Global Max Render Scale, Animation Breakdown) stretch to the full window width with no max-w-6xl constraint.
+  3. Rows in both panels have subtle zebra striping; missing-attachment rows show a full-row danger tint that suppresses zebra.
+  4. All toolbar buttons (Atlas Preview, Documentation, Optimize Assets, Save, Open) and the SearchBar input share h-8 (32px) computed height.
+  5. In atlas-less mode the load-summary chip shows "{n} images"; in auto mode it shows "1 atlases".
+  6. MissingAttachmentsPanel and UnusedAssetsPanel headers have bg-danger/10 background with a warning triangle icon.
+  7. AnimationBreakdownPanel header has an inline bar-chart SVG icon, font-semibold title, and a right-aligned animation count chip.
 
-**Plans**: TBD
-**UI hint**: yes
+**Plans**: 4 plans
+- [ ] 26.1-01-PLAN.md — Color token update + full-width panels + SearchBar h-8 (Wave 1)
+- [ ] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
+- [ ] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
+- [ ] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
 
 ### Phase 27: Code quality sweep
 
@@ -651,7 +661,7 @@ Plans:
 | 23. Optimize flow — defer folder picker | v1.3 | 2/2 | Complete    | 2026-05-03 |
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
-| 26. UI polish | v1.3 | 0/? | Not started | — |
+| 26.1. UI polish — visual wins | v1.3 | 0/4 | Not started | — |
 | 27. Code quality sweep | v1.3 | 0/? | Not started | — |
 
 ## Deferred (post-v1.1)
