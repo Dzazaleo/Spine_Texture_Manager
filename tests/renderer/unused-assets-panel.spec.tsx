@@ -2,16 +2,23 @@
 /**
  * Phase 24 Plan 24-03 — RTL tests for UnusedAssetsPanel.
  *
+ * Phase 26.2 D-08/D-09 update:
+ *   - User-visible "orphaned" copy renamed to "unused" (D-08); internal
+ *     prop/type names (orphanedFiles, OrphanedFile) deliberately preserved.
+ *   - Inline SearchBar removed (D-09); the unused-files list renders all
+ *     rows unconditionally without filtering. The former search-filter
+ *     test (i) is rewritten as a "renders all rows unconditionally" test.
+ *
  * Behavior gates (a)-(i):
  *   (a) Returns null when orphanedFiles is [] (component not in the DOM)
- *   (b) Renders with role="alert" and aria-label="Orphaned image files" when N > 0
+ *   (b) Renders with role="alert" and aria-label="Unused image files" when N > 0
  *   (c) Expanded by default when N > 0 (table/detail visible without any click)
- *   (d) Header shows "1 orphaned file" (singular) when count is 1
- *   (e) Header shows "N orphaned files" (plural) when count > 1
+ *   (d) Header shows "1 unused file" (singular) when count is 1
+ *   (e) Header shows "N unused files" (plural) when count > 1
  *   (f) Header shows formatBytes(totalBytes) alongside count in the header text (e.g. "· 1.2 KB")
  *   (g) "Hide details" button shows when expanded=true; clicking it collapses (shows "Show details")
  *   (h) Table rows: each row shows filename and formatBytes(bytesOnDisk)
- *   (i) Search filter: typing a query filters to matching filenames; typing a non-matching query shows "(no matches)"
+ *   (i) D-09: no inline search input is rendered, and all rows are visible unconditionally
  *
  * Mirrors missing-attachments-panel.spec.tsx idiom: vitest + @testing-library/react + jsdom;
  * assertions use `not.toBeNull()` / `toBeDefined()` rather than `@testing-library/jest-dom`
@@ -42,11 +49,11 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
   });
 
   // (b)
-  it('renders with role="alert" and aria-label="Orphaned image files" when N > 0', () => {
+  it('renders with role="alert" and aria-label="Unused image files" when N > 0', () => {
     render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     const panel = screen.getByRole('alert');
     expect(panel).not.toBeNull();
-    expect(panel.getAttribute('aria-label')).toBe('Orphaned image files');
+    expect(panel.getAttribute('aria-label')).toBe('Unused image files');
   });
 
   // (c)
@@ -60,17 +67,17 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
   });
 
   // (d)
-  it('header shows singular "1 orphaned file" when count is 1', () => {
+  it('header shows singular "1 unused file" when count is 1', () => {
     render(<UnusedAssetsPanel orphanedFiles={ONE_FILE} />);
     // Text is split across elements; use a function matcher that checks textContent of the panel
     const panel = screen.getByRole('alert');
-    expect(panel.textContent).toMatch(/1 orphaned file[^s]/i);
+    expect(panel.textContent).toMatch(/1 unused file[^s]/i);
   });
 
   // (e)
-  it('header shows plural "N orphaned files" when count > 1', () => {
+  it('header shows plural "N unused files" when count > 1', () => {
     render(<UnusedAssetsPanel orphanedFiles={TWO_FILES} />);
-    expect(screen.getByText(/2 orphaned files/i)).not.toBeNull();
+    expect(screen.getByText(/2 unused files/i)).not.toBeNull();
   });
 
   // (f)
@@ -112,24 +119,22 @@ describe('UnusedAssetsPanel (PANEL-02)', () => {
     expect(screen.queryByText('2 KB')).not.toBeNull();
   });
 
-  // (i)
-  it('search filter narrows rows to matching filenames', () => {
+  // (i) Phase 26.2 D-09: inline SearchBar removed; all rows render
+  // unconditionally and there is no filter input in the panel.
+  it('renders all orphanedFiles unconditionally and exposes no inline filter input (D-09)', () => {
     render(<UnusedAssetsPanel orphanedFiles={THREE_FILES} />);
-    // All 3 files visible initially
+
+    // All 3 files visible.
     expect(screen.queryByText('UNUSED_CIRCLE')).not.toBeNull();
     expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
     expect(screen.queryByText('OLD_TEXTURE')).not.toBeNull();
 
-    // Type a query that matches only STALE_BITMAP
-    const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'STALE' } });
+    // No textbox (the inline SearchBar was removed).
+    expect(screen.queryByRole('textbox')).toBeNull();
 
-    expect(screen.queryByText('STALE_BITMAP')).not.toBeNull();
-    expect(screen.queryByText('UNUSED_CIRCLE')).toBeNull();
-    expect(screen.queryByText('OLD_TEXTURE')).toBeNull();
-
-    // Type a query that matches nothing → "(no matches)"
-    fireEvent.change(input, { target: { value: 'XYZNOTFOUND' } });
-    expect(screen.queryByText('(no matches)')).not.toBeNull();
+    // No "(no matches)" empty-state cell — that branch was deleted with
+    // the filter useMemo (orphanedFiles.length === 0 short-circuits to
+    // `return null` upstream, so a (no matches) row is unreachable).
+    expect(screen.queryByText('(no matches)')).toBeNull();
   });
 });
