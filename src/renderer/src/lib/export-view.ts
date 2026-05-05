@@ -210,19 +210,25 @@ export function computeExportDims(
   const displayScale = sourceWForRatio > 0 ? outW / sourceWForRatio : effScale;
 
   // Peak display dims (2026-05-05 redesign — invariant of source PNG dims):
-  //   peakDisplayW/H = ceil(canonicalW × min(safeScale(peakScale × overrideFrac), 1))
+  //   peakDisplayW/H = ceil(canonicalW × min(safeScale(peakScale × overrideFrac), 1, sourceRatio))
   // The Peak W×H column shows what the rig DEMANDS in world-space pixels
-  // (canonicalW × peakScale, clamped at canonical so we never extrapolate).
-  // It is NOT capped by sourceRatio — that cap exists in the EXPORT path to
-  // guarantee we never write a PNG bigger than the source we have to read,
-  // but it is operational, not informational. The user's invariant holds:
-  // Peak says "the rig wants this much pixel coverage" regardless of how
-  // big the on-disk PNG happens to be right now (pre-optimized or not).
-  // Override scales peak proportionally — 50% override → peak shows half the
-  // raw demand — so the column always represents "what we're targeting."
+  // (canonicalW × peakScale, override-scaled), clamped at BOTH ceilings —
+  // canonical (artist asset) AND sourceRatio (on-disk PNG limit). Neither
+  // can be exceeded, so the column reflects the dims the export will
+  // actually produce, not a theoretical demand the user can't reach.
+  //
+  // 2026-05-05 amendment — clamp at sourceRatio too: the prior version
+  // clamped only at canonical, so a 200% override on a pre-optimized row
+  // would show Peak above source dims (e.g. L_ARM source 438, canonical
+  // 548, 200% override → Peak displayed 542 even though optimize would
+  // cap the export at 438). Silent cap at source matches "never extrapolate
+  // beyond on-disk PNG dims" and tells the truth about what gets written.
   const overrideFrac = override !== undefined ? clampOverride(override) / 100 : 1;
   const rawPeakEff = peakScale * overrideFrac;
-  const peakDisplayEff = Math.min(safeScale(rawPeakEff), 1);
+  // sourceRatio same shape as the export path — uniform min across both
+  // axes when dimsMismatch && actualSource defined; Infinity (cap inert)
+  // for canonical-no-drift rows.
+  const peakDisplayEff = Math.min(safeScale(rawPeakEff), 1, sourceRatio);
   const peakDisplayW = Math.ceil(canonW * peakDisplayEff);
   const peakDisplayH = Math.ceil(canonH * peakDisplayEff);
 
