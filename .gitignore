@@ -25,8 +25,8 @@ fixtures/images/
 # OS cruft
 .DS_Store
 
-# sed/editor backup files
-*.bak
+# sed/editor backup files (matches .bak, .bak2, .bak3, …)
+*.bak*
 
 # Logs
 *.log
