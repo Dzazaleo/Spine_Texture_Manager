@@ -28,7 +28,6 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 - [x] **UI-06**: All elements in the sticky toolbar (project-name chip, load-summary card, search box, button cluster) share a single height token; the Global panel `N selected / N total` counter cell has a fixed minimum width so the panel does not shift horizontally when the count changes.
 - [x] **UI-07**: Row backgrounds in Global Max Render Source and Animation Breakdown panels alternate between two distinct tones (zebra striping) to improve row-tracking readability.
 - [ ] **UI-08**: Icon audit: existing icons updated to a consistent style; icons added where the UI currently shows text-only labels that would benefit from a visual affordance (e.g. panel section headers, toolbar actions, modal tabs).
-- [ ] **UI-09**: Every hand-rolled modal (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be dragged and repositioned by clicking and dragging its title bar.
 - [x] **UI-10**: Toolbar action buttons (Atlas Preview, Documentation, Optimize Assets, Save, Load) share a unified height; no button is taller or shorter than its neighbors.
 
 ### QA — Code Quality (Phase 4 carry-forwards)
@@ -78,7 +77,6 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 | UI-06 | Phase 26 | Complete |
 | UI-07 | Phase 26 | Complete |
 | UI-08 | Phase 26 | Pending |
-| UI-09 | Phase 26 | Pending |
 | UI-10 | Phase 26 | Complete |
 | QA-01 | Phase 27 | Pending |
 | QA-02 | Phase 27 | Pending |

@@ -7,7 +7,7 @@
 - ✅ **v1.1.1 patch** — Phase 13 (5/5 plans complete; shipped 2026-04-29; v1.1.1 final at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.1; D-10 publish-race fix verified clean across 4 successful CI runs total: rc2 / rc3 / v1.1.0 / v1.1.1; live UAT — Linux runbook + macOS/Windows v1.1.0 → v1.1.1 auto-update lifecycle observation — carries forward to Phase 13.1 documented in 13-VERIFICATION.md ## Gaps Summary)
 - ✅ **v1.1.2 Auto-update fixes** — Phases 14–15 (shipped 2026-04-29; v1.1.2 published with broken mac auto-update D-15-LIVE-1; v1.1.3 same-day hotfix at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3 closed UPDFIX-01 / D-15-LIVE-1 empirically via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact at canonical dotted URL. D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc builds) + D-15-LIVE-3 (Help → Check menu gating) routed to backlog 999.2 + 999.3 per user decision — manual-download UX path, NOT Apple Developer Program enrollment. Phase 13.1 — live UAT carry-forwards from v1.1.1 — remains separately tracked, NOT part of v1.1.2)
 - ✅ **v1.2 Expansion** — Phases 13.1 (deferred), 16, 18–22.1 (shipped 2026-05-03; v1.2.0 final; 40 plans across 8 executed phases; 23/26 REQs closed — UAT-01..03 host-blocked, carried to v1.3) — full archive at [.planning/milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
-- **v1.3 Polish & UX** — Phases 23–27 (in progress; 16 REQs — PANEL-01..04, OPT-01..03, UI-06..10, QA-01..04) — Phase 26 split into 26.1/26.2/26.3
+- **v1.3 Polish & UX** — Phases 23–27 (in progress; 15 REQs — PANEL-01..04, OPT-01..03, UI-06..08, UI-10, QA-01..04) — Phase 26 split into 26.1/26.2 (UI-09 dropped 2026-05-05; Phase 26.3 removed)
 
 ## Phases
 
@@ -76,7 +76,6 @@ Plans:
 Plans:
 - [x] 26.2-01-PLAN.md — Tab strip relocation + tab icons + TabButton extension (AppShell.tsx only) (Wave 1)
 - [x] 26.2-02-PLAN.md — WarningTriangleIcon component + 4 panel fill→stroke conversions + UnusedAssetsPanel rename + inline-search removal (Wave 1, parallel)
-- [ ] **Phase 26.3: Draggable modals** — All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) draggable by title bar. (UI-09)
 - [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
 
 ## Phase Details
@@ -624,25 +623,6 @@ Plans:
 - [x] 26.1-02-PLAN.md — Zebra striping + danger tint + warning icon resize in both panels (Wave 2)
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
 - [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
-
-### Phase 26.3: Draggable modals
-
-**Goal**: All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be repositioned by clicking and dragging on their title bar; positions reset to the centered default each time a modal reopens.
-
-**Depends on**: Phase 26.1 (color tokens + modal title-bar styling finalized; the title `<h2>` regions are the drag handle surface).
-
-**Requirements**: UI-09
-
-**Success Criteria** (what must be TRUE):
-  1. All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be dragged from the centered position to any new position by mouse-down on the title-bar region and dragging the pointer.
-  2. Drag is initiated only by the title bar; mouse-down on inputs, buttons, scrollable body content, or anywhere outside the title bar does NOT move the modal.
-  3. The drag handle shows `cursor: grab` at rest and `cursor: grabbing` while dragging (discoverability affordance).
-  4. Modal position is clamped to the viewport during drag: the title bar cannot leave the visible window, so a dragged modal can always be re-grabbed.
-  5. Position is ephemeral — closing and reopening any modal returns it to the centered default. Positions do NOT persist across reopens, view changes, or app restarts.
-  6. Existing keyboard, focus-trap, Escape-to-close, and `aria-labelledby` title-reference behavior continues to work unchanged after a drag.
-  7. No new third-party drag dependency is added (`react-draggable`, `react-rnd`, etc.); drag is implemented as a small shared hook or wrapper using native pointer events that all 8 modals consume.
-
-**Plans**: TBD
 
 ### Phase 27: Code quality sweep
 
