@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
 status: completed
-last_updated: "2026-05-05T09:51:51.643Z"
-last_activity: 2026-05-05 -- Phase 27 marked complete
+last_updated: "2026-05-05T16:25:00.000Z"
+last_activity: 2026-05-05 -- Quick task 260505-lk0 complete (sampler skin-manifest pass)
 progress:
   total_phases: 16
   completed_phases: 9
@@ -20,7 +20,7 @@ progress:
 Phase: 27 — COMPLETE
 Plan: 1 of 3
 Status: Phase 27 complete
-Last activity: 2026-05-05 -- Phase 27 marked complete
+Last activity: 2026-05-05 -- Quick task 260505-lk0 complete (sampler skin-manifest pass)
 
 ## Project Reference
 
@@ -87,6 +87,12 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 ## Last completed
 
 **Milestone v1.1.2 — Auto-update fixes — SHIPPED 2026-04-29.** Phase 14 closed 5/5 plans (renderer + state machine fixes; UPDFIX-02 / UPDFIX-03 / UPDFIX-04). Phase 15 closed 6/6 plans (build/feed-shape fix + v1.1.2 release + v1.1.3 same-day hotfix; UPDFIX-01 / D-15-LIVE-1 empirically closed via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact 121,848,102 bytes at canonical dotted URL). 520 vitest passing. Three downstream defects (D-15-LIVE-2 ad-hoc code-sig swap; D-15-LIVE-3 menu gating; 999.1 macOS quit) routed to backlog and now promoted to v1.2 phases 16 / 17 / 18 via /gsd-review-backlog (commit cc0bc6a, 2026-04-29).
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260505-lk0 | Fix sampler silent-discard of skin-declared unbound attachments | 2026-05-05 | 0832660 | [260505-lk0-fix-sampler-silent-discard-of-alpha-0-at](./quick/260505-lk0-fix-sampler-silent-discard-of-alpha-0-at/) |
 
 ## Deferred Items
 
