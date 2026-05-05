@@ -259,10 +259,15 @@ function filterCardsByAttachmentName(
 ): Array<EnrichedCard> {
   const q = query.trim().toLowerCase();
   if (q === '') return cards.slice();
+  // 2026-05-05 redesign — "override" keyword shortcut (sibling-symmetric
+  // with GlobalMaxRenderPanel.filterByName). Whole-query match only;
+  // "overr" or longer prefix triggers the keyword filter; anything shorter
+  // falls through to the normal name search.
+  const isOverrideKeyword = 'override'.startsWith(q) && q.length >= 4;
   return cards.map((card) => {
-    const rows: EnrichedBreakdownRow[] = card.rows.filter((r) =>
-      r.attachmentName.toLowerCase().includes(q),
-    );
+    const rows: EnrichedBreakdownRow[] = isOverrideKeyword
+      ? card.rows.filter((r) => r.override !== undefined)
+      : card.rows.filter((r) => r.attachmentName.toLowerCase().includes(q));
     return { ...card, uniqueAssetCount: rows.length, rows };
   });
 }

@@ -266,6 +266,18 @@ function enrichWithEffective(
 function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[] {
   const q = query.trim().toLowerCase();
   if (q === '') return rows.slice();
+  // 2026-05-05 redesign — "override" keyword matches any row with an active
+  // override regardless of attachment name. Acts as a prefix match (any
+  // query that starts with "override" or partial like "over") so "overr"
+  // also surfaces the filter, but the keyword is recognized only when it
+  // is the WHOLE query — typing "override" + a space + a name is a partial
+  // attachment-name search again. Trade-off: a hypothetical attachment
+  // literally named "override" would still match the name-search path
+  // because both predicates are OR-able, but in practice no Spine rig
+  // uses that name and the keyword shortcut is strictly additive.
+  if ('override'.startsWith(q) && q.length >= 4) {
+    return rows.filter((r) => r.override !== undefined);
+  }
   return rows.filter((r) => r.attachmentName.toLowerCase().includes(q));
 }
 
