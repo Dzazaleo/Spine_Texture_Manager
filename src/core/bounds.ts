@@ -245,7 +245,46 @@ function hullAreaRatio(
   const ratio = worldArea / sourceArea;
   if (!(ratio > 0)) return null; // NaN/Infinity guard
 
-  const scale = Math.sqrt(ratio);
+  // Peak-anchored invariant (2026-05-05): correct the source-area basis from
+  // current-page-pixel-space to canonical-page-pixel-space when the loader
+  // detected a pre-optimized region (region.originalWidth/Height < the
+  // canonical attachment width/height declared in the JSON skin). Without
+  // this correction, sourceArea shrinks with the on-disk PNG → peakScale
+  // grows → the panel's Peak W×H column "follows the source" instead of
+  // staying invariant. The fix scales sv hull area back to the canonical
+  // pixel basis so peakScale measures world-AABB vs canonical-AABB,
+  // independent of the texture resolution actually loaded.
+  //
+  // Region attachments don't need this — boneAxisScales (above) is purely
+  // bone-driven and already invariant of texture dims. The bug is mesh-only
+  // because hullAreaRatio is the only path that uses page-pixel space as
+  // the source basis.
+  //
+  // Atlas page dims and the attachment's declared canonical dims diverge in
+  // two scenarios:
+  //   (a) atlas-less mode + shrunk PNG: page=PNG, both shrink together, but
+  //       the JSON's att.width/height stays at canonical → ratio binds.
+  //   (b) canonical atlas re-packed with shrunk originals: same idea.
+  // In both cases the correction factor is (att.width × att.height) /
+  // (region.originalWidth × region.originalHeight). When dims agree
+  // (canonical, no drift), the factor is 1.0 — no change to existing
+  // behavior. spine-core 4.2 ships attachment.width/height on Mesh as the
+  // canonical pixel dims from JSON; region.originalWidth/Height tracks the
+  // on-disk basis the page is in.
+  const att = attachment as { width?: number; height?: number };
+  const reg = region as { originalWidth?: number; originalHeight?: number };
+  const canonW = att.width ?? 0;
+  const canonH = att.height ?? 0;
+  const origW = reg.originalWidth ?? 0;
+  const origH = reg.originalHeight ?? 0;
+  let scale = Math.sqrt(ratio);
+  if (canonW > 0 && canonH > 0 && origW > 0 && origH > 0) {
+    // Isotropic correction: sourceArea_canonical = sourceArea_page × (canon/orig)^2.
+    // peakScale = sqrt(world / sourceArea_canonical) = sqrt(world/sourceArea_page) × (orig/canon).
+    // Use the geometric mean across both axes for non-square shrinks.
+    const correction = Math.sqrt((origW * origH) / (canonW * canonH));
+    scale *= correction;
+  }
   // Isotropic: sqrt(area-ratio) is a scalar, so X/Y are reported equal.
   return { scale, scaleX: scale, scaleY: scale };
 }
