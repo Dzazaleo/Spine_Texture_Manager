@@ -144,13 +144,17 @@ type EnrichedBreakdownRow = BreakdownRow & {
   effExportW: number;
   effExportH: number;
   /**
-   * debug-fix scale-display-optimized-source — source-relative display scale.
-   * outW / actualSourceW (or outW / canonicalW when actualSource unavailable).
-   * Sibling-symmetric to GlobalMaxRenderPanel.EnrichedRow.displayScale so the
-   * per-animation Scale column matches the Global Max Render panel's column for
-   * pre-optimized assets (1.000× when on-disk PNG already equals export target).
+   * Source-shrink display scale (2026-05-05): outW / sourceW. Sibling-
+   * symmetric to GlobalMaxRenderPanel.EnrichedRow.displayScale.
    */
   displayScale: number;
+  /**
+   * Peak display dims (2026-05-05): world-space pixel demand, invariant of
+   * source PNG dims. Sibling-symmetric to the Global Max Render panel's
+   * peakDisplayW/H field. Per-animation rows inherit the same semantics.
+   */
+  peakDisplayW: number;
+  peakDisplayH: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -217,7 +221,7 @@ function enrichCardsWithEffective(
       // symmetric to GlobalMaxRenderPanel.enrichWithEffective per Phase 19
       // D-06 (both panels read the same enriched shape from the same helper
       // signature).
-      const { effScale, outW, outH, displayScale } = computeExportDims(
+      const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
         row.sourceW,
         row.sourceH,
         row.peakScale,
@@ -234,6 +238,8 @@ function enrichCardsWithEffective(
         effExportW: outW,
         effExportH: outH,
         displayScale,
+        peakDisplayW,
+        peakDisplayH,
         override,
       };
     }),
@@ -766,12 +772,12 @@ function BreakdownRowItem({
         {row.displayScale.toFixed(3)}×
         {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
-      {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims
-          that buildExportPlan + the optimize dialog use, NOT the
-          world-AABB. Hover tooltip surfaces the world-AABB for
-          power users (rotation / mesh-deformation diagnostic).
-          Override path: same export dims, just driven by the
-          override percent through computeExportDims. */}
+      {/* Peak W×H column (2026-05-05 redesign): shows world-space pixel
+          demand (canonicalW × peakScale, override-scaled, clamped at
+          canonical). INVARIANT of source PNG dims — does not shift across
+          re-optimize/reload cycles. Sibling-symmetric to the Global Max
+          Render panel column. Hover tooltip surfaces raw world-AABB for
+          rotation / mesh-deformation diagnostics. */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
@@ -779,7 +785,7 @@ function BreakdownRowItem({
         )}
         title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
       >
-        {`${row.effExportW}×${row.effExportH}`}
+        {`${row.peakDisplayW}×${row.peakDisplayH}`}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
         {row.frameLabel}

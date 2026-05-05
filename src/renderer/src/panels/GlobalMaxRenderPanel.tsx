@@ -104,13 +104,20 @@ type EnrichedRow = DisplayRow & {
   effExportW: number;
   effExportH: number;
   /**
-   * debug-fix scale-display-optimized-source — source-relative display scale.
-   * outW / actualSourceW (or outW / canonicalW when actualSource unavailable).
-   * When the user has pre-optimized images, this is 1.000 for already-optimal
-   * attachments, correctly showing no change is needed to the file on disk.
-   * Distinct from effectiveScale (canonical-relative) which drives sort order.
+   * Source-shrink display scale (2026-05-05): outW / sourceW. Answers "how
+   * much will the on-disk PNG be reduced to reach the export size?" — the
+   * number that goes into the panel's Scale column.
    */
   displayScale: number;
+  /**
+   * Peak display dims (2026-05-05): the world-space pixel demand the rig
+   * needs at peak (or override-adjusted peak), clamped at canonical so we
+   * never extrapolate. INVARIANT of source PNG dims — does not shift across
+   * re-optimize/reload cycles. Distinct from effExportW/H, which is capped
+   * by sourceRatio for the actual export-write safety.
+   */
+  peakDisplayW: number;
+  peakDisplayH: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -219,7 +226,7 @@ function enrichWithEffective(
     // show on-disk dims, NOT pre-cap canonical × peakScale). Without these,
     // the panel would lie to the user about what the export will actually
     // produce when the cap binds.
-    const { effScale, outW, outH, displayScale } = computeExportDims(
+    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
       row.sourceW,
       row.sourceH,
       row.peakScale,
@@ -236,6 +243,8 @@ function enrichWithEffective(
       effExportW: outW,
       effExportH: outH,
       displayScale,
+      peakDisplayW,
+      peakDisplayH,
       override,
     };
   });
@@ -269,10 +278,10 @@ function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
     case 'sourceW':
       return a.sourceW - b.sourceW;
     case 'worldW':
-      // D-83 (Round 5 2026-04-25): Peak W×H sort reads the EXPORT dim
-      // (effExportW) so the displayed ordering matches the visible Peak
-      // W×H column — which now shows export dims, not the world-AABB.
-      return a.effExportW - b.effExportW;
+      // 2026-05-05 redesign: Peak W×H sort reads peakDisplayW so the
+      // ordering matches the visible Peak column (now world-space demand,
+      // invariant of source PNG dims).
+      return a.peakDisplayW - b.peakDisplayW;
     case 'peakScale':
       // Phase 4 pattern-mapper flag 3: comparator reads EFFECTIVE scale so
       // 50%-overridden high-peak rows sort correctly against 100%-kept
@@ -510,11 +519,13 @@ function Row({
           loaderMode={loaderMode}
         />
       </td>
-      {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims that
-          buildExportPlan + the optimize dialog use, NOT the world-AABB.
-          Hover tooltip surfaces the world-AABB for power users (rotation /
-          mesh-deformation diagnostic). Override path: same export dims,
-          just driven by the override percent through computeExportDims. */}
+      {/* Peak W×H column (2026-05-05 redesign): shows the WORLD-SPACE peak
+          demand the rig needs (canonicalW × peakScale, override-scaled,
+          clamped at canonical so we never extrapolate). INVARIANT of source
+          PNG dims — re-optimize/reload cycles do NOT change this number, so
+          users can trust it as a fixed reference for "what the rig wants."
+          Hover tooltip surfaces the raw world-AABB (pre-clamp) for
+          rotation / mesh-deformation diagnostics. */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
@@ -522,7 +533,7 @@ function Row({
         )}
         title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
       >
-        {`${row.effExportW}×${row.effExportH}`}
+        {`${row.peakDisplayW}×${row.peakDisplayH}`}
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
           trumps the prior override-aware text-accent here per the deliberate

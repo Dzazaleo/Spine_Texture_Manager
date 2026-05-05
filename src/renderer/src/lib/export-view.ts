@@ -48,7 +48,7 @@ import type {
   ExportRow,
   SkeletonSummary,
 } from '../../../shared/types.js';
-import { applyOverride } from './overrides-view.js';
+import { applyOverride, clampOverride } from './overrides-view.js';
 
 export interface BuildExportPlanOptions {
   /** Default false (D-109). Future Settings toggle path. */
@@ -166,7 +166,7 @@ export function computeExportDims(
   // change — back-compat preserved).
   canonicalW?: number,
   canonicalH?: number,
-): { effScale: number; outW: number; outH: number; displayScale: number } {
+): { effScale: number; outW: number; outH: number; displayScale: number; peakDisplayW: number; peakDisplayH: number } {
   // Match buildExportPlan's effScale derivation exactly:
   // 1. raw effScale = (override/100) × peakScale  OR  peakScale fallback
   //    (peak-anchored — 2026-05-05 redesign; see overrides.ts docblock).
@@ -208,7 +208,25 @@ export function computeExportDims(
   // (1.000× = "no further reduction will happen").
   const sourceWForRatio = actualSourceW ?? canonW;
   const displayScale = sourceWForRatio > 0 ? outW / sourceWForRatio : effScale;
-  return { effScale, outW, outH, displayScale };
+
+  // Peak display dims (2026-05-05 redesign — invariant of source PNG dims):
+  //   peakDisplayW/H = ceil(canonicalW × min(safeScale(peakScale × overrideFrac), 1))
+  // The Peak W×H column shows what the rig DEMANDS in world-space pixels
+  // (canonicalW × peakScale, clamped at canonical so we never extrapolate).
+  // It is NOT capped by sourceRatio — that cap exists in the EXPORT path to
+  // guarantee we never write a PNG bigger than the source we have to read,
+  // but it is operational, not informational. The user's invariant holds:
+  // Peak says "the rig wants this much pixel coverage" regardless of how
+  // big the on-disk PNG happens to be right now (pre-optimized or not).
+  // Override scales peak proportionally — 50% override → peak shows half the
+  // raw demand — so the column always represents "what we're targeting."
+  const overrideFrac = override !== undefined ? clampOverride(override) / 100 : 1;
+  const rawPeakEff = peakScale * overrideFrac;
+  const peakDisplayEff = Math.min(safeScale(rawPeakEff), 1);
+  const peakDisplayW = Math.ceil(canonW * peakDisplayEff);
+  const peakDisplayH = Math.ceil(canonH * peakDisplayEff);
+
+  return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH };
 }
 
 export function buildExportPlan(
