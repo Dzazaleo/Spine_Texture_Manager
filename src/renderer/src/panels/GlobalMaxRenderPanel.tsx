@@ -754,26 +754,37 @@ export function GlobalMaxRenderPanel({
   }, [focusAttachmentName, sorted, useVirtual]);
 
   // Plain single-toggle (Space / Enter keyboard path, or plain mouse click).
+  // QA-01 (Phase 27): functional updater form — `prev` reads the latest queued
+  // state, eliminating a stale-closure race when two toggles batch into the
+  // same render window before React flushes.
   const handleToggleRow = useCallback(
     (key: string) => {
-      const next = new Set(selected);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      setSelected(next);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
       setLastClicked(key);
     },
-    [selected],
+    [],
   );
 
   // Shift-click range-toggle (mouse-only; fired from the wrapping label onClick).
+  // QA-01 (Phase 27): each branch uses the functional updater form so rapid-fire
+  // shift-click sequences cannot drop a queued update via closure capture. The
+  // `targetSelected` derivation moves INSIDE the updater so it reads `prev.has(key)`
+  // — the same race that the rest of the refactor closes.
   const handleRangeToggle = useCallback(
     (key: string) => {
       if (lastClicked === null) {
         // No anchor yet — fall back to single-toggle semantics.
-        const next = new Set(selected);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        setSelected(next);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        });
         setLastClicked(key);
         return;
       }
@@ -781,26 +792,30 @@ export function GlobalMaxRenderPanel({
       const bIdx = visibleKeys.indexOf(key);
       if (aIdx < 0 || bIdx < 0) {
         // Anchor not in visible set (filter changed); fall back to single-toggle.
-        const next = new Set(selected);
-        if (next.has(key)) next.delete(key);
-        else next.add(key);
-        setSelected(next);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        });
         setLastClicked(key);
         return;
       }
       const [lo, hi] = aIdx < bIdx ? [aIdx, bIdx] : [bIdx, aIdx];
-      const next = new Set(selected);
-      // Target state derived from the NEWLY clicked row: if it was selected,
-      // shift-click clears the range; else, shift-click adds.
-      const targetSelected = !selected.has(key);
-      for (let i = lo; i <= hi; i++) {
-        if (targetSelected) next.add(visibleKeys[i]);
-        else next.delete(visibleKeys[i]);
-      }
-      setSelected(next);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        // Target state derived from the NEWLY clicked row in `prev`: if it was
+        // selected, shift-click clears the range; else, shift-click adds.
+        const targetSelected = !prev.has(key);
+        for (let i = lo; i <= hi; i++) {
+          if (targetSelected) next.add(visibleKeys[i]);
+          else next.delete(visibleKeys[i]);
+        }
+        return next;
+      });
       setLastClicked(key);
     },
-    [selected, lastClicked, visibleKeys],
+    [lastClicked, visibleKeys],
   );
 
   return (
