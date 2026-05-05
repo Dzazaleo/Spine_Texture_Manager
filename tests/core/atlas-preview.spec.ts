@@ -174,19 +174,50 @@ describe('buildAtlasPreview — case (c) Override 50% on TRIANGLE (D-125 + D-111
   });
 });
 
-describe('buildAtlasPreview — case (d) Ghost-fixture (D-109 updated by Phase 24 Plan 01)', () => {
-  it('SIMPLE_TEST_GHOST → GHOST absent from preview (never in peaks, so never packed regardless of exclusion logic)', () => {
-    // Phase 24 Plan 01: The old unusedAttachments-based D-109 exclusion has been
-    // removed. GHOST remains absent from the atlas preview because it was never
-    // sampled by the physics engine → not in globalPeaks → not in summary.peaks
-    // → not in buildAtlasPreview inputs. The exclusion set being empty is now
-    // irrelevant; the sampler filter is the actual gate.
+describe('buildAtlasPreview — case (d) Ghost-fixture (D-109 → Phase 24 Plan 01 → Plan 260505-lk0)', () => {
+  it('SIMPLE_TEST_GHOST → GHOST IS present in summary.peaks and in original-mode preview (skin-declared unbound attachments are now measured per Plan 260505-lk0)', () => {
+    // Phase 24 Plan 01 removed the old unusedAttachments-based D-109 exclusion
+    // and made the sampler filter the gate: "GHOST absent because never
+    // sampled by the physics engine → not in globalPeaks → not in
+    // summary.peaks → not in preview".
+    //
+    // Plan 260505-lk0 (2026-05-05) flipped that gate: per the user's locked
+    // principle, ALL attachments declared in a skin's manifest must be
+    // measured for peak scale, optimization, and export — independent of
+    // whether any setup-pose binding or animation timeline activates them at
+    // runtime (visibility is runtime-mutable; dev code, player actions,
+    // equipment swaps can bind any skin-declared attachment to any slot).
+    //
+    // GHOST in SIMPLE_TEST_GHOST is exactly this case: declared in the
+    // default skin's manifest under slot CIRCLE (alongside the live CIRCLE
+    // attachment) but never bound to any slot at setup pose and never raised
+    // by an animation timeline. The new sampler skin-manifest pass (sampler.ts
+    // Pass 1.5) measures it via the slot's bone (CTRL → root chain), emits a
+    // PeakRecord with sourceW/H = 64/64, and so it now reaches summary.peaks
+    // → buildAtlasPreview inputs.
+    //
+    // Mode-specific behavior:
+    //   - 'original': all peaks from summary.peaks flow into the projection
+    //     directly (atlas-preview.ts:208), so GHOST is visible.
+    //   - 'optimized': buildAtlasPreview reads from buildExportPlan.rows
+    //     (atlas-preview.ts:184), and buildExportPlan splits no-resize rows
+    //     into `passthroughCopies` (export.ts:308). For SIMPLE_TEST_GHOST
+    //     baseline (no overrides), every region — including GHOST — has
+    //     peakScale clamped to ≤ 1.0 (Phase 6 Gap-Fix #1), so outW === sourceW
+    //     and ALL rows go to passthroughCopies. plan.rows is empty, so the
+    //     optimized projection is empty across the board. This is pre-existing
+    //     behavior independent of GHOST — verified by the same effect on
+    //     CIRCLE/SQUARE/TRIANGLE.
+    //
+    // Cross-load symmetry restored: atlas-source and optimized-folder loads
+    // now agree on the attachment set. JOKER-BG / JOKER-FRAME (regression
+    // anchors) and GHOST (this fixture) all flow through the same path.
     const summary = loadSummary(FIXTURE_GHOST);
-    for (const mode of ['original', 'optimized'] as const) {
-      const projection = buildAtlasPreview(summary, new Map(), { mode, maxPageDim: 2048 });
-      const allNames = projection.pages.flatMap((p) => p.regions.map((r) => r.attachmentName));
-      expect(allNames).not.toContain('GHOST');
-    }
+    expect(summary.peaks.map((p) => p.attachmentName)).toContain('GHOST');
+
+    const original = buildAtlasPreview(summary, new Map(), { mode: 'original', maxPageDim: 2048 });
+    const originalNames = original.pages.flatMap((p) => p.regions.map((r) => r.attachmentName));
+    expect(originalNames).toContain('GHOST');
   });
 });
 

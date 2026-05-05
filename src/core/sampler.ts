@@ -185,6 +185,105 @@ export function sampleSkeleton(
       /*perAnimationNames*/ null,
     );
 
+    // === Pass 1.5 (per skin) — skin-manifest coverage ===
+    //
+    // Plan 260505-lk0 (2026-05-05). Fixes silent-discard of skin-declared
+    // attachments that no slot binding ever activates.
+    //
+    // TRUE bug shape (verified against fixtures/SAMPLER_ALPHA_ZERO/
+    // TOPSCREEN_ANIMATION_JOKER.json): when an animator declares an
+    // attachment in a skin's manifest but turns "visibility off" in setup
+    // pose (no `attachment` field on the slot def) AND never animates it,
+    // Spine encodes this as `slot.attachment = null` at setup pose with no
+    // animation timeline raising it. Pass 1's snapshotFrame walks
+    // `skeleton.slots` and correctly skips slots where
+    // `slot.getAttachment() === null` (sampler.ts:285) — that guard is
+    // correct for the live-binding pass. But it leaves skin-declared
+    // attachments that no slot binding ever activates absent from
+    // globalPeaks / setupPosePeaks / the export plan / optimized images.
+    //
+    // The user's locked principle: visibility (slot binding null OR alpha
+    // 0) is a runtime-mutable concern. Dev code, player actions, equipment
+    // swaps can bind any skin-declared attachment to any slot at any
+    // frame. Therefore any attachment the skin manifest declares must be
+    // measured for peak scale, optimization, and export — independent of
+    // whether any setup-pose binding or animation timeline activates it.
+    //
+    // Defer rule (no double-emit): only emit for keys absent from
+    // globalPeaks. The existing setup-pose pass populates globalPeaks with
+    // the live binding; this pass only fills the gap for skin-declared
+    // attachments no setup-pose binding activated. Runs strictly after
+    // Pass 1 within the same skin scope so the dedupe is structurally
+    // correct.
+    //
+    // World transforms from the Physics.pose call above are still current
+    // (no skeleton mutation between then and here). attachmentWorldAABB /
+    // computeRenderScale accept arbitrary attachment params (bounds.ts:
+    // 59-92, bounds.ts:148-184) — no slot.setAttachment mutation needed.
+    //
+    // FALSIFIED prior plan: a previous PLAN.md targeted the alpha gate at
+    // sampler.ts:291. Empirical fixture probe falsified it — both
+    // JOKER-BG and JOKER-FRAME slot defs have no `color` field (default
+    // alpha 1.0). The alpha gate at sampler.ts:291 stays unchanged.
+    for (const entry of skin.getAttachments()) {
+      const slot = skeleton.slots[entry.slotIndex];
+      if (slot === undefined) continue; // defensive (skin/skeleton drift)
+
+      const attachment = entry.attachment;
+      // Defensive: SkinEntry shouldn't carry null, but the spine-core type
+      // declares `attachment: Attachment` and we don't trust the input fully.
+      if (attachment === null || attachment === undefined) continue;
+
+      const key = `${skin.name}/${slot.data.name}/${entry.name}`;
+      if (globalPeaks.has(key)) continue; // existing setup-pose pass already measured this binding — defer
+
+      const aabb = attachmentWorldAABB(slot, attachment);
+      if (aabb === null) continue; // BoundingBox / Path / Point / Clipping — no source texture
+
+      // Region-name resolution mirrors snapshotFrame's logic (sampler.ts:
+      // 309-310): prefer attachment.region.name (path indirection), fall
+      // back to entry.name. Identical lookup path so atlas-source vs
+      // optimized-folder load stays symmetric.
+      const regionName = (attachment as { region?: { name?: string } }).region?.name;
+      const sd = load.sourceDims.get(regionName ?? entry.name);
+      if (sd === undefined || sd.w <= 0 || sd.h <= 0) continue;
+
+      const rs = computeRenderScale(slot, attachment);
+      if (rs === null) continue;
+      const { scale: peakScale, scaleX: peakScaleX, scaleY: peakScaleY } = rs;
+      const worldW = aabb.maxX - aabb.minX;
+      const worldH = aabb.maxY - aabb.minY;
+
+      const record: PeakRecord = {
+        attachmentKey: key,
+        skinName: skin.name,
+        slotName: slot.data.name,
+        attachmentName: entry.name,
+        animationName: SETUP_POSE_LABEL,
+        time: 0,
+        frame: 0,
+        peakScaleX,
+        peakScaleY,
+        peakScale,
+        worldW,
+        worldH,
+        sourceW: sd.w,
+        sourceH: sd.h,
+        isSetupPosePeak: true,
+      };
+      globalPeaks.set(key, record);
+      setupPosePeaks.set(key, record); // mirror snapshotFrame's setup-pose-pass dual write
+      // D-54 baseline: if a future animation rebinds this attachment via
+      // AttachmentTimeline, the per-animation affected-check (Pass 2)
+      // computes scaleDelta = abs(peakScale - baseline). Without a
+      // baseline entry, that delta starts at peakScale - 0 = peakScale and
+      // the attachment becomes "affected by every animation" — false
+      // positive. Writing the baseline here ensures the affected-check
+      // works correctly for unbound-then-bound attachments.
+      setupPoseBaseline.set(key, peakScale);
+    }
+    // === end Pass 1.5 ===
+
     // Pass 2 (per skin, per animation): locked tick lifecycle.
     for (const anim of load.skeletonData.animations) {
       // Pre-loop: one-time collection of AttachmentTimeline-named pairs
