@@ -57,13 +57,23 @@
  */
 
 /**
- * Clamp a user-supplied percentage into the valid integer range [1, 100].
+ * Clamp a user-supplied percentage into the valid integer range [1, 999].
  *
- * D-79 contract:
+ * 2026-05-05 redesign: under peak-anchored override semantics, values above
+ * 100% are meaningful — they target dims between peak demand and the source
+ * ceiling (canonical or PNG, whichever binds). The actual per-row ceiling is
+ * computed downstream (effScale clamps at min(1.0, sourceRatio)), so this
+ * function only enforces an integer-storage discipline + a sane upper bound.
+ * 999 is an arbitrary "way more than any rig will ever need" sentinel — for
+ * peakScale = 0.001 (a region rendered at 1/1000 of canonical), 999% × 0.001
+ * = 9.99, far above any plausible canonical ceiling. Higher values would
+ * just be silently clamped at the same place.
+ *
+ * Contract:
  *   - Non-finite inputs (NaN, Infinity, -Infinity) → 1.
  *   - Non-integer inputs are rounded via Math.round BEFORE clamping.
  *   - Integer values < 1 → 1 (lower bound).
- *   - Integer values > 100 → 100 (F5.2 source-max clamp; silent clamp).
+ *   - Integer values > 999 → 999 (sane upper bound).
  *   - Otherwise, return the rounded integer unchanged.
  *
  * Silent clamping means the function never throws. Integer-only storage is
@@ -75,7 +85,7 @@ export function clampOverride(percent: number): number {
   if (!Number.isFinite(percent)) return 1;
   const int = Math.round(percent);
   if (int < 1) return 1;
-  if (int > 100) return 100;
+  if (int > 999) return 999;
   return int;
 }
 

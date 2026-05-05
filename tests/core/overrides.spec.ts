@@ -48,8 +48,12 @@ const CORE_SRC = path.resolve('src/core/overrides.ts');
 const VIEW_SRC = path.resolve('src/renderer/src/lib/overrides-view.ts');
 
 describe('clampOverride (D-79)', () => {
-  it('D-79: clamps 200 → 100 (silent source-max clamp, F5.2)', () => {
-    expect(clampOverride(200)).toBe(100);
+  it('D-79: passes 200 through (peak-anchored: values >100 are meaningful, target dims between peak and source ceiling)', () => {
+    // 2026-05-05 redesign: under peak-anchored semantics, override % can
+    // exceed 100 to target dims above peak demand. The actual per-row
+    // ceiling (effScale ≤ min(1.0, sourceRatio)) is enforced downstream;
+    // this function only enforces integer storage + a sane upper bound.
+    expect(clampOverride(200)).toBe(200);
   });
 
   it('D-79: passes 50 through unchanged (mid-range integer)', () => {
@@ -76,8 +80,16 @@ describe('clampOverride (D-79)', () => {
     expect(clampOverride(49.6)).toBe(50);
   });
 
-  it('D-79: 100 → 100 (upper bound — predicate is strictly > 100)', () => {
+  it('D-79: 100 → 100 (mid-range, no longer the upper bound)', () => {
     expect(clampOverride(100)).toBe(100);
+  });
+
+  it('D-79: 999 → 999 (new sane upper bound — way more than any rig will need)', () => {
+    expect(clampOverride(999)).toBe(999);
+  });
+
+  it('D-79: clamps 1500 → 999 (silent upper-bound clamp at sane sentinel)', () => {
+    expect(clampOverride(1500)).toBe(999);
   });
 
   it('D-79: 1 → 1 (lower bound exact)', () => {
@@ -99,10 +111,15 @@ describe('applyOverride (peak-anchored — percent of peak demand)', () => {
     expect(result.clamped).toBe(false);
   });
 
-  it('D-84: applyOverride(200, 0.5) → effectiveScale uses clamped 100; clamped flag TRUE', () => {
+  it('D-84: applyOverride(200, 0.5) → effectiveScale = 1.0; clamped flag TRUE (raw > 100 still sets the flag)', () => {
+    // 2026-05-05 redesign: clampOverride no longer clips at 100; 200 passes
+    // through. effectiveScale = (200/100) × 0.5 = 1.0 (canonical-relative).
+    // The downscale-only ≤ 1.0 clamp + sourceRatio cap fire downstream in
+    // buildExportPlan / computeExportDims — applyOverride itself is pure math.
+    // The `clamped` flag retains its `raw > 100` predicate as a "user typed
+    // beyond peak demand" signal for the existing visual badge.
     const result = applyOverride(200, 0.5);
-    // effectiveScale = (clampOverride(200)/100) × 0.5 = (100/100) × 0.5 = 0.5
-    expect(result.effectiveScale).toBeCloseTo(0.5, 5);
+    expect(result.effectiveScale).toBeCloseTo(1.0, 5);
     expect(result.clamped).toBe(true);
   });
 
@@ -118,10 +135,11 @@ describe('applyOverride (peak-anchored — percent of peak demand)', () => {
     expect(result.clamped).toBe(false);
   });
 
-  it('D-84: applyOverride(101, 0.6) → clamped TRUE (raw input exceeded 100 by 1)', () => {
+  it('D-84: applyOverride(101, 0.6) → clamped TRUE (raw input exceeded 100 by 1); effectiveScale uses 101%', () => {
     const result = applyOverride(101, 0.6);
-    // effectiveScale = (clampOverride(101)/100) × 0.6 = (100/100) × 0.6 = 0.6
-    expect(result.effectiveScale).toBeCloseTo(0.6, 5);
+    // 2026-05-05: 101 passes through clampOverride; effectiveScale = (101/100) × 0.6 = 0.606.
+    // Downstream ≤ 1.0 clamp may apply (here 0.606 < 1, no clamp fires).
+    expect(result.effectiveScale).toBeCloseTo(0.606, 5);
     expect(result.clamped).toBe(true);
   });
 

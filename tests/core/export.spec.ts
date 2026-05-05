@@ -105,12 +105,13 @@ describe('buildExportPlan — case (b) peak-anchored override on TRIANGLE (D-111
   });
 });
 
-describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Phase 4 D-91)', () => {
-  it('override 200% → applyOverride clamps to 100% → effScale = 100% × peakScale (peak-anchored)', () => {
-    // Peak-anchored semantics (2026-05-05): 200% clamps to 100% of PEAK
-    // (not 100% of canonical). effScale = 1.0 × peakScale = 0.4 → outW = 400.
-    // Synthetic SkeletonSummary — sidesteps fixture variability so the test
-    // locks the clamp contract precisely.
+describe('buildExportPlan — case (c) override 200% on SQUARE (peak-anchored, 2026-05-05)', () => {
+  it('override 200% → effScale = 200% × peakScale (raw, no clip at 100); downstream ≤ 1.0 clamp guards canonical', () => {
+    // 2026-05-05 redesign: clampOverride no longer clips at 100; values
+    // above target dims between peak demand and the source ceiling. For
+    // synthetic SQUARE with peakScale=0.4, 200% override yields effScale =
+    // 2.0 × 0.4 = 0.8 (still ≤ 1, no canonical clamp). outW = 800 ≠ sourceW
+    // → resize routes to plan.rows[].
     const summary = {
       peaks: [
         {
@@ -135,14 +136,44 @@ describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Ph
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
     const plan: ExportPlan = buildExportPlan(summary, overrides);
-    // 200% input → clampOverride(200) = 100 → effScale = 1.0 × peakScale (0.4) = 0.4
-    //   → outW = ceil(1000 × 0.4) = 400 ≠ sourceW → routed to rows[] (resize).
     expect(plan.rows.length).toBe(1);
     expect(plan.passthroughCopies.length).toBe(0);
     const row = plan.rows[0];
-    expect(row.effectiveScale).toBeCloseTo(0.4, 6);
-    expect(row.outW).toBe(400);
-    expect(row.outH).toBe(400);
+    expect(row.effectiveScale).toBeCloseTo(0.8, 6);
+    expect(row.outW).toBe(800);
+    expect(row.outH).toBe(800);
+  });
+
+  it('override 300% on the same SQUARE (peakScale 0.4) → effScale = 1.0 (canonical clamp fires); outW = sourceW → passthrough', () => {
+    // 300% × 0.4 = 1.2 → safeScale = 1.2 → ≤ 1 clamp fires → effScale = 1.0
+    //   → outW = ceil(1000 × 1.0) = 1000 = sourceW → passthrough (byte-copy).
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SQUARE/SQUARE',
+          attachmentName: 'SQUARE',
+          skinName: 'default',
+          slotName: 'SQUARE',
+          animationName: 'PATH',
+          time: 0.5,
+          frame: 30,
+          peakScale: 0.4,
+          peakScaleX: 0.4,
+          peakScaleY: 0.4,
+          worldW: 400,
+          worldH: 400,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/SQUARE.png',
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+    const plan: ExportPlan = buildExportPlan(summary, new Map([['SQUARE', 300]]));
+    expect(plan.passthroughCopies.length).toBe(1);
+    expect(plan.rows.length).toBe(0);
+    expect(plan.passthroughCopies[0].effectiveScale).toBeCloseTo(1.0, 6);
+    expect(plan.passthroughCopies[0].outW).toBe(1000);
   });
 });
 

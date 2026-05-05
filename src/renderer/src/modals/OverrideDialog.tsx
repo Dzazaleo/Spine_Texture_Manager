@@ -58,6 +58,18 @@ export interface OverrideDialogProps {
   scope: string[];
   currentPercent: number;
   anyOverridden: boolean;
+  /**
+   * 2026-05-05 redesign — per-row "max useful" percent the user can type
+   * before the silent canonical/source clamp fires. Computed by AppShell as
+   *   floor(min(1.0, sourceRatio) / peakScale × 100)
+   * For multi-row scope, AppShell passes the LOWEST ceiling across the
+   * selected rows so the hint is honest about where the cap will bind first.
+   * Anything typed above this is silently clamped to it downstream (effScale
+   * caps at min(1.0, sourceRatio) — the export never extrapolates beyond
+   * canonical artist asset OR beyond on-disk PNG dims, whichever is smaller).
+   * undefined when the rows lack peakScale data (defensive).
+   */
+  maxUsefulPercent?: number;
   onApply: (percent: number) => void;
   onClear: () => void;
   onCancel: () => void;
@@ -140,7 +152,7 @@ export function OverrideDialog(props: OverrideDialogProps) {
             ref={inputRef}
             type="number"
             min={1}
-            max={100}
+            max={999}
             step={1}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -148,7 +160,22 @@ export function OverrideDialog(props: OverrideDialogProps) {
           />
           <span className="text-fg-muted text-sm">%</span>
         </label>
-        <p className="text-fg-muted text-xs mt-2">Max = 100% (peak demand)</p>
+        {/* Peak-anchored redesign (2026-05-05): the hint surfaces the per-row
+            ceiling so the user knows in advance where the silent clamp will
+            fire. 100% = peak demand (the default sharpness target). Higher
+            values are allowed and target dims between peak and the source
+            ceiling (canonical-from-JSON OR on-disk PNG dims, whichever
+            binds). For pre-optimized rows the source PNG is the binding
+            ceiling; for canonical-no-drift rows it's the artist asset. */}
+        <p className="text-fg-muted text-xs mt-2">
+          100% = peak demand.
+          {props.maxUsefulPercent !== undefined && props.maxUsefulPercent > 100 && (
+            <> Max useful = {props.maxUsefulPercent}% (source limit).</>
+          )}
+          {props.maxUsefulPercent !== undefined && props.maxUsefulPercent <= 100 && (
+            <> Source PNG already at {props.maxUsefulPercent}% of peak — higher values silently cap.</>
+          )}
+        </p>
         <div className="flex gap-2 mt-6 justify-end">
           {/* Peak-anchored redesign (2026-05-05): under the new semantics
               applying 100% produces the same effScale as clearing the

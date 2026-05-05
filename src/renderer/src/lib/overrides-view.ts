@@ -36,7 +36,7 @@ export function clampOverride(percent: number): number {
   if (!Number.isFinite(percent)) return 1;
   const int = Math.round(percent);
   if (int < 1) return 1;
-  if (int > 100) return 100;
+  if (int > 999) return 999;
   return int;
 }
 

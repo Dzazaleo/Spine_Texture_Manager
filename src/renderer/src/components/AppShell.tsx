@@ -361,6 +361,15 @@ export function AppShell({
     scope: string[];
     currentPercent: number;
     anyOverridden: boolean;
+    /**
+     * 2026-05-05 redesign — per-row "max useful" % the user can type before
+     * the silent canonical/source clamp fires. AppShell computes this from
+     * the row's peakScale + sourceRatio at dialog-open time and threads it
+     * to OverrideDialog for the dynamic helper text. For multi-row scope,
+     * this is the LOWEST ceiling across selected rows so the hint is honest
+     * about where the cap binds first. undefined when peakScale is missing.
+     */
+    maxUsefulPercent?: number;
   } | null>(null);
 
   // Phase 6 Plan 06 — export dialog state. Held independently of
@@ -457,9 +466,32 @@ export function AppShell({
       );
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));
-      setDialogState({ scope, currentPercent, anyOverridden });
+      // 2026-05-05 redesign — compute per-row max-useful percent for the
+      // dialog's dynamic helper text. Formula:
+      //   maxUseful = floor(min(1.0, sourceRatio) / peakScale × 100)
+      // sourceRatio = actualSourceW/canonicalW (or 1.0 for no-drift rows).
+      // Picks the LOWEST ceiling across multi-row scope so the hint reflects
+      // where the silent clamp will FIRST bind across the selected set.
+      // Falls back to undefined when no row in scope has usable peakScale.
+      const peakRows = summary.peaks.filter((p) => scope.includes(p.attachmentName));
+      let maxUsefulPercent: number | undefined;
+      for (const p of peakRows) {
+        if (!(p.peakScale > 0)) continue;
+        const canonW = p.canonicalW ?? p.sourceW;
+        const canonH = p.canonicalH ?? p.sourceH;
+        const sourceRatio =
+          p.dimsMismatch && p.actualSourceW !== undefined && p.actualSourceH !== undefined && canonW > 0 && canonH > 0
+            ? Math.min(p.actualSourceW / canonW, p.actualSourceH / canonH)
+            : 1.0;
+        const ceiling = Math.min(1.0, sourceRatio);
+        const rowMax = Math.floor((ceiling / p.peakScale) * 100);
+        if (maxUsefulPercent === undefined || rowMax < maxUsefulPercent) {
+          maxUsefulPercent = rowMax;
+        }
+      }
+      setDialogState({ scope, currentPercent, anyOverridden, maxUsefulPercent });
     },
-    [overrides],
+    [overrides, summary.peaks],
   );
 
   const onApplyOverride = useCallback((scope: string[], percent: number) => {
@@ -1575,6 +1607,7 @@ export function AppShell({
           scope={dialogState.scope}
           currentPercent={dialogState.currentPercent}
           anyOverridden={dialogState.anyOverridden}
+          maxUsefulPercent={dialogState.maxUsefulPercent}
           onApply={(percent) => onApplyOverride(dialogState.scope, percent)}
           onClear={() => onClearOverride(dialogState.scope)}
           onCancel={() => setDialogState(null)}
