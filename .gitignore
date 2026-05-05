@@ -36,9 +36,17 @@ fixtures/SIMPLE_PROJECT/.cli-*.txt
 # Debug probe scripts — ad-hoc sampler/analyzer investigations, not part of the app
 scripts/probe-*.ts
 scripts/diagnose-*.ts
+/probe-*.mjs
+/probe-*.ts
 
 # Claude Code local config + agent worktrees (per-machine, not for remote)
 .claude/
+
+# Per-machine agent worktree state
+.claire/
+
+# Vitest scratch trace dirs (ad-hoc investigation specs, not production tests)
+tests/_trace_tmp/
 
 # GSD ephemeral checkpoint state (regenerated each discuss-phase session)
 .planning/phases/**/*-DISCUSS-CHECKPOINT.json
