@@ -238,14 +238,25 @@ function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[
   return rows.filter((r) => r.attachmentName.toLowerCase().includes(q));
 }
 
+// QA-03 (Phase 27): string-comparator branches pass { sensitivity: 'base',
+// numeric: true } so attachment names like CHAIN_10 sort after CHAIN_9 in
+// natural numeric order rather than between CHAIN_1 and CHAIN_2.
+//
+// SCOPE — display sort only. compareRows feeds sortRows (line 266) which
+// produces the table render order. Its output never crosses a determinism
+// boundary — not the packer (atlas-preview-view.ts is the determinism mirror
+// of src/core/atlas-preview.ts per D-125), not the export plan (export-view.ts
+// mirrors src/core/export.ts's byte-deterministic ordering). Updating the
+// panel comparator is therefore safe; updating those renderer-view sort
+// closures would break the preview↔export byte-identical invariant.
 function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
   switch (col) {
     case 'attachmentName':
-      return a.attachmentName.localeCompare(b.attachmentName);
+      return a.attachmentName.localeCompare(b.attachmentName, undefined, { sensitivity: 'base', numeric: true });
     case 'skinName':
-      return a.skinName.localeCompare(b.skinName);
+      return a.skinName.localeCompare(b.skinName, undefined, { sensitivity: 'base', numeric: true });
     case 'animationName':
-      return a.animationName.localeCompare(b.animationName);
+      return a.animationName.localeCompare(b.animationName, undefined, { sensitivity: 'base', numeric: true });
     case 'sourceW':
       return a.sourceW - b.sourceW;
     case 'worldW':
