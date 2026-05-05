@@ -76,7 +76,7 @@ Plans:
 Plans:
 - [x] 26.2-01-PLAN.md — Tab strip relocation + tab icons + TabButton extension (AppShell.tsx only) (Wave 1)
 - [x] 26.2-02-PLAN.md — WarningTriangleIcon component + 4 panel fill→stroke conversions + UnusedAssetsPanel rename + inline-search removal (Wave 1, parallel)
-- [ ] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04)
+- [x] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04) ✅ COMPLETE 2026-05-05
 
 ## Phase Details
 
@@ -668,7 +668,7 @@ Plans:
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
-| 27. Code quality sweep | v1.3 | 0/3 | Not started | — |
+| 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
 
 ## Deferred (post-v1.1)
 
