@@ -625,6 +625,25 @@ Plans:
 - [x] 26.1-03-PLAN.md — Atlas counter chip conditional + toolbar button h-8 harmonization (Wave 2)
 - [x] 26.1-04-PLAN.md — Danger panel headers + AnimationBreakdown stronger header + count cell min-width (Wave 3)
 
+### Phase 26.3: Draggable modals
+
+**Goal**: All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be repositioned by clicking and dragging on their title bar; positions reset to the centered default each time a modal reopens.
+
+**Depends on**: Phase 26.1 (color tokens + modal title-bar styling finalized; the title `<h2>` regions are the drag handle surface).
+
+**Requirements**: UI-09
+
+**Success Criteria** (what must be TRUE):
+  1. All 8 hand-rolled modals (OverrideDialog, OptimizeDialog, AtlasPreviewModal, SaveQuitDialog, SettingsDialog, HelpDialog, UpdateDialog, DocumentationBuilderDialog) can be dragged from the centered position to any new position by mouse-down on the title-bar region and dragging the pointer.
+  2. Drag is initiated only by the title bar; mouse-down on inputs, buttons, scrollable body content, or anywhere outside the title bar does NOT move the modal.
+  3. The drag handle shows `cursor: grab` at rest and `cursor: grabbing` while dragging (discoverability affordance).
+  4. Modal position is clamped to the viewport during drag: the title bar cannot leave the visible window, so a dragged modal can always be re-grabbed.
+  5. Position is ephemeral — closing and reopening any modal returns it to the centered default. Positions do NOT persist across reopens, view changes, or app restarts.
+  6. Existing keyboard, focus-trap, Escape-to-close, and `aria-labelledby` title-reference behavior continues to work unchanged after a drag.
+  7. No new third-party drag dependency is added (`react-draggable`, `react-rnd`, etc.); drag is implemented as a small shared hook or wrapper using native pointer events that all 8 modals consume.
+
+**Plans**: TBD
+
 ### Phase 27: Code quality sweep
 
 **Goal**: Four v1.0-era code quality carry-forwards are resolved with no functional behavior change — stale-closure risk on fast selection events eliminated, empty override input guarded, numeric sort ordering corrected, and dead prop removed.
