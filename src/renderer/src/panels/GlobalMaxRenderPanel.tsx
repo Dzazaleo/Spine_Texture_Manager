@@ -525,21 +525,37 @@ function Row({
           PNG dims — re-optimize/reload cycles do NOT change this number, so
           users can trust it as a fixed reference for "what the rig wants."
           Hover tooltip surfaces the raw world-AABB (pre-clamp) for
-          rotation / mesh-deformation diagnostics. */}
+          rotation / mesh-deformation diagnostics.
+
+          Override double-click target (2026-05-05): the click handler lives
+          here on the Peak column (was: Scale column) because the user is
+          editing what the rig demands, not the derived shrink ratio. The
+          Peak column is the semantic anchor of the override; Scale is a
+          read-only read-out of the resulting source-shrink ratio. */}
       <td
         className={clsx(
-          'py-2 px-3 font-mono text-sm text-right',
+          'py-2 px-3 font-mono text-sm text-right cursor-pointer',
           row.override !== undefined ? 'text-accent' : 'text-fg',
         )}
-        title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
+        onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
+        title={
+          row.override !== undefined
+            ? `${row.override}% of peak demand • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`
+            : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
+        }
       >
         {`${row.peakDisplayW}×${row.peakDisplayH}`}
+        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
           trumps the prior override-aware text-accent here per the deliberate
           D-06 visual unification (the override percent badge below still
           surfaces the override signal). clsx literal branches per Tailwind v4
-          discipline (no template-string interpolation). */}
+          discipline (no template-string interpolation).
+
+          2026-05-05: double-click handler moved to Peak column above. Scale
+          is a read-only display of "how much the source PNG will shrink to
+          reach the export size" (outW / sourceW). */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
@@ -549,7 +565,6 @@ function Row({
           state === 'missing' && 'bg-danger/10 text-danger',
           state === 'neutral' && 'text-fg',
         )}
-        onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
           row.override !== undefined
             ? `Source reduced to ${row.displayScale.toFixed(3)}× (${row.override}% of peak demand)`
@@ -557,7 +572,6 @@ function Row({
         }
       >
         {row.displayScale.toFixed(3)}×
-        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
         {onJumpToAnimation !== undefined ? (

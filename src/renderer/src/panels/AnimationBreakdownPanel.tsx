@@ -749,10 +749,8 @@ function BreakdownRowItem({
         />
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
-          State color trumps the prior override-aware text-accent here per
-          the deliberate D-06 visual unification (the override percent badge
-          below still surfaces the override signal). clsx literal branches
-          per Tailwind v4 discipline (no template-string interpolation). */}
+          2026-05-05: double-click handler moved to Peak column below.
+          Scale is a read-only display of the source-shrink ratio. */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right',
@@ -762,7 +760,6 @@ function BreakdownRowItem({
           state === 'missing' && 'bg-danger/10 text-danger',
           state === 'neutral' && 'text-fg',
         )}
-        onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
           row.override !== undefined
             ? `Source reduced to ${row.displayScale.toFixed(3)}× (${row.override}% of peak demand)`
@@ -770,22 +767,30 @@ function BreakdownRowItem({
         }
       >
         {row.displayScale.toFixed(3)}×
-        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       {/* Peak W×H column (2026-05-05 redesign): shows world-space pixel
           demand (canonicalW × peakScale, override-scaled, clamped at
           canonical). INVARIANT of source PNG dims — does not shift across
           re-optimize/reload cycles. Sibling-symmetric to the Global Max
-          Render panel column. Hover tooltip surfaces raw world-AABB for
-          rotation / mesh-deformation diagnostics. */}
+          Render panel column.
+
+          Override double-click target (2026-05-05): the click handler lives
+          here (was: Scale column). The user is editing what the rig demands,
+          not the derived shrink ratio. */}
       <td
         className={clsx(
-          'py-2 px-3 font-mono text-sm text-right',
+          'py-2 px-3 font-mono text-sm text-right cursor-pointer',
           row.override !== undefined ? 'text-accent' : 'text-fg',
         )}
-        title={`World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`}
+        onDoubleClick={() => onOpenOverrideDialog(row)}
+        title={
+          row.override !== undefined
+            ? `${row.override}% of peak demand • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`
+            : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
+        }
       >
         {`${row.peakDisplayW}×${row.peakDisplayH}`}
+        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
         {row.frameLabel}

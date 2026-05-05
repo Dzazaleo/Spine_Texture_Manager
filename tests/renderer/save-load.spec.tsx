@@ -195,13 +195,13 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // Mark the session dirty by applying an override via the GlobalMaxRender
     // panel double-click → OverrideDialog → Apply path. The override Map
     // gains CIRCLE → AppShell's isDirty memo flips true.
-    // Note: onDoubleClick lives on the Scale <td> (e.g. "0.500×"), NOT the
+    // Note: onDoubleClick lives on the Peak <td> (e.g. "0.500×"), NOT the
     // attachmentName <td> — so we target the row containing CIRCLE and
     // find the Scale cell within it.
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
-    fireEvent.doubleClick(scaleCell);
+    const peakCell = within(circleRow).getByText(/^32×32$/);
+    fireEvent.doubleClick(peakCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
     const apply = await screen.findByRole('button', { name: /^Apply$/i });
@@ -238,12 +238,12 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // Phase 8.1 Plan 05 — Rule 3 fix (see VR-03a above for full rationale).
     // findByText replaces microtask-await + queryByText (React 19 concurrent
     // rendering); CIRCLE replaces TRIANGLE (CIRCLE is in makeSummary()).
-    // onDoubleClick lives on the Scale <td>, so we find the row containing
-    // CIRCLE then target the Scale cell within it (peakScale 0.5 → "0.500×").
+    // onDoubleClick lives on the Peak <td>, so we find the row containing
+    // CIRCLE then target the Peak cell within it (peakScale 0.5 → "0.500×").
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
-    fireEvent.doubleClick(scaleCell);
+    const peakCell = within(circleRow).getByText(/^32×32$/);
+    fireEvent.doubleClick(peakCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
     const apply = await screen.findByRole('button', { name: /^Apply$/i });
@@ -431,8 +431,8 @@ describe('Phase 08.2 menu wiring', () => {
     // (peakScale 0.5 → "0.500×" in the Scale cell, where onDoubleClick lives).
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
-    fireEvent.doubleClick(scaleCell);
+    const peakCell = within(circleRow).getByText(/^32×32$/);
+    fireEvent.doubleClick(peakCell);
     // The OverrideDialog mount triggers a notifyMenuState push with modalOpen:true.
     await screen.findByRole('dialog');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
