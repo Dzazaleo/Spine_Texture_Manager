@@ -7,15 +7,12 @@
  * the QA-02 fix, Apply is disabled on empty/whitespace and Enter is a no-op
  * in the same state.
  *
- * Note on test scaffold: the helper passes `open={true}` for the duration of
- * Tasks 1 + 2. Task 3 (QA-04) removes the `open` prop from production and
- * STRIPS `open={true}` from this helper IN THE SAME COMMIT. This keeps each
- * task's RED/GREEN cleanly scoped:
- *   - Tasks 1/2 fail/pass in isolation; the dialog short-circuits to `null`
- *     without `open={true}` (line 82 of OverrideDialog.tsx pre-Task-3),
- *     which would mask QA-02 RED state under a "spinbutton not found" error.
- *   - Task 3 removes both the prop AND the helper's `open={true}` so the
- *     spec compiles against the new prop shape.
+ * QA-04 history: across Tasks 1 + 2 of plan 27-02 the helper passed an
+ * always-true `open` prop because production short-circuited via
+ * `if (!props.open) return null`. Task 3 removed that dead prop AND the
+ * helper passthrough in the same commit; the dialog's lifetime is now
+ * governed entirely by AppShell's `dialogState !== null && (...)` mount
+ * gate, and this spec mounts the dialog directly with no lifecycle prop.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -32,7 +29,6 @@ function renderDialog(overrides: Partial<OverrideDialogProps> = {}) {
   const onCancel = vi.fn();
   const utils = render(
     <OverrideDialog
-      open={true}
       scope={['SQUARE']}
       currentPercent={50}
       anyOverridden={false}
