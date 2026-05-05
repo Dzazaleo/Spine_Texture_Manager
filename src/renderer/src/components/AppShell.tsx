@@ -447,15 +447,13 @@ export function AppShell({
         selectedKeys.has(row.attachmentName) &&
         selectedKeys.size > 1;
       const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
-      // Gap-fix B (human-verify 2026-04-24): prefill is the existing override
-      // when set, else round(peakScale * 100) of the clicked row — shows
-      // current effective as the starting point in the new semantics where
-      // 100% = source dimensions and no-override = peakScale default.
-      // WR-01 (code review 2026-04-24): clamp the prefill so peakScale > 1.0
-      // (e.g. SIMPLE_TEST's pre-scaled SQUARE2 bone at ~1.78×) doesn't display
-      // a value above the "Max = 100%" helper text.
+      // Peak-anchored prefill (2026-05-05): under the new "% of peak demand"
+      // semantics, no-override === 100% (effScale = peakScale). So the dialog
+      // prefills to the existing override when set, else 100 (the default
+      // "ship at peak" value). The user can drag the value down from there to
+      // trade quality for bytes. clampOverride is still applied defensively.
       const currentPercent = clampOverride(
-        overrides.get(row.attachmentName) ?? Math.round(row.peakScale * 100),
+        overrides.get(row.attachmentName) ?? 100,
       );
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));

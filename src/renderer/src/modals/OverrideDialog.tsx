@@ -36,12 +36,14 @@
  *      body, input, and helper text; font-semibold (600) reserved for the
  *      primary Apply button. Weight 500 is forbidden project-wide.
  *
- * Phase 4 Plan 03 gap-fix B (human-verify 2026-04-24): two reset buttons
- * replace the single "Reset to 100%". "Reset to peak" (clear override)
- * is visible only when anyOverridden; "Reset to source (100%)" (apply-100)
- * is always visible. The helper text "Max = 100% (source dimensions)" is
- * now literally true under the new applyOverride semantics. See
- * 04-03-SUMMARY.md §Deviations for the full rationale.
+ * Peak-anchored override semantics (2026-05-05 redesign): the percent input
+ * means "% of peak demand" — 100% = ship at peak (sharpest possible without
+ * oversampling); 50% = ship at half of peak (trade quality for bytes). Under
+ * peak-anchored math, applying 100% is functionally equivalent to clearing
+ * the override (effScale === peakScale either way), so the prior "Reset to
+ * source (100%)" button has been collapsed into the single "Reset to peak"
+ * button (visible only when anyOverridden — nothing to clear otherwise).
+ * Helper text reads "Max = 100% (peak demand)".
  *
  * Layer 3 invariant: this file imports only React + type-only React
  * keyboard-event typing. It never reaches into the pure-TS math tree —
@@ -146,13 +148,14 @@ export function OverrideDialog(props: OverrideDialogProps) {
           />
           <span className="text-fg-muted text-sm">%</span>
         </label>
-        <p className="text-fg-muted text-xs mt-2">Max = 100% (source dimensions)</p>
+        <p className="text-fg-muted text-xs mt-2">Max = 100% (peak demand)</p>
         <div className="flex gap-2 mt-6 justify-end">
-          {/* Gap-fix B (human-verify 2026-04-24): two reset buttons replace the
-              single Reset. "Reset to peak" clears the override (visible only
-              when anyOverridden — nothing to clear otherwise). "Reset to
-              source (100%)" applies 100 — always visible as a valid target
-              action independent of current state. */}
+          {/* Peak-anchored redesign (2026-05-05): under the new semantics
+              applying 100% produces the same effScale as clearing the
+              override (both → effScale = peakScale), so the prior "Reset
+              to source (100%)" button was redundant. "Reset to peak"
+              remains as the single clear action, visible only when there
+              is actually an override to clear. */}
           {props.anyOverridden && (
             <button
               type="button"
@@ -162,13 +165,6 @@ export function OverrideDialog(props: OverrideDialogProps) {
               Reset to peak
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => props.onApply(100)}
-            className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
-          >
-            Reset to source (100%)
-          </button>
           <button
             type="button"
             onClick={props.onCancel}

@@ -204,9 +204,9 @@ export function HelpDialog(props: HelpDialogProps) {
           <p className="text-xs text-fg-muted leading-relaxed">
             Double-click any peak Scale cell, or click the &ldquo;Override
             Scale&rdquo; button on a row. Enter a percentage from 1 to 100
-            (100% = source dimensions; values above 100% silently clamp).
-            Overrides save to your .stmproj project file and apply across
-            all panels.
+            (100% = peak demand, the sharpest export without oversampling;
+            values above 100% silently clamp). Overrides save to your
+            .stmproj project file and apply across all panels.
           </p>
         </section>
 

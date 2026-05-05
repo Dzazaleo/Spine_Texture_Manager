@@ -194,13 +194,20 @@ export function computeExportDims(
   // sub-pixel tolerance.
   const outW = Math.ceil(canonW * effScale);
   const outH = Math.ceil(canonH * effScale);
-  // debug-fix scale-display-optimized-source — source-relative display scale.
-  // Shows how much the export changes the actual on-disk file, not the canonical
-  // atlas region. When the user has pre-optimized images (actualSourceW < canonicalW),
-  // outW may equal actualSourceW → displayScale = 1.0 (no change to file).
-  // Falls back to canonW when actualSourceW is unavailable (atlas-only projects).
-  const actualW = actualSourceW ?? canonW;
-  const displayScale = actualW > 0 ? outW / actualW : effScale;
+  // Peak-anchored display scale (2026-05-05 redesign): the Scale column shows
+  // "% of peak demand" the row will ship at. No override → 1.000× ("shipping
+  // at peak demand, sharpest possible"). Override 50% → 0.500× ("half of peak
+  // demand"). The denominator is the invariant world-space peak measurement,
+  // so this number does NOT shift across re-optimize/reload cycles like the
+  // prior source-relative formula did.
+  //
+  // Formula: effScale / peakScale, clamped at 1.0. effScale already folds in
+  // the override × peakScale multiplication, the ≤ 1.0 canonical clamp, and
+  // the source-ratio cap. Dividing back by peakScale recovers the override
+  // fraction the user effectively got (which equals the requested fraction
+  // when no clamps fired, and shows the truth when they did — making the
+  // existing isCapped badge informative).
+  const displayScale = peakScale > 0 ? Math.min(effScale / peakScale, 1) : effScale;
   return { effScale, outW, outH, displayScale };
 }
 

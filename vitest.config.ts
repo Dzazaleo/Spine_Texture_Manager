@@ -13,6 +13,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.spec.ts', 'tests/**/*.spec.tsx'],
+    // tests/_trace_tmp/ is a gitignored scratch dir for ad-hoc investigation
+    // specs (see .gitignore); exclude it so CI/local runs don't trip on
+    // throwaway probes left behind by debug sessions.
+    exclude: ['node_modules/**', 'dist/**', 'tests/_trace_tmp/**'],
     globals: false,
     testTimeout: 10_000,
     passWithNoTests: true,

@@ -200,7 +200,7 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // find the Scale cell within it.
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    const scaleCell = within(circleRow).getByText(/1\.000×/);
     fireEvent.doubleClick(scaleCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
@@ -242,7 +242,7 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // CIRCLE then target the Scale cell within it (peakScale 0.5 → "0.500×").
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    const scaleCell = within(circleRow).getByText(/1\.000×/);
     fireEvent.doubleClick(scaleCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
@@ -431,7 +431,7 @@ describe('Phase 08.2 menu wiring', () => {
     // (peakScale 0.5 → "0.500×" in the Scale cell, where onDoubleClick lives).
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/0\.500×/);
+    const scaleCell = within(circleRow).getByText(/1\.000×/);
     fireEvent.doubleClick(scaleCell);
     // The OverrideDialog mount triggers a notifyMenuState push with modalOpen:true.
     await screen.findByRole('dialog');

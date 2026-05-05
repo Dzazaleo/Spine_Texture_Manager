@@ -541,7 +541,7 @@ function Row({
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
           row.override !== undefined
-            ? `${row.override}% of source = ${row.displayScale.toFixed(3)}×`
+            ? `${row.override}% of peak demand = ${row.displayScale.toFixed(3)}×`
             : undefined
         }
       >

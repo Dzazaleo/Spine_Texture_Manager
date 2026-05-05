@@ -25,6 +25,9 @@ fixtures/images/
 # OS cruft
 .DS_Store
 
+# sed/editor backup files
+*.bak
+
 # Logs
 *.log
 npm-debug.log*
