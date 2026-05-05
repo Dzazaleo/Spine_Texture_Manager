@@ -484,6 +484,7 @@ function AtlasCanvas({
   onJumpToAttachment,
 }: AtlasCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -546,51 +547,17 @@ function AtlasCanvas({
         ctx.textBaseline = 'alphabetic';
       }
 
-      // Always: outline + (if hovered) overlay + label.
+      // Always: outline + (if hovered) orange tint overlay. The hovered
+      // region's name + dims are shown in an HTML tooltip near the cursor
+      // (rendered outside the canvas) — small/narrow regions can't fit
+      // readable in-canvas text, and HTML text stays crisp regardless of
+      // the canvas's CSS-vs-backing-store downscale.
       const isHovered = hoveredAttachmentName === region.attachmentName;
       ctx.strokeStyle = isHovered ? 'rgba(249, 115, 22, 1)' : 'rgba(255, 255, 255, 0.4)';
       ctx.strokeRect(region.x, region.y, region.w, region.h);
       if (isHovered) {
         ctx.fillStyle = 'rgba(249, 115, 22, 0.25)';
         ctx.fillRect(region.x, region.y, region.w, region.h);
-
-        // The canvas backing-store is frameDim×frameDim (2048 or 4096 px) but
-        // displayed at ~600-700 css px, so canvas-units must be 3-6× larger
-        // than the desired display size. Pick a font size proportional to the
-        // region's smaller side, then shrink to fit the region's width.
-        const cx = region.x + region.w / 2;
-        const cy = region.y + region.h / 2;
-        const line1 = region.attachmentName;
-        const line2 = `${Math.round(region.w)} × ${Math.round(region.h)}`;
-
-        let fontSize = Math.min(120, Math.max(40, Math.min(region.w, region.h) * 0.14));
-        ctx.font = `600 ${fontSize}px sans-serif`;
-        const widest = Math.max(
-          ctx.measureText(line1).width,
-          ctx.measureText(line2).width,
-        );
-        const maxWidth = region.w * 0.9;
-        if (widest > maxWidth) {
-          fontSize *= maxWidth / widest;
-          ctx.font = `600 ${fontSize}px sans-serif`;
-        }
-
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.lineWidth = Math.max(3, fontSize * 0.18);
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
-        const y1 = cy - fontSize * 0.6;
-        const y2 = cy + fontSize * 0.6;
-        ctx.strokeText(line1, cx, y1);
-        ctx.fillText(line1, cx, y1);
-        ctx.strokeText(line2, cx, y2);
-        ctx.fillText(line2, cx, y2);
-
-        ctx.textAlign = 'start';
-        ctx.textBaseline = 'alphabetic';
-        ctx.lineWidth = 1;
       }
     }
   }, [page, frameDim, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
@@ -622,7 +589,13 @@ function AtlasCanvas({
   const onMouseMove = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
-      setHoveredAttachmentName(hit?.attachmentName ?? null);
+      if (hit) {
+        setHoveredAttachmentName(hit.attachmentName);
+        setCursorPos({ x: e.clientX, y: e.clientY });
+      } else {
+        setHoveredAttachmentName(null);
+        setCursorPos(null);
+      }
     },
     [hitTest, setHoveredAttachmentName],
   );
@@ -636,6 +609,10 @@ function AtlasCanvas({
   );
 
   if (!page) return <div className="text-fg-muted text-xs">No projection.</div>;
+
+  const hoveredRegion = hoveredAttachmentName
+    ? page.regions.find((r) => r.attachmentName === hoveredAttachmentName) ?? null
+    : null;
 
   // D-139 (Plan 06 amendment): canvas frame is the fixed maxPageDim × maxPageDim
   // square — empty space stays visible so the user sees how much page capacity
@@ -655,9 +632,54 @@ function AtlasCanvas({
           aria-label={`Packed atlas page ${page.pageIndex + 1}, ${page.regions.length} regions, ${page.efficiency.toFixed(1)}% efficiency`}
           className="block w-full h-full border border-border"
           onMouseMove={onMouseMove}
-          onMouseLeave={() => setHoveredAttachmentName(null)}
+          onMouseLeave={() => {
+            setHoveredAttachmentName(null);
+            setCursorPos(null);
+          }}
           onDoubleClick={onDoubleClick}
         />
+      </div>
+      {hoveredRegion && cursorPos && <HoverTooltip cursorPos={cursorPos} region={hoveredRegion} />}
+    </div>
+  );
+}
+
+/**
+ * Floating tooltip rendered near the cursor with the hovered region's name
+ * + dimensions. Position is `fixed` (escapes the modal/canvas stacking
+ * context) and `pointer-events: none` so it never blocks the canvas's
+ * mousemove/dblclick. Edge-flips horizontally/vertically when the cursor
+ * is close enough to the viewport edge that the default offset placement
+ * would clip — uses estimated dimensions (the actual element is bounded
+ * by max-w-[320px] + ~2 lines of text, so the estimate is conservative).
+ */
+function HoverTooltip({
+  cursorPos,
+  region,
+}: {
+  cursorPos: { x: number; y: number };
+  region: PackedRegion;
+}) {
+  const OFFSET = 14;
+  const W_ESTIMATE = 320;
+  const H_ESTIMATE = 64;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
+  const flipH = cursorPos.x + OFFSET + W_ESTIMATE > vw - 8;
+  const flipV = cursorPos.y + OFFSET + H_ESTIMATE > vh - 8;
+  return (
+    <div
+      role="tooltip"
+      className="fixed z-[60] pointer-events-none px-3 py-2 rounded-md border border-border bg-modal text-fg text-sm font-mono shadow-xl max-w-[320px]"
+      style={{
+        left: flipH ? cursorPos.x - OFFSET : cursorPos.x + OFFSET,
+        top: flipV ? cursorPos.y - OFFSET : cursorPos.y + OFFSET,
+        transform: `translate(${flipH ? '-100%' : '0'}, ${flipV ? '-100%' : '0'})`,
+      }}
+    >
+      <div className="font-semibold break-all">{region.attachmentName}</div>
+      <div className="text-xs text-fg-muted mt-0.5">
+        {`${Math.round(region.w)} × ${Math.round(region.h)}`}
       </div>
     </div>
   );
