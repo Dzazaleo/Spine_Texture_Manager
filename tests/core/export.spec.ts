@@ -72,8 +72,13 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
   });
 });
 
-describe('buildExportPlan — case (b) override 50% on TRIANGLE (D-111)', () => {
-  it('override 50% → out dims = Math.ceil(sourceW × 0.5) (Round 5 ceil)', () => {
+describe('buildExportPlan — case (b) peak-anchored override on TRIANGLE (D-111)', () => {
+  it('25% override on TRIANGLE (peakScale ≈ 2.0): effScale = 0.25 × peakScale clamped ≤ 1 → out dims < source', () => {
+    // Peak-anchored semantics (2026-05-05): override % means "% of peak demand".
+    // TRIANGLE has peakScale ≈ 2.0 in the SIMPLE_TEST fixture (zoomed-in animation),
+    // so any override ≥ 50% yields effScale ≥ 1.0 and clamps to the canonical
+    // ceiling (passthrough). 25% override → effScale = 0.25 × 2.0 = 0.5 →
+    // outW = ceil(sourceW × 0.5), which escapes the clamp and routes to rows[].
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
@@ -84,21 +89,26 @@ describe('buildExportPlan — case (b) override 50% on TRIANGLE (D-111)', () => 
       })),
       orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
-    const overrides = new Map<string, number>([['TRIANGLE', 50]]);
+    const overrides = new Map<string, number>([['TRIANGLE', 25]]);
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, overrides);
     const triRow = plan.rows.find((r) => r.attachmentNames.includes('TRIANGLE'));
     expect(triRow).toBeDefined();
     if (triRow) {
-      // 0.5 × 1000 = 500 → ceil = 500 → /1000 = 0.5; clamp ≤ 1 unchanged.
-      expect(triRow.effectiveScale).toBeCloseTo(0.5, 6);
-      expect(triRow.outW).toBe(Math.ceil(triRow.sourceW * 0.5));
-      expect(triRow.outH).toBe(Math.ceil(triRow.sourceH * 0.5));
+      // peakScale ≈ 2.0 × 25% = ≈ 0.5 (within safeScale ceil-thousandth tolerance).
+      // effScale lands on the safeScale-rounded value of 0.25 × peakScale.
+      const triPeak = peaks.find((p) => p.attachmentName === 'TRIANGLE')!.peakScale;
+      const expectedEff = Math.min(Math.ceil(0.25 * triPeak * 1000) / 1000, 1);
+      expect(triRow.effectiveScale).toBeCloseTo(expectedEff, 6);
+      expect(triRow.outW).toBe(Math.ceil(triRow.sourceW * expectedEff));
+      expect(triRow.outH).toBe(Math.ceil(triRow.sourceH * expectedEff));
     }
   });
 });
 
 describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Phase 4 D-91)', () => {
-  it('override 200% → applyOverride clamps to 100% → out dims = source dims', () => {
+  it('override 200% → applyOverride clamps to 100% → effScale = 100% × peakScale (peak-anchored)', () => {
+    // Peak-anchored semantics (2026-05-05): 200% clamps to 100% of PEAK
+    // (not 100% of canonical). effScale = 1.0 × peakScale = 0.4 → outW = 400.
     // Synthetic SkeletonSummary — sidesteps fixture variability so the test
     // locks the clamp contract precisely.
     const summary = {
@@ -125,14 +135,14 @@ describe('buildExportPlan — case (c) override 200% on SQUARE clamps (D-111, Ph
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
     const plan: ExportPlan = buildExportPlan(summary, overrides);
-    // Phase 22.1 D-06: 200% override clamps to 100% → effectiveScale=1.0 → outW=sourceW=1000 → passthroughCopies.
-    expect(plan.rows.length).toBe(0);
-    expect(plan.passthroughCopies.length).toBe(1);
-    const row = plan.passthroughCopies[0];
-    // Phase 4 D-91 + clampOverride: 200 clamps to 100 → effectiveScale = 1.0
-    expect(row.effectiveScale).toBeCloseTo(1.0, 6);
-    expect(row.outW).toBe(1000);
-    expect(row.outH).toBe(1000);
+    // 200% input → clampOverride(200) = 100 → effScale = 1.0 × peakScale (0.4) = 0.4
+    //   → outW = ceil(1000 × 0.4) = 400 ≠ sourceW → routed to rows[] (resize).
+    expect(plan.rows.length).toBe(1);
+    expect(plan.passthroughCopies.length).toBe(0);
+    const row = plan.rows[0];
+    expect(row.effectiveScale).toBeCloseTo(0.4, 6);
+    expect(row.outW).toBe(400);
+    expect(row.outH).toBe(400);
   });
 });
 
@@ -637,17 +647,17 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
-  it('both files share the same Math.ceil uniform sizing pattern (Round 5 — ceil replaces round; Bug A fix uses canonicalW base + override source-relative adjustment)', () => {
+  it('both files share the same Math.ceil uniform sizing pattern + peak-anchored override signature', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
     // Bug A fix (Phase 22.1 post-UAT): outW = ceil((canonicalW ?? sourceW) × effScale).
-    // Override fix: rawEffScale pre-adjusted by (sourceW / canonicalW) so
-    // "50% override" means 50% of the actual source PNG, not 50% of canonical.
+    // Peak-anchored override (2026-05-05): rawEffScale = applyOverride(pct, peakScale).effectiveScale,
+    // which already returns the canonical-relative value — no source-ratio adjustment needed.
     // Both files must match (hygiene).
     const ceilSig = /Math\.ceil\(\(acc\.row\.canonicalW \?\? acc\.row\.sourceW\)/;
     expect(coreText).toMatch(ceilSig);
     expect(viewText).toMatch(ceilSig);
-    const overrideSig = /applyOverride\(overridePct\)\.effectiveScale \* \(row\.sourceW \/ \(row\.canonicalW \?\? row\.sourceW\)\)/;
+    const overrideSig = /applyOverride\(overridePct,\s*row\.peakScale\)\.effectiveScale/;
     expect(coreText).toMatch(overrideSig);
     expect(viewText).toMatch(overrideSig);
   });
@@ -1498,18 +1508,13 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     expect(plan.passthroughCopies).toHaveLength(0);
   });
 
-  it('G-07: 50% override on a drifted-but-unified passthrough row re-routes to rows[] as resize', () => {
+  it('G-07: low-enough override on a clamped passthrough row re-routes to rows[] as resize', () => {
     // Unified model: sourceW === actualSourceW === canonicalW = 1000.
-    // No override: peakScale = 0.9 → effScale = 0.9 → outW = ceil(1000 × 0.9) = 900 ≠ 1000
-    // Wait — with peakScale=0.9, outW would be 900 ≠ 1000, so it goes to rows[].
-    // We need a case where WITHOUT override the row is passthrough:
-    //   → peakScale >= 1.0 (clamps to 1.0) → outW = sourceW → passthrough
-    //   → 50% override → outW = ceil(1000 × 0.5) = 500 ≠ 1000 → resize
-    // Use peakScale=2.0 (clamps to 1.0) as the "no override → passthrough" baseline.
-    //
-    // Without override: effScale = min(safeScale(2.0), 1) = 1.0 → outW = 1000 = sourceW → passthrough.
-    // With 50% override: applyOverride(50).effectiveScale = 0.5 → effScale = 0.5 → outW = 500 → resize.
-    //
+    // peak-anchored semantics (2026-05-05): override % means "% of peak demand".
+    // Use peakScale=2.0 (clamps to canonical 1.0) as the baseline:
+    //   - No override: effScale = min(safeScale(2.0), 1) = 1.0 → outW = 1000 = sourceW → passthrough.
+    //   - 25% override: effScale = 0.25 × 2.0 = 0.5 → outW = 500 → resize (escapes the clamp).
+    //   - (50% would yield 1.0, still clamped to passthrough — that's the cap edge.)
     // G-07 BLOCKER: the override takes the row OUT of passthroughCopies INTO rows[].
     const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'BIGROW');
 
@@ -1518,18 +1523,20 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     expect(planNoOverride.passthroughCopies).toHaveLength(1);
     expect(planNoOverride.rows).toHaveLength(0);
 
-    // 50% override → outW = 500 ≠ sourceW → re-routes to rows[].
-    const plan50 = buildExportPlan(summary, new Map([['BIGROW', 50]]));
-    expect(plan50.rows, 'G-07: 50% override must route to rows[]').toHaveLength(1);
-    expect(plan50.passthroughCopies, 'G-07: 50% override must leave passthroughCopies empty').toHaveLength(0);
-    const resizedRow = plan50.rows[0];
+    // 25% override → effScale = 0.25 × 2.0 = 0.5 → outW = 500 ≠ sourceW → re-routes to rows[].
+    const plan25 = buildExportPlan(summary, new Map([['BIGROW', 25]]));
+    expect(plan25.rows, 'G-07: 25% override must route to rows[]').toHaveLength(1);
+    expect(plan25.passthroughCopies, 'G-07: 25% override must leave passthroughCopies empty').toHaveLength(0);
+    const resizedRow = plan25.rows[0];
     expect(resizedRow.outW).toBe(Math.ceil(1000 * 0.5)); // 500
     expect(resizedRow.outH).toBe(Math.ceil(1000 * 0.5)); // 500
     expect(resizedRow.effectiveScale).toBeCloseTo(0.5, 6);
   });
 
   it('G-07: override that resolves to source-equal dims keeps row in passthroughCopies', () => {
-    // peakScale 2.0 (clamps to 1.0). 100% override → applyOverride(100) = 1.0 → outW = 1000 = sourceW → passthrough.
+    // peak-anchored: peakScale 2.0 with 100% override → effScale = 1.0 × 2.0 = 2.0 → safeScale = 2.0 →
+    // clamped to 1.0 (canonical ceiling) → outW = ceil(1000 × 1.0) = 1000 = sourceW → passthrough.
+    // 100% override is functionally equivalent to no-override under peak-anchored semantics.
     const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'KEEPROW');
     const plan = buildExportPlan(summary, new Map([['KEEPROW', 100]]));
     expect(plan.passthroughCopies, 'G-07 reverse: 100% override keeps row in passthroughCopies').toHaveLength(1);
@@ -1538,34 +1545,14 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     expect(plan.passthroughCopies[0].outH).toBe(1000);
   });
 
-  it('G-07: override above source-ratio cap → cap clamps → passthrough preserved', () => {
-    // Pre-unification scenario to test the cap math path:
-    // canonical=1628, actual=811 → sourceRatio ≈ 0.498.
-    // 100% override → downscaleClampedScale = 1.0 → cap clamps to 0.498 →
-    // outW = ceil(1628 × 0.498) = 811 = actualSourceW (binding axis) = sourceW? No—
-    // after 22.1-01 unified model: sourceW === actualSourceW = 811 (loader populates
-    // sourceW from atlas region orig). So ceil(811 × 0.498) ≈ 404 ≠ 811.
-    // To test the old "cap fires → passthrough" path, use dimsMismatch=true with
-    // actualSourceW < sourceW (legacy shape before unification):
-    // canonical/sourceW=1628, actual=811; peakScale=0.7.
-    // WITHOUT override: sourceRatio=811/1628≈0.498; effScale=min(0.7,0.498)=0.498;
-    //   outW=ceil(1628×0.498)=811=actualSourceW → is 811 === sourceW(1628)? NO → rows.
-    // Hmm — the legacy shape has sourceW=canonicalW=1628, actualSourceW=811.
-    // After restructure: outW=ceil(1628 × cappedEffScale).
-    // The isPassthrough = (outW === sourceW AND outH === sourceH) uses sourceW=1628.
-    // ceil(1628 × 0.498) = 811 ≠ 1628 → NOT passthrough.
-    //
-    // So the legacy drifted shape always goes to rows[] under the new predicate
-    // (since outW = actualSourceW ≈ 811 ≠ sourceW = 1628).
-    //
-    // The real G-07 scenario is the UNIFIED model (sourceW=actualSourceW=811):
-    // Then outW = ceil(811 × 1.0) = 811 = sourceW → passthrough.
-    // Already covered by the 100% override test above.
-    //
-    // For explicit cap-fires scenario we use unified model with high peakScale:
-    // sourceW = actualSourceW = 670, canonicalW = 670 (unified).
-    // No override; peakScale 5.0 → clamps to 1.0 → outW = 670 = sourceW → passthrough.
-    // With 100% override: same → passthrough. With 50%: outW=335 → resize.
+  it('G-07: override above peak-canonical cap → cap clamps → passthrough preserved', () => {
+    // Peak-anchored semantics (2026-05-05): override % means "% of peak demand".
+    // Unified model: sourceW = actualSourceW = canonicalW = 670.
+    // peakScale = 5.0 (extreme zoom) — every override ≥ 20% yields effScale ≥ 1.0
+    // and clamps to canonical (passthrough). Need an override < 20% to escape:
+    //   - No override: effScale = min(safeScale(5.0), 1) = 1.0 → outW = 670 → passthrough.
+    //   - 100% override: effScale = 1.0 × 5.0 = 5.0 → clamps to 1.0 → outW = 670 → passthrough.
+    //   - 10% override: effScale = 0.10 × 5.0 = 0.5 → outW = 335 → resize.
     const summary = makeDriftedSummaryUnified(670, 670, 5.0, 'CAPROW');
 
     // Baseline (no override): passthrough.
@@ -1573,15 +1560,15 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     expect(planBase.passthroughCopies).toHaveLength(1);
     expect(planBase.rows).toHaveLength(0);
 
-    // 100% override → passthrough preserved.
+    // 100% override → passthrough preserved (clamps at canonical ceiling).
     const plan100 = buildExportPlan(summary, new Map([['CAPROW', 100]]));
     expect(plan100.passthroughCopies, 'G-07 cap+override: 100% override keeps passthrough').toHaveLength(1);
     expect(plan100.rows).toHaveLength(0);
 
-    // 50% override → resize.
-    const plan50 = buildExportPlan(summary, new Map([['CAPROW', 50]]));
-    expect(plan50.rows, 'G-07 cap+override: 50% override routes to resize').toHaveLength(1);
-    expect(plan50.passthroughCopies).toHaveLength(0);
+    // 10% override → effScale = 0.5 → outW = 335 ≠ 670 → resize.
+    const plan10 = buildExportPlan(summary, new Map([['CAPROW', 10]]));
+    expect(plan10.rows, 'G-07 cap+override: 10% override routes to resize').toHaveLength(1);
+    expect(plan10.passthroughCopies).toHaveLength(0);
   });
 
   it('G-07: isCapped field on ExportRow is set when cap fires (downscaleClampedScale > sourceRatio)', () => {

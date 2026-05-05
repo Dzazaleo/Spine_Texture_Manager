@@ -153,10 +153,15 @@ describe('buildAtlasPreview — case (b) Optimized @ 2048 (D-125, F7.1)', () => 
   });
 });
 
-describe('buildAtlasPreview — case (c) Override 50% on TRIANGLE (D-125 + D-111, F7.1)', () => {
-  it('Optimized projection TRIANGLE region packed at half source dims (with ceil-thousandth)', () => {
+describe('buildAtlasPreview — case (c) Override 25% on TRIANGLE (D-125 + D-111, F7.1)', () => {
+  it('Optimized projection TRIANGLE region packed at peak-anchored override dims', () => {
+    // Peak-anchored semantics (2026-05-05): TRIANGLE has peakScale ≈ 2.0 in
+    // SIMPLE_TEST so any override ≥ 50% clamps at canonical (passthrough,
+    // not in plan.rows). 25% override → effScale = 0.25 × 2.0 = 0.5 → resize
+    // routes to plan.rows[]. The atlas preview must mirror buildExportPlan's
+    // outW/outH exactly (D-125 contract).
     const summary = loadSummary(FIXTURE_BASELINE);
-    const overrides = new Map<string, number>([['TRIANGLE', 50]]);
+    const overrides = new Map<string, number>([['TRIANGLE', 25]]);
     const projection = buildAtlasPreview(summary, overrides, {
       mode: 'optimized',
       maxPageDim: 2048,

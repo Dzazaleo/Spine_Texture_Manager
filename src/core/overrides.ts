@@ -2,19 +2,29 @@
  * Phase 4 Plan 01 — Pure-TS clamping math for user-supplied percentage overrides (D-75).
  *
  * Two named exports over raw number primitives: `clampOverride` snaps any
- * integer-rounded user input into [1, 100] (F5.2 source-max clamp — the app
- * does not allow upscaling beyond the source dimensions), and
- * `applyOverride` computes the effective scale directly from the clamped
- * percentage, flagging when the raw input exceeded 100 so the renderer can
- * surface a silent-clamp badge per D-84.
+ * integer-rounded user input into [1, 100], and `applyOverride` computes the
+ * effective scale by anchoring the clamped percentage to the row's peak demand,
+ * flagging when the raw input exceeded 100 so the renderer can surface a
+ * silent-clamp badge per D-84.
  *
- * Semantics superseded at human-verify 2026-04-24 (04-03 gap-fix B): the
- * override percent now represents the target effective scale as a fraction
- * of source dimensions (100% = source dimensions, the absolute maximum).
- * `applyOverride` no longer takes peak scale — effective scale is purely
- * `clampedPercent / 100`. Peak scale remains the floor-free default when no
- * override is present (resolved at the consumer site, not here). See
- * 04-03-SUMMARY.md §Deviations for the full rationale and user quotes.
+ * Peak-anchored override semantics (2026-05-05 redesign):
+ *   The override percent represents the target effective scale as a fraction of
+ *   PEAK DEMAND (100% = peak demand = sharpest possible export without
+ *   oversampling; 50% = ship at half of peak demand to trade quality for bytes).
+ *   Anchoring to peak (an invariant world-space measurement) instead of source
+ *   PNG dims (a moving target that changes after each optimization pass) makes
+ *   overrides idempotent across re-optimize/reload cycles: re-exporting an
+ *   already-optimized project at the same override percent yields the same
+ *   output dims, so reloads don't compound shrinkage. Supersedes the prior
+ *   "% of source dimensions" semantics (Phase 4 Plan 03 gap-fix B,
+ *   2026-04-24) which broke under the round-trip workflow demonstrated in
+ *   the 2026-05-05 design exercise (Steps 1–3).
+ *
+ * The "never extrapolate beyond canonical source" invariant is preserved:
+ *   effectiveScale is still clamped to ≤ 1.0 (canonical-relative) downstream
+ *   in buildExportPlan / computeExportDims. The override range [1, 100] only
+ *   allows downscaling from peak; users never request anything sharper than
+ *   peak demand (which would be wasted texels Spine can't sample anyway).
  *
  * Pure, stateless, zero-I/O, zero-dep. No React, no DOM, no spine-core
  * runtime import — this file works on primitives only. CLAUDE.md rule #5
@@ -70,18 +80,23 @@ export function clampOverride(percent: number): number {
 }
 
 /**
- * Compute effective scale from an override percentage.
+ * Compute effective scale from an override percentage anchored to peak demand.
  *
- * Supersedes 2026-04-24 at human-verify: the percent represents the target
- * effective scale as a fraction of source dimensions (100% = source dims).
- * Peak scale is no longer part of the equation — consumers render
- * `peakScale` as the default when no override is set, then switch to
- * `applyOverride(percent).effectiveScale` when an override exists.
+ * Peak-anchored semantics (2026-05-05 redesign):
+ *   `effectiveScale = (clampOverride(overridePercent) / 100) * peakScale`.
+ *   100% means "ship at peak demand" (sharpest export without oversampling);
+ *   50% means "ship at half of peak demand"; etc. peakScale comes from the
+ *   sampler — the canonical-relative ratio of world-space AABB to canonical
+ *   source dims — and is invariant of the on-disk PNG size, so the same
+ *   override percent yields the same export dims across re-optimize/reload
+ *   cycles (idempotent).
  *
  * Returns `{ effectiveScale, clamped }` where:
- *   - `effectiveScale = clampOverride(overridePercent) / 100`.
+ *   - `effectiveScale = (clampOverride(overridePercent) / 100) * peakScale`.
  *     The clamped percent is always used for the arithmetic, so callers
- *     never have to re-validate.
+ *     never have to re-validate. Note: this is canonical-relative; the
+ *     ≤ 1.0 ("never extrapolate beyond canonical") clamp is applied
+ *     downstream in buildExportPlan / computeExportDims.
  *   - `clamped` is strictly `overridePercent > 100` (raw input, pre-clamp).
  *     Per D-84 the badge still renders when clamped === true even though
  *     the effective scale reflects the clamped 100 value — the UX surfaces
@@ -94,8 +109,9 @@ export function clampOverride(percent: number): number {
  */
 export function applyOverride(
   overridePercent: number,
+  peakScale: number,
 ): { effectiveScale: number; clamped: boolean } {
   const clamped = overridePercent > 100;
   const safe = clampOverride(overridePercent);
-  return { effectiveScale: safe / 100, clamped };
+  return { effectiveScale: (safe / 100) * peakScale, clamped };
 }

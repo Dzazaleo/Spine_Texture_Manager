@@ -42,8 +42,9 @@ export function clampOverride(percent: number): number {
 
 export function applyOverride(
   overridePercent: number,
+  peakScale: number,
 ): { effectiveScale: number; clamped: boolean } {
   const clamped = overridePercent > 100;
   const safe = clampOverride(overridePercent);
-  return { effectiveScale: safe / 100, clamped };
+  return { effectiveScale: (safe / 100) * peakScale, clamped };
 }

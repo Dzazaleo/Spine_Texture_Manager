@@ -168,16 +168,14 @@ export function computeExportDims(
   canonicalH?: number,
 ): { effScale: number; outW: number; outH: number; displayScale: number } {
   // Match buildExportPlan's effScale derivation exactly:
-  // 1. raw effScale = override-as-fraction × source-ratio correction OR
-  //    peakScale fallback
+  // 1. raw effScale = (override/100) × peakScale  OR  peakScale fallback
+  //    (peak-anchored — 2026-05-05 redesign; see overrides.ts docblock).
   // 2. ceil-thousandth (display lower-bound)
-  // 3. clamp to ≤ 1.0 (downscale-only invariant)
+  // 3. clamp to ≤ 1.0 (downscale-only invariant — never extrapolate)
   // 4. Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
-  // applyOverride is imported from ./overrides-view.js (Phase 4 D-91 —
-  // clamps integer percent to [1, 100] before dividing by 100).
   const rawEffScale =
     override !== undefined
-      ? applyOverride(override).effectiveScale * (sourceW / (canonicalW ?? sourceW))
+      ? applyOverride(override, peakScale).effectiveScale
       : peakScale;
   const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1);
   // Phase 22 DIMS-03 cap — uniform multiplier from min over both axes when
@@ -232,18 +230,19 @@ export function buildExportPlan(
   for (const row of summary.peaks) {
     if (excluded.has(row.attachmentName)) continue;
     if (!row.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
-    // D-111: override-via-applyOverride or fall back to peakScale.
-    // Override % semantics: user sees sourceW (= actualSourceW after 22.1-01)
-    // and sets "50%" meaning "50% of source". peakScale is relative to
-    // canonicalW. Convert override to canonical-relative so the canonical-base
-    // formula outW = ceil(canonicalW × effScale) produces the source-relative
-    // output: ceil(canonicalW × pct/100 × sourceW/canonicalW) = ceil(sourceW × pct/100).
-    // For non-drifted rows (sourceW = canonicalW) the ratio is 1.0 — no change.
+    // Peak-anchored override semantics (2026-05-05 redesign): override %
+    // means "% of peak demand". applyOverride(pct, peakScale) returns a
+    // canonical-relative effectiveScale = (pct/100) × peakScale, so the
+    // canonical-base formula outW = ceil(canonicalW × effScale) produces
+    // the right output dims directly — no source-ratio adjustment needed.
+    // 100% override === no-override (effScale === peakScale): export is
+    // idempotent across re-optimize/reload cycles because peakScale is an
+    // invariant world-space measurement, not source-PNG-relative.
     // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
     const overridePct = overrides.get(row.attachmentName);
     const rawEffScale =
       overridePct !== undefined
-        ? applyOverride(overridePct).effectiveScale * (row.sourceW / (row.canonicalW ?? row.sourceW))
+        ? applyOverride(overridePct, row.peakScale).effectiveScale
         : row.peakScale;
     // Gap-Fix Round 5 (2026-04-25): round UP to nearest thousandth FIRST so
     // the displayed `0.361×` is a guaranteed lower bound the export math
