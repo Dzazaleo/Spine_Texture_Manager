@@ -1574,6 +1574,16 @@ export function AppShell({
            */
           skippedAttachments={effectiveSummary.skippedAttachments ?? []}
         />
+        {/* Phase 24 PANEL-02 — hidden when 0 orphaned files (D-06); expanded by default
+            when N > 0. The panel self-hides via `return null` when empty — no conditional
+            wrapper needed here. Renders on BOTH tabs (same as MissingAttachmentsPanel)
+            because orphaned files are a project-level concern, not tab-specific.
+            Position (Phase 26.2 UAT): both project-level alert bars (MissingAttachments
+            + UnusedAssets) render BEFORE either tab's panel content, on both tabs —
+            supersedes Phase 24 D-07 which placed UnusedAssets between the two tab panels. */}
+        <UnusedAssetsPanel
+          orphanedFiles={effectiveSummary.orphanedFiles ?? []}
+        />
         {activeTab === 'global' && (
           <GlobalMaxRenderPanel
             summary={effectiveSummary}
@@ -1590,14 +1600,6 @@ export function AppShell({
             savingsPct={savingsPctMemo}
           />
         )}
-        {/* Phase 24 PANEL-02 — hidden when 0 orphaned files (D-06); expanded by default
-            when N > 0. Position: Global Max Render → Unused Assets → Animation Breakdown
-            (D-07). The panel self-hides via `return null` when empty — no conditional
-            wrapper needed here. Renders on BOTH tabs (same as MissingAttachmentsPanel)
-            because orphaned files are a project-level concern, not tab-specific. */}
-        <UnusedAssetsPanel
-          orphanedFiles={effectiveSummary.orphanedFiles ?? []}
-        />
         {activeTab === 'animation' && (
           <AnimationBreakdownPanel
             summary={effectiveSummary}
