@@ -88,13 +88,22 @@ export function OverrideDialog(props: OverrideDialogProps) {
 
   const apply = () => props.onApply(Number(inputValue));
 
+  // QA-02 (Phase 27) — empty/whitespace guard. Number('') === 0 floors silently
+  // through AppShell's onApply clamp to 1%; surfacing invalidity at the dialog
+  // is simpler than relying on downstream clamps. Number.isFinite(Number(' '))
+  // is false because Number(' ') === 0 — so trim() first, then check non-empty,
+  // then Number.isFinite catches inputs like 'abc' (Number('abc') === NaN).
+  const isValid = inputValue.trim() !== '' && Number.isFinite(Number(inputValue.trim()));
+
   // Enter triggers Apply (per-context shortcut, intentional). ESC moved
   // into useFocusTrap above so it works regardless of focus position.
   // Handler lives on the inner panel div (not on the input) so Tab
   // focus cycling stays intact — stopPropagation inside the input's
   // onKeyDown would break the trap.
+  // QA-02 (Phase 27): Enter is a no-op when isValid is false — same guard
+  // surface as the disabled Apply button.
   const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') apply();
+    if (e.key === 'Enter' && isValid) apply();
   };
 
   return (
@@ -160,7 +169,12 @@ export function OverrideDialog(props: OverrideDialogProps) {
           <button
             type="button"
             onClick={apply}
-            className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+            disabled={!isValid}
+            className={
+              isValid
+                ? "bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+                : "bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold opacity-50 cursor-not-allowed"
+            }
           >
             Apply
           </button>
