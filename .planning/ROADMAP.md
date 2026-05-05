@@ -638,7 +638,10 @@ Plans:
   3. Sort comparators that call `localeCompare` pass `{ sensitivity: 'base', numeric: true }` options; attachment names like CHAIN_10 sort after CHAIN_9 in numeric order rather than lexicographically between CHAIN_1 and CHAIN_2.
   4. The unreachable `if (!props.open) return null` guard and its associated `open` prop are removed from OverrideDialog; the component mounts and unmounts conditionally from AppShell with no dead early-return logic remaining.
 
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 27-01-PLAN.md — Functional setSelected updaters in GlobalMaxRenderPanel (QA-01) (Wave 1)
+- [ ] 27-02-PLAN.md — OverrideDialog empty-input Apply guard + remove dead `open` prop (QA-02 + QA-04) (Wave 1)
+- [ ] 27-03-PLAN.md — Natural-order localeCompare sweep across renderer comparators (QA-03) (Wave 2)
 
 ## Progress
 
@@ -665,7 +668,7 @@ Plans:
 | 24. Panel semantics — Unused Assets rewrite + atlas-savings metric | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
-| 27. Code quality sweep | v1.3 | 0/? | Not started | — |
+| 27. Code quality sweep | v1.3 | 0/3 | Not started | — |
 
 ## Deferred (post-v1.1)
 
