@@ -25,8 +25,13 @@
  *      contents so the user can retype.
  *   4. Tailwind v4 literal-class discipline (Pitfall 8): every className
  *      is a string literal. No template interpolation, no concatenation;
- *      conditional rendering handled via early-return null when !props.open
- *      rather than class toggling so the scanner sees every literal once.
+ *      conditional rendering handled by AppShell's mount gate
+ *      (`dialogState !== null && <OverrideDialog ... />`) rather than an
+ *      internal `open` flag (QA-04, Phase 27 — dead-prop removal). The
+ *      scanner sees every literal once because mount/unmount controls
+ *      visibility, not class toggling. QA-02 (Phase 27) added a single
+ *      ternary on the Apply button between two literal classNames for
+ *      the disabled-state opacity-50/cursor-not-allowed branch.
  *   5. Two-weight typography: font-normal (400, implicit default) for
  *      body, input, and helper text; font-semibold (600) reserved for the
  *      primary Apply button. Weight 500 is forbidden project-wide.
@@ -48,7 +53,6 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface OverrideDialogProps {
-  open: boolean;
   scope: string[];
   currentPercent: number;
   anyOverridden: boolean;
@@ -68,18 +72,24 @@ export function OverrideDialog(props: OverrideDialogProps) {
   // shared hook. ESC = onCancel works regardless of where focus has
   // drifted in the document. The hook also auto-focuses the first
   // tabbable on mount = the input, which is the desired D-81 behavior.
-  useFocusTrap(dialogRef, props.open, { onEscape: props.onCancel });
+  // QA-04 (Phase 27): the dialog mounts only when AppShell's dialogState
+  // !== null, so it is by definition always active when present. The
+  // hook's second arg becomes the literal `true`.
+  useFocusTrap(dialogRef, true, { onEscape: props.onCancel });
 
   // The select() call is split out from focus() because useFocusTrap
   // owns the focus step. The input is the FIRST tabbable so the hook
   // already focuses it; this useEffect runs after the hook's focus
   // call lands and immediately selects the contents so the user can
   // retype without a manual click+select. (Phase 4 D-81 retains.)
+  // QA-04 (Phase 27): runs once on mount. The mount itself is the
+  // trigger (AppShell remounts the dialog every time dialogState
+  // transitions from null → non-null), so deps are empty. inputRef
+  // is a stable ref (exempt from react-hooks/exhaustive-deps).
   useEffect(() => {
-    if (props.open) inputRef.current?.select();
-  }, [props.open]);
-
-  if (!props.open) return null;
+    inputRef.current?.select();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const title =
     props.scope.length === 1
@@ -88,13 +98,22 @@ export function OverrideDialog(props: OverrideDialogProps) {
 
   const apply = () => props.onApply(Number(inputValue));
 
+  // QA-02 (Phase 27) — empty/whitespace guard. Number('') === 0 floors silently
+  // through AppShell's onApply clamp to 1%; surfacing invalidity at the dialog
+  // is simpler than relying on downstream clamps. Number.isFinite(Number(' '))
+  // is false because Number(' ') === 0 — so trim() first, then check non-empty,
+  // then Number.isFinite catches inputs like 'abc' (Number('abc') === NaN).
+  const isValid = inputValue.trim() !== '' && Number.isFinite(Number(inputValue.trim()));
+
   // Enter triggers Apply (per-context shortcut, intentional). ESC moved
   // into useFocusTrap above so it works regardless of focus position.
   // Handler lives on the inner panel div (not on the input) so Tab
   // focus cycling stays intact — stopPropagation inside the input's
   // onKeyDown would break the trap.
+  // QA-02 (Phase 27): Enter is a no-op when isValid is false — same guard
+  // surface as the disabled Apply button.
   const keyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') apply();
+    if (e.key === 'Enter' && isValid) apply();
   };
 
   return (
@@ -160,7 +179,12 @@ export function OverrideDialog(props: OverrideDialogProps) {
           <button
             type="button"
             onClick={apply}
-            className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+            disabled={!isValid}
+            className={
+              isValid
+                ? "bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold"
+                : "bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold opacity-50 cursor-not-allowed"
+            }
           >
             Apply
           </button>

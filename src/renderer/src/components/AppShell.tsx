@@ -1615,7 +1615,6 @@ export function AppShell({
       </main>
       {dialogState !== null && (
         <OverrideDialog
-          open={true}
           scope={dialogState.scope}
           currentPercent={dialogState.currentPercent}
           anyOverridden={dialogState.anyOverridden}
