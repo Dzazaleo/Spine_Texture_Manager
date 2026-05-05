@@ -194,20 +194,20 @@ export function computeExportDims(
   // sub-pixel tolerance.
   const outW = Math.ceil(canonW * effScale);
   const outH = Math.ceil(canonH * effScale);
-  // Peak-anchored display scale (2026-05-05 redesign): the Scale column shows
-  // "% of peak demand" the row will ship at. No override → 1.000× ("shipping
-  // at peak demand, sharpest possible"). Override 50% → 0.500× ("half of peak
-  // demand"). The denominator is the invariant world-space peak measurement,
-  // so this number does NOT shift across re-optimize/reload cycles like the
-  // prior source-relative formula did.
-  //
-  // Formula: effScale / peakScale, clamped at 1.0. effScale already folds in
-  // the override × peakScale multiplication, the ≤ 1.0 canonical clamp, and
-  // the source-ratio cap. Dividing back by peakScale recovers the override
-  // fraction the user effectively got (which equals the requested fraction
-  // when no clamps fired, and shows the truth when they did — making the
-  // existing isCapped badge informative).
-  const displayScale = peakScale > 0 ? Math.min(effScale / peakScale, 1) : effScale;
+  // Source-shrink display scale (2026-05-05 redesign): the Scale column
+  // answers "how much will the source PNG be reduced to reach the export
+  // size?" — the on-disk shrink ratio outW / sourceW. Examples:
+  //   - Source 76, export 30 → 30/76 ≈ 0.395× ("export is 39.5% of source")
+  //   - Source 153, export 153 → 1.000× (no reduction needed; already at peak)
+  //   - 50% peak override on Source 76, peakScale 0.5 → outW = ceil(76 × 0.25)
+  //     = 19 → 19/76 ≈ 0.250× ("export is 25% of source")
+  // Uses actualSourceW when the loader detected a pre-optimized on-disk file
+  // (actualSourceW < canonicalW); falls back to canonW when actualSource is
+  // unavailable. After optimize+reload the row's actualSourceW IS the new
+  // on-disk dim, so this number stays meaningful across reload cycles
+  // (1.000× = "no further reduction will happen").
+  const sourceWForRatio = actualSourceW ?? canonW;
+  const displayScale = sourceWForRatio > 0 ? outW / sourceWForRatio : effScale;
   return { effScale, outW, outH, displayScale };
 }
 

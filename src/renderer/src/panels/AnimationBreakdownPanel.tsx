@@ -759,8 +759,8 @@ function BreakdownRowItem({
         onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
           row.override !== undefined
-            ? `${row.override}% of peak demand = ${row.displayScale.toFixed(3)}×`
-            : undefined
+            ? `Source reduced to ${row.displayScale.toFixed(3)}× (${row.override}% of peak demand)`
+            : `Source reduced to ${row.displayScale.toFixed(3)}× (peak demand)`
         }
       >
         {row.displayScale.toFixed(3)}×

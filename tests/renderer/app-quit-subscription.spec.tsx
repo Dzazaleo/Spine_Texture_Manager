@@ -187,7 +187,7 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
     // requires findBy* polling rather than naked microtask awaits.
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/1\.000×/);
+    const scaleCell = within(circleRow).getByText(/0\.500×/);
     fireEvent.doubleClick(scaleCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
@@ -229,7 +229,7 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
     // Mark dirty via the OverrideDialog Apply path (same as 18-c).
     const circleNameCell = await screen.findByText(/^CIRCLE$/i);
     const circleRow = circleNameCell.closest('tr')!;
-    const scaleCell = within(circleRow).getByText(/1\.000×/);
+    const scaleCell = within(circleRow).getByText(/0\.500×/);
     fireEvent.doubleClick(scaleCell);
     const input = await screen.findByRole('spinbutton');
     fireEvent.change(input, { target: { value: '50' } });
