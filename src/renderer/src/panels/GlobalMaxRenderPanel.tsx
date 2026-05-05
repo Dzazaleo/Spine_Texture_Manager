@@ -568,7 +568,7 @@ function Row({
         <span className="inline-flex items-center justify-end gap-1">
           <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
           {row.override !== undefined && (
-            <PencilIcon className="w-3.5 h-3.5 inline-block" />
+            <PencilIcon className="w-3.5 h-3.5 inline-block text-white" />
           )}
         </span>
       </td>
