@@ -86,12 +86,20 @@ describe('buildAtlasPreview — case (b) Optimized @ 2048 (D-125, F7.1)', () => 
   // packed slots when downscaling applies") we drive the user-override path,
   // which is the realistic Phase 7 workflow: user opens the modal → sees the
   // glow texture is too big → applies an override → reopens → glow rect shrinks.
-  it('SIMPLE_TEST + 50% override on each region → optimized regions strictly smaller; efficiency higher', () => {
+  it('SIMPLE_TEST + 25% override on each region → optimized regions strictly smaller; efficiency higher', () => {
+    // Override pct must be small enough to force ALL three regions into the
+    // resize partition (plan.rows) under peak-anchored semantics — overrides
+    // are interpreted as "% of peak demand", so effScale = (pct/100) × peakScale,
+    // then clamped to ≤ 1.0. SIMPLE_TEST peakScales are CIRCLE 2.02 / SQUARE 1.5 /
+    // TRIANGLE 2.0, so 50% would yield effScales of 1.01 / 0.75 / 1.0 → only
+    // SQUARE resizes; CIRCLE and TRIANGLE clamp to 1.0× and route to
+    // plan.passthroughCopies. 25% yields 0.505 / 0.375 / 0.5 → all three resize,
+    // so the strictly-smaller assertion below holds across every region.
     const summary = loadSummary(FIXTURE_BASELINE);
     const overrides = new Map<string, number>([
-      ['CIRCLE', 50],
-      ['SQUARE', 50],
-      ['TRIANGLE', 50],
+      ['CIRCLE', 25],
+      ['SQUARE', 25],
+      ['TRIANGLE', 25],
     ]);
     const original = buildAtlasPreview(summary, overrides, {
       mode: 'original',
@@ -204,15 +212,15 @@ describe('buildAtlasPreview — case (d) Ghost-fixture (D-109 → Phase 24 Plan 
     // Mode-specific behavior:
     //   - 'original': all peaks from summary.peaks flow into the projection
     //     directly (atlas-preview.ts:208), so GHOST is visible.
-    //   - 'optimized': buildAtlasPreview reads from buildExportPlan.rows
-    //     (atlas-preview.ts:184), and buildExportPlan splits no-resize rows
-    //     into `passthroughCopies` (export.ts:308). For SIMPLE_TEST_GHOST
-    //     baseline (no overrides), every region — including GHOST — has
-    //     peakScale clamped to ≤ 1.0 (Phase 6 Gap-Fix #1), so outW === sourceW
-    //     and ALL rows go to passthroughCopies. plan.rows is empty, so the
-    //     optimized projection is empty across the board. This is pre-existing
-    //     behavior independent of GHOST — verified by the same effect on
-    //     CIRCLE/SQUARE/TRIANGLE.
+    //   - 'optimized': buildAtlasPreview reads from BOTH plan.rows AND
+    //     plan.passthroughCopies (atlas-preview.ts:185), so passthrough rows
+    //     (scale=1.0×, byte-copy at export) still appear in the preview at
+    //     their source dims. For SIMPLE_TEST_GHOST baseline (no overrides),
+    //     every region — including GHOST — has peakScale clamped to ≤ 1.0
+    //     (Phase 6 Gap-Fix #1), so outW === sourceW and ALL rows go to
+    //     passthroughCopies. They flow into the optimized projection
+    //     unchanged so the user sees the full atlas footprint, not a
+    //     misleadingly empty page.
     //
     // Cross-load symmetry restored: atlas-source and optimized-folder loads
     // now agree on the attachment set. JOKER-BG / JOKER-FRAME (regression
@@ -287,8 +295,15 @@ describe('buildAtlasPreview — case (g) Optimized dims match Phase 6 D-110 ceil
       maxPageDim: 2048,
     });
     const plan = buildExportPlan(summary, overrides);
+    // Look up in BOTH rows and passthroughCopies — buildExportPlan partitions
+    // scale=1.0× (no-resize) rows into passthroughCopies, but they still need
+    // to appear in the optimized atlas preview so the user sees their atlas
+    // footprint. Without this, the SIMPLE_TEST baseline (all peakScales ≥ 1
+    // → all clamp to 1.0 → all passthrough) would have an empty plan.rows and
+    // every region lookup would fail.
+    const allPlanRows = [...plan.rows, ...plan.passthroughCopies];
     for (const region of projection.pages.flatMap((p) => p.regions)) {
-      const planRow = plan.rows.find((r) => r.attachmentNames.includes(region.attachmentName));
+      const planRow = allPlanRows.find((r) => r.attachmentNames.includes(region.attachmentName));
       expect(planRow).toBeDefined();
       expect(region.w).toBe(planRow!.outW);
       expect(region.h).toBe(planRow!.outH);

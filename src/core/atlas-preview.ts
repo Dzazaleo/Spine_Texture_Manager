@@ -179,9 +179,15 @@ function deriveInputs(
     // every region in the modal canvas. Walk every attachmentName in the row and
     // resolve dims from the matching DisplayRow (peak record) so the input shape
     // carries both source AND output dims regardless of mode.
+    //
+    // Why both rows + passthroughCopies: buildExportPlan splits scale=1.0× rows
+    // (no-resize, byte-copy at export) into passthroughCopies. They still occupy
+    // atlas space at their source dims — the user opens the optimized preview to
+    // see total page count / efficiency, so dropping them would understate the
+    // atlas size and hide images that ship unchanged.
     const plan = buildExportPlan(summary, overrides);
     const out: AtlasPreviewInput[] = [];
-    for (const row of plan.rows) {
+    for (const row of [...plan.rows, ...plan.passthroughCopies]) {
       for (const attachmentName of row.attachmentNames) {
         if (excluded.has(attachmentName)) continue;
         const peak = summary.peaks.find((p) => p.attachmentName === attachmentName);
