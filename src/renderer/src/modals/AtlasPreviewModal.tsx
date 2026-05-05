@@ -553,10 +553,44 @@ function AtlasCanvas({
       if (isHovered) {
         ctx.fillStyle = 'rgba(249, 115, 22, 0.25)';
         ctx.fillRect(region.x, region.y, region.w, region.h);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(region.attachmentName, region.x + 4, region.y + 14);
-        ctx.fillText(`${Math.round(region.w)} × ${Math.round(region.h)}`, region.x + 4, region.y + 28);
+
+        // The canvas backing-store is frameDim×frameDim (2048 or 4096 px) but
+        // displayed at ~600-700 css px, so canvas-units must be 3-6× larger
+        // than the desired display size. Pick a font size proportional to the
+        // region's smaller side, then shrink to fit the region's width.
+        const cx = region.x + region.w / 2;
+        const cy = region.y + region.h / 2;
+        const line1 = region.attachmentName;
+        const line2 = `${Math.round(region.w)} × ${Math.round(region.h)}`;
+
+        let fontSize = Math.min(120, Math.max(40, Math.min(region.w, region.h) * 0.14));
+        ctx.font = `600 ${fontSize}px sans-serif`;
+        const widest = Math.max(
+          ctx.measureText(line1).width,
+          ctx.measureText(line2).width,
+        );
+        const maxWidth = region.w * 0.9;
+        if (widest > maxWidth) {
+          fontSize *= maxWidth / widest;
+          ctx.font = `600 ${fontSize}px sans-serif`;
+        }
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(3, fontSize * 0.18);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+        const y1 = cy - fontSize * 0.6;
+        const y2 = cy + fontSize * 0.6;
+        ctx.strokeText(line1, cx, y1);
+        ctx.fillText(line1, cx, y1);
+        ctx.strokeText(line2, cx, y2);
+        ctx.fillText(line2, cx, y2);
+
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+        ctx.lineWidth = 1;
       }
     }
   }, [page, frameDim, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
