@@ -57,36 +57,42 @@
  */
 
 /**
- * Clamp a user-supplied percentage into the valid integer range [1, 999].
+ * Clamp a user-supplied percentage into the valid range [1, 999] at
+ * 2-decimal precision.
  *
- * 2026-05-05 redesign: under peak-anchored override semantics, values above
- * 100% are meaningful — they target dims between peak demand and the source
- * ceiling (canonical or PNG, whichever binds). The actual per-row ceiling is
- * computed downstream (effScale clamps at min(1.0, sourceRatio)), so this
- * function only enforces an integer-storage discipline + a sane upper bound.
- * 999 is an arbitrary "way more than any rig will ever need" sentinel — for
- * peakScale = 0.001 (a region rendered at 1/1000 of canonical), 999% × 0.001
- * = 9.99, far above any plausible canonical ceiling. Higher values would
- * just be silently clamped at the same place.
+ * 2026-05-05 redesign — 2-decimal precision (was integer-only):
+ *   The override-edit dialog prefills with the EFFECTIVE percent — what
+ *   the row's peak is actually being forced to right now after the silent
+ *   canonical/source clamps fire. When the cap binds at a non-integer
+ *   percent (e.g. a row with sourceRatio/peakScale = 1.4547 caps at exactly
+ *   145.47%), preserving that value in storage is what makes the prefill
+ *   round-trip correctly. Integer-only would lose the cap-binding precision:
+ *   round-storing 145.47 → 145 yields raw < cap on the next compute, so the
+ *   cap stops binding and the user's "145.47" becomes a flat "145.00".
+ *
+ *   2-decimal precision is enough — no UI surface displays more than 2.
+ *   Float-drift artifacts (e.g. 49.99 × 100 = 4999 in some JS engines vs
+ *   4999.000…001 in others) are absorbed by Math.round on the centi-percent.
+ *
+ * Range: [1, 999]. 999 is an arbitrary "way more than any rig will ever
+ * need" sentinel — far above any plausible per-row ceiling (effScale clamps
+ * at min(1.0, sourceRatio) downstream).
  *
  * Contract:
  *   - Non-finite inputs (NaN, Infinity, -Infinity) → 1.
- *   - Non-integer inputs are rounded via Math.round BEFORE clamping.
- *   - Integer values < 1 → 1 (lower bound).
- *   - Integer values > 999 → 999 (sane upper bound).
- *   - Otherwise, return the rounded integer unchanged.
+ *   - Inputs are rounded to the nearest 0.01 BEFORE clamping.
+ *   - Values < 1 → 1 (lower bound).
+ *   - Values > 999 → 999 (sane upper bound).
+ *   - Otherwise, return the centi-rounded value unchanged.
  *
- * Silent clamping means the function never throws. Integer-only storage is
- * mandated by D-78 so the overrides map has a single canonical shape; the
- * renderer should pre-validate the input with the same function before
- * surfacing any feedback.
+ * Silent clamping means the function never throws.
  */
 export function clampOverride(percent: number): number {
   if (!Number.isFinite(percent)) return 1;
-  const int = Math.round(percent);
-  if (int < 1) return 1;
-  if (int > 999) return 999;
-  return int;
+  const rounded = Math.round(percent * 100) / 100;
+  if (rounded < 1) return 1;
+  if (rounded > 999) return 999;
+  return rounded;
 }
 
 /**

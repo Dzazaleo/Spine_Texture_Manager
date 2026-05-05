@@ -447,19 +447,40 @@ export function AppShell({
         selectedKeys.has(row.attachmentName) &&
         selectedKeys.size > 1;
       const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
-      // Peak-anchored prefill (2026-05-05): under the new "% of peak demand"
-      // semantics, no-override === 100% (effScale = peakScale). So the dialog
-      // prefills to the existing override when set, else 100 (the default
-      // "ship at peak" value). The user can drag the value down from there to
-      // trade quality for bytes. clampOverride is still applied defensively.
-      const currentPercent = clampOverride(
-        overrides.get(row.attachmentName) ?? 100,
-      );
+      // Effective-percent prefill (2026-05-05): the dialog opens with the
+      // EXACT percent that's forcing the row's current peak — i.e. the
+      // post-cap effective. When the canonical/source clamp binds (typical
+      // for pre-optimized rows or high overrides), this is the truthful
+      // number the user is currently shipping at, with 2-decimal precision
+      // (e.g. 145.47%). When no clamp fires, it equals the stored override
+      // verbatim; with no stored override it equals 100.00 unless the cap
+      // is already binding without any user input (pre-optimized row whose
+      // source PNG can't reach peak demand — e.g. shows 80.16%).
+      //
+      // Computed without the safeScale ceil-thousandth (which is an export-
+      // path lower-bound) so the prefill keeps full decimal fidelity.
+      const peak = summary.peaks.find((p) => p.attachmentName === row.attachmentName);
+      let currentPercent = 100;
+      if (peak !== undefined && peak.peakScale > 0) {
+        const stored = overrides.get(row.attachmentName);
+        const overrideFrac = stored !== undefined ? clampOverride(stored) / 100 : 1;
+        const canonW = peak.canonicalW ?? peak.sourceW;
+        const canonH = peak.canonicalH ?? peak.sourceH;
+        const sourceRatio =
+          peak.dimsMismatch && peak.actualSourceW !== undefined && peak.actualSourceH !== undefined && canonW > 0 && canonH > 0
+            ? Math.min(peak.actualSourceW / canonW, peak.actualSourceH / canonH)
+            : Infinity;
+        const cappedRaw = Math.min(peak.peakScale * overrideFrac, 1, sourceRatio);
+        // toFixed(2) → parseFloat trims float-drift while keeping 2-decimal precision.
+        currentPercent = parseFloat(((cappedRaw / peak.peakScale) * 100).toFixed(2));
+        // Defensive: clampOverride enforces the [1, 999] range at the same precision.
+        currentPercent = clampOverride(currentPercent);
+      }
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));
       setDialogState({ scope, currentPercent, anyOverridden });
     },
-    [overrides],
+    [overrides, summary.peaks],
   );
 
   const onApplyOverride = useCallback((scope: string[], percent: number) => {

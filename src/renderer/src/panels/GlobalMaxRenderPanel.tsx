@@ -540,12 +540,11 @@ function Row({
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
           row.override !== undefined
-            ? `${row.override}% of peak demand • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`
+            ? `Override set • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to edit`
             : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
         }
       >
         {`${row.peakDisplayW}×${row.peakDisplayH}`}
-        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
           trumps the prior override-aware text-accent here per the deliberate

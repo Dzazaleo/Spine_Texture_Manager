@@ -785,12 +785,11 @@ function BreakdownRowItem({
         onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
           row.override !== undefined
-            ? `${row.override}% of peak demand • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`
+            ? `Override set • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to edit`
             : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
         }
       >
         {`${row.peakDisplayW}×${row.peakDisplayH}`}
-        {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
         {row.frameLabel}

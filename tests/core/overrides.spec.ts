@@ -76,8 +76,16 @@ describe('clampOverride (D-79)', () => {
     expect(clampOverride(Infinity)).toBe(1);
   });
 
-  it('D-78/D-79: 49.6 → 50 (Math.round applied BEFORE clamp; integer-only storage)', () => {
-    expect(clampOverride(49.6)).toBe(50);
+  it('D-79 (2026-05-05): 49.6 → 49.6 (2-decimal precision preserved, was integer-only)', () => {
+    expect(clampOverride(49.6)).toBe(49.6);
+  });
+
+  it('D-79 (2026-05-05): 145.47 → 145.47 (preserves cap-binding precision)', () => {
+    expect(clampOverride(145.47)).toBe(145.47);
+  });
+
+  it('D-79 (2026-05-05): 145.475 → 145.48 (rounds half-up at the centi-percent)', () => {
+    expect(clampOverride(145.475)).toBe(145.48);
   });
 
   it('D-79: 100 → 100 (mid-range, no longer the upper bound)', () => {

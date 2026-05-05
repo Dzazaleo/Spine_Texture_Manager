@@ -141,7 +141,7 @@ export function OverrideDialog(props: OverrideDialogProps) {
             type="number"
             min={1}
             max={999}
-            step={1}
+            step="any"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             className="bg-panel border border-border rounded-md px-2 py-1 w-24 text-fg focus:outline-none focus:ring-2 focus:ring-accent"
