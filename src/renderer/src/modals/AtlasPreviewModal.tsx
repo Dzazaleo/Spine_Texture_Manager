@@ -623,7 +623,7 @@ function AtlasCanvas({
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div
-        className="aspect-[1/1] w-full max-w-full max-h-full"
+        className="aspect-[1/1] h-full max-w-full max-h-full"
         style={{ maxWidth: `${frameDim}px`, maxHeight: `${frameDim}px` }}
       >
         <canvas
