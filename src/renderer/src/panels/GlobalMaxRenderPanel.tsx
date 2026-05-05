@@ -66,6 +66,7 @@ import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { formatBytes } from '../lib/format-bytes';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
+import { PencilIcon } from '../components/icons/PencilIcon';
 
 /**
  * Phase 9 Plan 03 — Threshold for switching from flat-table render to
@@ -180,18 +181,30 @@ export interface GlobalMaxRenderPanelProps {
 // ----- Pure helpers (module-top) -----------------------------------------
 
 /**
- * Phase 19 UI-02 + D-06 — Row state predicate. Drives the row left-accent
- * bar (UI-SPEC §5) and the tinted ratio cell. The "ratio" the spec refers
- * to is the effective render scale (1.0× = source size, < 1.0× = under-
- * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
+ * Row state predicate. Drives the row left-accent bar (UI-SPEC §5) and the
+ * tinted Peak W×H cell.
+ *
+ * 2026-05-05 redesign: the tint moved from the Scale column to the Peak
+ * column (Peak now answers the question users care about — savings vs at-
+ * limit). Predicate rebased from "peakRatio vs 1.0" to "peakDims vs
+ * sourceDims":
+ *   - 'under'   = peak < source     → green (export will reduce; savings)
+ *   - 'atLimit' = peak == source    → yellow (byte-copy passthrough)
+ *   - 'unused'/'missing'            → red (existing semantics)
+ *   - 'neutral'                     → no tint (defensive fallback)
+ *
+ * The 'over' case (peak > source) is gone — under the new caps the Peak
+ * display can never exceed source dims. peakDisplayW/H comes from
+ * computeExportDims which clamps at min(canonical, sourceRatio) before
+ * the panel ever sees it.
  */
-type RowState = 'under' | 'over' | 'unused' | 'neutral' | 'missing';
+type RowState = 'under' | 'atLimit' | 'unused' | 'neutral' | 'missing';
 
-function rowState(peakRatio: number, isUnused: boolean, isMissing?: boolean): RowState {
+function rowState(peakDisplayW: number, sourceW: number, isUnused: boolean, isMissing?: boolean): RowState {
   if (isMissing) return 'missing';
   if (isUnused) return 'unused';
-  if (peakRatio < 1.0) return 'under';
-  if (peakRatio > 1.0) return 'over';
+  if (peakDisplayW < sourceW) return 'under';
+  if (peakDisplayW === sourceW) return 'atLimit';
   return 'neutral';
 }
 
@@ -461,7 +474,7 @@ function Row({
           className={clsx(
             'inline-block w-1 h-full',
             state === 'under' && 'bg-success',
-            state === 'over' && 'bg-warning',
+            state === 'atLimit' && 'bg-warning',
             state === 'unused' && 'bg-danger',
             state === 'missing' && 'bg-danger',
             state === 'neutral' && 'bg-transparent',
@@ -519,23 +532,31 @@ function Row({
           loaderMode={loaderMode}
         />
       </td>
-      {/* Peak W×H column (2026-05-05 redesign): shows the WORLD-SPACE peak
-          demand the rig needs (canonicalW × peakScale, override-scaled,
-          clamped at canonical so we never extrapolate). INVARIANT of source
-          PNG dims — re-optimize/reload cycles do NOT change this number, so
-          users can trust it as a fixed reference for "what the rig wants."
-          Hover tooltip surfaces the raw world-AABB (pre-clamp) for
-          rotation / mesh-deformation diagnostics.
+      {/* Peak W×H column (2026-05-05 redesign): shows world-space peak
+          demand (canonicalW × peakScale, override-scaled, clamped at
+          min(canonical, sourceRatio) so we never extrapolate). Click to
+          override.
 
-          Override double-click target (2026-05-05): the click handler lives
-          here on the Peak column (was: Scale column) because the user is
-          editing what the rig demands, not the derived shrink ratio. The
-          Peak column is the semantic anchor of the override; Scale is a
-          read-only read-out of the resulting source-shrink ratio. */}
+          Tint moved here from the Scale column (2026-05-05): the cell
+          background encodes the savings/at-limit state (green = peak <
+          source = export will reduce; yellow = peak == source = byte-copy
+          passthrough). Override is signaled by the orange text + the
+          PencilIcon at the right of the cell — three layers of redundant
+          encoding (background, text color, icon) so the override stays
+          discoverable on top of any state tint and remains accessible to
+          color-blind users. */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right cursor-pointer',
-          row.override !== undefined ? 'text-accent' : 'text-fg',
+          state === 'under' && 'bg-success/10 text-success',
+          state === 'atLimit' && 'bg-warning/10 text-warning',
+          state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'missing' && 'bg-danger/10 text-danger',
+          state === 'neutral' && 'text-fg',
+          // Override text color overrides state text color — the override
+          // signal is a user-action signal that should be more prominent
+          // than the auto-derived state color.
+          row.override !== undefined && 'text-accent',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
@@ -544,29 +565,22 @@ function Row({
             : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
         }
       >
-        {`${row.peakDisplayW}×${row.peakDisplayH}`}
+        <span className="inline-flex items-center justify-end gap-1">
+          <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          {row.override !== undefined && (
+            <PencilIcon className="w-3.5 h-3.5 inline-block" />
+          )}
+        </span>
       </td>
-      {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5). State color
-          trumps the prior override-aware text-accent here per the deliberate
-          D-06 visual unification (the override percent badge below still
-          surfaces the override signal). clsx literal branches per Tailwind v4
-          discipline (no template-string interpolation).
-
-          2026-05-05: double-click handler moved to Peak column above. Scale
-          is a read-only display of "how much the source PNG will shrink to
-          reach the export size" (outW / sourceW). */}
+      {/* Scale column (2026-05-05 redesign): read-only source-shrink ratio
+          (outW / sourceW). Color-neutral — the savings/at-limit semantics
+          moved to the Peak cell tint above. Hover tooltip explains the
+          number in plain English. */}
       <td
-        className={clsx(
-          'py-2 px-3 font-mono text-sm text-right',
-          state === 'under' && 'bg-success/10 text-success',
-          state === 'over' && 'bg-warning/10 text-warning',
-          state === 'unused' && 'bg-danger/10 text-danger',
-          state === 'missing' && 'bg-danger/10 text-danger',
-          state === 'neutral' && 'text-fg',
-        )}
+        className="py-2 px-3 font-mono text-sm text-right text-fg"
         title={
           row.override !== undefined
-            ? `Source reduced to ${row.displayScale.toFixed(3)}× (${row.override}% of peak demand)`
+            ? `Source reduced to ${row.displayScale.toFixed(3)}× (override active)`
             : `Source reduced to ${row.displayScale.toFixed(3)}× (peak demand)`
         }
       >
@@ -1002,7 +1016,7 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(row.displayScale, false, row.isMissing);
+                  const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -1117,7 +1131,7 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(row.displayScale, false, row.isMissing);
+              const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
               return (
                 <Row
                   key={row.attachmentKey}

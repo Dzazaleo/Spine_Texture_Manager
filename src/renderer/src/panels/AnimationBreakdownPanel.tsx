@@ -84,6 +84,7 @@ import type {
 import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
+import { PencilIcon } from '../components/icons/PencilIcon';
 
 /**
  * Phase 9 Plan 04 (D-195/D-196) — threshold above which a card's INNER row
@@ -184,13 +185,13 @@ type EnrichedCard = Omit<AnimationBreakdown, 'rows'> & {
  * (mirroring the inline duplication in GlobalMaxRenderPanel.tsx — Plan 19-04
  * §"Hand-off Notes" allows the duplication; renderer-tree-only, two callsites).
  */
-type RowState = 'under' | 'over' | 'unused' | 'neutral' | 'missing';
+type RowState = 'under' | 'atLimit' | 'unused' | 'neutral' | 'missing';
 
-function rowState(peakRatio: number, isUnused: boolean, isMissing?: boolean): RowState {
+function rowState(peakDisplayW: number, sourceW: number, isUnused: boolean, isMissing?: boolean): RowState {
   if (isMissing) return 'missing';
   if (isUnused) return 'unused';
-  if (peakRatio < 1.0) return 'under';
-  if (peakRatio > 1.0) return 'over';
+  if (peakDisplayW < sourceW) return 'under';
+  if (peakDisplayW === sourceW) return 'atLimit';
   return 'neutral';
 }
 
@@ -702,7 +703,7 @@ function BreakdownRowItem({
           className={clsx(
             'inline-block w-1 h-full',
             state === 'under' && 'bg-success',
-            state === 'over' && 'bg-warning',
+            state === 'atLimit' && 'bg-warning',
             state === 'unused' && 'bg-danger',
             state === 'missing' && 'bg-danger',
             state === 'neutral' && 'bg-transparent',
@@ -748,39 +749,33 @@ function BreakdownRowItem({
           loaderMode={loaderMode}
         />
       </td>
-      {/* Phase 19 UI-02 + D-06 — tinted ratio cell (UI-SPEC §5 lines 314-323).
-          2026-05-05: double-click handler moved to Peak column below.
-          Scale is a read-only display of the source-shrink ratio. */}
+      {/* Scale column (2026-05-05 redesign): read-only source-shrink ratio
+          (outW / sourceW). Color-neutral — savings/at-limit semantics
+          moved to the Peak cell tint below. Sibling-symmetric with Global
+          Max Render panel. */}
       <td
-        className={clsx(
-          'py-2 px-3 font-mono text-sm text-right',
-          state === 'under' && 'bg-success/10 text-success',
-          state === 'over' && 'bg-warning/10 text-warning',
-          state === 'unused' && 'bg-danger/10 text-danger',
-          state === 'missing' && 'bg-danger/10 text-danger',
-          state === 'neutral' && 'text-fg',
-        )}
+        className="py-2 px-3 font-mono text-sm text-right text-fg"
         title={
           row.override !== undefined
-            ? `Source reduced to ${row.displayScale.toFixed(3)}× (${row.override}% of peak demand)`
+            ? `Source reduced to ${row.displayScale.toFixed(3)}× (override active)`
             : `Source reduced to ${row.displayScale.toFixed(3)}× (peak demand)`
         }
       >
         {row.displayScale.toFixed(3)}×
       </td>
-      {/* Peak W×H column (2026-05-05 redesign): shows world-space pixel
-          demand (canonicalW × peakScale, override-scaled, clamped at
-          canonical). INVARIANT of source PNG dims — does not shift across
-          re-optimize/reload cycles. Sibling-symmetric to the Global Max
-          Render panel column.
-
-          Override double-click target (2026-05-05): the click handler lives
-          here (was: Scale column). The user is editing what the rig demands,
-          not the derived shrink ratio. */}
+      {/* Peak W×H column (2026-05-05 redesign): world-space peak demand,
+          double-click to override. Tint encodes savings (green) vs at-limit
+          (yellow); pencil icon + orange text mark an active override.
+          Sibling-symmetric with Global Max Render panel. */}
       <td
         className={clsx(
           'py-2 px-3 font-mono text-sm text-right cursor-pointer',
-          row.override !== undefined ? 'text-accent' : 'text-fg',
+          state === 'under' && 'bg-success/10 text-success',
+          state === 'atLimit' && 'bg-warning/10 text-warning',
+          state === 'unused' && 'bg-danger/10 text-danger',
+          state === 'missing' && 'bg-danger/10 text-danger',
+          state === 'neutral' && 'text-fg',
+          row.override !== undefined && 'text-accent',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
@@ -789,7 +784,12 @@ function BreakdownRowItem({
             : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
         }
       >
-        {`${row.peakDisplayW}×${row.peakDisplayH}`}
+        <span className="inline-flex items-center justify-end gap-1">
+          <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          {row.override !== undefined && (
+            <PencilIcon className="w-3.5 h-3.5 inline-block" />
+          )}
+        </span>
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted text-right">
         {row.frameLabel}
@@ -858,7 +858,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
             // rows do not surface the global Unused Assets membership (that
             // lives on the global summary; per-animation rows only carry
             // peak data), so isUnused is always false here.
-            const state = rowState(row.displayScale, false, row.isMissing);
+            const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
             return (
               <BreakdownRowItem
                 key={row.attachmentKey}
@@ -903,7 +903,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
               // rows do not surface the global Unused Assets membership (that
               // lives on the global summary; per-animation rows only carry
               // peak data), so isUnused is always false here.
-              const state = rowState(row.displayScale, false, row.isMissing);
+              const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}
