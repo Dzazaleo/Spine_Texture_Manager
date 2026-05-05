@@ -126,7 +126,7 @@ export function OverrideDialog(props: OverrideDialogProps) {
       onClick={props.onCancel}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 min-w-[360px] font-mono"
+        className="bg-modal border border-border rounded-md p-6 min-w-[360px] font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={keyDown}
       >

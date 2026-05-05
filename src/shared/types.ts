@@ -207,7 +207,7 @@ export interface AnimationBreakdown {
  * structuredClone-safe: both fields are primitives.
  */
 export interface OrphanedFile {
-  /** PNG basename without the .png extension (e.g. "UNUSED_CIRCLE"). */
+  /** PNG path relative to images/ without the .png extension (e.g. "UNUSED_CIRCLE" or "AVATAR/BODY"). */
   filename: string;
   /** On-disk byte size from fs.statSync. 0 if stat fails (ENOENT / EACCES). */
   bytesOnDisk: number;

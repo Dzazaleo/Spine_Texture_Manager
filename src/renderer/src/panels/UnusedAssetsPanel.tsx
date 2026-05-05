@@ -85,10 +85,10 @@ export function UnusedAssetsPanel({ orphanedFiles }: UnusedAssetsPanelProps) {
           <tbody>
             {orphanedFiles.map((f) => (
               <tr key={f.filename} className="border-b border-border">
-                <td className="py-2 px-3 font-mono text-sm text-fg">
+                <td className="py-2 px-3 font-mono text-xs text-fg">
                   {f.filename}
                 </td>
-                <td className="py-2 px-3 font-mono text-sm text-fg-muted">
+                <td className="py-2 px-3 font-mono text-xs text-fg-muted">
                   {formatBytes(f.bytesOnDisk)}
                 </td>
               </tr>

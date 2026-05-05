@@ -760,12 +760,14 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
 
   it('Phase 22.1 G-04+G-07 isPassthrough predicate in BOTH files (post-restructure)', () => {
     // Phase 22.1 D-06 — the vestigial `isCapped || peakAlreadyAtOrBelowSource`
-    // predicate has been replaced with the simpler `outW === acc.row.sourceW && outH === acc.row.sourceH`
-    // evaluated in the emit loop (post-cap, post-override-resolution). Verify
-    // the new predicate is present in both canonical + renderer copies.
+    // predicate has been replaced with a source-relative comparison:
+    //   effectiveSourceW = actualSourceW when PNG < canonicalW, else sourceW
+    //   isPassthrough = outW === effectiveSourceW && outH === effectiveSourceH
+    // (debug-fix scale-display-optimized-source). Verify the new predicate is
+    // present in both canonical + renderer copies.
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
-    const sig = /isPassthrough\s*=\s*outW\s*===\s*acc\.row\.sourceW\s*&&\s*outH\s*===\s*acc\.row\.sourceH/;
+    const sig = /isPassthrough\s*=\s*outW\s*===\s*effectiveSourceW\s*&&\s*outH\s*===\s*effectiveSourceH/;
     expect(coreText).toMatch(sig);
     expect(viewText).toMatch(sig);
     // Confirm vestigial predicate is deleted from both files.
@@ -1195,8 +1197,11 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
   });
 
   it('rows[] sorted deterministically by sourcePath localeCompare (was: passthroughCopies sorted)', () => {
-    // Phase 22.1 D-06: drifted rows (peakScale=0.9, sourceRatio=0.5, outW=500 ≠ 1000=sourceW)
-    // now go to rows[] (resize), not passthroughCopies[]. Sort invariant still holds.
+    // Rows with peakScale=0.9 and no drift (actualSourceW=canonicalW=sourceW=1000):
+    // effScale = 0.9, outW = ceil(1000 * 0.9) = 900 ≠ 1000 = effectiveSourceW -> resize rows[].
+    // debug-fix scale-display-optimized-source: actualSourceW must NOT be smaller than
+    // canonicalW here, otherwise outW=500=effectiveSourceW=500 -> passthrough.
+    // Sort invariant: rows[] are sorted by sourcePath.localeCompare().
     const summary = {
       peaks: [
         {
@@ -1217,9 +1222,9 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           sourcePath: '/fake/Z.png',
           canonicalW: 1000,
           canonicalH: 1000,
-          actualSourceW: 500,
-          actualSourceH: 500,
-          dimsMismatch: true,
+          actualSourceW: 1000,
+          actualSourceH: 1000,
+          dimsMismatch: false,
         },
         {
           attachmentKey: 'default/SLOT/A',
@@ -1239,9 +1244,9 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           sourcePath: '/fake/A.png',
           canonicalW: 1000,
           canonicalH: 1000,
-          actualSourceW: 500,
-          actualSourceH: 500,
-          dimsMismatch: true,
+          actualSourceW: 1000,
+          actualSourceH: 1000,
+          dimsMismatch: false,
         },
         {
           attachmentKey: 'default/SLOT/M',
@@ -1261,15 +1266,15 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
           sourcePath: '/fake/M.png',
           canonicalW: 1000,
           canonicalH: 1000,
-          actualSourceW: 500,
-          actualSourceH: 500,
-          dimsMismatch: true,
+          actualSourceW: 1000,
+          actualSourceH: 1000,
+          dimsMismatch: false,
         },
       ],
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
-    // Phase 22.1 D-06: these drifted rows are now resize rows (outW=500 ≠ sourceW=1000).
+    // peakScale=0.9, no drift: outW = ceil(1000 * 0.9) = 900 ≠ 1000 -> resize rows[].
     const paths = plan.rows.map((r) => r.sourcePath);
     const sorted = [...paths].sort((a, b) => a.localeCompare(b));
     expect(paths).toEqual(sorted);

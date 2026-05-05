@@ -103,7 +103,7 @@ export function HelpDialog(props: HelpDialogProps) {
       onClick={props.onClose}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 max-w-[700px] max-h-[80vh] overflow-y-auto font-mono"
+        className="bg-modal border border-border rounded-md p-6 max-w-[700px] max-h-[80vh] overflow-y-auto font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-baseline justify-between mb-4">

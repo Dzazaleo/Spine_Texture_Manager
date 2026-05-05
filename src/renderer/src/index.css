@@ -45,9 +45,10 @@
    Colors reference Tailwind's built-in stone and orange palette variables,
    which are resolved at utility-generation time rather than render time. */
 @theme inline {
-  /* Neutrals — cool blue-dark base, two layers (D-12, D-13) */
-  --color-surface:   #232732;
-  --color-panel:     #232a3e;
+  /* Neutrals — dark gray app shell + dark blue modal layer (Phase 28) */
+  --color-surface:   #1f1f1e;
+  --color-panel:     #1f1f1e;
+  --color-modal:     #232731;
   --color-border:    #384158;
   --color-fg:        var(--color-stone-100);
   --color-fg-muted:  var(--color-stone-400);

@@ -90,7 +90,7 @@ export function SaveQuitDialog(props: SaveQuitDialogProps) {
       onClick={props.onCancel}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 min-w-[360px] max-w-[480px] font-mono"
+        className="bg-modal border border-border rounded-md p-6 min-w-[360px] max-w-[480px] font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="save-quit-title" className="text-sm text-fg mb-4 font-semibold">

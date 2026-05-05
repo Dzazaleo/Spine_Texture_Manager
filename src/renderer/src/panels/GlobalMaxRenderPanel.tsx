@@ -103,6 +103,14 @@ type EnrichedRow = DisplayRow & {
   effectiveScale: number;
   effExportW: number;
   effExportH: number;
+  /**
+   * debug-fix scale-display-optimized-source — source-relative display scale.
+   * outW / actualSourceW (or outW / canonicalW when actualSource unavailable).
+   * When the user has pre-optimized images, this is 1.000 for already-optimal
+   * attachments, correctly showing no change is needed to the file on disk.
+   * Distinct from effectiveScale (canonical-relative) which drives sort order.
+   */
+  displayScale: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -211,7 +219,7 @@ function enrichWithEffective(
     // show on-disk dims, NOT pre-cap canonical × peakScale). Without these,
     // the panel would lie to the user about what the export will actually
     // produce when the cap binds.
-    const { effScale, outW, outH } = computeExportDims(
+    const { effScale, outW, outH, displayScale } = computeExportDims(
       row.sourceW,
       row.sourceH,
       row.peakScale,
@@ -227,6 +235,7 @@ function enrichWithEffective(
       effectiveScale: effScale,
       effExportW: outW,
       effExportH: outH,
+      displayScale,
       override,
     };
   });
@@ -432,7 +441,7 @@ function Row({
         // AnimationBreakdownPanel.tsx line 407.
         isFlashing && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
         // Phase 26.1 D-06 + D-10 — danger tint takes priority over zebra for missing rows.
-        state === 'missing' ? 'bg-danger/10' : 'even:bg-white/[0.03]',
+        state === 'missing' ? 'bg-danger/20' : 'even:bg-white/[0.04]',
       )}
     >
       {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
@@ -474,6 +483,9 @@ function Row({
           </span>
         )}
         {highlightMatch(row.attachmentName, query)}
+        {row.isMissing && (
+          <span className="ml-1.5 text-xs text-danger font-semibold">(missing)</span>
+        )}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg-muted">{row.skinName}</td>
       <td className="py-2 px-3 font-mono text-sm text-fg text-right">
@@ -529,11 +541,11 @@ function Row({
         onDoubleClick={() => onOpenOverrideDialog(row, selectedKeys)}
         title={
           row.override !== undefined
-            ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
+            ? `${row.override}% of source = ${row.displayScale.toFixed(3)}×`
             : undefined
         }
       >
-        {row.effectiveScale.toFixed(3)}×
+        {row.displayScale.toFixed(3)}×
         {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       <td className="py-2 px-3 font-mono text-sm text-fg">
@@ -848,7 +860,7 @@ export function GlobalMaxRenderPanel({
         cap; cards stack with content-driven heights and no panel-level
         height switch occurs across the threshold.
       */}
-      <section className="border border-border rounded-md bg-panel p-4 mb-4 min-h-[calc(100vh-200px)]">
+      <section className="border border-border rounded-md bg-modal p-4 mb-4 min-h-[calc(100vh-200px)]">
       <header className="mb-4 flex items-center gap-2 text-sm font-semibold text-fg">
         <span aria-hidden="true" className="inline-flex items-center justify-center w-5 h-5 text-fg">
           <svg viewBox="0 0 20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="w-5 h-5">
@@ -898,7 +910,7 @@ export function GlobalMaxRenderPanel({
             }}
           >
             <table className="w-full border-collapse">
-              <thead className="bg-panel sticky top-0 z-10">
+              <thead className="bg-modal sticky top-0 z-10">
                 <tr>
                   <th className="w-1 p-0" aria-label="Row state indicator" />
                   <th scope="col" className="py-2 px-3 border-b border-border w-8">
@@ -966,7 +978,7 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(row.effectiveScale, false, row.isMissing);
+                  const state = rowState(row.displayScale, false, row.isMissing);
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -1006,7 +1018,7 @@ export function GlobalMaxRenderPanel({
         // threshold land here.
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-panel">
+            <tr className="bg-modal">
               <th className="w-1 p-0" aria-label="Row state indicator" />
               <th scope="col" className="py-2 px-3 border-b border-border w-8">
                 <SelectAllCheckbox
@@ -1081,7 +1093,7 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(row.effectiveScale, false, row.isMissing);
+              const state = rowState(row.displayScale, false, row.isMissing);
               return (
                 <Row
                   key={row.attachmentKey}

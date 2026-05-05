@@ -143,6 +143,14 @@ type EnrichedBreakdownRow = BreakdownRow & {
   effectiveScale: number;
   effExportW: number;
   effExportH: number;
+  /**
+   * debug-fix scale-display-optimized-source — source-relative display scale.
+   * outW / actualSourceW (or outW / canonicalW when actualSource unavailable).
+   * Sibling-symmetric to GlobalMaxRenderPanel.EnrichedRow.displayScale so the
+   * per-animation Scale column matches the Global Max Render panel's column for
+   * pre-optimized assets (1.000× when on-disk PNG already equals export target).
+   */
+  displayScale: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -209,7 +217,7 @@ function enrichCardsWithEffective(
       // symmetric to GlobalMaxRenderPanel.enrichWithEffective per Phase 19
       // D-06 (both panels read the same enriched shape from the same helper
       // signature).
-      const { effScale, outW, outH } = computeExportDims(
+      const { effScale, outW, outH, displayScale } = computeExportDims(
         row.sourceW,
         row.sourceH,
         row.peakScale,
@@ -225,6 +233,7 @@ function enrichCardsWithEffective(
         effectiveScale: effScale,
         effExportW: outW,
         effExportH: outH,
+        displayScale,
         override,
       };
     }),
@@ -494,7 +503,7 @@ function AnimationCard({
       ref={registerRef}
       aria-labelledby={headerId}
       className={clsx(
-        'border border-border rounded-md bg-panel overflow-hidden',
+        'border border-border rounded-md bg-modal overflow-hidden',
         isFlashing && 'ring-2 ring-accent ring-offset-2 ring-offset-surface',
       )}
     >
@@ -571,7 +580,7 @@ interface BreakdownTableProps {
  */
 function BreakdownTableHead() {
   return (
-    <thead className="bg-panel sticky top-0 z-10">
+    <thead className="bg-modal sticky top-0 z-10">
       <tr>
         {/* Phase 19 UI-02 + D-06 — empty cell aligning with the per-row
             state-color left-accent bar (`<td className="w-1 p-0">`). The
@@ -675,7 +684,7 @@ function BreakdownRowItem({
       className={clsx(
         'border-b border-border hover:bg-accent/5',
         // Phase 26.1 D-06 + D-10 — danger tint takes priority over zebra for missing rows.
-        state === 'missing' ? 'bg-danger/10' : 'even:bg-white/[0.03]',
+        state === 'missing' ? 'bg-danger/20' : 'even:bg-white/[0.04]',
       )}
     >
       {/* Phase 19 UI-02 + D-06 — row state-color left-accent bar (UI-SPEC §5).
@@ -705,6 +714,9 @@ function BreakdownRowItem({
           </span>
         )}
         {highlightMatch(row.attachmentName, query)}
+        {row.isMissing && (
+          <span className="ml-1.5 text-xs text-danger font-semibold">(missing)</span>
+        )}
       </td>
       <td
         title={row.bonePath.join(' → ')}
@@ -747,11 +759,11 @@ function BreakdownRowItem({
         onDoubleClick={() => onOpenOverrideDialog(row)}
         title={
           row.override !== undefined
-            ? `${row.override}% of source = ${row.effectiveScale.toFixed(3)}×`
+            ? `${row.override}% of source = ${row.displayScale.toFixed(3)}×`
             : undefined
         }
       >
-        {row.effectiveScale.toFixed(3)}×
+        {row.displayScale.toFixed(3)}×
         {row.override !== undefined && <span> • {row.override}%</span>}
       </td>
       {/* Peak W×H column (Round 5 2026-04-25): shows the EXPORT dims
@@ -836,7 +848,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
             // rows do not surface the global Unused Assets membership (that
             // lives on the global summary; per-animation rows only carry
             // peak data), so isUnused is always false here.
-            const state = rowState(row.effectiveScale, false, row.isMissing);
+            const state = rowState(row.displayScale, false, row.isMissing);
             return (
               <BreakdownRowItem
                 key={row.attachmentKey}
@@ -881,7 +893,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
               // rows do not surface the global Unused Assets membership (that
               // lives on the global summary; per-animation rows only carry
               // peak data), so isUnused is always false here.
-              const state = rowState(row.effectiveScale, false, row.isMissing);
+              const state = rowState(row.displayScale, false, row.isMissing);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}

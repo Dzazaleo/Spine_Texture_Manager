@@ -15,9 +15,9 @@
  * Takes pre-collected inputs; performs zero I/O (CLAUDE.md #5).
  * I/O (fs.readdirSync, fs.statSync) lives exclusively in src/main/summary.ts.
  *
- * @param imagesFolderFiles PNG basenames without extension (e.g. ["CIRCLE", "GHOST"])
+ * @param imagesFolderFiles PNG paths relative to images/ without extension (e.g. ["CIRCLE", "AVATAR/BODY"])
  * @param inUseNames Set of attachment/region names referenced by the rig
- * @returns Basenames of files in imagesFolderFiles that are NOT in inUseNames
+ * @returns Relative paths of files in imagesFolderFiles that are NOT in inUseNames
  */
 export function findOrphanedFiles(
   imagesFolderFiles: string[],

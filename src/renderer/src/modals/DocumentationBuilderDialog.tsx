@@ -116,7 +116,7 @@ export function DocumentationBuilderDialog(props: DocumentationBuilderDialogProp
       onClick={props.onClose}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 min-w-[960px] max-w-[1100px] max-h-[85vh] flex flex-col font-mono"
+        className="bg-modal border border-border rounded-md p-6 min-w-[960px] max-w-[1100px] max-h-[85vh] flex flex-col font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="documentation-builder-title" className="text-sm text-fg mb-1">
@@ -304,7 +304,7 @@ function TracksPane({ draft, summary, onChange }: TracksPaneProps) {
   // Track indices visible in the pane = union of indices that have entries
   // PLUS user-added empty tracks (local state). Persisted documentation
   // only carries entries; empty tracks live as local UI state.
-  const [emptyTrackIndices, setEmptyTrackIndices] = useState<number[]>([]);
+  const [emptyTrackIndices, setEmptyTrackIndices] = useState<number[]>([0]);
 
   const usedIndices = useMemo(() => {
     const s = new Set<number>();
@@ -412,7 +412,7 @@ function TracksPane({ draft, summary, onChange }: TracksPaneProps) {
                 // file-drop pathway (which filters on 'Files').
                 e.dataTransfer.setData('application/x-stm-anim', name);
               }}
-              className="cursor-grab px-2 py-1 text-sm font-mono text-fg border border-border rounded hover:border-accent hover:text-accent active:cursor-grabbing"
+              className="cursor-grab px-2 py-1 text-sm font-mono text-fg bg-surface border border-border rounded hover:border-accent hover:text-accent active:cursor-grabbing"
             >
               {name}
             </li>

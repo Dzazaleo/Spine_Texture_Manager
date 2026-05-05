@@ -213,6 +213,31 @@ describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)'
     }
   });
 
+  it('images/ subfolder PNG → orphanedFiles contains relative path e.g. "SUB/GHOST" (recursive scan)', () => {
+    // Regression: flat readdirSync dropped subdirectory entries; PNGs inside
+    // images/SUB/ were invisible to the orphan detector.
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-sub-'));
+    const tmpImages = path.join(tmpDir, 'images', 'SUB');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
+    const ghostPath = path.join(tmpImages, 'GHOST.png');
+    fs.writeFileSync(ghostPath, Buffer.from('orphaned-subfolder-png'));
+    try {
+      const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
+      expect(Array.isArray(s.orphanedFiles)).toBe(true);
+      const ghost = s.orphanedFiles!.find((f) => f.filename === 'SUB/GHOST');
+      expect(ghost).toBeDefined();
+      expect(ghost!.bytesOnDisk).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('orphanedFiles is structuredClone-safe (D-21 IPC invariant)', () => {
     // Uses SIMPLE_PROJECT (no images/ folder) → orphanedFiles: []; still validates shape.
     const load = loadSkeleton(FIXTURE);

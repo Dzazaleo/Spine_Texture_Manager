@@ -115,7 +115,7 @@ export function ConflictDialog(props: ConflictDialogProps) {
       onClick={props.onCancel}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 min-w-[480px] max-w-[800px] flex flex-col font-mono"
+        className="bg-modal border border-border rounded-md p-6 min-w-[480px] max-w-[800px] flex flex-col font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="conflict-title" className="text-sm text-fg mb-4">

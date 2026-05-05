@@ -513,7 +513,8 @@ export function loadSkeleton(
     }
   }
 
-  // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 — actual source dimensions per region.
+  // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 + debug-fix scale-display-optimized-source —
+  // actual source dimensions per region.
   //
   // Atlas-less mode (isAtlasLess): read PNG IHDR dims from sourcePaths entries.
   //   Reuses Phase 21's readPngDims (Layer 3-clean byte parser; no decode).
@@ -524,15 +525,22 @@ export function loadSkeleton(
   //   PNGs") preserved. PNG reads happen during loadSkeleton() only — never in
   //   the sampler hot loop (CLAUDE.md fact #3 boundary).
   //
-  // Atlas-source mode (!isAtlasLess, G-01 D-01, Phase 22.1): derive actualSource
-  //   from atlas.region.originalWidth/Height. spine-core 4.2 auto-backfills
-  //   originalWidth/Height from packed width/height when the atlas has no `orig:`
-  //   line (TextureAtlas.js:152-155). This works for both TexturePacker scale<1
-  //   (drift — orig < canonical) and the no-orig base case (no drift). No PNG
-  //   header reads needed in this mode — CLAUDE.md fact #4 strictly preserved.
-  //   sourcePaths is populated in atlas-source mode (from imagesDir + regionName)
-  //   for the export system, but the PNG-read loop is mode-gated to isAtlasLess
-  //   only — no stale PNG reads occur in atlas-source mode.
+  // Atlas-source mode (!isAtlasLess):
+  //   Baseline: derive actualSource from atlas.region.originalWidth/Height
+  //   (spine-core 4.2 auto-backfills from packed dims when no `orig:` line is present).
+  //   Pre-optimized detection: additionally attempt PNG IHDR reads. When a per-region
+  //   PNG exists on disk AND its dims are SMALLER than the atlas canonical on BOTH axes,
+  //   that PNG is a pre-optimized output (e.g. produced by a prior Optimize Assets run).
+  //   In that case, override actualSourceW/H with the PNG dims so that:
+  //     - dimsMismatch correctly fires (|actualW - canonicalW| > 1)
+  //     - The sourceRatio cap binds (effScale ≤ actualSourceW/canonicalW)
+  //     - The passthrough predicate detects that outW already equals the on-disk file
+  //   When the PNG is absent (atlas-only project), larger than atlas dims (full-size
+  //   originals in a TexturePacker workflow), or unreadable, the atlas-derived dims are
+  //   kept verbatim — preserving G-01 D-01 behavior for those cases.
+  //
+  //   CLAUDE.md fact #4 preserved: readPngDims reads only IHDR bytes (no decode).
+  //   Reads happen in loadSkeleton() only — not in the sampler hot loop (fact #3).
   const actualDimsByRegion = new Map<
     string,
     { actualSourceW: number; actualSourceH: number }
@@ -551,16 +559,33 @@ export function loadSkeleton(
       }
     }
   } else {
-    // G-01 D-01 (Phase 22.1) — atlas-source mode derives actualSource from
-    // atlas.region.originalWidth/Height. spine-core 4.2 auto-backfills these
-    // from packed width/height when no `orig:` line is present
-    // (node_modules/@esotericsoftware/spine-core/dist/TextureAtlas.js:152-155),
-    // so this works for both TexturePacker scale<1 (drift) and the no-orig
-    // base case (no drift). No PNG header reads needed in this mode.
+    // G-01 D-01 (Phase 22.1) — atlas-source mode baseline: derive from atlas
+    // region.originalWidth/Height. Then check for pre-optimized PNGs (see above).
     for (const region of atlas!.regions) {
+      const atlasW = region.originalWidth;
+      const atlasH = region.originalHeight;
+      let actualW = atlasW;
+      let actualH = atlasH;
+      // Pre-optimized detection: try reading the per-region PNG. Use PNG dims only
+      // when both axes are strictly smaller than the atlas canonical — this signals
+      // that the file is a pre-optimized export, not a full-size original. Soft-fail
+      // so atlas-only projects (no images/ PNGs) and full-size-original workflows
+      // (TexturePacker with originals in images/) stay unaffected.
+      const pngPath = sourcePaths.get(region.name);
+      if (pngPath !== undefined) {
+        try {
+          const dims = readPngDims(pngPath);
+          if (dims.width < atlasW && dims.height < atlasH) {
+            actualW = dims.width;
+            actualH = dims.height;
+          }
+        } catch {
+          // PNG absent or unreadable — keep atlas dims.
+        }
+      }
       actualDimsByRegion.set(region.name, {
-        actualSourceW: region.originalWidth,
-        actualSourceH: region.originalHeight,
+        actualSourceW: actualW,
+        actualSourceH: actualH,
       });
     }
   }

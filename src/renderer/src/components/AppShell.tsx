@@ -275,6 +275,8 @@ export function AppShell({
     () => initialProject?.loaderMode ?? 'auto',
   );
 
+  const [loaderMenuOpen, setLoaderMenuOpen] = useState(false);
+
   // Phase 23 — lastOutDir: session-metadata state slot. Seeded from
   // initialProject?.lastOutDir on load; updated by onConfirmStart after
   // the user confirms a folder on Start. Not in the dirty signal (D-08).
@@ -396,7 +398,12 @@ export function AppShell({
   // would risk stale-closure bugs when the user takes an action between
   // renders.
   const pendingConfirmResolve = useRef<
-    ((decision: { proceed: boolean; overwrite?: boolean }) => void) | null
+    | ((decision: {
+        proceed: boolean;
+        overwrite?: boolean;
+        outDir?: string | null;
+      }) => void)
+    | null
   >(null);
 
   const onJumpToAnimation = useCallback((name: string) => {
@@ -536,6 +543,7 @@ export function AppShell({
   const onConfirmStart = useCallback(async (): Promise<{
     proceed: boolean;
     overwrite?: boolean;
+    outDir?: string | null;
   }> => {
     if (exportDialogState === null) return { proceed: false };
     const { plan } = exportDialogState;
@@ -561,15 +569,21 @@ export function AppShell({
       // proceed; startExport will fail with the same error and the
       // existing synthetic-summary path surfaces the message in the
       // complete state.
-      return { proceed: true, overwrite: false };
+      return { proceed: true, overwrite: false, outDir: pickedDir };
     }
     if (probeResult.conflicts.length === 0) {
       // No collisions — proceed straight to startExport without overwrite.
-      return { proceed: true, overwrite: false };
+      return { proceed: true, overwrite: false, outDir: pickedDir };
     }
     // Conflicts exist — mount ConflictDialog and wait for user decision.
+    // 2026-05-05: wrap the resolver so pickedDir rides along on whatever
+    // decision the conflict-dialog handlers produce. This preserves their
+    // existing call shapes (resolve({proceed,overwrite})) while ensuring
+    // the OptimizeDialog gets the post-pick path back through the resolved
+    // promise — same stale-closure fix as the no-conflict branch above.
     return new Promise((resolve) => {
-      pendingConfirmResolve.current = resolve;
+      pendingConfirmResolve.current = (decision) =>
+        resolve({ ...decision, outDir: decision.outDir ?? pickedDir });
       setConflictState({ conflicts: probeResult.conflicts });
     });
   }, [exportDialogState, lastOutDir, summary.skeletonPath, pickOutputDir]);
@@ -1258,7 +1272,8 @@ export function AppShell({
 
   return (
     <div className="w-full min-h-screen flex flex-col">
-      <header className="sticky top-0 z-20 flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
+      <div className="sticky top-0 z-20 flex flex-col bg-panel">
+      <header className="flex items-center gap-4 px-6 py-3 border-b border-border bg-panel">
         {/* Filename chip — hoisted from the prior panel's internal header per D-49.
             Phase 8 D-144 dirty marker: prepends '• ' (U+2022) when isDirty is true.
             Renders 'Untitled' when currentProjectPath is null; otherwise the project
@@ -1304,25 +1319,47 @@ export function AppShell({
             </div>
           )}
         </div>
-        {/* STM is single-skeleton-per-project; literal 1 matches the atlases cadence */}
-        <div
-          className="inline-flex items-center gap-3 border border-border rounded-md px-3 py-1 text-xs font-mono text-fg-muted"
-          aria-label="Load summary"
-        >
-          <span><span className="text-fg font-semibold">1</span> skeletons</span>
-          <span aria-hidden="true" className="text-border">|</span>
-          {loaderMode === 'atlas-less' ? (
-            <span>
-              <span className="text-fg font-semibold">
-                {effectiveSummary.attachments.count - (effectiveSummary.skippedAttachments?.length ?? 0)}
+        {/* STM is single-skeleton-per-project; literal 1 matches the atlases cadence.
+            Phase 28: click (LMB or RMB) opens a context menu to toggle loader mode. */}
+        <div className="relative">
+          <div
+            className="inline-flex items-center gap-3 border border-border rounded-md px-3 py-1 text-xs font-mono text-fg-muted cursor-pointer hover:border-accent hover:text-accent transition-colors select-none"
+            aria-label="Load summary"
+            onClick={() => setLoaderMenuOpen((p) => !p)}
+            onContextMenu={(e) => { e.preventDefault(); setLoaderMenuOpen((p) => !p); }}
+          >
+            <span><span className="text-fg font-semibold">1</span> skeletons</span>
+            <span aria-hidden="true" className="text-border">|</span>
+            {effectiveSummary.atlasPath === null ? (
+              <span>
+                <span className="text-fg font-semibold">
+                  {effectiveSummary.attachments.count - (effectiveSummary.skippedAttachments?.length ?? 0)}
+                </span>
+                {' images'}
               </span>
-              {' images'}
-            </span>
-          ) : (
-            <span><span className="text-fg font-semibold">1</span> atlases</span>
+            ) : (
+              <span><span className="text-fg font-semibold">1</span> atlases</span>
+            )}
+            <span aria-hidden="true" className="text-border">|</span>
+            <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
+          </div>
+          {loaderMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setLoaderMenuOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-50 bg-modal border border-border rounded-md shadow-lg overflow-hidden min-w-[220px]">
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-surface transition-colors cursor-pointer"
+                  onClick={() => {
+                    setLoaderMode(effectiveSummary.atlasPath === null ? 'auto' : 'atlas-less');
+                    setLoaderMenuOpen(false);
+                  }}
+                >
+                  {effectiveSummary.atlasPath === null ? 'Use Atlas as Source' : 'Use Images Folder as Source'}
+                </button>
+              </div>
+            </>
           )}
-          <span aria-hidden="true" className="text-border">|</span>
-          <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
         </div>
         {/* Phase 6 Plan 06 D-117: persistent toolbar button right-aligned
             via ml-auto. Disabled when no peaks (Pitfall 11 empty-rig) or
@@ -1331,30 +1368,6 @@ export function AppShell({
             from Phase 1 D-12/D-14; semibold for emphasis without filling. */}
         <div className="ml-auto flex items-center gap-2">
           <SearchBar value={query} onChange={setQuery} />
-          {/* Phase 21 D-08 — atlas-less mode toggle. Binary checkbox per
-              CONTEXT.md line 66 (Claude's discretion; binary toggle = checkbox,
-              NOT modal). When checked, the loader synthesizes an atlas from
-              per-region PNG headers instead of reading the .atlas file —
-              useful for the post-Optimize-overwrite workflow where the .atlas
-              has been replaced and the user wants to re-sample against PNGs.
-              Toggling triggers a resample (loaderMode is in the resample
-              useEffect dependency array; flips between fall-through and the
-              D-08 override branch in src/core/loader.ts). */}
-          <label
-            className="flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer select-none flex-shrink-0"
-            title="When enabled, the loader synthesizes an atlas from per-region PNG headers instead of reading the .atlas file. Useful for the post-Optimize-overwrite workflow."
-          >
-            <input
-              type="checkbox"
-              checked={loaderMode === 'atlas-less'}
-              onChange={(e) =>
-                setLoaderMode(e.currentTarget.checked ? 'atlas-less' : 'auto')
-              }
-              aria-label="Use Images Folder as Source"
-              className="cursor-pointer"
-            />
-            <span className="whitespace-nowrap">Use Images Folder as Source</span>
-          </label>
           {/* Phase 7 D-134: persistent Atlas Preview toolbar button — sits
               immediately LEFT of Optimize Assets (right-aligned cluster).
               Disabled when no peaks (summary not loaded yet or empty rig).
@@ -1387,27 +1400,6 @@ export function AppShell({
             className="bg-accent text-panel rounded-md px-3 h-8 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
             Optimize Assets
-          </button>
-          {/* Phase 8 D-140 — Save toolbar button. Class string verbatim from
-              Optimize Assets above (Tailwind v4 literal-class scanner discipline,
-              Pitfall 8). Disabled when no skeleton (peaks empty) or save in flight. */}
-          <button
-            type="button"
-            onClick={() => void onClickSave()}
-            disabled={effectiveSummary.peaks.length === 0 || saveInFlight}
-            className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
-          >
-            Save
-          </button>
-          {/* Phase 8 D-140 — Open toolbar button. Class string verbatim from
-              Optimize Assets above. No disabled state — Open is always
-              available (replaces the current session). */}
-          <button
-            type="button"
-            onClick={() => void onClickOpen()}
-            className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 flex-shrink-0"
-          >
-            Open
           </button>
         </div>
       </header>
@@ -1543,47 +1535,14 @@ export function AppShell({
           </button>
         </div>
       )}
-      <main className="flex-1 overflow-auto [scrollbar-gutter:stable]">
-        {/*
-          Phase 21 Plan 21-10 (G-02) — surface skipped-PNG attachments above
-          the regular panels. The component renders nothing when
-          effectiveSummary.skippedAttachments.length === 0; renders a warning
-          banner with count + expandable list of name → expectedPngPath
-          entries when length > 0. Visible on BOTH tabs (Global + Animation
-          Breakdown) — orthogonal to the activeTab split, since skipped
-          attachments are a project-level concern, not a tab-specific one.
-
-          ISSUE-009 note: during a resample-in-flight transition,
-          effectiveSummary.skippedAttachments may briefly show a stale list.
-          Acceptable — skippedAttachments is stable across resamples (sourced
-          from LoadResult, refreshed on each load), and the fresh resample
-          replaces the panel atomically when complete. No "loading" state on
-          this panel.
-        */}
         <MissingAttachmentsPanel
-          /*
-           * Defensive `?? []`: SkeletonSummary.skippedAttachments is REQUIRED
-           * in the type (always populated by buildSummary in summary.ts), but
-           * older renderer-side test fixtures cast a partial summary via
-           * `as unknown as SkeletonSummary` and omit the field. The fallback
-           * keeps those fixtures green and avoids
-           * "Cannot read properties of undefined (reading 'length')" at the
-           * panel's empty-check. New code MUST populate skippedAttachments
-           * verbatim — this fallback is a backward-compat affordance, not a
-           * sanctioned shortcut.
-           */
           skippedAttachments={effectiveSummary.skippedAttachments ?? []}
         />
-        {/* Phase 24 PANEL-02 — hidden when 0 orphaned files (D-06); expanded by default
-            when N > 0. The panel self-hides via `return null` when empty — no conditional
-            wrapper needed here. Renders on BOTH tabs (same as MissingAttachmentsPanel)
-            because orphaned files are a project-level concern, not tab-specific.
-            Position (Phase 26.2 UAT): both project-level alert bars (MissingAttachments
-            + UnusedAssets) render BEFORE either tab's panel content, on both tabs —
-            supersedes Phase 24 D-07 which placed UnusedAssets between the two tab panels. */}
         <UnusedAssetsPanel
           orphanedFiles={effectiveSummary.orphanedFiles ?? []}
         />
+      </div>
+      <main className="flex-1 overflow-auto [scrollbar-gutter:stable]">
         {activeTab === 'global' && (
           <GlobalMaxRenderPanel
             summary={effectiveSummary}

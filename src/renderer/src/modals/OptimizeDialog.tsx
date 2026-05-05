@@ -75,8 +75,19 @@ export interface OptimizeDialogProps {
    * If the prop is omitted (legacy callers), the dialog skips the probe
    * and starts directly with overwrite=false — preserving today's
    * behaviour for any caller that has not yet adopted the new flow.
+   *
+   * 2026-05-05 stale-closure fix: when proceed=true the parent MUST also
+   * return `outDir` — the path the picker just produced. The dialog
+   * passes this through to `window.api.startExport` instead of re-reading
+   * `props.outDir`, which after the await is closed over render-N's value
+   * (null on a fresh session, since outDir state is committed concurrently
+   * with this resolution).
    */
-  onConfirmStart?: () => Promise<{ proceed: boolean; overwrite?: boolean }>;
+  onConfirmStart?: () => Promise<{
+    proceed: boolean;
+    overwrite?: boolean;
+    outDir?: string | null;
+  }>;
   /**
    * Phase 19 UI-03 + D-11/D-12 — REQUIRED cross-nav handler. The dialog
    * renders a footer-LEFT outlined-secondary button that invokes
@@ -183,6 +194,15 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     // would flicker into the in-progress UI during the probe / modal
     // and the toolbar button would grey out for an export that never ran.
     let overwrite = false;
+    // 2026-05-05 stale-closure fix: capture the picked outDir from the
+    // parent's resolution rather than re-reading `props.outDir` after the
+    // await. Phase 23 deferred the picker into onConfirmStart; the
+    // setExportDialogState({outDir: pickedDir}) update commits during the
+    // await, but this useCallback is closed over render-N's `props`
+    // reference — so a post-await `props.outDir` read returns the
+    // dialog-mount-time value (null on a fresh session) and the IPC
+    // rejects with "outDir must be a non-empty string" in 0.0s.
+    let resolvedOutDir: string | null = props.outDir;
     if (props.onConfirmStart) {
       const decision = await props.onConfirmStart();
       if (!decision.proceed) {
@@ -193,6 +213,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
         return;
       }
       overwrite = decision.overwrite === true;
+      if (decision.outDir !== undefined) resolvedOutDir = decision.outDir;
     }
 
     setState('in-progress');
@@ -201,7 +222,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     // them to 'in-progress' / 'success' / 'error' as they fire.
     const response: ExportResponse = await window.api.startExport(
       props.plan,
-      props.outDir,
+      resolvedOutDir,
       overwrite,
     );
     if (response.ok) {
@@ -218,11 +239,11 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
         errors: [
           {
             kind: 'write-error',
-            path: props.outDir,
+            path: resolvedOutDir,
             message: response.error.message,
           },
         ],
-        outputDir: props.outDir,
+        outputDir: resolvedOutDir,
         durationMs: 0,
         cancelled: false,
       });
@@ -329,7 +350,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       onClick={onCloseSafely}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 min-w-[640px] max-w-[800px] max-h-[80vh] flex flex-col font-mono"
+        className="bg-modal border border-border rounded-md p-6 min-w-[640px] max-w-[800px] max-h-[80vh] flex flex-col font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={keyDown}
       >

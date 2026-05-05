@@ -213,7 +213,7 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
       onClick={props.onClose}
     >
       <div
-        className="bg-panel border border-border rounded-md p-6 w-[1024px] max-w-[95vw] max-h-[90vh] flex flex-col font-mono"
+        className="bg-modal border border-border rounded-md p-6 w-[1024px] max-w-[95vw] max-h-[90vh] flex flex-col font-mono shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -500,6 +500,8 @@ function AtlasCanvas({
     if (!ctx) return; // jsdom returns null — test env safety
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, frameDim, frameDim);
+    ctx.fillStyle = '#1f1f1e';
+    ctx.fillRect(0, 0, frameDim, frameDim);
 
     for (const region of page.regions) {
       const sourceUrl = region.atlasSource?.pagePath ?? region.sourcePath;

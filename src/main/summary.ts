@@ -288,13 +288,16 @@ export function buildSummary(
   const skeletonDir = path.dirname(load.skeletonPath);
   const imagesDir = path.join(skeletonDir, 'images');
 
-  // Step 1 (D-02): read images/ folder → collect PNG basenames (no extension).
+  // Step 1 (D-02): read images/ folder recursively → collect PNG paths relative
+  // to imagesDir (no extension). { recursive: true } requires Node ≥18.17 —
+  // satisfied by our electron ≥41 / node ≥18 constraint. Windows backslashes
+  // are normalized to forward slashes so names match atlas region names.
   let imagesFolderFiles: string[] = [];
   try {
-    const entries = fs.readdirSync(imagesDir);
+    const entries = fs.readdirSync(imagesDir, { recursive: true }) as string[];
     imagesFolderFiles = entries
       .filter((e) => e.toLowerCase().endsWith('.png'))
-      .map((e) => e.slice(0, -4)); // strip ".png"
+      .map((e) => e.slice(0, -4).replace(/\\/g, '/')); // strip ".png", normalize sep
   } catch {
     // images/ does not exist → no orphaned files → panel hidden (D-03).
     imagesFolderFiles = [];

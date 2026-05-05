@@ -166,7 +166,7 @@ export function computeExportDims(
   // change — back-compat preserved).
   canonicalW?: number,
   canonicalH?: number,
-): { effScale: number; outW: number; outH: number } {
+): { effScale: number; outW: number; outH: number; displayScale: number } {
   // Match buildExportPlan's effScale derivation exactly:
   // 1. raw effScale = override-as-fraction × source-ratio correction OR
   //    peakScale fallback
@@ -196,7 +196,14 @@ export function computeExportDims(
   // sub-pixel tolerance.
   const outW = Math.ceil(canonW * effScale);
   const outH = Math.ceil(canonH * effScale);
-  return { effScale, outW, outH };
+  // debug-fix scale-display-optimized-source — source-relative display scale.
+  // Shows how much the export changes the actual on-disk file, not the canonical
+  // atlas region. When the user has pre-optimized images (actualSourceW < canonicalW),
+  // outW may equal actualSourceW → displayScale = 1.0 (no change to file).
+  // Falls back to canonW when actualSourceW is unavailable (atlas-only projects).
+  const actualW = actualSourceW ?? canonW;
+  const displayScale = actualW > 0 ? outW / actualW : effScale;
+  return { effScale, outW, outH, displayScale };
 }
 
 export function buildExportPlan(
@@ -325,7 +332,23 @@ export function buildExportPlan(
     const outH = Math.ceil((acc.row.canonicalH ?? acc.row.sourceH) * acc.effScale);
     // G-04 + G-07 D-06 (Phase 22.1) — generalized passthrough predicate,
     // evaluated AFTER override resolution AND cap math.
-    const isPassthrough = outW === acc.row.sourceW && outH === acc.row.sourceH;
+    //
+    // debug-fix scale-display-optimized-source: compare against actualSourceW when
+    // it represents a pre-optimized on-disk file (actualSourceW < canonicalW, set by
+    // the loader's pre-optimized detection). When the optimizer's computed outW already
+    // equals the actual file on disk, no resize is needed — it's a byte-copy.
+    // Falls back to sourceW (= canonicalW in canonical mode without pre-optimized PNGs)
+    // when actualSourceW is absent or not smaller than canonical.
+    // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
+    const effectiveSourceW =
+      acc.row.actualSourceW !== undefined && acc.row.actualSourceW < (acc.row.canonicalW ?? acc.row.sourceW)
+        ? acc.row.actualSourceW
+        : acc.row.sourceW;
+    const effectiveSourceH =
+      acc.row.actualSourceH !== undefined && acc.row.actualSourceH < (acc.row.canonicalH ?? acc.row.sourceH)
+        ? acc.row.actualSourceH
+        : acc.row.sourceH;
+    const isPassthrough = outW === effectiveSourceW && outH === effectiveSourceH;
     const exportRow: ExportRow = {
       sourcePath: acc.row.sourcePath,
       outPath: relativeOutPath(acc.row.sourcePath),
