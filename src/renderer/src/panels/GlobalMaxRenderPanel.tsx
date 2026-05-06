@@ -417,6 +417,15 @@ interface RowProps {
    * Threaded from panel-level prop to row-level so DimsBadge receives it.
    */
   loaderMode: 'auto' | 'atlas-less';
+  /**
+   * ResizeObserver-driven exact measurement so the virtualizer learns the
+   * real row height after first paint. Without this, `estimateSize` is
+   * trusted forever and any per-row height drift (warning icon, override
+   * pencil, font metric variance on Windows) compounds into 1–2px gaps
+   * between transformed rows mid-list. Undefined in the flat-table path.
+   */
+  measureRef?: (el: HTMLTableRowElement | null) => void;
+  dataIndex?: number;
 }
 
 function Row({
@@ -434,6 +443,8 @@ function Row({
   style,
   state,
   loaderMode,
+  measureRef,
+  dataIndex,
 }: RowProps) {
   const handleLabelClick = useCallback(
     (e: MouseEvent<HTMLLabelElement>) => {
@@ -466,7 +477,11 @@ function Row({
 
   return (
     <tr
-      ref={(el) => registerRef(el)}
+      ref={(el) => {
+        registerRef(el);
+        if (measureRef) measureRef(el);
+      }}
+      data-index={dataIndex}
       style={style}
       className={clsx(
         'border-b border-border hover:bg-accent/5',
@@ -794,10 +809,14 @@ export function GlobalMaxRenderPanel({
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => parentRef.current,
-    // Uniform-row table — 34 px is the current row height by inspection
-    // of typography + py-2 padding (RESEARCH §Recommendations #12).
-    estimateSize: () => 34,
-    // 20-row overscan — well-tested default for tables of this size.
+    // Initial estimate only — measureElement (passed per-row below) replaces
+    // this with the real ResizeObserver-measured height after first paint.
+    // 37px ≈ py-2 (16) + text-sm line-height (~20) + border-b (1); rows with
+    // the missing-PNG warning icon or override pencil land slightly taller.
+    // Pre-measureElement this used 34, which produced 1–2px gaps between
+    // transformed rows mid-list on Windows (visible as horizontal streaks
+    // that flicker as the virtualizer's row window shifts during scroll).
+    estimateSize: () => 37,
     overscan: 20,
     getItemKey,
   });
@@ -1051,6 +1070,8 @@ export function GlobalMaxRenderPanel({
                       registerRef={(el) => registerRowRef(row.attachmentName, el)}
                       state={state}
                       loaderMode={loaderMode}
+                      measureRef={virtualizer.measureElement}
+                      dataIndex={virtualRow.index}
                       // Per RESEARCH §Q1: translate basis is the row's
                       // INITIAL position, not absolute scroll offset. The
                       // `idx * virtualRow.size` subtraction is documented
