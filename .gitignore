@@ -21,6 +21,11 @@ temp/
 fixtures/Jokerman/
 fixtures/Girl/
 fixtures/images/
+# Joker assets (TOPSCREEN_ANIMATION_JOKER.*) — proprietary, kept local only.
+# Note: a handful of test specs read from this fixture (loader, analyzer,
+# sampler-skin-defined-unbound-attachment, atlas-preview) and will fail on
+# fresh clones / CI until ported to a SIMPLE_PROJECT-equivalent fixture.
+fixtures/SAMPLER_ALPHA_ZERO/
 
 # OS cruft
 .DS_Store
