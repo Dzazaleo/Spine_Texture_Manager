@@ -111,6 +111,9 @@ const baseState: AppSessionState = {
   // Phase 21 D-08 — loaderMode default 'auto' (canonical mode); Task 4 wires
   // resampleProject + recovery paths to thread this field.
   loaderMode: 'auto',
+  // Phase 28 D-06 — sharpenOnExport default false (off); Task 28-02 wires the
+  // toggle into the export pipeline.
+  sharpenOnExport: false,
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {

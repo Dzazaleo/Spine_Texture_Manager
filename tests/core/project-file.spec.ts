@@ -123,6 +123,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortDir: 'asc',
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
+      sharpenOnExport: false,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -139,6 +140,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
+      sharpenOnExport: false,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -172,6 +174,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortDir: null,
       documentation: doc,
       loaderMode: 'auto',
+      sharpenOnExport: false,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const json = JSON.stringify(file);
@@ -198,6 +201,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortDir: null,
       documentation: {} as unknown as Documentation,
       loaderMode: 'auto' as const,
+      sharpenOnExport: false,
     };
     const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
     expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -266,6 +270,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
+      sharpenOnExport: false,
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -302,6 +307,7 @@ describe('migrate (D-151)', () => {
       overrides: {}, samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null, documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
+      sharpenOnExport: false,
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
   });
@@ -363,6 +369,7 @@ describe('Phase 21 — loaderMode (D-08)', () => {
       sortDir: null,
       documentation: { ...DEFAULT_DOCUMENTATION },
       loaderMode: 'atlas-less',
+      sharpenOnExport: false,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.loaderMode).toBe('atlas-less');
