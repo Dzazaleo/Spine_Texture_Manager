@@ -281,40 +281,38 @@ export function buildSummary(
     };
   });
 
-  // Phase 24 PANEL-01 — orphaned file detection (D-01, D-02, D-05).
+  // Phase 24 PANEL-01 + debug-fix atlas-source-images-folder-bleed (2026-05-06) —
+  // orphan detection is gated to atlas-less mode only. In atlas-source mode the
+  // sibling images/ folder is not part of the loader's source-of-truth, so any
+  // PNGs found there are out-of-scope and must not be reported.
   // I/O layer: this is the ONLY place that touches fs.readdirSync / fs.statSync
   // for orphan detection. The pure helper src/core/usage.ts:findOrphanedFiles
   // receives pre-collected arrays and performs zero I/O (CLAUDE.md #5).
-  const skeletonDir = path.dirname(load.skeletonPath);
-  const imagesDir = path.join(skeletonDir, 'images');
+  let orphanedFiles: { filename: string; bytesOnDisk: number }[] = [];
+  if (load.atlasPath === null) {
+    const skeletonDir = path.dirname(load.skeletonPath);
+    const imagesDir = path.join(skeletonDir, 'images');
 
-  // Step 1 (D-02): read images/ folder recursively → collect PNG paths relative
-  // to imagesDir (no extension). { recursive: true } requires Node ≥18.17 —
-  // satisfied by our electron ≥41 / node ≥18 constraint. Windows backslashes
-  // are normalized to forward slashes so names match atlas region names.
-  let imagesFolderFiles: string[] = [];
-  try {
-    const entries = fs.readdirSync(imagesDir, { recursive: true }) as string[];
-    imagesFolderFiles = entries
-      .filter((e) => e.toLowerCase().endsWith('.png'))
-      .map((e) => e.slice(0, -4).replace(/\\/g, '/')); // strip ".png", normalize sep
-  } catch {
-    // images/ does not exist → no orphaned files → panel hidden (D-03).
-    imagesFolderFiles = [];
-  }
-
-  // Step 2 (D-02): build in-use name set — depends on mode (D-03).
-  const inUseNames = new Set<string>();
-  if (load.atlasPath !== null) {
-    // Atlas-mode: in-use = union of atlas region names (the manifest authority).
-    for (const region of load.atlas!.regions) {
-      inUseNames.add(region.name);
+    // Step 1 (D-02): read images/ folder recursively → collect PNG paths relative
+    // to imagesDir (no extension). { recursive: true } requires Node ≥18.17 —
+    // satisfied by our electron ≥41 / node ≥18 constraint. Windows backslashes
+    // are normalized to forward slashes so names match attachment names.
+    let imagesFolderFiles: string[] = [];
+    try {
+      const entries = fs.readdirSync(imagesDir, { recursive: true }) as string[];
+      imagesFolderFiles = entries
+        .filter((e) => e.toLowerCase().endsWith('.png'))
+        .map((e) => e.slice(0, -4).replace(/\\/g, '/')); // strip ".png", normalize sep
+    } catch {
+      // images/ does not exist → no orphaned files → panel hidden (D-03).
+      imagesFolderFiles = [];
     }
-  } else {
-    // Atlas-less mode: in-use = textured attachment names from skins.
+
+    // Step 2 (D-02): atlas-less in-use = textured attachment names from skins.
     // Non-textured filter proxy: load.sourceDims.get(name) !== undefined
     // (same proxy as old findUnusedAttachments:117 — BoundingBox/Path/Clipping/Point
     // have no sourceDims entry and are excluded; D-02 step 2 spec).
+    const inUseNames = new Set<string>();
     for (const skin of load.skeletonData.skins) {
       for (const perSlot of skin.attachments) {
         if (perSlot === undefined || perSlot === null) continue;
@@ -325,24 +323,24 @@ export function buildSummary(
         }
       }
     }
+
+    // Step 3 (D-02): orphaned = PNG filenames NOT in inUseNames. Augment with
+    // on-disk byte size via fs.statSync (summary.ts is the sole writer).
+    const orphanedBasenames = findOrphanedFiles(imagesFolderFiles, inUseNames);
+    orphanedFiles = orphanedBasenames.map((filename) => {
+      const pngPath = path.join(imagesDir, filename + '.png');
+      let bytesOnDisk = 0;
+      try {
+        bytesOnDisk = fs.statSync(pngPath).size;
+      } catch {
+        // ENOENT / EACCES — treat as 0 (same silent pattern as old block).
+        bytesOnDisk = 0;
+      }
+      return { filename, bytesOnDisk };
+    });
   }
-
-  // Step 3 (D-02): orphaned = PNG filenames NOT in inUseNames.
-  const orphanedBasenames = findOrphanedFiles(imagesFolderFiles, inUseNames);
-
-  // Augment with on-disk byte size via fs.statSync (same pattern as the old
-  // bytesOnDisk augmentation — summary.ts is the sole writer).
-  const orphanedFiles = orphanedBasenames.map((filename) => {
-    const pngPath = path.join(imagesDir, filename + '.png');
-    let bytesOnDisk = 0;
-    try {
-      bytesOnDisk = fs.statSync(pngPath).size;
-    } catch {
-      // ENOENT / EACCES — treat as 0 (same silent pattern as old block).
-      bytesOnDisk = 0;
-    }
-    return { filename, bytesOnDisk };
-  });
+  // atlas-source mode (load.atlasPath !== null): orphanedFiles stays []; the
+  // UnusedAssetsPanel returns null when empty so no alert bar renders.
 
   return {
     skeletonPath: load.skeletonPath,

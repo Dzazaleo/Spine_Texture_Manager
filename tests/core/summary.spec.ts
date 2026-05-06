@@ -159,25 +159,56 @@ describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)'
     expect(s.orphanedFiles).toEqual([]);
   });
 
-  it('images/ folder with orphaned PNG → orphanedFiles contains filename + bytesOnDisk (D-02)', () => {
-    // Create a tmp skeleton dir with an images/ folder containing one orphaned PNG
-    // (GHOST.png — not referenced by any atlas region in SIMPLE_TEST).
+  it('atlas-source mode: orphan PNGs in images/ are NOT detected (strict mode separation, debug-fix atlas-source-images-folder-bleed 2026-05-06)', () => {
+    // The previous contract scanned images/ in atlas-source mode and reported
+    // PNGs missing from the atlas as orphaned. That cross-mode peek violated
+    // strict mode separation — atlas-source mode must not consider images/ for
+    // any calculation. This test locks the new invariant.
     const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-atlas-'));
     const tmpImages = path.join(tmpDir, 'images');
     fs.mkdirSync(tmpImages, { recursive: true });
-    // Copy the skeleton + atlas to tmp dir
     fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
     fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
     fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
-    // Create a GHOST.png (orphaned — no atlas region named GHOST)
-    const ghostPath = path.join(tmpImages, 'GHOST.png');
-    fs.writeFileSync(ghostPath, Buffer.from('orphaned-png-bytes'));
+    // Create both an "orphan" GHOST.png and a same-folder subfolder GHOST — neither
+    // should appear in orphanedFiles in atlas-source mode.
+    fs.writeFileSync(path.join(tmpImages, 'GHOST.png'), Buffer.from('would-be-orphan'));
+    fs.mkdirSync(path.join(tmpImages, 'SUB'), { recursive: true });
+    fs.writeFileSync(path.join(tmpImages, 'SUB', 'NESTED.png'), Buffer.from('would-be-subfolder-orphan'));
     try {
       const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      // Sanity: this is atlas-source mode (sibling .atlas exists).
+      expect(load.atlasPath).not.toBeNull();
       const sampled = sampleSkeleton(load);
       const s = buildSummary(load, sampled, 0);
-      // Must find GHOST as orphaned
+      expect(Array.isArray(s.orphanedFiles)).toBe(true);
+      expect(s.orphanedFiles).toEqual([]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('atlas-less mode: orphan PNG in images/ → orphanedFiles contains filename + bytesOnDisk (D-02)', () => {
+    // Atlas-less mode is where the orphan detector legitimately runs: images/
+    // is the source of truth, so PNGs not referenced by any skin attachment are
+    // orphaned. Uses SIMPLE_PROJECT_NO_ATLAS (json + images/, no .atlas) +
+    // adds a GHOST.png that is not referenced by any attachment.
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-less-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
+    for (const f of fs.readdirSync(path.join(SRC_FIXTURE, 'images'))) {
+      fs.copyFileSync(path.join(SRC_FIXTURE, 'images', f), path.join(tmpImages, f));
+    }
+    fs.writeFileSync(path.join(tmpImages, 'GHOST.png'), Buffer.from('orphaned-png-bytes'));
+    try {
+      const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      // Sanity: this is atlas-less mode (no sibling .atlas).
+      expect(load.atlasPath).toBeNull();
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
       expect(Array.isArray(s.orphanedFiles)).toBe(true);
       const ghost = s.orphanedFiles!.find((f) => f.filename === 'GHOST');
       expect(ghost).toBeDefined();
@@ -187,46 +218,23 @@ describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)'
     }
   });
 
-  it('atlas-mode: used attachment PNGs in images/ are NOT orphaned (D-02 step 2 atlas-mode)', () => {
-    // Create a tmp skeleton dir with images/ containing only used PNGs (from atlas regions).
-    // SIMPLE_TEST.atlas has regions: CIRCLE, SQUARE, TRIANGLE, SQUARE2.
-    // If images/ contains ONLY CIRCLE.png → not orphaned (CIRCLE is used).
-    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-used-'));
-    const tmpImages = path.join(tmpDir, 'images');
-    fs.mkdirSync(tmpImages, { recursive: true });
-    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
-    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
-    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
-    // CIRCLE is in the atlas → NOT orphaned
-    fs.writeFileSync(path.join(tmpImages, 'CIRCLE.png'), Buffer.from('used'));
-    try {
-      const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
-      const sampled = sampleSkeleton(load);
-      const s = buildSummary(load, sampled, 0);
-      expect(Array.isArray(s.orphanedFiles)).toBe(true);
-      // CIRCLE is in atlas regions → not orphaned
-      const circle = s.orphanedFiles!.find((f) => f.filename === 'CIRCLE');
-      expect(circle).toBeUndefined();
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
-
-  it('images/ subfolder PNG → orphanedFiles contains relative path e.g. "SUB/GHOST" (recursive scan)', () => {
+  it('atlas-less mode: images/ subfolder PNG → orphanedFiles contains relative path e.g. "SUB/GHOST" (recursive scan)', () => {
     // Regression: flat readdirSync dropped subdirectory entries; PNGs inside
-    // images/SUB/ were invisible to the orphan detector.
-    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT');
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-sub-'));
-    const tmpImages = path.join(tmpDir, 'images', 'SUB');
-    fs.mkdirSync(tmpImages, { recursive: true });
+    // images/SUB/ were invisible to the orphan detector. Recursive scan now
+    // covered, but only in atlas-less mode (atlas-source ignores images/).
+    const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-less-sub-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    const tmpSub = path.join(tmpImages, 'SUB');
+    fs.mkdirSync(tmpSub, { recursive: true });
     fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.json'), path.join(tmpDir, 'SIMPLE_TEST.json'));
-    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.atlas'), path.join(tmpDir, 'SIMPLE_TEST.atlas'));
-    fs.copyFileSync(path.join(SRC_FIXTURE, 'SIMPLE_TEST.png'), path.join(tmpDir, 'SIMPLE_TEST.png'));
-    const ghostPath = path.join(tmpImages, 'GHOST.png');
-    fs.writeFileSync(ghostPath, Buffer.from('orphaned-subfolder-png'));
+    for (const f of fs.readdirSync(path.join(SRC_FIXTURE, 'images'))) {
+      fs.copyFileSync(path.join(SRC_FIXTURE, 'images', f), path.join(tmpImages, f));
+    }
+    fs.writeFileSync(path.join(tmpSub, 'GHOST.png'), Buffer.from('orphaned-subfolder-png'));
     try {
       const load = loadSkeleton(path.join(tmpDir, 'SIMPLE_TEST.json'));
+      expect(load.atlasPath).toBeNull();
       const sampled = sampleSkeleton(load);
       const s = buildSummary(load, sampled, 0);
       expect(Array.isArray(s.orphanedFiles)).toBe(true);
