@@ -513,8 +513,14 @@ export function loadSkeleton(
     }
   }
 
-  // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 + debug-fix scale-display-optimized-source —
-  // actual source dimensions per region.
+  // Phase 22 DIMS-01 + Phase 22.1 G-01 D-01 — actual source dimensions per region.
+  //
+  // Strict mode separation (debug-fix windows-source-mode-auto-detect, 2026-05-06):
+  // each loaderMode is self-contained. The previous "scale-display-optimized-source"
+  // fix had atlas-source mode peek into the sibling images/ folder for PNG IHDR
+  // overrides; that cross-mode bleed is removed here. To use pre-optimized images
+  // as the source of truth, toggle to atlas-less mode (atlas-less ignores .atlas;
+  // atlas-source ignores images/).
   //
   // Atlas-less mode (isAtlasLess): read PNG IHDR dims from sourcePaths entries.
   //   Reuses Phase 21's readPngDims (Layer 3-clean byte parser; no decode).
@@ -525,22 +531,9 @@ export function loadSkeleton(
   //   PNGs") preserved. PNG reads happen during loadSkeleton() only — never in
   //   the sampler hot loop (CLAUDE.md fact #3 boundary).
   //
-  // Atlas-source mode (!isAtlasLess):
-  //   Baseline: derive actualSource from atlas.region.originalWidth/Height
-  //   (spine-core 4.2 auto-backfills from packed dims when no `orig:` line is present).
-  //   Pre-optimized detection: additionally attempt PNG IHDR reads. When a per-region
-  //   PNG exists on disk AND its dims are SMALLER than the atlas canonical on BOTH axes,
-  //   that PNG is a pre-optimized output (e.g. produced by a prior Optimize Assets run).
-  //   In that case, override actualSourceW/H with the PNG dims so that:
-  //     - dimsMismatch correctly fires (|actualW - canonicalW| > 1)
-  //     - The sourceRatio cap binds (effScale ≤ actualSourceW/canonicalW)
-  //     - The passthrough predicate detects that outW already equals the on-disk file
-  //   When the PNG is absent (atlas-only project), larger than atlas dims (full-size
-  //   originals in a TexturePacker workflow), or unreadable, the atlas-derived dims are
-  //   kept verbatim — preserving G-01 D-01 behavior for those cases.
-  //
-  //   CLAUDE.md fact #4 preserved: readPngDims reads only IHDR bytes (no decode).
-  //   Reads happen in loadSkeleton() only — not in the sampler hot loop (fact #3).
+  // Atlas-source mode (!isAtlasLess): derive actualSource from atlas.region.originalWidth/
+  //   Height only (spine-core 4.2 auto-backfills from packed dims when no `orig:` line
+  //   is present). No PNG IHDR reads, no images/ folder peek.
   const actualDimsByRegion = new Map<
     string,
     { actualSourceW: number; actualSourceH: number }
@@ -559,33 +552,11 @@ export function loadSkeleton(
       }
     }
   } else {
-    // G-01 D-01 (Phase 22.1) — atlas-source mode baseline: derive from atlas
-    // region.originalWidth/Height. Then check for pre-optimized PNGs (see above).
+    // Atlas-source: atlas is authoritative. region.originalWidth/Height only.
     for (const region of atlas!.regions) {
-      const atlasW = region.originalWidth;
-      const atlasH = region.originalHeight;
-      let actualW = atlasW;
-      let actualH = atlasH;
-      // Pre-optimized detection: try reading the per-region PNG. Use PNG dims only
-      // when both axes are strictly smaller than the atlas canonical — this signals
-      // that the file is a pre-optimized export, not a full-size original. Soft-fail
-      // so atlas-only projects (no images/ PNGs) and full-size-original workflows
-      // (TexturePacker with originals in images/) stay unaffected.
-      const pngPath = sourcePaths.get(region.name);
-      if (pngPath !== undefined) {
-        try {
-          const dims = readPngDims(pngPath);
-          if (dims.width < atlasW && dims.height < atlasH) {
-            actualW = dims.width;
-            actualH = dims.height;
-          }
-        } catch {
-          // PNG absent or unreadable — keep atlas dims.
-        }
-      }
       actualDimsByRegion.set(region.name, {
-        actualSourceW: actualW,
-        actualSourceH: actualH,
+        actualSourceW: region.originalWidth,
+        actualSourceH: region.originalHeight,
       });
     }
   }

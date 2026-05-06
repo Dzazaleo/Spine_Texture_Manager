@@ -451,25 +451,21 @@ describe('loader (DIMS-01 canonical-vs-actual dim mapping)', () => {
     }
   });
 
-  it('DIMS-01 atlas-source mode: actualDimsByRegion uses PNG dims when smaller than atlas, atlas dims otherwise (G-01 D-01 + scale-display-optimized-source fix)', () => {
-    // Phase 22.1 G-01 D-01: atlas-source mode seeds actualDimsByRegion from atlas.
-    // debug-fix scale-display-optimized-source: when images/ exists with PNGs
-    // strictly smaller than atlas dims (both axes), those PNG dims override the atlas
-    // baseline. This enables pre-optimized-image passthrough detection.
+  it('DIMS-01 atlas-source mode: actualDimsByRegion = atlas.region.originalWidth/Height (strict mode separation; no images/ peek)', () => {
+    // Phase 22.1 G-01 D-01 + debug-fix windows-source-mode-auto-detect (2026-05-06):
+    // atlas-source mode is self-contained — atlas region.originalWidth/Height only,
+    // no PNG IHDR reads from sibling images/ folder. Pre-optimized-image workflows
+    // belong in atlas-less mode.
     //
-    // SIMPLE_PROJECT/images/ fixture dims:
-    //   CIRCLE.png  420×420  (< atlas 699×699  → PNG wins)
-    //   SQUARE.png  890×890  (< atlas 1000×1000 → PNG wins)
-    //   TRIANGLE.png 833×759 (= atlas 833×759  → atlas wins, not strictly smaller)
+    // SIMPLE_PROJECT atlas region dims:
+    //   CIRCLE   atlas 699×699   (images/CIRCLE.png is 420×420 — IGNORED here)
+    //   SQUARE   atlas 1000×1000 (images/SQUARE.png is 890×890 — IGNORED here)
+    //   TRIANGLE atlas 833×759
     const r = loadSkeleton(FIXTURE);
-    // actualDimsByRegion is always non-empty (from atlas baseline).
     expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
-    // Canonical still populates from JSON walk.
     expect(r.canonicalDimsByRegion.size).toBeGreaterThanOrEqual(3);
-    // CIRCLE and SQUARE: PNG is smaller → PNG dims used.
-    expect(r.actualDimsByRegion.get('CIRCLE')?.actualSourceW).toBe(420);
-    expect(r.actualDimsByRegion.get('SQUARE')?.actualSourceW).toBe(890);
-    // TRIANGLE: PNG = atlas → atlas dims used.
+    expect(r.actualDimsByRegion.get('CIRCLE')?.actualSourceW).toBe(699);
+    expect(r.actualDimsByRegion.get('SQUARE')?.actualSourceW).toBe(1000);
     expect(r.actualDimsByRegion.get('TRIANGLE')?.actualSourceW).toBe(833);
   });
 

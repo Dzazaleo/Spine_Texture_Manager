@@ -1,22 +1,26 @@
 /**
- * Phase 22.1 Plan 01 Task 2 (TDD RED → GREEN) — G-01 D-01 loader atlas-source
- * actualDimsByRegion + sourcePaths mode-gating.
+ * Phase 22.1 G-01 D-01 + debug-fix windows-source-mode-auto-detect (2026-05-06) —
+ * loader atlas-source actualDimsByRegion + sourcePaths mode-gating.
+ *
+ * Strict mode separation (2026-05-06): atlas-source mode is self-contained — atlas
+ * region.originalWidth/Height only, no images/ folder peek. The earlier
+ * "scale-display-optimized-source" fix had atlas-source override actualSource to
+ * smaller on-disk PNG dims; that cross-mode bleed is removed.
  *
  * Behavior gates:
- *   Test 1: Atlas-source mode — actualDimsByRegion uses PNG dims when the on-disk
- *     PNG is strictly smaller than atlas canonical dims (pre-optimized detection).
- *     When no smaller PNG exists the atlas region.originalWidth/Height is used.
- *   Test 2: Atlas-source mode — actualDimsByRegion is always non-empty after G-01,
- *     seeded from atlas dims as the baseline and overridden by smaller on-disk PNGs.
- *   Test 3: Atlas-source mode — sourcePaths is NOT populated from images/ directory
- *     (atlas-extract fallback path in image-worker.ts handles source extraction).
- *   Test 4 (smoke): Atlas-less mode — actualDimsByRegion still comes from PNG headers
+ *   Test 1: Atlas-source mode — actualDimsByRegion = atlas.region.originalWidth/Height
+ *     for every region, regardless of any PNGs that happen to exist in images/.
+ *   Test 2: Atlas-source mode — actualDimsByRegion is non-empty (one entry per region).
+ *   Test 3: Atlas-source mode — sourcePaths IS populated from images/ directory
+ *     (export.ts uses these for relative output paths; image-worker falls back to
+ *     atlas-page extraction when the file is absent on disk).
+ *   Test 4 (smoke): Atlas-less mode — actualDimsByRegion comes from PNG headers
  *     (Phase 22 behavior preserved verbatim).
  *
- * SIMPLE_PROJECT/images/ fixture dims (for reference):
- *   CIRCLE.png  420×420  (< atlas 699×699  → actualSourceW = 420)
- *   SQUARE.png  890×890  (< atlas 1000×1000 → actualSourceW = 890)
- *   TRIANGLE.png 833×759 (= atlas 833×759  → actualSourceW = 833, atlas unchanged)
+ * SIMPLE_PROJECT atlas region dims (for reference):
+ *   CIRCLE   atlas 699×699   (images/CIRCLE.png is 420×420 — IGNORED in atlas-source mode)
+ *   SQUARE   atlas 1000×1000 (images/SQUARE.png is 890×890 — IGNORED in atlas-source mode)
+ *   TRIANGLE atlas 833×759   (images/TRIANGLE.png matches)
  *
  * The rotation-rejection tests and G-08 tests live in loader-rotation-rejection.spec.ts.
  */
@@ -27,50 +31,41 @@ import { loadSkeleton } from '../../src/core/loader.js';
 const ATLAS_SOURCE_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const ATLAS_LESS_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/SIMPLE_TEST.json');
 
-describe('Phase 22.1 G-01 D-01 — atlas-source mode actualDimsByRegion from atlas.region.originalWidth/Height', () => {
-  it('Test 1 (G-01 D-01 actualSource): atlas-source mode uses PNG dims when smaller than atlas, atlas dims otherwise', () => {
+describe('Phase 22.1 G-01 D-01 — atlas-source mode actualDimsByRegion from atlas.region.originalWidth/Height (strict)', () => {
+  it('Test 1 (strict mode separation): atlas-source mode reads atlas dims only, never peeks at images/', () => {
     // SIMPLE_TEST.atlas has no orig: lines, so originalWidth === packed width.
-    // SIMPLE_PROJECT/images/ has pre-optimized PNGs smaller than atlas for CIRCLE + SQUARE.
-    // debug-fix scale-display-optimized-source: canonical mode reads PNG IHDR when
-    // PNG dims are strictly smaller than atlas dims (both axes). TRIANGLE PNG = atlas → unchanged.
+    // SIMPLE_PROJECT/images/ contains pre-optimized PNGs (smaller than atlas) — those
+    // are deliberately ignored in atlas-source mode. To use them, the user must toggle
+    // to atlas-less mode.
     const r = loadSkeleton(ATLAS_SOURCE_FIXTURE);
-    // Must have entries for all atlas regions.
     expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
 
-    // CIRCLE: PNG 420×420 < atlas 699×699 → actualSourceW = 420 (PNG wins)
+    // CIRCLE: atlas 699×699 wins; images/CIRCLE.png (420×420) is ignored.
     const circle = r.actualDimsByRegion.get('CIRCLE');
     expect(circle).toBeDefined();
-    expect(circle?.actualSourceW).toBe(420);
-    expect(circle?.actualSourceH).toBe(420);
+    expect(circle?.actualSourceW).toBe(699);
+    expect(circle?.actualSourceH).toBe(699);
 
-    // SQUARE: PNG 890×890 < atlas 1000×1000 → actualSourceW = 890 (PNG wins)
+    // SQUARE: atlas 1000×1000 wins; images/SQUARE.png (890×890) is ignored.
     const square = r.actualDimsByRegion.get('SQUARE');
     expect(square).toBeDefined();
-    expect(square?.actualSourceW).toBe(890);
-    expect(square?.actualSourceH).toBe(890);
+    expect(square?.actualSourceW).toBe(1000);
+    expect(square?.actualSourceH).toBe(1000);
 
-    // TRIANGLE: PNG 833×759 = atlas 833×759 → NOT smaller → actualSourceW = 833 (atlas wins)
+    // TRIANGLE: atlas 833×759 wins; PNG happens to match.
     const triangle = r.actualDimsByRegion.get('TRIANGLE');
     expect(triangle).toBeDefined();
     expect(triangle?.actualSourceW).toBe(833);
     expect(triangle?.actualSourceH).toBe(759);
   });
 
-  it('Test 2 (G-01 D-01 non-empty): atlas-source mode actualDimsByRegion is always non-empty (from atlas baseline + optional PNG override)', () => {
-    // After G-01: actualDimsByRegion is seeded from atlas.region.originalWidth/Height.
-    // debug-fix: when images/ exists with smaller PNGs, those override the atlas baseline.
-    // Either way actualDimsByRegion.size >= 3 and all values are positive.
+  it('Test 2 (non-empty): atlas-source mode actualDimsByRegion has one entry per atlas region', () => {
     const r = loadSkeleton(ATLAS_SOURCE_FIXTURE);
-    // Non-empty regardless of whether PNG files exist.
     expect(r.actualDimsByRegion.size).toBeGreaterThanOrEqual(3);
-    // All entries have positive dims (PNG or atlas, never 0).
     for (const [_name, dims] of r.actualDimsByRegion) {
       expect(dims.actualSourceW).toBeGreaterThan(0);
       expect(dims.actualSourceH).toBeGreaterThan(0);
     }
-    // CIRCLE and SQUARE use PNG dims (smaller than atlas).
-    expect(r.actualDimsByRegion.get('CIRCLE')?.actualSourceW).toBe(420);
-    expect(r.actualDimsByRegion.get('SQUARE')?.actualSourceW).toBe(890);
   });
 
   it('Test 3 (G-01 D-01 sourcePaths): atlas-source mode populates sourcePaths from images/ for export output paths (no PNG header reads)', () => {
