@@ -107,7 +107,7 @@ function buildPlan(
   };
   if (atlasExtract) {
     // Exercise the atlas-extract branch (D-08)
-    row.atlasSource = { pagePath: srcPath, x: 0, y: 0, w: 64, h: 64 };
+    row.atlasSource = { pagePath: srcPath, x: 0, y: 0, w: 64, h: 64, rotated: false };
   }
   return {
     rows: [row],
