@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
-status: in_progress
-last_updated: "2026-05-06T12:00:00.000Z"
-last_activity: 2026-05-06 -- Phase 28 context gathered; scope PIVOTED from "PMA preservation" to "Optional output sharpening on downscale" after PMA premise empirically falsified (sharp 0.34 + libvips 8.17 already auto-handle premultiplication; verified via scripts/pma-probe.mjs + user runtime A/B). Backlog 999.9 closed `falsified`. New REQs SHARP-01..03 locked. v1.3 REQ count: 18 (was 15+TBD).
+status: executing
+last_updated: "2026-05-06T21:13:11.257Z"
+last_activity: 2026-05-06 -- Phase 28 planning complete
 progress:
-  total_phases: 17
-  completed_phases: 9
-  total_plans: 52
-  completed_plans: 54
-  percent: 53
+  total_phases: 21
+  completed_phases: 14
+  total_plans: 67
+  completed_plans: 69
+  percent: 100
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 28 — CONTEXT GATHERED (28-CONTEXT.md authored; awaiting `/gsd-plan-phase 28`)
 Plan: —
-Status: Phase 28 scope PIVOTED from "PMA preservation" to "Optional output sharpening on downscale" — original PMA premise empirically falsified during /gsd-discuss-phase 28 (sharp 0.34 + libvips 8.17 auto-handle PMA; verified via scripts/pma-probe.mjs + user runtime A/B + visual inspection of source-vs-export fringes). 8 decisions locked (D-01 PMA falsification; D-02 phase-scope pivot; D-03 toggle in OptimizeDialog; D-04 default OFF; D-05 σ=0.5 fixed; D-06 .stmproj persistence; D-07 downscale-only gate; D-08 both resize call sites). New REQs SHARP-01..03. Backlog 999.9 closed `falsified`. scripts/pma-probe.mjs retained as regression sentinel.
-Last activity: 2026-05-06 -- Phase 28 context gathered; scope pivot committed
+Status: Ready to execute
+Last activity: 2026-05-06 -- Phase 28 planning complete
 
 ## Project Reference
 
