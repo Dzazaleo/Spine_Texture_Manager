@@ -644,6 +644,27 @@ Plans:
 - [ ] 27-02-PLAN.md — OverrideDialog empty-input Apply guard + remove dead `open` prop (QA-02 + QA-04) (Wave 1)
 - [ ] 27-03-PLAN.md — Natural-order localeCompare sweep across renderer comparators (QA-03) (Wave 2)
 
+### Phase 28: Optional Output Sharpening on Downscale
+
+**Goal**: Add an opt-in `OptimizeDialog` checkbox ("Sharpen output on downscale") that, when enabled, applies `sharp.sharpen({ sigma: 0.5 })` AFTER the Lanczos3 resize on rows with `effectiveScale < 1.0`. Mirrors Photoshop's "Bicubic Sharper (reduction)" preset; default OFF preserves the neutral baseline. Originally scoped (2026-05-06) as "PMA preservation in Optimize Assets export" promoted from backlog 999.9; pivoted same day after empirical falsification during /gsd-discuss-phase 28 — sharp 0.34 + libvips 8.17 already auto-handle premultiplication on resize. Backlog 999.9 closed `falsified`. `scripts/pma-probe.mjs` retained as regression sentinel.
+
+**Depends on**: Phase 6 (Optimize Assets) + Phase 8 (.stmproj v1 schema) + Phase 22 (passthroughCopies — passthrough rows are unaffected per D-07).
+
+**Requirements**: SHARP-01, SHARP-02, SHARP-03
+
+**Success Criteria** (what must be TRUE):
+  1. User toggles the checkbox in OptimizeDialog; toggle state persists per-project in `.stmproj` (additive optional field, missing → false for v1.2-era files; D-04 + D-06).
+  2. Toggle ON + downscale row → output PNG is measurably sharper than the toggle-OFF baseline (variance assertion in regression test; D-05 SHARPEN_SIGMA=0.5 locked).
+  3. Toggle ON + identity (1.0x) row → byte-identical to toggle-OFF baseline (downscale-only gate enforced; D-07).
+  4. Toggle ON applied to BOTH resize call sites (per-region + atlas-extract) — both branches collapse onto the DRY `applyResizeAndSharpen` helper (D-08).
+  5. Backlog 999.9 (PMA preservation) closed `falsified`. `scripts/pma-probe.mjs` retained as regression sentinel (D-01).
+  6. Layer 3 invariant preserved — no `sharp` import in `src/core/`. `.stmproj` schema version unchanged at `1` (additive backward-compat per Phase 8 D-146).
+
+**Plans**: 3 plans
+- [ ] 28-01-PLAN.md — Persistence + IPC plumbing + UI toggle (SHARP-01) (Wave 1)
+- [ ] 28-02-PLAN.md — image-worker integration with DRY helper (SHARP-02) (Wave 2)
+- [ ] 28-03-PLAN.md — Regression test + housekeeping (SHARP-03) (Wave 3)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -670,6 +691,7 @@ Plans:
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
+| 28. Optional output sharpening on downscale | v1.3 | 0/3 | In Progress | — |
 
 ## Deferred (post-v1.1)
 
