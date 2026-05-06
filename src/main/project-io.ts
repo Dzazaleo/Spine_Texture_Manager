@@ -551,6 +551,10 @@ export async function handleProjectOpenFromPath(
     // Phase 21 D-08 — thread loaderMode so AppShell can seed its toggle UI
     // state on Open. Validator already defaulted legacy files to 'auto'.
     loaderMode: materialized.loaderMode,
+    // Phase 28 SHARP-01 — thread sharpenOnExport so AppShell can seed its
+    // sharpenOnExportLocal slot on Open. Mirrors loaderMode site immediately
+    // above (Phase 21 D-08 Site 2).
+    sharpenOnExport: materialized.sharpenOnExport,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -680,6 +684,12 @@ export async function handleProjectReloadWithSkeleton(
   // see canonical-mode behavior, which is the safer default).
   const loaderMode: 'auto' | 'atlas-less' =
     a.loaderMode === 'atlas-less' ? 'atlas-less' : 'auto';
+  // Phase 28 SHARP-01 — recovery path threads sharpenOnExport from the
+  // renderer's last-known session payload (mirrors samplingHz/loaderMode
+  // lifts above). Type-coerce defensively (the recovery shape is loosely
+  // typed at this boundary).
+  const sharpenOnExport: boolean =
+    typeof a.sharpenOnExport === 'boolean' ? a.sharpenOnExport : false;
 
   // Reuse the loader+sampler+buildSummary chain from handleProjectOpenFromPath
   // steps 6-9. atlasPath is intentionally undefined → loader's F1.2 sibling
@@ -811,6 +821,9 @@ export async function handleProjectReloadWithSkeleton(
     // Phase 21 D-08 — recovery path uses the loaderMode the renderer cached
     // before the failed Open (computed at line ~667 from `a.loaderMode`).
     loaderMode,
+    // Phase 28 SHARP-01 — recovery path uses the sharpenOnExport the renderer
+    // cached before the failed Open (computed above from `a.sharpenOnExport`).
+    sharpenOnExport,
     // Phase 20 D-01 — locate-skeleton recovery does not re-read the .stmproj
     // file (it reuses the renderer's cached overrides/settings from the
     // failed Open). `documentation` is not part of the cached args today;
@@ -1021,6 +1034,13 @@ export async function handleProjectResample(
     // the IPC response coerces undefined → 'auto' to satisfy the
     // MaterializedProject contract (non-undefined union).
     loaderMode: resampleLoaderMode ?? 'auto',
+    // Phase 28 SHARP-01 — resample is renderer-driven; the renderer's
+    // sharpenOnExportLocal slot is the source of truth and AppShell preserves
+    // it across resample. Default false here satisfies the type contract; if
+    // the renderer ever threads sharpenOnExport into ResampleArgs, this seam
+    // already coerces it defensively.
+    sharpenOnExport:
+      typeof a.sharpenOnExport === 'boolean' ? a.sharpenOnExport : false,
   };
   return { ok: true, project };
 }
