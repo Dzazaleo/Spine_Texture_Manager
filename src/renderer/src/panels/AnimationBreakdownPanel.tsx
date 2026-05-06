@@ -928,13 +928,13 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
                   // <tr> rendering per the official TanStack Virtual table
                   // example.
                   //
-                  // Math.round snaps translateY to integer pixels.
-                  // measureElement returns fractional ResizeObserver
-                  // dimensions; un-rounded transforms produce sub-pixel
-                  // rasterization streaks at row boundaries during fast
-                  // scroll / horizontal resize on Windows.
+                  // No Math.round here — measureElement supplies real
+                  // per-row heights, so cumulative position is exact.
+                  // Rounding each translateY independently accumulates
+                  // sub-pixel error into ~1px row overlap by mid-list,
+                  // hiding bottom borders.
                   style={{
-                    transform: `translateY(${Math.round(virtualRow.start - idx * virtualRow.size)}px)`,
+                    transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
                   }}
                   // ResizeObserver-driven exact measurement for
                   // variable-height rows (Bone Path can wrap; override

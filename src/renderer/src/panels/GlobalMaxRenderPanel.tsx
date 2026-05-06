@@ -1079,14 +1079,14 @@ export function GlobalMaxRenderPanel({
                       // and is REQUIRED for <tr> rendering (vs the
                       // <div>-based docs default).
                       //
-                      // Math.round snaps translateY to integer pixels.
-                      // estimateSize is a guess (34px); actual row height
-                      // drifts on Windows due to JetBrains Mono metrics,
-                      // producing fractional translateY values that cause
-                      // sub-pixel rasterization streaks at row boundaries
-                      // during fast scroll / horizontal resize.
+                      // No Math.round here — measureElement supplies real
+                      // per-row heights, so cumulative position is exact.
+                      // Independently rounding each translateY accumulated
+                      // ~1px overlap by mid-list, hiding bottom borders
+                      // (separators progressively disappeared from the
+                      // middle of the list to the end).
                       style={{
-                        transform: `translateY(${Math.round(virtualRow.start - idx * virtualRow.size)}px)`,
+                        transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
                       }}
                     />
                   );
