@@ -534,6 +534,8 @@ export async function handleStartExport(
   plan: unknown,
   outDir: unknown,
   overwrite: boolean = false,
+  // Phase 28 SHARP-02 — 5th arg, default false (mirrors overwrite default).
+  sharpenEnabled: boolean = false,
 ): Promise<ExportResponse> {
   // D-115: re-entrancy guard — checked FIRST so a second invocation while
   // a first is pending sees the flag set and bails immediately.
@@ -641,6 +643,7 @@ export async function handleStartExport(
       }
     }
 
+    // @ts-expect-error Phase 28-02 will accept the 6th argument
     const summary = await runExport(
       validPlan,
       outDir,
@@ -652,6 +655,7 @@ export async function handleStartExport(
       },
       () => exportCancelFlag,
       overwrite,
+      sharpenEnabled, // Phase 28 SHARP-02
     );
     return { ok: true, summary };
   } catch (err) {
@@ -682,8 +686,14 @@ export function registerIpcHandlers(): void {
   // Gap-Fix Round 3 (2026-04-25) — 'export:start' gains `overwrite` as a
   // 3rd argument. Strict `=== true` check: any non-true value (undefined,
   // null, 0, false) keeps the safe default and re-runs the probe.
-  ipcMain.handle('export:start', async (evt, plan, outDir, overwrite) =>
-    handleStartExport(evt, plan, outDir, overwrite === true),
+  ipcMain.handle('export:start', async (evt, plan, outDir, overwrite, sharpenEnabled) =>
+    handleStartExport(
+      evt,
+      plan,
+      outDir,
+      overwrite === true,
+      sharpenEnabled === true, // Phase 28 SHARP-02 — strict boolean coerce
+    ),
   );
   ipcMain.on('export:cancel', () => {
     // D-115: cooperative cancel. Flag is read on every iteration of the
