@@ -371,6 +371,93 @@ describe('Phase 21 — loaderMode (D-08)', () => {
   });
 });
 
+describe('Phase 28 — sharpenOnExport (D-06)', () => {
+  it('validateProjectFile pre-massages missing sharpenOnExport to false (forward-compat for v1.2-era files)', () => {
+    const v12EraFile: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'auto',
+      // sharpenOnExport INTENTIONALLY ABSENT (v1.2-era shape)
+    };
+    const result = validateProjectFile(v12EraFile);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).sharpenOnExport).toBe(false);
+    }
+  });
+
+  it('validateProjectFile rejects non-boolean sharpenOnExport', () => {
+    const bad: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'auto',
+      sharpenOnExport: 'yes', // invalid — must be boolean
+    };
+    const result = validateProjectFile(bad);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('invalid-shape');
+      expect(result.error.message).toMatch(/sharpenOnExport/);
+    }
+  });
+
+  it('serialize → materialize round-trips sharpenOnExport: true identically', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: true,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.sharpenOnExport).toBe(true);
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.sharpenOnExport).toBe(true);
+  });
+
+  it('serialize → materialize round-trips sharpenOnExport: false identically', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.sharpenOnExport).toBe(false);
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.sharpenOnExport).toBe(false);
+  });
+});
+
 describe('hygiene — Layer 3 invariant for src/core/project-file.ts (T-08-LAYER)', () => {
   it('does not import node:fs / node:fs/promises / sharp / electron', () => {
     const src = readFileSync(CORE_SRC, 'utf8');
