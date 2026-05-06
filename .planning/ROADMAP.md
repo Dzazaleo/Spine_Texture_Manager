@@ -77,7 +77,7 @@ Plans:
 - [x] 26.2-01-PLAN.md — Tab strip relocation + tab icons + TabButton extension (AppShell.tsx only) (Wave 1)
 - [x] 26.2-02-PLAN.md — WarningTriangleIcon component + 4 panel fill→stroke conversions + UnusedAssetsPanel rename + inline-search removal (Wave 1, parallel)
 - [x] **Phase 27: Code quality sweep** — Functional setSelected updater, OverrideDialog empty-input guard, localeCompare numeric sort, dead open-prop removal. (QA-01, QA-02, QA-03, QA-04) ✅ COMPLETE 2026-05-05
-- [ ] **Phase 28: Optional output sharpening on downscale** — Opt-in post-resize unsharp mask. Adds a checkbox to `OptimizeDialog` ("Sharpen output on downscale" or planner-final copy), default OFF, persists per-project in `.stmproj` v1 schema (additive optional `sharpenOnExport: boolean`; missing field = false for backward-compat). When ON, image-worker applies `sharp.sharpen({ sigma: 0.5 })` after Lanczos3 resize on rows with `effectiveScale < 1.0` (downscale-only gate; passthrough rows + 1.0× rows unaffected). Both resize call sites at `src/main/image-worker.ts:437-451` (per-region + atlas-extract paths) receive the conditional sharpen. Mirrors Photoshop's "Bicubic Sharper (reduction)" preset; matched against user's empirical Photoshop A/B reduction baseline. Out-of-scope: sharpen presets / sigma slider; sharpen-on-upscale (export ratios bounded ≤ 1.0 by Phase 22 override-cap); color-space conversion; gamma-aware sharpening. **Originally scoped (2026-05-06) as "PMA preservation in Optimize Assets export" promoted from backlog 999.9; PIVOTED same day after empirical falsification during /gsd-discuss-phase 28** — sharp 0.34 + libvips 8.17 already auto-handle premultiplication on resize; verified via `scripts/pma-probe.mjs` (synthetic edge probe), user runtime A/B (atlas-source vs atlas-less, byte-identical), and visual inspection (fringes are baked-in source artifacts). Backlog 999.9 closed `falsified`. Probe retained as regression sentinel. (SHARP-01 toggle UI + .stmproj persistence; SHARP-02 image-worker pipeline integration; SHARP-03 regression test locking sigma constant + downscale-only gate)
+- [x] **Phase 28: Optional output sharpening on downscale** — Opt-in post-resize unsharp mask. Adds a checkbox to `OptimizeDialog` ("Sharpen output on downscale" or planner-final copy), default OFF, persists per-project in `.stmproj` v1 schema (additive optional `sharpenOnExport: boolean`; missing field = false for backward-compat). When ON, image-worker applies `sharp.sharpen({ sigma: 0.5 })` after Lanczos3 resize on rows with `effectiveScale < 1.0` (downscale-only gate; passthrough rows + 1.0× rows unaffected). Both resize call sites at `src/main/image-worker.ts:437-451` (per-region + atlas-extract paths) receive the conditional sharpen. Mirrors Photoshop's "Bicubic Sharper (reduction)" preset; matched against user's empirical Photoshop A/B reduction baseline. Out-of-scope: sharpen presets / sigma slider; sharpen-on-upscale (export ratios bounded ≤ 1.0 by Phase 22 override-cap); color-space conversion; gamma-aware sharpening. **Originally scoped (2026-05-06) as "PMA preservation in Optimize Assets export" promoted from backlog 999.9; PIVOTED same day after empirical falsification during /gsd-discuss-phase 28** — sharp 0.34 + libvips 8.17 already auto-handle premultiplication on resize; verified via `scripts/pma-probe.mjs` (synthetic edge probe), user runtime A/B (atlas-source vs atlas-less, byte-identical), and visual inspection (fringes are baked-in source artifacts). Backlog 999.9 closed `falsified`. Probe retained as regression sentinel. (SHARP-01 toggle UI + .stmproj persistence; SHARP-02 image-worker pipeline integration; SHARP-03 regression test locking sigma constant + downscale-only gate) (completed 2026-05-06)
 
 ## Phase Details
 
@@ -661,9 +661,9 @@ Plans:
   6. Layer 3 invariant preserved — no `sharp` import in `src/core/`. `.stmproj` schema version unchanged at `1` (additive backward-compat per Phase 8 D-146).
 
 **Plans**: 3 plans
-- [ ] 28-01-PLAN.md — Persistence + IPC plumbing + UI toggle (SHARP-01) (Wave 1)
-- [ ] 28-02-PLAN.md — image-worker integration with DRY helper (SHARP-02) (Wave 2)
-- [ ] 28-03-PLAN.md — Regression test + housekeeping (SHARP-03) (Wave 3)
+- [x] 28-01-PLAN.md — Persistence + IPC plumbing + UI toggle (SHARP-01) (Wave 1)
+- [x] 28-02-PLAN.md — image-worker integration with DRY helper (SHARP-02) (Wave 2)
+- [x] 28-03-PLAN.md — Regression test + housekeeping (SHARP-03) (Wave 3)
 
 ## Progress
 
@@ -691,7 +691,7 @@ Plans:
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
-| 28. Optional output sharpening on downscale | v1.3 | 0/3 | In Progress | — |
+| 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete   | 2026-05-06 |
 
 ## Deferred (post-v1.1)
 
