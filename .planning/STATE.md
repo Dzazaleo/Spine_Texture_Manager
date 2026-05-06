@@ -18,9 +18,9 @@ progress:
 ## Current Position
 
 Phase: 28 (optional-output-sharpening) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 28
-Last activity: 2026-05-06 -- Phase 28 execution started
+Plan: 3 of 3
+Status: Executing Phase 28 — Optional output sharpening on downscale (D-02 scope pivot 2026-05-06; original PMA-preservation premise empirically falsified, see scripts/pma-probe.mjs + .planning/phases/28-optional-output-sharpening/28-CONTEXT.md D-01)
+Last activity: 2026-05-06 -- Phase 28 Plan 28-03 execution (regression test + housekeeping)
 
 ## Project Reference
 
