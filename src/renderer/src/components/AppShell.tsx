@@ -919,6 +919,10 @@ export function AppShell({
       sortDir: 'asc',
       projectFilePath: currentProjectPath,
       loaderMode,
+      // Phase 28 D-06 — thread the renderer's current sharpen toggle so
+      // MaterializedProject.sharpenOnExport at the resample seam stays
+      // truthful (mirrors loaderMode threading above).
+      sharpenOnExport: sharpenOnExportLocal,
     });
     if (!resp.ok) return;
     setLocalSummary(resp.project.summary);
@@ -941,6 +945,7 @@ export function AppShell({
     lastOutDir,
     currentProjectPath,
     loaderMode,
+    sharpenOnExportLocal,
     samplingInFlight,
   ]);
 
@@ -1354,6 +1359,10 @@ export function AppShell({
         // 21-07 wires this into runSamplerInWorker + project-io.ts loadSkeleton
         // calls). ResampleArgs gains the field in Plan 21-07's types extension.
         loaderMode,
+        // Phase 28 D-06 — thread the renderer's current sharpen toggle so
+        // MaterializedProject.sharpenOnExport at the resample seam stays
+        // truthful (mirrors loaderMode threading above).
+        sharpenOnExport: sharpenOnExportLocal,
       });
       // Guard against a stale response landing after the next samplingHz
       // change (or unmount). The cancelled flag below is set by the

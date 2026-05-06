@@ -891,6 +891,14 @@ export interface ResampleArgs {
    * (undefined → 'auto' default).
    */
   loaderMode?: 'auto' | 'atlas-less';
+  /**
+   * Phase 28 D-06 — per-project sharpen-on-export toggle. The resample
+   * round-trip re-materialises the project; threading the renderer's
+   * current `sharpenOnExportLocal` keeps `MaterializedProject.sharpenOnExport`
+   * truthful at the resample seam. Optional for backward-compat
+   * (undefined → false).
+   */
+  sharpenOnExport?: boolean;
 }
 
 export type LocateSkeletonResponse =
