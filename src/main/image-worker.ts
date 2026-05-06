@@ -93,7 +93,16 @@ function applyResizeAndSharpen(
   sharpenEnabled: boolean,
 ): sharp.Sharp {
   let p = pipeline.resize(outW, outH, { kernel: 'lanczos3', fit: 'fill' });
-  if (sharpenEnabled && effectiveScale < 1.0) {
+  // WR-02 (2026-05-06): explicit Number.isFinite guard. NaN < 1.0 is `false`
+  // so the original gate already happened to skip sharpen on NaN by accident,
+  // but that is implicit contract — a future caller producing NaN
+  // effectiveScale should not silently get non-sharpened output. Make the
+  // skip explicit; defense-in-depth at the actual decision site.
+  if (
+    sharpenEnabled &&
+    Number.isFinite(effectiveScale) &&
+    effectiveScale < 1.0
+  ) {
     p = p.sharpen({ sigma: SHARPEN_SIGMA });
   }
   return p.png({ compressionLevel: 9 });
