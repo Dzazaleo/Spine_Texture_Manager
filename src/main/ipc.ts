@@ -643,7 +643,6 @@ export async function handleStartExport(
       }
     }
 
-    // @ts-expect-error Phase 28-02 will accept the 6th argument
     const summary = await runExport(
       validPlan,
       outDir,

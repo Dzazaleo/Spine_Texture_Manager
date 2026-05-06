@@ -1,7 +1,8 @@
 /**
  * Phase 6 Plan 04 — Main-process export worker (F8.2 + F8.4 + F8.5 + N3.1).
  *
- * runExport(plan, outDir, onProgress, isCancelled, allowOverwrite=false)
+ * runExport(plan, outDir, onProgress, isCancelled, allowOverwrite=false,
+ *           sharpenEnabled=false)
  * walks ExportPlan.rows sequentially, performing per-row:
  *   1. fs.access(R_OK) pre-flight per D-112. If the per-region source
  *      PNG is missing AND row.atlasSource is populated (Gap-Fix #2,
@@ -63,6 +64,41 @@ import type {
   ExportSummary,
 } from '../shared/types.js';
 
+// Phase 28 SHARP-02 — fixed sigma for sharp.sharpen() unsharp mask. NOT a
+// tunable, slider, or per-row override (D-05 LOCKED). Closely matches
+// Photoshop's "Bicubic Sharper (reduction)" preset for typical Spine art at
+// 50–75% downscale ratios.
+const SHARPEN_SIGMA = 0.5;
+
+/**
+ * Phase 28 SHARP-02 — applies the resize chain (Lanczos3 fill) AND the
+ * conditional sharpen pass to a sharp pipeline. Both image-worker resize
+ * call sites (per-region + atlas-extract) collapse onto this helper so the
+ * downscale-only gate + sigma constant live in ONE place (D-08).
+ *
+ * Sharpen runs only when sharpenEnabled === true AND effectiveScale < 1.0
+ * (D-07). Identity (1.0×) and upscale rows skip sharpen entirely; passthrough
+ * rows never enter this helper at all (they take the byte-copy fast path
+ * earlier in runExport).
+ *
+ * Idempotency guaranteed by shape: the helper applies sharpen at most once
+ * per call. Calling .sharpen() twice in a single sharp pipeline is NOT
+ * idempotent (compounds the unsharp mask).
+ */
+function applyResizeAndSharpen(
+  pipeline: sharp.Sharp,
+  outW: number,
+  outH: number,
+  effectiveScale: number,
+  sharpenEnabled: boolean,
+): sharp.Sharp {
+  let p = pipeline.resize(outW, outH, { kernel: 'lanczos3', fit: 'fill' });
+  if (sharpenEnabled && effectiveScale < 1.0) {
+    p = p.sharpen({ sigma: SHARPEN_SIGMA });
+  }
+  return p.png({ compressionLevel: 9 });
+}
+
 export async function runExport(
   plan: ExportPlan,
   outDir: string,
@@ -75,6 +111,10 @@ export async function runExport(
   // false so direct test invocations and any future caller that bypasses
   // the IPC layer still get the round-2 source-protection behaviour.
   allowOverwrite: boolean = false,
+  // Phase 28 SHARP-02 — opt-in unsharp-mask post-resize. Default false
+  // preserves the neutral baseline for direct test invocations and any
+  // caller bypassing the IPC layer (mirrors allowOverwrite default).
+  sharpenEnabled: boolean = false,
 ): Promise<ExportSummary> {
   const t0 = performance.now();
   const errors: ExportError[] = [];
@@ -433,22 +473,30 @@ export async function runExport(
         // sharp.extract uses {left, top, width, height}. We pass the
         // SOURCE-orig dims (atlasSource.w/h) as the extract size — for
         // non-rotated regions these match the packed bounds W/H exactly,
-        // and rotated regions are blocked above.
-        await sharp(row.atlasSource.pagePath)
-          .extract({
+        // and rotated regions are blocked above. Phase 28 SHARP-02:
+        // both branches collapse onto applyResizeAndSharpen so the
+        // downscale-only sharpen gate (D-07) + sigma constant (D-05)
+        // live in ONE place; D-08 enforces both call sites covered.
+        await applyResizeAndSharpen(
+          sharp(row.atlasSource.pagePath).extract({
             left: row.atlasSource.x,
             top: row.atlasSource.y,
             width: row.atlasSource.w,
             height: row.atlasSource.h,
-          })
-          .resize(row.outW, row.outH, { kernel: 'lanczos3', fit: 'fill' })
-          .png({ compressionLevel: 9 })
-          .toFile(tmpPath);
+          }),
+          row.outW,
+          row.outH,
+          row.effectiveScale,
+          sharpenEnabled,
+        ).toFile(tmpPath);
       } else {
-        await sharp(sourcePath)
-          .resize(row.outW, row.outH, { kernel: 'lanczos3', fit: 'fill' })
-          .png({ compressionLevel: 9 })
-          .toFile(tmpPath);
+        await applyResizeAndSharpen(
+          sharp(sourcePath),
+          row.outW,
+          row.outH,
+          row.effectiveScale,
+          sharpenEnabled,
+        ).toFile(tmpPath);
       }
     } catch (e) {
       const error: ExportError = {
