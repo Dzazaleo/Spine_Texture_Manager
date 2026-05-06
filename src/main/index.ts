@@ -106,6 +106,11 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+// DIAGNOSTIC ONLY — disable Chromium GPU compositor to test if Windows
+// row-streak artifacts are caused by hardware-acceleration sub-pixel
+// rasterization. Revert this line once the test confirms or rules out GPU.
+app.disableHardwareAcceleration();
+
 // Phase 8 — dirty-guard intercept (D-143). Standard Electron pattern with the
 // Pitfall 1 setTimeout deferral on the second quit invocation. Wired EARLY
 // (module load time) so the listener catches Cmd+Q before window-all-closed
