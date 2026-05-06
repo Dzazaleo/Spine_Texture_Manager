@@ -777,6 +777,13 @@ export interface ProjectFileV1 {
    * pre-massage at project-file.ts substitutes 'auto' (RESEARCH.md §Pitfall 6).
    */
   loaderMode: 'auto' | 'atlas-less';
+  /**
+   * Phase 28 SHARP-01 — opt-in unsharp-mask post-resize on downscale.
+   * v1.2-era .stmproj files have no `sharpenOnExport` field; the validator
+   * pre-massages missing → false (mirrors loaderMode pre-massage in
+   * src/core/project-file.ts:174-186). D-04 default-OFF, D-06 persists per project.
+   */
+  sharpenOnExport: boolean;
 }
 
 export type ProjectFile = ProjectFileV1;
@@ -800,6 +807,8 @@ export interface AppSessionState {
   documentation: Documentation;
   // Phase 21 D-08 — drives loadSkeleton + sampler-worker; round-trips through .stmproj.
   loaderMode: 'auto' | 'atlas-less';
+  /** Phase 28 SHARP-01 — round-trips through .stmproj per D-06. */
+  sharpenOnExport: boolean;
 }
 
 /**
@@ -825,6 +834,11 @@ export interface MaterializedProject {
   // / resample. Round-trips through .stmproj via PartialMaterialized.loaderMode;
   // legacy files without the field default to 'auto' via the validator.
   loaderMode: 'auto' | 'atlas-less';
+  /**
+   * Phase 28 SHARP-01 — threaded through main/project-io.ts so AppShell
+   * seeds its sharpenOnExportLocal slot on Open / locate-skeleton recovery.
+   */
+  sharpenOnExport: boolean;
 }
 
 export type SaveResponse =
@@ -922,6 +936,12 @@ export interface Api {
     plan: ExportPlan,
     outDir: string,
     overwrite?: boolean,
+    /**
+     * Phase 28 SHARP-02 — opt-in unsharp-mask post-resize. AppShell threads
+     * `sharpenOnExportLocal` into this arg at the export-start call site.
+     * Defaults to false in main when omitted (mirrors overwrite default).
+     */
+    sharpenEnabled?: boolean,
   ) => Promise<ExportResponse>;
   /**
    * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
