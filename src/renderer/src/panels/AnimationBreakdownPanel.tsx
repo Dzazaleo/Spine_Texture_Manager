@@ -891,6 +891,12 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
         maxHeight: '600px',
         overflowY: 'auto',
         overflowAnchor: 'none',
+        // Windows GPU compositor leaves 1px alpha-streak residue at row
+        // boundaries during fast scroll / horizontal resize when rows have
+        // semi-transparent backgrounds. `contain: paint` isolates the
+        // table's repaint region so Chromium doesn't smear sub-pixel
+        // residue across boundaries.
+        contain: 'paint',
       }}
     >
       <div
@@ -921,8 +927,14 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
                   // (idx * virtualRow.size) subtraction is REQUIRED for
                   // <tr> rendering per the official TanStack Virtual table
                   // example.
+                  //
+                  // Math.round snaps translateY to integer pixels.
+                  // measureElement returns fractional ResizeObserver
+                  // dimensions; un-rounded transforms produce sub-pixel
+                  // rasterization streaks at row boundaries during fast
+                  // scroll / horizontal resize on Windows.
                   style={{
-                    transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
+                    transform: `translateY(${Math.round(virtualRow.start - idx * virtualRow.size)}px)`,
                   }}
                   // ResizeObserver-driven exact measurement for
                   // variable-height rows (Bone Path can wrap; override

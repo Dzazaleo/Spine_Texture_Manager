@@ -951,6 +951,12 @@ export function GlobalMaxRenderPanel({
             height: 'calc(100vh - 200px)',
             overflow: 'auto',
             overflowAnchor: 'none',
+            // Windows GPU compositor leaves 1px alpha-streak residue at row
+            // boundaries during fast scroll / horizontal resize when rows have
+            // semi-transparent backgrounds. `contain: paint` isolates the
+            // table's repaint region so Chromium doesn't smear sub-pixel
+            // residue across boundaries.
+            contain: 'paint',
           }}
         >
           <div
@@ -1051,8 +1057,15 @@ export function GlobalMaxRenderPanel({
                       // in the official TanStack Virtual table example
                       // and is REQUIRED for <tr> rendering (vs the
                       // <div>-based docs default).
+                      //
+                      // Math.round snaps translateY to integer pixels.
+                      // estimateSize is a guess (34px); actual row height
+                      // drifts on Windows due to JetBrains Mono metrics,
+                      // producing fractional translateY values that cause
+                      // sub-pixel rasterization streaks at row boundaries
+                      // during fast scroll / horizontal resize.
                       style={{
-                        transform: `translateY(${virtualRow.start - idx * virtualRow.size}px)`,
+                        transform: `translateY(${Math.round(virtualRow.start - idx * virtualRow.size)}px)`,
                       }}
                     />
                   );
