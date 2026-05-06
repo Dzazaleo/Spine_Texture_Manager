@@ -691,7 +691,7 @@ Plans:
 | 25. Missing attachments in-context display | v1.3 | 2/2 | Complete    | 2026-05-04 |
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
-| 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete   | 2026-05-06 |
+| 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
 
 ## Deferred (post-v1.1)
 

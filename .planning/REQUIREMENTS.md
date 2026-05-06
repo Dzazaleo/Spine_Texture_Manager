@@ -39,8 +39,8 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 
 ### SHARP — Output Quality
 
-- [ ] **SHARP-01**: User opt-in checkbox in OptimizeDialog ("Sharpen output on downscale") controls whether `sharp.sharpen({ sigma: 0.5 })` is applied to downscaled rows; toggle persists per-project in `.stmproj` v1 schema (additive optional `sharpenOnExport: boolean`; missing field defaults to `false` for backward-compat with v1.2-era files).
-- [ ] **SHARP-02**: When toggle is ON, image-worker applies `sharp.sharpen({ sigma: 0.5 })` AFTER the Lanczos3 resize on rows where `effectiveScale < 1.0`. Both resize call sites (per-region path at `src/main/image-worker.ts:447-451` and atlas-extract path at `src/main/image-worker.ts:437-446`) receive the conditional sharpen via the shared `applyResizeAndSharpen` helper.
+- [x] **SHARP-01**: User opt-in checkbox in OptimizeDialog ("Sharpen output on downscale") controls whether `sharp.sharpen({ sigma: 0.5 })` is applied to downscaled rows; toggle persists per-project in `.stmproj` v1 schema (additive optional `sharpenOnExport: boolean`; missing field defaults to `false` for backward-compat with v1.2-era files).
+- [x] **SHARP-02**: When toggle is ON, image-worker applies `sharp.sharpen({ sigma: 0.5 })` AFTER the Lanczos3 resize on rows where `effectiveScale < 1.0`. Both resize call sites (per-region path at `src/main/image-worker.ts:447-451` and atlas-extract path at `src/main/image-worker.ts:437-446`) receive the conditional sharpen via the shared `applyResizeAndSharpen` helper.
 - [x] **SHARP-03**: Regression test (`tests/main/image-worker.sharpen.spec.ts`) locks `SHARPEN_SIGMA` constant value (0.5) and the downscale-only gate (`effectiveScale < 1.0`); test asserts that toggle OFF + downscale produces baseline output (no sharpen) and toggle ON + identity scale (1.0) produces baseline output (gate enforced).
 
 ---
@@ -88,6 +88,6 @@ Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a
 | QA-02 | Phase 27 | Pending |
 | QA-03 | Phase 27 | Pending |
 | QA-04 | Phase 27 | Pending |
-| SHARP-01 | Phase 28 | Pending |
-| SHARP-02 | Phase 28 | Pending |
+| SHARP-01 | Phase 28 | Complete |
+| SHARP-02 | Phase 28 | Complete |
 | SHARP-03 | Phase 28 | Complete |
