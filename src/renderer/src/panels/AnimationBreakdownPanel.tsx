@@ -544,7 +544,7 @@ function AnimationCard({
       {expanded && (
         <div id={bodyId} role="region" className="border-t border-border">
           {card.rows.length === 0 ? (
-            <table className="w-full border-collapse">
+            <table className="w-full border-separate border-spacing-0">
               <tbody>
                 <tr>
                   <td
@@ -694,7 +694,10 @@ function BreakdownRowItem({
       data-index={dataIndex}
       style={style}
       className={clsx(
-        'border-b border-border hover:bg-accent/5',
+        // border-separate (set on the <table>) means each cell paints its
+        // own borders — no global border-collapse arbitration that drops
+        // borders past a certain row offset on Windows.
+        '[&>td]:border-b [&>td]:border-border hover:bg-accent/5',
         // Phase 26.1 D-06 + D-10 — danger tint takes priority over zebra for missing rows.
         state === 'missing' ? 'bg-danger/20' : 'even:bg-white/[0.04]',
       )}
@@ -855,7 +858,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
     // matches the virtualized path even though there is no scroll container
     // around the flat table.
     return (
-      <table className="w-full border-collapse">
+      <table className="w-full border-separate border-spacing-0">
         <BreakdownTableHead />
         <tbody>
           {rows.map((row) => {
@@ -891,12 +894,6 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
         maxHeight: '600px',
         overflowY: 'auto',
         overflowAnchor: 'none',
-        // Windows GPU compositor leaves 1px alpha-streak residue at row
-        // boundaries during fast scroll / horizontal resize when rows have
-        // semi-transparent backgrounds. `contain: paint` isolates the
-        // table's repaint region so Chromium doesn't smear sub-pixel
-        // residue across boundaries.
-        contain: 'paint',
       }}
     >
       <div
@@ -905,7 +902,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
           position: 'relative',
         }}
       >
-        <table className="w-full border-collapse">
+        <table className="w-full border-separate border-spacing-0">
           <BreakdownTableHead />
           <tbody>
             {virtualizer.getVirtualItems().map((virtualRow, idx) => {

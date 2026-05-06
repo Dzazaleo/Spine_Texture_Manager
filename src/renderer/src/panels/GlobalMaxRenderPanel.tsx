@@ -484,7 +484,11 @@ function Row({
       data-index={dataIndex}
       style={style}
       className={clsx(
-        'border-b border-border hover:bg-accent/5',
+        // border-separate (set on the <table>) means each cell paints its
+        // own borders — no global border-collapse arbitration that drops
+        // borders past a certain row offset on Windows. Per-cell border-b
+        // via [&>td]: descendant utility keeps the diff compact.
+        '[&>td]:border-b [&>td]:border-border hover:bg-accent/5',
         checked && 'bg-accent/5',
         // Phase 7 D-130: flash highlight — same Tailwind ring pattern as
         // AnimationBreakdownPanel.tsx line 407.
@@ -970,12 +974,6 @@ export function GlobalMaxRenderPanel({
             height: 'calc(100vh - 200px)',
             overflow: 'auto',
             overflowAnchor: 'none',
-            // Windows GPU compositor leaves 1px alpha-streak residue at row
-            // boundaries during fast scroll / horizontal resize when rows have
-            // semi-transparent backgrounds. `contain: paint` isolates the
-            // table's repaint region so Chromium doesn't smear sub-pixel
-            // residue across boundaries.
-            contain: 'paint',
           }}
         >
           <div
@@ -984,7 +982,7 @@ export function GlobalMaxRenderPanel({
               position: 'relative',
             }}
           >
-            <table className="w-full border-collapse">
+            <table className="w-full border-separate border-spacing-0">
               <thead className="bg-modal sticky top-0 z-10">
                 <tr>
                   <th className="w-1 p-0" aria-label="Row state indicator" />
@@ -1100,7 +1098,7 @@ export function GlobalMaxRenderPanel({
         // pre-Phase-9 — preserves Cmd-F text search and zero virtualization
         // overhead. SIMPLE_PROJECT, Jokerman, and any rig at or below the
         // threshold land here.
-        <table className="w-full border-collapse">
+        <table className="w-full border-separate border-spacing-0">
           <thead>
             <tr className="bg-modal">
               <th className="w-1 p-0" aria-label="Row state indicator" />
