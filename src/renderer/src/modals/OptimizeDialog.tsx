@@ -418,8 +418,12 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
             .stmproj on dialog mount (D-06). Disabled in-progress (mirrors Atlas
             Preview button disabled-predicate at line 417). Tailwind v4 literal-class
             discipline (Pitfall 8) — every className is a string literal. */}
-        <label className="flex items-center gap-2 mb-4 text-xs text-fg cursor-pointer">
+        <label
+          htmlFor="sharpen-on-export-toggle"
+          className="flex items-center gap-2 mb-4 text-xs text-fg cursor-pointer"
+        >
           <input
+            id="sharpen-on-export-toggle"
             type="checkbox"
             checked={props.sharpenOnExport}
             onChange={(e) => props.onSharpenChange(e.target.checked)}
