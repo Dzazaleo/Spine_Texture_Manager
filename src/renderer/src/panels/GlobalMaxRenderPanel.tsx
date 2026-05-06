@@ -1028,7 +1028,7 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
+                  const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
                   return (
                     <Row
                       key={row.attachmentKey}
@@ -1143,7 +1143,7 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
+              const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <Row
                   key={row.attachmentKey}

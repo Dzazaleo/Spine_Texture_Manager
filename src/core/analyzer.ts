@@ -125,7 +125,10 @@ function toDisplayRow(
     isSetupPosePeak: p.isSetupPosePeak,
     // preformatted labels (D-35, D-45, D-46) — single point of truth.
     // Round 5: scaleLabel uses ceil-thousandth so display matches export math.
-    originalSizeLabel: `${p.sourceW}×${p.sourceH}`,
+    // Sibling-symmetric with displayScale (2026-05-05 fix): when an on-disk
+    // PNG is smaller than canonical (pre-optimized assets), surface the PNG
+    // dims so the Source W×H column matches the Scale column's basis.
+    originalSizeLabel: `${actualSourceW ?? p.sourceW}×${actualSourceH ?? p.sourceH}`,
     peakSizeLabel: `${p.worldW.toFixed(0)}×${p.worldH.toFixed(0)}`,
     scaleLabel: `${ceilThousandth(p.peakScale).toFixed(3)}×`,
     sourceLabel: p.animationName,
@@ -276,7 +279,8 @@ function toBreakdownRow(
     isSetupPosePeak: p.isSetupPosePeak,
     // Preformatted Phase 2 labels (D-35, D-45, D-46).
     // Round 5: scaleLabel uses ceil-thousandth so display matches export math.
-    originalSizeLabel: `${p.sourceW}×${p.sourceH}`,
+    // Sibling-symmetric with displayScale (2026-05-05 fix); see toDisplayRow.
+    originalSizeLabel: `${actualSourceW ?? p.sourceW}×${actualSourceH ?? p.sourceH}`,
     peakSizeLabel: `${p.worldW.toFixed(0)}×${p.worldH.toFixed(0)}`,
     scaleLabel: `${ceilThousandth(p.peakScale).toFixed(3)}×`,
     sourceLabel: p.animationName,

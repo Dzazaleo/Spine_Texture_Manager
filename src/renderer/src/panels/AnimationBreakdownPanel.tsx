@@ -863,7 +863,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
             // rows do not surface the global Unused Assets membership (that
             // lives on the global summary; per-animation rows only carry
             // peak data), so isUnused is always false here.
-            const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
+            const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
             return (
               <BreakdownRowItem
                 key={row.attachmentKey}
@@ -908,7 +908,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
               // rows do not surface the global Unused Assets membership (that
               // lives on the global summary; per-animation rows only carry
               // peak data), so isUnused is always false here.
-              const state = rowState(row.peakDisplayW, row.sourceW, false, row.isMissing);
+              const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}
