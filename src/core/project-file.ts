@@ -185,6 +185,20 @@ export function validateProjectFile(input: unknown): ValidateResult {
     };
   }
 
+  // Phase 28 SHARP-01 forward-compat — v1.2-era .stmproj files have no
+  // `sharpenOnExport` field; default to false so legacy projects load with
+  // the neutral baseline (D-04 default-OFF). Mirrors loaderMode pre-massage
+  // above (Phase 21 D-08).
+  if (obj.sharpenOnExport === undefined) {
+    obj.sharpenOnExport = false;
+  }
+  if (typeof obj.sharpenOnExport !== 'boolean') {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: 'sharpenOnExport is not boolean' },
+    };
+  }
+
   // Optional/nullable fields — null OR matching type both permitted.
   if (obj.atlasPath !== null && typeof obj.atlasPath !== 'string') {
     return {
@@ -298,6 +312,8 @@ export function serializeProjectFile(
     documentation: state.documentation,
     // Phase 21 D-08 — per-project loader mode override.
     loaderMode: state.loaderMode,
+    // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
+    sharpenOnExport: state.sharpenOnExport,
   };
 }
 
@@ -347,6 +363,12 @@ export interface PartialMaterialized {
    * in-depth for any future code path that bypasses the validator.
    */
   loaderMode: 'auto' | 'atlas-less';
+  /**
+   * Phase 28 SHARP-01 — defence-in-depth fallback (validator pre-massage
+   * already substitutes false, but defaults here too in case any future
+   * code path bypasses the validator). Mirrors loaderMode field above.
+   */
+  sharpenOnExport: boolean;
   /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
@@ -401,6 +423,9 @@ export function materializeProjectFile(
     // already substitutes 'auto', but defaults here too in case any
     // future code path bypasses the validator).
     loaderMode: file.loaderMode ?? 'auto',
+    // Phase 28 SHARP-01 — defence-in-depth nullish-coalesce; validator
+    // pre-massage already substitutes false. Mirrors loaderMode line above.
+    sharpenOnExport: file.sharpenOnExport ?? false,
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };

@@ -95,8 +95,14 @@ const api: Api = {
    * would be overwritten. After ConflictDialog "Overwrite all", AppShell
    * passes overwrite=true and main bypasses the per-row collision check.
    */
-  startExport: (plan, outDir, overwrite) =>
-    ipcRenderer.invoke('export:start', plan, outDir, overwrite === true),
+  startExport: (plan, outDir, overwrite, sharpenEnabled) =>
+    ipcRenderer.invoke(
+      'export:start',
+      plan,
+      outDir,
+      overwrite === true,
+      sharpenEnabled === true, // Phase 28 SHARP-02
+    ),
 
   /**
    * Gap-Fix Round 3 (2026-04-25) — pre-start conflict probe. The renderer

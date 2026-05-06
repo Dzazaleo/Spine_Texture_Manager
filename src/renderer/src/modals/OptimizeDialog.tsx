@@ -101,6 +101,13 @@ export interface OptimizeDialogProps {
    * rendered and consumes this handler unconditionally.
    */
   onOpenAtlasPreview: () => void;
+  /**
+   * Phase 28 SHARP-01 — opt-in sharpen toggle. Hydrated from the project's
+   * .stmproj per D-06; toggling marks the project dirty (AppShell wires the
+   * setter into its isDirty memo, mirroring samplingHzLocal).
+   */
+  sharpenOnExport: boolean;
+  onSharpenChange: (v: boolean) => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -224,6 +231,7 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       props.plan,
       resolvedOutDir,
       overwrite,
+      props.sharpenOnExport, // Phase 28 SHARP-02 — 4th arg per Q1 inline recommendation
     );
     if (response.ok) {
       setSummary(response.summary);
@@ -377,6 +385,21 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
             <span className="text-xs text-fg-muted text-center">Saving est. pixels</span>
           </div>
         </div>
+
+        {/* Phase 28 SHARP-01 — opt-in sharpen toggle. Hydrated from the project's
+            .stmproj on dialog mount (D-06). Disabled in-progress (mirrors Atlas
+            Preview button disabled-predicate at line 417). Tailwind v4 literal-class
+            discipline (Pitfall 8) — every className is a string literal. */}
+        <label className="flex items-center gap-2 mb-4 text-xs text-fg cursor-pointer">
+          <input
+            type="checkbox"
+            checked={props.sharpenOnExport}
+            onChange={(e) => props.onSharpenChange(e.target.checked)}
+            disabled={state === 'in-progress'}
+            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          Sharpen output on downscale
+        </label>
 
         {state === 'pre-flight' && <PreFlightBody plan={props.plan} />}
         {state !== 'pre-flight' && (
