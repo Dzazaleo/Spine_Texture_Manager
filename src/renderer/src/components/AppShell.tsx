@@ -307,6 +307,14 @@ export function AppShell({
     () => initialProject?.loaderMode ?? 'auto',
   );
 
+  // Phase 28 SHARP-01 — local sharpenOnExport state. Seeded from the project
+  // on mount; OptimizeDialog mutates this and the next Save persists it.
+  // Mirrors samplingHzLocal precedent at line ~254 — same lifecycle, same
+  // dirty-flag integration. Default false matches D-04 (toggle OFF baseline).
+  const [sharpenOnExportLocal, setSharpenOnExportLocal] = useState<boolean>(
+    () => initialProject?.sharpenOnExport ?? false,
+  );
+
   const [loaderMenuOpen, setLoaderMenuOpen] = useState(false);
 
   // Phase 23 — lastOutDir: session-metadata state slot. Seeded from
@@ -343,11 +351,13 @@ export function AppShell({
   const [lastSaved, setLastSaved] = useState<{
     overrides: Record<string, number>;
     samplingHz: number;
+    sharpenOnExport: boolean; // Phase 28 SHARP-01
   } | null>(
     initialProject
       ? {
           overrides: { ...initialProject.restoredOverrides },
           samplingHz: initialProject.samplingHz,
+          sharpenOnExport: initialProject.sharpenOnExport ?? false,
         }
       : null,
   );
@@ -730,6 +740,8 @@ export function AppShell({
       // serializeProjectFile / validateProjectFile / materializeProjectFile
       // extensions. AppSessionState gains the field in Plan 21-07.
       loaderMode,
+      // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
+      sharpenOnExport: sharpenOnExportLocal,
     }),
     [
       summary.skeletonPath,
@@ -739,6 +751,7 @@ export function AppShell({
       documentation,
       loaderMode,
       lastOutDir,
+      sharpenOnExportLocal, // Phase 28 SHARP-01 — new dependency
     ],
   );
 
@@ -801,8 +814,11 @@ export function AppShell({
       if (lastSaved.overrides[k] !== v) return true;
     }
     if (samplingHzLocal !== lastSaved.samplingHz) return true;
+    // Phase 28 SHARP-01 — toggle change marks project dirty. Mirrors
+    // samplingHz line above (D-06 — toggle persists per-project).
+    if (sharpenOnExportLocal !== lastSaved.sharpenOnExport) return true;
     return false;
-  }, [overrides, lastSaved, samplingHzLocal]);
+  }, [overrides, lastSaved, samplingHzLocal, sharpenOnExportLocal]);
 
   /**
    * onClickSave — Save when currentProjectPath is set; Save As otherwise.
@@ -827,6 +843,7 @@ export function AppShell({
         setLastSaved({
           overrides: { ...state.overrides },
           samplingHz: state.samplingHz ?? 120,
+          sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
@@ -860,6 +877,7 @@ export function AppShell({
         setLastSaved({
           overrides: { ...state.overrides },
           samplingHz: state.samplingHz ?? 120,
+          sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
         });
         setStaleOverrideNotice(null);
       }
@@ -1037,6 +1055,7 @@ export function AppShell({
     setLastSaved({
       overrides: { ...project.restoredOverrides },
       samplingHz: project.samplingHz,
+      sharpenOnExport: project.sharpenOnExport ?? false, // Phase 28 SHARP-01
     });
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
@@ -1054,6 +1073,10 @@ export function AppShell({
     // materializeProjectFile back-fills file.loaderMode ?? 'auto', so legacy
     // .stmproj files without the field default to 'auto' here as well.
     setLoaderMode(project.loaderMode ?? 'auto');
+    // Phase 28 SHARP-01 — restore sharpenOnExport from materialized project.
+    // Materializer back-fills file.sharpenOnExport ?? false, so legacy
+    // .stmproj files load with toggle OFF. D-04.
+    setSharpenOnExportLocal(project.sharpenOnExport ?? false);
     setLastOutDir(project.lastOutDir ?? null);
   }, []);
 
@@ -1828,6 +1851,8 @@ export function AppShell({
           }}
           onConfirmStart={onConfirmStart}
           onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}
+          sharpenOnExport={sharpenOnExportLocal}
+          onSharpenChange={setSharpenOnExportLocal}
         />
       )}
       {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
