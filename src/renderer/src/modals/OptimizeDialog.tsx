@@ -223,6 +223,34 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       if (decision.outDir !== undefined) resolvedOutDir = decision.outDir;
     }
 
+    // WR-03 (2026-05-06): early-return if resolvedOutDir is null. The IPC
+    // contract requires a non-empty string outDir; the preload coerce + main
+    // reject would already turn this into an 'invalid-out-dir' error, but the
+    // renderer's own type contract for window.api.startExport's `outDir`
+    // parameter is `string` (not `string | null`), and silently passing null
+    // through the API surface defeats the typecheck. AppShell's
+    // onConfirmStart always supplies an outDir before proceed:true, so this
+    // branch is defense-in-depth — surface the same shape the IPC reject
+    // would have produced.
+    if (resolvedOutDir === null) {
+      setSummary({
+        successes: 0,
+        errors: [
+          {
+            kind: 'write-error',
+            path: '',
+            message: 'outDir must be a non-empty string',
+          },
+        ],
+        outputDir: '',
+        durationMs: 0,
+        cancelled: false,
+      });
+      setState('complete');
+      props.onRunEnd?.();
+      return;
+    }
+
     setState('in-progress');
     props.onRunStart?.();
     // All rows already initialized to 'idle' on mount; progress events flip
