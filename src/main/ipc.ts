@@ -953,11 +953,13 @@ export function registerIpcHandlers(): void {
     const s = state as Record<string, unknown>;
     if (typeof s.canSave !== 'boolean') return;
     if (typeof s.canSaveAs !== 'boolean') return;
+    if (typeof s.canReload !== 'boolean') return;
     if (typeof s.modalOpen !== 'boolean') return;
 
     const next = {
       canSave: s.canSave,
       canSaveAs: s.canSaveAs,
+      canReload: s.canReload,
       modalOpen: s.modalOpen,
     };
     const { applyMenu, getMainWindow, setCurrentMenuState } = await import('./index.js');

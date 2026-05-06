@@ -79,6 +79,11 @@ describe('Phase 14 — App.tsx update-subscription lift', () => {
         onMenuOpenRecent: vi.fn(() => () => undefined),
         onMenuSave: vi.fn(() => () => undefined),
         onMenuSaveAs: vi.fn(() => () => undefined),
+        onMenuReloadProject: vi.fn(() => () => undefined),
+        onMenuExport: vi.fn(() => () => undefined),
+        onMenuCloseProject: vi.fn(() => () => undefined),
+        onMenuShowInFolder: vi.fn(() => () => undefined),
+        onMenuCopyPeakTable: vi.fn(() => () => undefined),
         // Phase 14 lifted update subscriptions — capture callbacks.
         onUpdateAvailable: vi.fn((cb) => {
           updateAvailableCb = cb;

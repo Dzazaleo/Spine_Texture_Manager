@@ -242,6 +242,10 @@ export function App() {
   const appShellMenuRef = useRef<{
     onClickSave: () => Promise<SaveResponse>;
     onClickSaveAs: () => Promise<SaveResponse>;
+    onClickReload: () => Promise<void>;
+    onClickExport: () => Promise<void>;
+    onClickShowInFolder: () => void;
+    onClickCopyPeakTable: () => Promise<void>;
   } | null>(null);
 
   /**
@@ -262,7 +266,10 @@ export function App() {
    */
   const dirtyCheckRef = useRef<{
     isDirty: () => boolean;
-    openSaveQuitDialog: (onProceed: () => void) => void;
+    openSaveQuitDialog: (
+      onProceed: () => void,
+      reason?: 'quit' | 'close',
+    ) => void;
   } | null>(null);
 
   // D-17: echo summary to console on successful load (ROADMAP exit criterion).
@@ -318,11 +325,56 @@ export function App() {
       void appShellMenuRef.current?.onClickSaveAs();
     });
 
+    // File → Reload Project (CmdOrCtrl+R override). When AppShell is
+    // unmounted (idle / error / projectLoadFailed), main has already
+    // disabled the menu item via canReload:false — the optional-chain
+    // is defense-in-depth.
+    const unsubReload = window.api.onMenuReloadProject(() => {
+      void appShellMenuRef.current?.onClickReload();
+    });
+
+    // File → Export… (CmdOrCtrl+E). Same gating as Reload (canReload).
+    const unsubExport = window.api.onMenuExport(() => {
+      void appShellMenuRef.current?.onClickExport();
+    });
+
+    // File → Show in Folder. Cross-platform reveal of the loaded skeleton
+    // JSON via shell.showItemInFolder (Finder / Explorer / Files).
+    const unsubShowInFolder = window.api.onMenuShowInFolder(() => {
+      appShellMenuRef.current?.onClickShowInFolder();
+    });
+
+    // File → Copy Peak Table. Writes the on-screen peak table to the
+    // clipboard as TSV.
+    const unsubCopyPeak = window.api.onMenuCopyPeakTable(() => {
+      void appShellMenuRef.current?.onClickCopyPeakTable();
+    });
+
+    // File → Close Project (CmdOrCtrl+Shift+W). Returns the AppState to
+    // idle. Dirty-guard mirrors the before-quit flow at the lifted
+    // useEffect below — three branches (no project, clean, dirty). Main
+    // already disables the menu item via canReload:false on idle / error
+    // / projectLoadFailed; the ref-null branch is defense-in-depth.
+    const closeProject = () => setState({ status: 'idle' });
+    const unsubClose = window.api.onMenuCloseProject(() => {
+      const ref = dirtyCheckRef.current;
+      if (ref === null || !ref.isDirty()) {
+        closeProject();
+        return;
+      }
+      ref.openSaveQuitDialog(closeProject, 'close');
+    });
+
     return () => {
       unsubOpen();
       unsubOpenRecent();
       unsubSave();
       unsubSaveAs();
+      unsubReload();
+      unsubExport();
+      unsubShowInFolder();
+      unsubCopyPeak();
+      unsubClose();
     };
   }, [handleBeforeDrop, handleProjectLoad]);
 
@@ -409,6 +461,8 @@ export function App() {
       window.api.notifyMenuState({
         canSave: false,
         canSaveAs: false,
+        // No project loaded on these branches → Reload Project is meaningless.
+        canReload: false,
         modalOpen: false,
       });
     }

@@ -110,6 +110,11 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
         onMenuOpenRecent: vi.fn(() => () => undefined),
         onMenuSave: vi.fn(() => () => undefined),
         onMenuSaveAs: vi.fn(() => () => undefined),
+        onMenuReloadProject: vi.fn(() => () => undefined),
+        onMenuExport: vi.fn(() => () => undefined),
+        onMenuCloseProject: vi.fn(() => () => undefined),
+        onMenuShowInFolder: vi.fn(() => () => undefined),
+        onMenuCopyPeakTable: vi.fn(() => () => undefined),
         // Phase 9 D-194 — sampler progress + cancel bridges.
         onSamplerProgress: vi.fn(() => () => undefined),
         cancelSampler: vi.fn(),

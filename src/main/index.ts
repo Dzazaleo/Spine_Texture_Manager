@@ -60,12 +60,20 @@ let isQuitting = false;
 export type MenuState = {
   canSave: boolean;
   canSaveAs: boolean;
+  /**
+   * True iff a project (.json or .stmproj) is loaded — i.e. AppShell is
+   * mounted on the `loaded` or `projectLoaded` AppState branch. Drives the
+   * File → Reload Project enabled-state. False in idle / loading / error /
+   * projectLoadFailed (nothing to reload from disk).
+   */
+  canReload: boolean;
   modalOpen: boolean;
 };
 
 let currentMenuState: MenuState = {
   canSave: false,
   canSaveAs: false,
+  canReload: false,
   modalOpen: false,
 };
 
@@ -213,6 +221,22 @@ export async function buildAppMenu(
         },
         { label: 'Open Recent', submenu: recentSubmenu },
         { type: 'separator' },
+        // Reload Project — re-reads JSON + atlas + PNGs from disk so the user
+        // can pick up changes re-exported from Spine without losing per-
+        // attachment overrides. Overrides whose attachments no longer exist
+        // surface in the existing stale-override alert.
+        //
+        // CmdOrCtrl+R intentionally shadows Electron's default View → Reload
+        // (which page-reloads the renderer and clears all in-memory project
+        // state — misleading for end users). The custom view menu below
+        // preserves CmdOrCtrl+Shift+R as a dev escape hatch.
+        {
+          label: 'Reload Project',
+          accelerator: 'CmdOrCtrl+R',
+          enabled: state.canReload && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:reload-clicked'),
+        },
+        { type: 'separator' },
         {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
@@ -226,6 +250,54 @@ export async function buildAppMenu(
           click: () => mainWindow?.webContents.send('menu:save-as-clicked'),
         },
         { type: 'separator' },
+        // Export… — opens the OptimizeDialog (same surface the toolbar
+        // "Optimize Assets" button drives). Gated on canReload because the
+        // precondition is identical: a project must be loaded. The toolbar
+        // button additionally disables when peaks.length === 0 OR the
+        // export is in flight; we don't replicate those here because (a)
+        // peaks.length === 0 is a degenerate case that opens an empty
+        // dialog rather than doing damage, and (b) exportInFlight implies
+        // OptimizeDialog is mounted, so modalOpen is already true.
+        {
+          label: 'Export…',
+          accelerator: 'CmdOrCtrl+E',
+          enabled: state.canReload && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:export-clicked'),
+        },
+        {
+          // Copy the on-screen peak table to the clipboard as TSV (one row
+          // per attachment-peak). Useful for handoff to spreadsheets without
+          // running a full Export. Same canReload gating as Export.
+          label: 'Copy Peak Table',
+          enabled: state.canReload && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:copy-peak-table-clicked'),
+        },
+        { type: 'separator' },
+        {
+          // Reveal the loaded skeleton JSON in the OS file browser
+          // (Finder on macOS, File Explorer on Windows, Files on Linux).
+          // Cross-platform via shell.showItemInFolder under the hood.
+          label: 'Show in Folder',
+          enabled: state.canReload && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:show-in-folder-clicked'),
+        },
+        { type: 'separator' },
+        {
+          // Close the loaded project — returns the AppState to idle
+          // (empty drop zone). Distinct from the OS-level "Close Window"
+          // role:'close' below, which closes the BrowserWindow itself
+          // (and on this single-window app, triggers app.quit via
+          // window-all-closed). Cmd+W stays bound to window close;
+          // Cmd+Shift+W is the project-close shortcut.
+          //
+          // Dirty-guard: if the session is dirty, the SaveQuitDialog with
+          // reason 'close' prompts Save / Don't Save / Cancel before
+          // proceeding (parity with quit + reload flows).
+          label: 'Close Project',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          enabled: state.canReload && !fileDisabled,
+          click: () => mainWindow?.webContents.send('menu:close-project-clicked'),
+        },
         { role: 'close' },
       ],
     },
@@ -250,7 +322,9 @@ export async function buildAppMenu(
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'pasteAndMatchStyle' },
+        // pasteAndMatchStyle removed: it's a Cocoa rich-text role that strips
+        // formatting on paste. This app's only inputs are settings fields and
+        // override numbers — no formatting to strip, the role is dead weight.
         { role: 'delete' },
         { role: 'selectAll' },
         { type: 'separator' },
@@ -261,7 +335,36 @@ export async function buildAppMenu(
         },
       ],
     },
-    { role: 'viewMenu' },
+    // Custom View menu — replaces { role: 'viewMenu' } so we can drop the
+    // default CmdOrCtrl+R "Reload" item (it page-reloads the renderer and
+    // wipes the loaded project, which is misleading). File → Reload Project
+    // claims CmdOrCtrl+R.
+    //
+    // forceReload + toggleDevTools are dev-only (gated on !app.isPackaged):
+    //   - forceReload (CmdOrCtrl+Shift+R) is a dev HMR escape hatch; in
+    //     packaged builds end users have no reason to page-reload the
+    //     renderer and would just lose project state.
+    //   - DevTools should not be exposed to end users (parity with the
+    //     auto-open DevTools gate near createWindow).
+    // Pattern mirrors the existing app.isPackaged check at createWindow's
+    // ready-to-show handler — single conditional, no platform branching.
+    {
+      label: 'View',
+      submenu: [
+        ...(app.isPackaged
+          ? []
+          : ([
+              { role: 'forceReload' },
+              { role: 'toggleDevTools' },
+              { type: 'separator' },
+            ] as MenuItemConstructorOptions[])),
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
     { role: 'windowMenu' },
     // Phase 9 Plan 05 — fills the 08.2 D-188 placeholder. role:'help' MUST
     // be preserved (Pitfall 8: Electron's MenuItemConstructorOptions
@@ -351,6 +454,15 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+
+  // Defensive belt-and-braces for Windows menu-bar visibility. autoHideMenuBar
+  // above is the documented knob, but on some Windows configurations the menu
+  // bar can still come up hidden (and Alt-press becomes the only way to reveal
+  // it — confusing for first-time users). setMenuBarVisibility(true) is the
+  // explicit force-show call; safe no-op on macOS where the menu bar lives at
+  // the top of the screen and isn't owned by the BrowserWindow. No platform
+  // branching (D-23): single unconditional call works on every OS.
+  mainWindow.setMenuBarVisibility(true);
 
   // Phase 8.2 — track the active window so menu click handlers can route
   // mainWindow.webContents.send(...). Null on close so a stale handle never

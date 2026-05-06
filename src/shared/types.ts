@@ -984,9 +984,14 @@ export interface Api {
   /**
    * Phase 8.2 D-181 — push derived menu state to main; main rebuilds and
    * reapplies the application Menu on every notify (modalOpen, canSave,
-   * canSaveAs).
+   * canSaveAs, canReload).
    */
-  notifyMenuState: (state: { canSave: boolean; canSaveAs: boolean; modalOpen: boolean }) => void;
+  notifyMenuState: (state: {
+    canSave: boolean;
+    canSaveAs: boolean;
+    canReload: boolean;
+    modalOpen: boolean;
+  }) => void;
 
   /** Phase 8.2 D-175 — subscribe to menu File→Open click. */
   onMenuOpen: (cb: () => void) => () => void;
@@ -999,6 +1004,44 @@ export interface Api {
 
   /** Phase 8.2 D-175 — subscribe to menu File→Save As… click. */
   onMenuSaveAs: (cb: () => void) => () => void;
+
+  /**
+   * Subscribe to menu File→Reload Project click (CmdOrCtrl+R override).
+   * Returns unsubscribe. Renderer routes through AppShell's dirty-guard +
+   * resampleProject pipeline so the on-disk JSON + atlas + PNGs are re-read
+   * with current overrides preserved (orphaned overrides surface in the
+   * existing stale-override alert).
+   */
+  onMenuReloadProject: (cb: () => void) => () => void;
+
+  /**
+   * Subscribe to menu File→Export… click (CmdOrCtrl+E). Returns unsubscribe.
+   * Renderer dispatches to AppShell's existing onClickOptimize handler so
+   * the Optimize/Export dialog opens with a freshly-built plan — same
+   * surface the toolbar "Optimize Assets" button drives.
+   */
+  onMenuExport: (cb: () => void) => () => void;
+
+  /**
+   * Subscribe to menu File→Close Project click (CmdOrCtrl+Shift+W). Returns
+   * unsubscribe. Renderer routes through the dirty-guard before transitioning
+   * the AppState back to idle.
+   */
+  onMenuCloseProject: (cb: () => void) => () => void;
+
+  /**
+   * Subscribe to menu File→Show in Folder click. Returns unsubscribe.
+   * Renderer dispatches to AppShell's onClickShowInFolder which calls
+   * openOutputFolder(skeletonPath) — cross-platform reveal via
+   * shell.showItemInFolder.
+   */
+  onMenuShowInFolder: (cb: () => void) => () => void;
+
+  /**
+   * Subscribe to menu File→Copy Peak Table click. Returns unsubscribe.
+   * Renderer formats peaks as TSV and writes via navigator.clipboard.
+   */
+  onMenuCopyPeakTable: (cb: () => void) => () => void;
 
   // Phase 9 Plan 02 D-194 — sampler progress + cancel bridges.
 

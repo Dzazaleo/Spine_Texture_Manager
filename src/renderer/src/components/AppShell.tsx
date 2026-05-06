@@ -122,6 +122,29 @@ export interface AppShellProps {
   appShellMenuRef?: MutableRefObject<{
     onClickSave: () => Promise<SaveResponse>;
     onClickSaveAs: () => Promise<SaveResponse>;
+    /**
+     * Re-read the loaded JSON + atlas + PNGs from disk while preserving
+     * current overrides + samplingHz + loaderMode. Prompts SaveQuitDialog
+     * when isDirty so unsaved work isn't silently discarded. Resolves once
+     * the resample completes (or the user cancels the dialog).
+     */
+    onClickReload: () => Promise<void>;
+    /**
+     * Open the Optimize/Export dialog with a freshly-built export plan —
+     * same handler the toolbar "Optimize Assets" button fires. Menu's
+     * File→Export… (CmdOrCtrl+E) is the keyboard surface.
+     */
+    onClickExport: () => Promise<void>;
+    /**
+     * Reveal the loaded skeleton JSON in the OS file browser via
+     * shell.showItemInFolder (cross-platform — Finder / Explorer / Files).
+     */
+    onClickShowInFolder: () => void;
+    /**
+     * Copy the peak table (one row per attachment) to the clipboard as
+     * TSV — paste-friendly into spreadsheets.
+     */
+    onClickCopyPeakTable: () => Promise<void>;
   } | null>;
   /**
    * Phase 18 D-01 + D-02 — callback-ref bridge for the before-quit dirty-guard.
@@ -146,7 +169,16 @@ export interface AppShellProps {
    */
   dirtyCheckRef?: MutableRefObject<{
     isDirty: () => boolean;
-    openSaveQuitDialog: (onProceed: () => void) => void;
+    /**
+     * Open the SaveQuitDialog with the given reason and an onProceed
+     * callback that runs after Save (success) / Don't Save. Cancel
+     * never invokes onProceed. `reason` defaults to 'quit' for backward
+     * compatibility with the Phase 18 before-quit flow.
+     */
+    openSaveQuitDialog: (
+      onProceed: () => void,
+      reason?: 'quit' | 'close',
+    ) => void;
   } | null>;
 }
 
@@ -838,6 +870,153 @@ export function AppShell({
   }, [buildSessionState, summary.skeletonPath]);
 
   /**
+   * Re-run loader + sampler against the currently-loaded skeleton path so
+   * the user picks up changes re-exported from Spine without losing per-
+   * attachment overrides. Mirrors the samplingHz-change resample useEffect
+   * body verbatim — the only difference is the trigger (imperative call vs.
+   * dep-array re-fire). On error, leaves the prior summary in place; the
+   * panels keep showing the old peaks (same silent-recovery as the
+   * existing resample useEffect).
+   *
+   * Stale overrides — overrides whose attachment names no longer exist in
+   * the reloaded JSON — flow through the existing
+   * `staleOverrideNotice` alert at the top of the panel (Phase 8 D-150
+   * intersect). No dialog; the user sees them in the same banner that
+   * surfaces stale-keys after Open.
+   */
+  const runReload = useCallback(async (): Promise<void> => {
+    // If a sample is already in flight (rapid double-fire), pre-empt it so
+    // the new sample wins. Mirrors onClickOpen's pre-cancel below.
+    if (samplingInFlight) {
+      window.api.cancelSampler();
+      setSamplingInFlight(false);
+    }
+    const resp = await window.api.resampleProject({
+      skeletonPath: effectiveSummary.skeletonPath,
+      atlasPath: effectiveSummary.atlasPath ?? undefined,
+      samplingHz: samplingHzLocal,
+      overrides: Object.fromEntries(overrides),
+      lastOutDir,
+      sortColumn: 'attachmentName',
+      sortDir: 'asc',
+      projectFilePath: currentProjectPath,
+      loaderMode,
+    });
+    if (!resp.ok) return;
+    setLocalSummary(resp.project.summary);
+    setOverrides(new Map(Object.entries(resp.project.restoredOverrides)));
+    setStaleOverrideNotice(
+      resp.project.staleOverrideKeys.length > 0
+        ? resp.project.staleOverrideKeys
+        : null,
+    );
+    setDocumentation((prev) =>
+      intersectDocumentationWithSummary(prev, resp.project.summary),
+    );
+    setLastSaved((prev) =>
+      prev !== null ? { ...prev, samplingHz: samplingHzLocal } : prev,
+    );
+  }, [
+    effectiveSummary,
+    samplingHzLocal,
+    overrides,
+    lastOutDir,
+    currentProjectPath,
+    loaderMode,
+    samplingInFlight,
+  ]);
+
+  /**
+   * Menu File → Reload Project entry point (registered into appShellMenuRef).
+   * Honors the SaveQuitDialog dirty-guard — same pattern as the
+   * 'new-skeleton-drop' / 'new-project-drop' flows at onBeforeDropRef:
+   *   - clean session  → reload immediately.
+   *   - dirty session  → SaveQuitDialog (reason 'reload'). Save / Don't Save
+   *                      runs the reload; Cancel aborts.
+   * Returns a Promise that resolves when the reload completes (or the user
+   * cancels the dialog) so menu callers can chain.
+   */
+  const onClickReload = useCallback((): Promise<void> => {
+    if (!isDirty) {
+      return runReload();
+    }
+    return new Promise<void>((resolve) => {
+      setSaveQuitDialogState({
+        reason: 'reload',
+        pendingAction: () => {
+          void runReload().finally(() => resolve());
+        },
+        cancelAction: () => {
+          resolve();
+        },
+      });
+    });
+  }, [isDirty, runReload]);
+
+  /**
+   * Menu File → Show in Folder. Reveals the loaded skeleton JSON in the OS
+   * file browser via the existing shell:open-folder IPC (which calls
+   * shell.showItemInFolder under the hood — Finder on macOS, File Explorer
+   * on Windows, Files on Linux). One-way fire-and-forget; defensive
+   * length guard mirrors the toolbar's openOutputFolder usage.
+   */
+  const onClickShowInFolder = useCallback((): void => {
+    const path = effectiveSummary.skeletonPath;
+    if (typeof path === 'string' && path.length > 0) {
+      window.api.openOutputFolder(path);
+    }
+  }, [effectiveSummary.skeletonPath]);
+
+  /**
+   * Menu File → Copy Peak Table. Serializes the current peaks list to TSV
+   * and writes to the clipboard. Columns picked to match what a Spine
+   * animator would paste into a spreadsheet for sizing review:
+   *   Skin, Slot, Attachment, Animation, Frame, PeakScale, World W/H, Source W/H
+   * Uses the preformatted labels where available so the clipboard reads
+   * the same as the on-screen table (whole pixels, scale × suffix, em-dash
+   * frame on setup-pose rows).
+   */
+  const onClickCopyPeakTable = useCallback(async (): Promise<void> => {
+    const headers = [
+      'Skin',
+      'Slot',
+      'Attachment',
+      'Animation',
+      'Frame',
+      'PeakScale',
+      'WorldW',
+      'WorldH',
+      'SourceW',
+      'SourceH',
+    ];
+    const lines = [headers.join('\t')];
+    for (const r of effectiveSummary.peaks) {
+      lines.push(
+        [
+          r.skinName,
+          r.slotName,
+          r.attachmentName,
+          r.animationName,
+          r.frameLabel,
+          r.scaleLabel,
+          r.worldW.toFixed(0),
+          r.worldH.toFixed(0),
+          r.sourceW.toFixed(0),
+          r.sourceH.toFixed(0),
+        ].join('\t'),
+      );
+    }
+    const tsv = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(tsv);
+    } catch {
+      // Clipboard API can reject when the document isn't focused. Silent —
+      // the menu has no progress UI; failures are rare in practice (the
+      // user just clicked a menu item, so the window is focused).
+    }
+  }, [effectiveSummary.peaks]);
+
+  /**
    * mountOpenResponse — apply a MaterializedProject to AppShell's state
    * machine. Used by both onClickOpen (Cmd+O / Open button) and
    * onClickLocateSkeleton (D-149 recovery). Does NOT remount AppShell —
@@ -1034,6 +1213,10 @@ export function AppShell({
     window.api.notifyMenuState({
       canSave: true,
       canSaveAs: true,
+      // AppShell only mounts on `loaded` / `projectLoaded` — both have a
+      // project to reload from disk. App.tsx pushes canReload:false on the
+      // other branches (idle / error / projectLoadFailed).
+      canReload: true,
       modalOpen,
     });
   }, [
@@ -1245,11 +1428,26 @@ export function AppShell({
    */
   useEffect(() => {
     if (!appShellMenuRef) return;
-    appShellMenuRef.current = { onClickSave, onClickSaveAs };
+    appShellMenuRef.current = {
+      onClickSave,
+      onClickSaveAs,
+      onClickReload,
+      onClickExport: onClickOptimize,
+      onClickShowInFolder,
+      onClickCopyPeakTable,
+    };
     return () => {
       appShellMenuRef.current = null;
     };
-  }, [onClickSave, onClickSaveAs, appShellMenuRef]);
+  }, [
+    onClickSave,
+    onClickSaveAs,
+    onClickReload,
+    onClickOptimize,
+    onClickShowInFolder,
+    onClickCopyPeakTable,
+    appShellMenuRef,
+  ]);
 
   /**
    * Phase 18 D-02 — register `{ isDirty, openSaveQuitDialog }` into App.tsx's
@@ -1277,9 +1475,12 @@ export function AppShell({
     if (!dirtyCheckRef) return;
     dirtyCheckRef.current = {
       isDirty: () => isDirty,
-      openSaveQuitDialog: (onProceed) => {
+      // reason defaults to 'quit' for the Phase 18 before-quit flow
+      // (backward-compat). File → Close Project passes 'close' so the dialog
+      // copy reads "Save changes before closing?" instead of "…before quitting?".
+      openSaveQuitDialog: (onProceed, reason = 'quit') => {
         setSaveQuitDialogState({
-          reason: 'quit',
+          reason,
           pendingAction: onProceed,
         });
       },

@@ -170,7 +170,12 @@ describe('menu:notify-state IPC (D-181)', () => {
     // The handler is async (dynamic import inside) — await its returned
     // promise so the void applyMenu() inside has been kicked off, then
     // flush the inner await chain.
-    await handler!({} as unknown, { canSave: true, canSaveAs: true, modalOpen: false });
+    await handler!({} as unknown, {
+      canSave: true,
+      canSaveAs: true,
+      canReload: true,
+      modalOpen: false,
+    });
     await flushApplyMenu();
 
     expect(setApplicationMenu).toHaveBeenCalled();

@@ -6,10 +6,12 @@
  *   - Don't Save: runs pendingAction without saving.
  *   - Cancel: closes the dialog and aborts the pending action.
  *
- * Used in three contexts (passed via `reason` prop):
+ * Used in five contexts (passed via `reason` prop):
  *   - 'quit': user pressed Cmd+Q with isDirty === true.
  *   - 'new-skeleton-drop': user dropped a .json onto a dirty session.
  *   - 'new-project-drop': user dropped a .stmproj onto a dirty session.
+ *   - 'reload': user invoked File → Reload Project on a dirty session.
+ *   - 'close': user invoked File → Close Project on a dirty session.
  *
  * Body copy varies by reason; the three buttons stay the same.
  *
@@ -33,7 +35,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface SaveQuitDialogProps {
   open: boolean;
-  reason: 'quit' | 'new-skeleton-drop' | 'new-project-drop';
+  reason: 'quit' | 'new-skeleton-drop' | 'new-project-drop' | 'reload' | 'close';
   /** 'MyRig.stmproj' or null when Untitled. */
   basename: string | null;
   /** True while saveProject promise is in-flight; Save button shows "Saving…". */
@@ -66,6 +68,16 @@ function bodyCopyFor(
       return {
         title: 'Save changes before opening this project?',
         body: `Your changes to ${fileLabel} have not been saved. Opening another project will discard them.`,
+      };
+    case 'reload':
+      return {
+        title: 'Save changes before reloading?',
+        body: `Your changes to ${fileLabel} have not been saved. Reloading from disk will discard them.`,
+      };
+    case 'close':
+      return {
+        title: 'Save changes before closing?',
+        body: `Your changes to ${fileLabel} have not been saved. Closing the project will discard them.`,
       };
   }
 }

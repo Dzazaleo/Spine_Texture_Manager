@@ -262,7 +262,12 @@ const api: Api = {
    * modalOpen). Fire-and-forget — main does not respond. Main validates
    * the payload field-by-field at the trust boundary (T-08.2-03-01).
    */
-  notifyMenuState: (state: { canSave: boolean; canSaveAs: boolean; modalOpen: boolean }): void => {
+  notifyMenuState: (state: {
+    canSave: boolean;
+    canSaveAs: boolean;
+    canReload: boolean;
+    modalOpen: boolean;
+  }): void => {
     ipcRenderer.send('menu:notify-state', state);
   },
 
@@ -306,6 +311,68 @@ const api: Api = {
     ipcRenderer.on('menu:save-as-clicked', wrapped);
     return () => {
       ipcRenderer.removeListener('menu:save-as-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Subscribe to menu File→Reload Project click (CmdOrCtrl+R override).
+   * Pitfall 9 listener-identity preservation: wrapped const captured BEFORE
+   * ipcRenderer.on so the unsubscribe closure references the SAME identity
+   * removeListener compares by reference.
+   */
+  onMenuReloadProject: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:reload-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:reload-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Subscribe to menu File→Export… click (CmdOrCtrl+E). Pitfall 9
+   * listener-identity preservation: same shape as onMenuReloadProject.
+   */
+  onMenuExport: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:export-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:export-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Subscribe to menu File→Close Project click (CmdOrCtrl+Shift+W).
+   * Pitfall 9 listener-identity preservation.
+   */
+  onMenuCloseProject: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:close-project-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:close-project-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Subscribe to menu File→Show in Folder click. Pitfall 9 listener-identity
+   * preservation.
+   */
+  onMenuShowInFolder: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:show-in-folder-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:show-in-folder-clicked', wrapped);
+    };
+  },
+
+  /**
+   * Subscribe to menu File→Copy Peak Table click. Pitfall 9 listener-identity
+   * preservation.
+   */
+  onMenuCopyPeakTable: (cb: () => void) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on('menu:copy-peak-table-clicked', wrapped);
+    return () => {
+      ipcRenderer.removeListener('menu:copy-peak-table-clicked', wrapped);
     };
   },
 

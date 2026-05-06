@@ -60,6 +60,9 @@ vi.mock('../../src/main/recent.js', () => ({
 }));
 
 import { buildAppMenu } from '../../src/main/index.js';
+// Mutable reference into the vi.mock('electron') object — used by the
+// packaged-build test below to flip `app.isPackaged` for a single case.
+import { app as mockedElectronApp } from 'electron';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -73,7 +76,7 @@ beforeEach(() => {
 describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
   it('(a) state {canSave:false, canSaveAs:false, modalOpen:false} → File→Open enabled, Save/Save As disabled', async () => {
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -90,7 +93,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
 
   it('(b) state {canSave:true, canSaveAs:true, modalOpen:false} → Save + Save As enabled', async () => {
     await buildAppMenu(
-      { canSave: true, canSaveAs: true, modalOpen: false },
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -101,7 +104,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
 
   it('(c) modalOpen:true → Open + Open Recent + Save + Save As all disabled', async () => {
     await buildAppMenu(
-      { canSave: true, canSaveAs: true, modalOpen: true },
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: true },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -122,7 +125,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
 
   it('(d) Edit menu uses custom submenu (08.2 had role:editMenu — Phase 9 Plan 05 replaces with Edit submenu containing standard roles + Preferences)', async () => {
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -146,11 +149,14 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
     expect(submenuRoles).toContain('copy');
     expect(submenuRoles).toContain('paste');
     expect(submenuRoles).toContain('selectAll');
+    // pasteAndMatchStyle removed: it's a Cocoa rich-text role we don't need
+    // (no formatted text inputs in this app).
+    expect(submenuRoles).not.toContain('pasteAndMatchStyle');
   });
 
   it('(e) accelerators: Open=CmdOrCtrl+O, Save=CmdOrCtrl+S, Save As=CmdOrCtrl+Shift+S', async () => {
     await buildAppMenu(
-      { canSave: true, canSaveAs: true, modalOpen: false },
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -166,7 +172,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
       Array.from({ length: 10 }, (_, i) => `/p${i}.stmproj`),
     );
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -183,7 +189,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
     const recent = await import('../../src/main/recent.js');
     vi.mocked(recent.loadRecent).mockResolvedValue([]);
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -209,7 +215,7 @@ describe('buildAppMenu enabled-state matrix (D-181, D-184, D-187)', () => {
 describe('Phase 9 Plan 05 — Edit menu Preferences (RESEARCH §Q6 + Claude Discretion)', () => {
   it('(h1) Preferences… item exists in Edit submenu with accelerator CommandOrControl+,', async () => {
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -228,7 +234,7 @@ describe('Phase 9 Plan 05 — Edit menu Preferences (RESEARCH §Q6 + Claude Disc
       typeof buildAppMenu
     >[1];
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       fakeWindow,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -253,7 +259,7 @@ describe('Phase 9 Plan 05 — Edit menu Preferences (RESEARCH §Q6 + Claude Disc
 describe('Phase 9 Plan 05 — Help menu Documentation (08.2 D-188 placeholder fill)', () => {
   it('(i1) Documentation item exists inside role:help submenu', async () => {
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       null,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -272,7 +278,7 @@ describe('Phase 9 Plan 05 — Help menu Documentation (08.2 D-188 placeholder fi
       typeof buildAppMenu
     >[1];
     await buildAppMenu(
-      { canSave: false, canSaveAs: false, modalOpen: false },
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
       fakeWindow,
     );
     const tpl = buildFromTemplate.mock.calls[0][0];
@@ -282,5 +288,307 @@ describe('Phase 9 Plan 05 — Help menu Documentation (08.2 D-188 placeholder fi
     );
     docs.click();
     expect(send).toHaveBeenCalledWith('menu:help-clicked');
+  });
+});
+
+describe('File → Reload Project (CmdOrCtrl+R override)', () => {
+  it('Reload Project exists in File submenu with accelerator CmdOrCtrl+R', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const reload = fileMenu.find((i: { label?: string }) => i.label === 'Reload Project');
+    expect(reload).toBeDefined();
+    expect(reload.accelerator).toBe('CmdOrCtrl+R');
+    expect(reload.enabled).toBe(true);
+  });
+
+  it('Reload Project disabled when canReload:false (no project loaded)', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const reload = fileMenu.find((i: { label?: string }) => i.label === 'Reload Project');
+    expect(reload.enabled).toBe(false);
+  });
+
+  it('Reload Project disabled when modalOpen (D-184 parity with Save/Save As)', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: true },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const reload = fileMenu.find((i: { label?: string }) => i.label === 'Reload Project');
+    expect(reload.enabled).toBe(false);
+  });
+
+  it('Reload Project click fires menu:reload-clicked on the main window webContents', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const reload = fileMenu.find((i: { label?: string }) => i.label === 'Reload Project');
+    reload.click();
+    expect(send).toHaveBeenCalledWith('menu:reload-clicked');
+  });
+
+  it('Export… exists in File submenu with accelerator CmdOrCtrl+E', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const exportItem = fileMenu.find((i: { label?: string }) => i.label === 'Export…');
+    expect(exportItem).toBeDefined();
+    expect(exportItem.accelerator).toBe('CmdOrCtrl+E');
+    expect(exportItem.enabled).toBe(true);
+  });
+
+  it('Export… disabled when canReload:false (no project loaded — same precondition as Reload)', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const exportItem = fileMenu.find((i: { label?: string }) => i.label === 'Export…');
+    expect(exportItem.enabled).toBe(false);
+  });
+
+  it('Export… disabled when modalOpen (D-184 parity)', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: true },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const exportItem = fileMenu.find((i: { label?: string }) => i.label === 'Export…');
+    expect(exportItem.enabled).toBe(false);
+  });
+
+  it('Export… click fires menu:export-clicked on the main window webContents', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const exportItem = fileMenu.find((i: { label?: string }) => i.label === 'Export…');
+    exportItem.click();
+    expect(send).toHaveBeenCalledWith('menu:export-clicked');
+  });
+
+  it('custom View menu drops the default reload role (CmdOrCtrl+R freed for File → Reload Project) but keeps forceReload as a dev escape hatch', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    // The default { role: 'viewMenu' } is replaced with a custom submenu so we
+    // can drop the default Reload role (which page-reloads the renderer and
+    // wipes the loaded project — misleading for end users). A View-labelled
+    // entry with an explicit submenu now occupies the slot.
+    expect(tpl).not.toContainEqual(expect.objectContaining({ role: 'viewMenu' }));
+    const viewMenu = tpl.find((m: { label?: string }) => m.label === 'View');
+    expect(viewMenu).toBeDefined();
+    const submenuRoles = viewMenu.submenu
+      .map((i: { role?: string }) => i.role)
+      .filter((r: string | undefined) => r !== undefined);
+    // Default Reload role MUST NOT be present (it would shadow our File→Reload
+    // Project accelerator and re-introduce the empty-canvas-on-reload bug).
+    expect(submenuRoles).not.toContain('reload');
+    // forceReload preserved as a dev escape hatch (CmdOrCtrl+Shift+R, full
+    // page reload ignoring HTTP cache — useful for HMR edge cases in dev).
+    // The mock has app.isPackaged = false, so dev-mode is the default test path.
+    expect(submenuRoles).toContain('forceReload');
+    expect(submenuRoles).toContain('toggleDevTools');
+  });
+
+  it('packaged build (app.isPackaged=true) excludes forceReload + toggleDevTools from View menu', async () => {
+    // Flip the mocked app.isPackaged for this case only. Restored in finally
+    // so the next test sees the dev-mode default again.
+    const original = mockedElectronApp.isPackaged;
+    (mockedElectronApp as { isPackaged: boolean }).isPackaged = true;
+    try {
+      await buildAppMenu(
+        { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+        null,
+      );
+      const tpl = buildFromTemplate.mock.calls[0][0];
+      const viewMenu = tpl.find((m: { label?: string }) => m.label === 'View');
+      const submenuRoles = viewMenu.submenu
+        .map((i: { role?: string }) => i.role)
+        .filter((r: string | undefined) => r !== undefined);
+      // End users in a packaged build have no reason to page-reload the
+      // renderer (it wipes project state) or open DevTools.
+      expect(submenuRoles).not.toContain('forceReload');
+      expect(submenuRoles).not.toContain('toggleDevTools');
+      // Zoom + fullscreen still present — those are end-user-relevant.
+      expect(submenuRoles).toContain('resetZoom');
+      expect(submenuRoles).toContain('togglefullscreen');
+    } finally {
+      (mockedElectronApp as { isPackaged: boolean }).isPackaged = original;
+    }
+  });
+});
+
+describe('File → Close Project (CmdOrCtrl+Shift+W)', () => {
+  it('Close Project exists in File submenu with accelerator CmdOrCtrl+Shift+W', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const closeProject = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Close Project',
+    );
+    expect(closeProject).toBeDefined();
+    expect(closeProject.accelerator).toBe('CmdOrCtrl+Shift+W');
+    expect(closeProject.enabled).toBe(true);
+  });
+
+  it('Close Project disabled when canReload:false (no project to close)', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const closeProject = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Close Project',
+    );
+    expect(closeProject.enabled).toBe(false);
+  });
+
+  it('Close Project click fires menu:close-project-clicked', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const closeProject = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Close Project',
+    );
+    closeProject.click();
+    expect(send).toHaveBeenCalledWith('menu:close-project-clicked');
+  });
+
+  it('Close Project (Cmd+Shift+W) coexists with the OS Close Window role (Cmd+W)', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    // Close Project is the project-state action (returns AppState to idle).
+    expect(
+      fileMenu.find((i: { label?: string }) => i.label === 'Close Project'),
+    ).toBeDefined();
+    // role:'close' is the OS-level window close (Cmd+W default). Both
+    // intentionally present so users get familiar window-close behavior
+    // alongside the project-close shortcut.
+    expect(fileMenu.find((i: { role?: string }) => i.role === 'close')).toBeDefined();
+  });
+});
+
+describe('File → Show in Folder + Copy Peak Table', () => {
+  it('Show in Folder exists in File submenu (no accelerator — Finder/Explorer reveal convention)', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const showInFolder = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Show in Folder',
+    );
+    expect(showInFolder).toBeDefined();
+    expect(showInFolder.accelerator).toBeUndefined();
+    expect(showInFolder.enabled).toBe(true);
+  });
+
+  it('Show in Folder disabled when canReload:false', async () => {
+    await buildAppMenu(
+      { canSave: false, canSaveAs: false, canReload: false, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const showInFolder = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Show in Folder',
+    );
+    expect(showInFolder.enabled).toBe(false);
+  });
+
+  it('Show in Folder click fires menu:show-in-folder-clicked', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const showInFolder = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Show in Folder',
+    );
+    showInFolder.click();
+    expect(send).toHaveBeenCalledWith('menu:show-in-folder-clicked');
+  });
+
+  it('Copy Peak Table exists in File submenu, gated on canReload', async () => {
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      null,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const copyPeak = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Copy Peak Table',
+    );
+    expect(copyPeak).toBeDefined();
+    expect(copyPeak.enabled).toBe(true);
+  });
+
+  it('Copy Peak Table click fires menu:copy-peak-table-clicked', async () => {
+    const send = vi.fn();
+    const fakeWindow = { webContents: { send } } as unknown as Parameters<
+      typeof buildAppMenu
+    >[1];
+    await buildAppMenu(
+      { canSave: true, canSaveAs: true, canReload: true, modalOpen: false },
+      fakeWindow,
+    );
+    const tpl = buildFromTemplate.mock.calls[0][0];
+    const fileMenu = tpl.find((m: { label?: string }) => m.label === 'File').submenu;
+    const copyPeak = fileMenu.find(
+      (i: { label?: string }) => i.label === 'Copy Peak Table',
+    );
+    copyPeak.click();
+    expect(send).toHaveBeenCalledWith('menu:copy-peak-table-clicked');
   });
 });
