@@ -19,8 +19,13 @@
 import { Skeleton } from '@esotericsoftware/spine-core';
 import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
-import type { DisplayRow, BreakdownRow, SkeletonSummary } from '../shared/types.js';
-import { analyze, analyzeBreakdown } from '../core/analyzer.js';
+import type {
+  DisplayRow,
+  BreakdownRow,
+  RegionRow,
+  SkeletonSummary,
+} from '../shared/types.js';
+import { analyze, analyzeBreakdown, analyzeRegions } from '../core/analyzer.js';
 import { findOrphanedFiles } from '../core/usage.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -90,6 +95,26 @@ export function buildSummary(
   const peaksArray: (DisplayRow & { isMissing?: boolean })[] = peaksArrayRaw.map((p) => ({
     ...p,
     isMissing: skippedNames.has(p.attachmentName) ? true : undefined,
+  }));
+
+  // Phase 29 D-01 — sibling per-region fold. analyzeRegions mirrors analyze()'s
+  // parameter shape exactly so we pass the same maps in lock-step. Output is
+  // RegionRow[] sorted by regionName ASC; per-attachment detail folded into
+  // contributingAttachments[]. summary.peaks remains the per-attachment view
+  // for CLI byte-lock + AnimationBreakdownPanel drill-down.
+  const regionsArrayRaw = analyzeRegions(
+    sampled.globalPeaks,
+    load.sourcePaths,
+    load.atlasSources,
+    load.canonicalDimsByRegion,
+    load.actualDimsByRegion,
+  );
+  // Mirror Phase 25 PANEL-03 marking: a region whose WINNING attachmentName
+  // appears in skippedAttachments inherits isMissing: true. This preserves
+  // parity with summary.peaks for the missing-PNG surface.
+  const regionsArray: (RegionRow & { isMissing?: boolean })[] = regionsArrayRaw.map((r) => ({
+    ...r,
+    isMissing: skippedNames.has(r.attachmentName) ? true : undefined,
   }));
 
   // Phase 25 PANEL-03 gap-fix — synthesize stub DisplayRows for missing
@@ -167,10 +192,99 @@ export function buildSummary(
         actualSourceH: undefined,
         dimsMismatch: false,
         isMissing: true,
+        // Phase 29 D-01 — regionName === attachmentName for stub rows; missing
+        // PNGs are synthesized 1:1 (no path indirection on missing PNGs).
+        regionName: attachmentName,
       };
       peaksArray.push(stubRow);
       presentNames.add(attachmentName); // prevent duplicates if skippedAttachments has dupes
     }
+  }
+
+  // Phase 29 D-01 — synthesize matching RegionRow stubs so summary.regions has
+  // parity with summary.peaks for skipped-attachment surfaces (MissingAttachmentsPanel
+  // + Phase 25 PANEL-03 marking). Per CONTEXT.md the stub-region case keeps
+  // regionName === attachmentName (no path indirection on missing PNGs), so
+  // the stub is a 1:1 mapping with a single contributor.
+  if (skippedNames.size > 0) {
+    const presentRegionNames = new Set(regionsArray.map((r) => r.regionName));
+    for (const entry of (load.skippedAttachments ?? [])) {
+      const { name: attachmentName } = entry;
+      if (presentRegionNames.has(attachmentName)) continue;
+
+      // Walk skins to find first occurrence (skinName + slotName) — same logic
+      // as the peaksArray stub synthesis above.
+      let skinName = 'default';
+      let slotName = attachmentName;
+      for (const skin of skeletonData.skins) {
+        let found = false;
+        for (let slotIdx = 0; slotIdx < skin.attachments.length; slotIdx++) {
+          const perSlot = skin.attachments[slotIdx];
+          if (perSlot === undefined || perSlot === null) continue;
+          if (Object.prototype.hasOwnProperty.call(perSlot, attachmentName)) {
+            skinName = skin.name;
+            if (slotIdx < skeletonData.slots.length) {
+              slotName = skeletonData.slots[slotIdx].name;
+            }
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      const cd = load.canonicalDimsByRegion?.get(attachmentName);
+      const canonicalW = cd?.canonicalW ?? 1;
+      const canonicalH = cd?.canonicalH ?? 1;
+      const SETUP_LABEL = 'Setup Pose (Default)';
+
+      const stubRegionRow: RegionRow & { isMissing: true } = {
+        regionName: attachmentName,
+        attachmentName,
+        skinName,
+        slotName,
+        animationName: SETUP_LABEL,
+        time: 0,
+        frame: 0,
+        peakScale: 0,
+        peakScaleX: 0,
+        peakScaleY: 0,
+        worldW: 0,
+        worldH: 0,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        isSetupPosePeak: true,
+        sourcePath: '',
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        originalSizeLabel: `${canonicalW}×${canonicalH}`,
+        peakSizeLabel: '0×0',
+        scaleLabel: '0.000×',
+        sourceLabel: SETUP_LABEL,
+        frameLabel: '—',
+        isMissing: true,
+        contributingAttachments: [
+          {
+            attachmentName,
+            skinName,
+            slotName,
+            peakScale: 0,
+            animationName: SETUP_LABEL,
+            time: 0,
+            frame: 0,
+            isSetupPosePeak: true,
+          },
+        ],
+      };
+      regionsArray.push(stubRegionRow);
+      presentRegionNames.add(attachmentName);
+    }
+    // Re-sort regionsArray by regionName ASC after stub injection so the
+    // sort invariant (deterministic IPC payload) is preserved.
+    regionsArray.sort((a, b) => a.regionName.localeCompare(b.regionName));
   }
 
   // Phase 3 Plan 01 — fold the per-animation + setup-pose sampler maps into
@@ -367,6 +481,8 @@ export function buildSummary(
       names: skeletonData.events.map((e) => e.name),
     },
     peaks: peaksArray,
+    // Phase 29 D-01 — per-region view alongside per-attachment peaks.
+    regions: regionsArray,
     animationBreakdown,
     orphanedFiles,
     /**

@@ -407,3 +407,71 @@ describe('Phase 21 G-02 — skippedAttachments cascade', () => {
     }
   });
 });
+
+// ===========================================================================
+// Phase 29 Plan 01 Task 3 — buildSummary populates summary.regions.
+// ===========================================================================
+describe('Phase 29 D-01 — summary.regions field populated by buildSummary', () => {
+  it('SIMPLE_PROJECT (no path indirection): summary.regions.length === unique-region count; one contributor each except for SQUARE which appears across two slots', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    expect(Array.isArray(s.regions)).toBe(true);
+    // SIMPLE_PROJECT has 3 unique region names (CIRCLE, SQUARE, TRIANGLE) which
+    // is also the count of attachment-deduped peaks.
+    expect(s.regions.length).toBe(3);
+    expect(s.peaks.length).toBe(3);
+    const regionNames = s.regions.map((r) => r.regionName).sort();
+    expect(regionNames).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
+    // Every contributor's attachmentName === row's regionName under the
+    // no-indirection invariant (attachmentName === regionName for every peak).
+    for (const r of s.regions) {
+      for (const c of r.contributingAttachments) {
+        expect(c.attachmentName).toBe(r.regionName);
+      }
+    }
+  });
+
+  it('summary.regions sorted by regionName ASC (deterministic IPC payload)', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    const sorted = [...s.regions]
+      .map((r) => r.regionName)
+      .sort((a, b) => a.localeCompare(b));
+    expect(s.regions.map((r) => r.regionName)).toEqual(sorted);
+  });
+
+  it('SkeletonSummary structuredClones cleanly with the new regions field (D-21 invariant)', () => {
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const summary = buildSummary(load, sampled, 0);
+    const cloned = structuredClone(summary);
+    // Round-trip preserves region content + ordering.
+    expect(cloned.regions).toEqual(summary.regions);
+    // Each contributingAttachments[] survives without identity loss.
+    for (let i = 0; i < summary.regions.length; i++) {
+      expect(cloned.regions[i].contributingAttachments).toEqual(
+        summary.regions[i].contributingAttachments,
+      );
+    }
+  });
+
+  it('summary.peaks remains byte-equal in structure to pre-29-01 (path-indirection-free fixture preserves CLI golden lock D-102)', () => {
+    // SIMPLE_PROJECT has no path indirection; analyze() output must be unchanged
+    // in shape after Phase 29 — only the additive optional regionName field is
+    // present per Task 2's DisplayRow extension. The CLI does not iterate
+    // row keys, so this is invisible to scripts/cli.ts.
+    const load = loadSkeleton(FIXTURE);
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    expect(s.peaks.length).toBe(3);
+    for (const p of s.peaks) {
+      // regionName field IS present (additive); equals attachmentName for SIMPLE.
+      expect(p.regionName).toBe(p.attachmentName);
+      // All other DisplayRow fields preserved.
+      expect(typeof p.peakScale).toBe('number');
+      expect(typeof p.scaleLabel).toBe('string');
+    }
+  });
+});

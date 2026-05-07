@@ -271,7 +271,12 @@ function renderChipStrip(payload: DocExportPayload): string {
   // tracked entries, NOT summary.animations.count. The chip wording is
   // "Animations Configured" (configured for runtime), not "Animations".
   const animationsConfigured = payload.documentation.animationTracks.length;
-  const optimizedAssets = payload.summary.peaks.length;
+  // Phase 29 D-01 — count per-region (matches the 4 user-named surfaces:
+  // Global panel, Atlas Preview, Optimize dialog, exported folder). On
+  // path-indirected projects this differs from peaks.length; on
+  // SIMPLE_PROJECT-style fixtures with no indirection the values coincide
+  // (3 = 3) so the doc-export golden snapshot stays byte-equal.
+  const optimizedAssets = payload.summary.regions.length;
   const atlasPages = payload.atlasPreview.totalPages;
   const maxPagePx = computeMaxPagePx(payload.atlasPreview);
   return `<div class="chip-strip">

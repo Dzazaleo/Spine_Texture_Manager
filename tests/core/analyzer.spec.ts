@@ -703,7 +703,7 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
     attachmentName: string;
     regionName?: string;
   }): PeakRecord {
-    return {
+    const defaults: PeakRecord = {
       attachmentKey: `default/SLOT/${overrides.attachmentName}`,
       skinName: 'default',
       slotName: 'SLOT',
@@ -720,8 +720,8 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
       sourceW: 100,
       sourceH: 100,
       isSetupPosePeak: false,
-      ...overrides,
     };
+    return { ...defaults, ...overrides };
   }
 
   it('1. no-indirection (SIMPLE_PROJECT shape): unique regionNames count matches attachment-deduped peaks; regionName === attachmentName for every row', () => {

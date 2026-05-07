@@ -35,6 +35,10 @@ function makeMinimalPayload(overrides: Partial<DocExportPayload> = {}): DocExpor
     animations: { count: 23, names: [] },
     events: { count: 0, names: [] },
     peaks: new Array(170).fill({}),
+    // Phase 29 D-01 — chip strip "Optimized Assets" now reads
+    // summary.regions.length. On non-path-indirected fixtures regions.length
+    // === peaks.length (170 = 170), preserving the golden snapshot.
+    regions: new Array(170).fill({}),
     animationBreakdown: [],
   } as unknown as SkeletonSummary;
 
