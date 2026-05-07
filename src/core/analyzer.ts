@@ -279,9 +279,22 @@ function toRegionRow(
   winner: DisplayRow,
   bucket: readonly DisplayRow[],
 ): RegionRow {
-  const sortedBucket = [...bucket].sort((a, b) =>
-    a.attachmentName.localeCompare(b.attachmentName),
-  );
+  // WR-01 / Phase 29 Plan 29-06 — dedup contributors by attachmentName.
+  // When one attachmentName binds to multiple slots (e.g. Chicken-Min's '5/7'
+  // attachment on both VOLUME_7 + VOLUME_8 slots), the bucket contains
+  // duplicate (attachmentName, regionName) pairs differing only in slotName.
+  // The visible UX (used by N attachments / contributor count) MUST count
+  // unique attachmentNames, not slot bindings. First-after-lex-sort pick
+  // rule: deterministic (lex-sorted) and matches REGION-05's lex-tiebreak
+  // semantics for the row-level winner.
+  const seen = new Set<string>();
+  const sortedBucket = [...bucket]
+    .sort((a, b) => a.attachmentName.localeCompare(b.attachmentName))
+    .filter((r) => {
+      if (seen.has(r.attachmentName)) return false;
+      seen.add(r.attachmentName);
+      return true;
+    });
   const contributingAttachments = sortedBucket.map((r) => ({
     attachmentName: r.attachmentName,
     skinName: r.skinName,

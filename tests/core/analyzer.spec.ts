@@ -730,8 +730,10 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
     const regions = analyzeRegions(peaks);
     // SIMPLE_PROJECT has no path indirection: regionName === attachmentName for
     // every peak. SQUARE's attachmentName appears on TWO slots (SQUARE +
-    // SQUARE2), so the SQUARE region naturally has 2 contributors. CIRCLE +
-    // TRIANGLE have 1 each → 3 unique region names total.
+    // SQUARE2), but Phase 29 Plan 29-06 / WR-01 dedups contributingAttachments[]
+    // by attachmentName at the toRegionRow boundary, so the SQUARE region has
+    // ONE entry (slot fan-out collapses). CIRCLE + TRIANGLE have 1 each →
+    // 3 unique region names total, each with exactly 1 contributor.
     expect(regions.length).toBe(3);
     const names = regions.map((r) => r.regionName).sort();
     expect(names).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
@@ -744,14 +746,16 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
       }
       expect(r.regionName).toBe(r.attachmentName);
     }
-    // CIRCLE + TRIANGLE: one contributor each (single slot).
-    // SQUARE: two contributors (SQUARE slot + SQUARE2 slot, both named SQUARE).
+    // Post-Plan-29-06 / WR-01: contributingAttachments[] is deduped by
+    // attachmentName. CIRCLE + TRIANGLE + SQUARE: one unique attachmentName
+    // each. SQUARE's two slot bindings (SQUARE + SQUARE2) collapse to one
+    // contributor entry — slot fan-out does NOT inflate the contributor count.
     const circle = regions.find((r) => r.regionName === 'CIRCLE')!;
     const triangle = regions.find((r) => r.regionName === 'TRIANGLE')!;
     const square = regions.find((r) => r.regionName === 'SQUARE')!;
     expect(circle.contributingAttachments.length).toBe(1);
     expect(triangle.contributingAttachments.length).toBe(1);
-    expect(square.contributingAttachments.length).toBe(2);
+    expect(square.contributingAttachments.length).toBe(1);
   });
 
   it('2. path-indirection (Chicken shape): three peaks sharing regionName="5/7" fold into ONE RegionRow with 3 contributors sorted by attachmentName lex', () => {
@@ -928,6 +932,92 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
     expect(regions.length).toBe(3);
     const names = regions.map((r) => r.regionName);
     expect(names).toEqual(['A_TEX', 'B_TEX', 'C_TEX']);
+  });
+
+  it('WR-01 / Phase 29 Plan 29-06 — contributingAttachments dedups by attachmentName when one attachmentName binds to multiple slots', () => {
+    // Locks the WR-01 fix: when two PeakRecords share attachmentName +
+    // regionName but differ in slotName (real-world: Chicken-Min's '5/7'
+    // attachment bound to both VOLUME_7 and VOLUME_8 slots), the resulting
+    // RegionRow.contributingAttachments[] contains ONE entry for '5/7',
+    // not two. Pre-29-06 toRegionRow mapped each bucket member 1:1 with no
+    // dedup → 2 entries. Post-29-06 the Set-based filter keeps only the
+    // first occurrence (lex-sorted on attachmentName, so the order is
+    // deterministic).
+    const slot7 = makePeak({
+      attachmentKey: 'default/VOLUME_7/5/7',
+      attachmentName: '5/7',
+      regionName: '5/7',
+      slotName: 'VOLUME_7',
+      peakScale: 0.7,
+      peakScaleX: 0.7,
+      peakScaleY: 0.7,
+    });
+    const slot8 = makePeak({
+      attachmentKey: 'default/VOLUME_8/5/7',
+      attachmentName: '5/7',
+      regionName: '5/7',
+      slotName: 'VOLUME_8',
+      peakScale: 0.7,
+      peakScaleX: 0.7,
+      peakScaleY: 0.7,
+    });
+    const peaks = new Map<string, PeakRecord>([
+      [slot7.attachmentKey, slot7],
+      [slot8.attachmentKey, slot8],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(1);
+    const row = regions[0];
+    expect(row.regionName).toBe('5/7');
+    // The dedup invariant — exactly ONE contributor entry for the unique
+    // attachmentName '5/7', regardless of how many slots bound it.
+    expect(row.contributingAttachments.length).toBe(1);
+    expect(row.contributingAttachments[0].attachmentName).toBe('5/7');
+    // First-after-lex-sort pick rule: with two slot bindings, the kept entry
+    // is whichever PeakRecord landed first in the bucket post-sort. The sort
+    // is stable on attachmentName, so iteration order in the post-sort
+    // bucket reflects Map insertion order (slot7 inserted first). The
+    // displayed contributor list shows attachmentName only — slotName is
+    // informational, not a contract.
+    expect(['VOLUME_7', 'VOLUME_8']).toContain(
+      row.contributingAttachments[0].slotName,
+    );
+  });
+
+  it('WR-01 / Phase 29 Plan 29-06 — contributingAttachments dedup is a no-op when attachmentNames are already unique', () => {
+    // Sanity check: locks the no-op-on-uniqueness invariant. The dedup
+    // applies SOLELY to duplicate attachmentNames within a regionName
+    // bucket; legitimate distinct contributors (e.g. path-indirected names
+    // like '5/5/5/7/7', '5/5/7/7', '5/7' all resolving to region '5/7')
+    // must NOT collapse.
+    const a = makePeak({
+      attachmentName: '5/5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+    });
+    const b = makePeak({
+      attachmentName: '5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+    });
+    const c = makePeak({
+      attachmentName: '5/7',
+      regionName: '5/7',
+      peakScale: 0.746,
+    });
+    const peaks = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [b.attachmentKey, b],
+      [c.attachmentKey, c],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(1);
+    expect(regions[0].contributingAttachments.length).toBe(3);
+    expect(regions[0].contributingAttachments.map((cc) => cc.attachmentName)).toEqual([
+      '5/5/5/7/7',
+      '5/5/7/7',
+      '5/7',
+    ]);
   });
 
   it('Layer 3 invariant: src/core/analyzer.ts has no electron / sharp / react imports', () => {
