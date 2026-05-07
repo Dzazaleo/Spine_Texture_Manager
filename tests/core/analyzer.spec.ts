@@ -606,3 +606,78 @@ describe('analyze — DIMS-01 canonical/actual dim threading + dimsMismatch (1px
     expect(setupCard!.rows[0].dimsMismatch).toBe(true);
   });
 });
+
+describe('analyzer: path-indirection lookup (regionName key)', () => {
+  // Regression: Spine attachments using `path:` indirection (frame-swap
+  // sequences, folder-prefixed paths) have entry.name !== att.path. The
+  // loader keys atlasSources / sourcePaths / canonicalDims / actualDims by
+  // region name (att.path ?? entryName). Pre-fix, the analyzer keyed lookups
+  // by attachmentName (entry.name) → every indirected attachment lost
+  // sourcePath/atlasSource/canonical/actual dims, surfacing as empty atlas-
+  // preview tiles and silently-dropped Optimize export rows.
+  it('analyze() resolves region-keyed maps via regionName when attachmentName differs', () => {
+    const rec: PeakRecord = {
+      attachmentKey: 'default/6_FRAME/9_FRAME_0',
+      skinName: 'default',
+      slotName: '6_FRAME',
+      attachmentName: '9_FRAME_0',          // Spine entry name
+      regionName: '6/9_FRAME_0',            // atlas region name (path indirection)
+      animationName: 'Setup Pose (Default)',
+      time: 0,
+      frame: 0,
+      peakScaleX: 1,
+      peakScaleY: 1,
+      peakScale: 1,
+      worldW: 1084,
+      worldH: 1056,
+      sourceW: 1084,
+      sourceH: 1056,
+      isSetupPosePeak: true,
+    };
+    const sourcePaths = new Map([['6/9_FRAME_0', '/abs/path/6/9_FRAME_0.png']]);
+    const atlasSources = new Map([
+      ['6/9_FRAME_0', { pageName: 'SYMBOLS_2.png', pagePath: '/abs/SYMBOLS_2.png', x: 0, y: 0, w: 1084, h: 1056 }],
+    ]);
+    const canonicalDims = new Map([['6/9_FRAME_0', { canonicalW: 1084, canonicalH: 1056 }]]);
+    const actualDims = new Map([['6/9_FRAME_0', { actualSourceW: 1084, actualSourceH: 1056 }]]);
+
+    const rows = analyze(
+      new Map([[rec.attachmentKey, rec]]),
+      sourcePaths,
+      atlasSources,
+      canonicalDims,
+      actualDims,
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sourcePath).toBe('/abs/path/6/9_FRAME_0.png');
+    expect(rows[0].atlasSource?.pageName).toBe('SYMBOLS_2.png');
+    expect(rows[0].canonicalW).toBe(1084);
+    expect(rows[0].actualSourceW).toBe(1084);
+  });
+
+  it('analyze() falls back to attachmentName when regionName is absent (legacy/no-indirection path)', () => {
+    const rec: PeakRecord = {
+      attachmentKey: 'default/SLOT/CIRCLE',
+      skinName: 'default',
+      slotName: 'SLOT',
+      attachmentName: 'CIRCLE',
+      // regionName intentionally omitted — equivalent to att.path being undefined,
+      // so the loader stored maps under entryName ('CIRCLE') itself.
+      animationName: 'Setup Pose (Default)',
+      time: 0,
+      frame: 0,
+      peakScaleX: 1,
+      peakScaleY: 1,
+      peakScale: 1,
+      worldW: 64,
+      worldH: 64,
+      sourceW: 64,
+      sourceH: 64,
+      isSetupPosePeak: true,
+    };
+    const sourcePaths = new Map([['CIRCLE', '/abs/path/CIRCLE.png']]);
+    const rows = analyze(new Map([[rec.attachmentKey, rec]]), sourcePaths);
+    expect(rows[0].sourcePath).toBe('/abs/path/CIRCLE.png');
+  });
+});

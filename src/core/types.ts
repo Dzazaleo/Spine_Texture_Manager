@@ -179,6 +179,14 @@ export interface SampleRecord {
   skinName: string;
   slotName: string;
   attachmentName: string;
+  /**
+   * Atlas region name — `attachment.region.name`, equivalent to the loader's
+   * `att.path ?? entryName` (loader.ts:223). Differs from `attachmentName`
+   * when a Spine attachment uses `path:` indirection (frame-swap sequences,
+   * folder-prefixed paths). Optional for backward compat with synthetic
+   * test fixtures; consumers must fall back to `attachmentName` when absent.
+   */
+  regionName?: string;
   /** `"Setup Pose (Default)"` for setup-pose pass; animation name otherwise. */
   animationName: string;
   /** Seconds since animation start (Spine's authoritative unit). */

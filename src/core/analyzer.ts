@@ -212,12 +212,18 @@ export function analyze(
   actualDims?: ReadonlyMap<string, { actualSourceW: number; actualSourceH: number }>,
 ): DisplayRow[] {
   const allRows = [...peaks.values()].map((p) => {
-    const cd = canonicalDims?.get(p.attachmentName);
-    const ad = actualDims?.get(p.attachmentName);
+    // Loader keys these maps by atlas region name (`att.path ?? entryName`,
+    // loader.ts:223). When the sampler resolved a different name via path
+    // indirection it lives on `p.regionName`; fall back to attachmentName for
+    // the no-indirection case (and for synthetic test fixtures that omit
+    // regionName — equivalent because then att.path is undefined).
+    const lookupKey = p.regionName ?? p.attachmentName;
+    const cd = canonicalDims?.get(lookupKey);
+    const ad = actualDims?.get(lookupKey);
     return toDisplayRow(
       p,
-      sourcePaths?.get(p.attachmentName) ?? '',
-      atlasSources?.get(p.attachmentName),
+      sourcePaths?.get(lookupKey) ?? '',
+      atlasSources?.get(lookupKey),
       // undefined when no map entry → toDisplayRow falls back to p.sourceW
       cd?.canonicalW,
       cd?.canonicalH,
@@ -336,27 +342,26 @@ export function analyzeBreakdown(
 ): AnimationBreakdown[] {
   const findSlot = (name: string): Slot | undefined =>
     skeletonSlots.find((s) => s.data.name === name);
-  // Phase 6 Plan 02 — resolve a row's sourcePath by attachmentName lookup;
-  // empty string when sourcePaths is undefined (preserves legacy callers).
+  // Loader keys these maps by atlas region name (`att.path ?? entryName`,
+  // loader.ts:223). Use `rec.regionName` when present (path-indirected
+  // attachments), fall back to `attachmentName` for no-indirection bindings
+  // and synthetic test fixtures.
+  const lookupKey = (rec: PeakRecord): string =>
+    rec.regionName ?? rec.attachmentName;
   const resolveSourcePath = (rec: PeakRecord): string =>
-    sourcePaths?.get(rec.attachmentName) ?? '';
-  // Phase 6 Gap-Fix #2 — resolve atlasSource by attachmentName lookup;
-  // undefined when atlasSources is omitted (CLI path) or no match.
+    sourcePaths?.get(lookupKey(rec)) ?? '';
   const resolveAtlasSource = (
     rec: PeakRecord,
   ): DisplayRow['atlasSource'] | undefined =>
-    atlasSources?.get(rec.attachmentName);
-  // Phase 22 DIMS-01 — resolve canonical/actual dims by attachmentName.
-  // Returns undefined when the map is omitted or has no entry; toBreakdownRow
-  // then falls back to p.sourceW for canonicalW (D-102 CLI parity).
+    atlasSources?.get(lookupKey(rec));
   const resolveCanonical = (
     rec: PeakRecord,
   ): { canonicalW: number; canonicalH: number } | undefined =>
-    canonicalDims?.get(rec.attachmentName);
+    canonicalDims?.get(lookupKey(rec));
   const resolveActual = (
     rec: PeakRecord,
   ): { actualSourceW: number; actualSourceH: number } | undefined =>
-    actualDims?.get(rec.attachmentName);
+    actualDims?.get(lookupKey(rec));
 
   const cards: AnimationBreakdown[] = [];
 
