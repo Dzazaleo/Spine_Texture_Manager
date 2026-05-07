@@ -46,7 +46,14 @@ beforeAll(() => {
   fs.copyFileSync(path.join(FIXTURE_SRC, 'SIMPLE_TEST.png'), path.join(rotatedTmpDir, 'SIMPLE_TEST.png'));
   // Mutate atlas: inject `rotate: true` on the SQUARE region.
   // In the spine-core 4.2 atlas grammar, `rotate: true` sets degrees = 90.
-  const originalAtlas = fs.readFileSync(path.join(FIXTURE_SRC, 'SIMPLE_TEST.atlas'), 'utf8');
+  // Normalize CRLF → LF before the regex: Windows CI runners check out with
+  // git core.autocrlf=true (no .gitattributes pinning .atlas to LF), and the
+  // regex below uses literal `\n` boundaries — without normalization it
+  // silently fails to match on Windows, leaving the atlas un-mutated and
+  // the test asserting on a non-thrown error.
+  const originalAtlas = fs
+    .readFileSync(path.join(FIXTURE_SRC, 'SIMPLE_TEST.atlas'), 'utf8')
+    .replace(/\r\n/g, '\n');
   // Insert rotate line after the SQUARE region name line (before bounds:).
   // Original SIMPLE_TEST.atlas format:
   //   SQUARE
