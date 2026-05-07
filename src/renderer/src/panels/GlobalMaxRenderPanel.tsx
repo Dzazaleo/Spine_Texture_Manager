@@ -146,10 +146,12 @@ export interface GlobalMaxRenderPanelProps {
    * its overrides map + dialog-open callback; panel body wiring lands in
    * Plan 04-03. Optional today so this plan's AppShell changes typecheck.
    *
-   * Phase 29 (Plan 29-02 Task 3): row is now a RegionRow (one row per source
-   * PNG). AppShell still treats `row.attachmentName` (RegionRow's REGION-05
-   * winning contributor) as the override key — Plan 29-03 will flip the
-   * override Map to `Map<regionName, number>`.
+   * Phase 29 D-04 (Plan 29-03 + 29-05 + 29-07): override Map is keyed by
+   * `regionName`. The panel READ-side `enrichWithEffective` queries by
+   * `row.regionName ?? row.attachmentName` to match the WRITE side at
+   * AppShell.tsx:523-526 and the export-math read at export.ts:187-188.
+   * The `?? row.attachmentName` fallback covers synthetic test fixtures and
+   * the no-indirection legacy case where `regionName === attachmentName`.
    */
   overrides?: ReadonlyMap<string, number>;
   onOpenOverrideDialog?: (
@@ -244,22 +246,24 @@ const NOOP_OPEN_DIALOG: (
  * The world-AABB (worldW/worldH from the sampler) is preserved on the raw
  * fields and surfaced via the cell's hover tooltip for power users.
  *
- * Phase 29 D-01 (Plan 29-02 Task 3): operates on RegionRow[] (one row per
- * source PNG / regionName) instead of DisplayRow[]. The override Map is
- * still keyed on the attachmentName at this checkpoint — Plan 29-03 owns the
- * Map<regionName, number> flip. As an intermediate-state lookup, we use the
- * RegionRow's winning attachmentName (winner-pick scalar) to query overrides;
- * after Plan 29-03 the lookup will switch to row.regionName.
+ * Phase 29 D-04 (Plan 29-03 + 29-05 + 29-07): operates on RegionRow[] (one
+ * row per source PNG / regionName). The override Map is regionName-keyed
+ * end-to-end (AppShell.tsx WRITE side + export.ts READ side + this panel
+ * READ side all speak the same `row.regionName ?? row.attachmentName` key
+ * contract). The fallback covers synthetic test fixtures and the
+ * no-indirection legacy case where `regionName === attachmentName`.
  */
 function enrichWithEffective(
   rows: readonly RegionRow[],
   overrides: ReadonlyMap<string, number>,
 ): EnrichedRow[] {
   return rows.map((row) => {
-    // Plan 29-03 will flip overrides to Map<regionName, number>; until then
-    // the existing per-attachment storage is queried via the RegionRow's
-    // winning attachmentName (REGION-05 lex tiebreak winner from analyzer.ts).
-    const override = overrides.get(row.attachmentName);
+    // Phase 29 D-04 (Plan 29-07): query by `row.regionName ?? row.attachmentName`
+    // to mirror AppShell's regionName-keyed write contract (AppShell.tsx:523-526)
+    // and the export-math read (export.ts:187-188). The fallback handles
+    // synthetic test fixtures and no-indirection legacy callers where
+    // `regionName` may be undefined.
+    const override = overrides.get(row.regionName ?? row.attachmentName);
     // Phase 22 DIMS-03 (Plan 22-04) — pass actualSourceW/H + dimsMismatch
     // through so the panel's Peak W×H column reflects cap math (drifted rows
     // show on-disk dims, NOT pre-cap canonical × peakScale). Without these,
@@ -288,6 +292,16 @@ function enrichWithEffective(
     };
   });
 }
+
+/**
+ * Phase 29 D-04 (Plan 29-07): named export of the module-private
+ * `enrichWithEffective` for panel READ-side regression testing in
+ * tests/regression/path-indirection.spec.ts. The double-underscore prefix
+ * signals "test-only — do not import from production code". The named export
+ * is a 1-line re-export with zero behavior delta; the panel's default-render
+ * path continues to call the local binding.
+ */
+export const __test_only_enrichWithEffective = enrichWithEffective;
 
 function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[] {
   const q = query.trim().toLowerCase();
