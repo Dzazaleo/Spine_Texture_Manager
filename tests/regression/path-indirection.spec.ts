@@ -57,15 +57,28 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     expect(summary.regions.length).toBeLessThan(summary.peaks.length);
   });
 
-  it('REGION-01 detail: regionName "5/7" exists with 2+ contributingAttachments', () => {
+  it('REGION-01 detail: regionName "5/7" exists with exactly 3 unique contributingAttachments (Plan 29-06 / WR-01 lock)', () => {
     const r = summary.regions.find((x) => x.regionName === '5/7');
     expect(r).toBeDefined();
-    expect(r!.contributingAttachments.length).toBeGreaterThanOrEqual(2);
+    // Plan 29-06 / WR-01 lock — tightened from `>=2` to `===3`. The
+    // Chicken-Min fixture has 4 PeakRecords resolving to region '5/7'
+    // (slots 7, 8, VOLUME_7, VOLUME_8) with 3 UNIQUE attachmentNames
+    // (5/5/5/7/7, 5/5/7/7, 5/7 — '5/7' binds to two slots: VOLUME_7 +
+    // VOLUME_8). Pre-29-06 toRegionRow did not dedup contributors by
+    // attachmentName, producing 4 entries; post-29-06 the dedup yields 3.
+    // Locking the EXACT count prevents both directions of regression:
+    // re-introduction of slot-fan-out (would push count to 4) AND an
+    // over-aggressive collapse (e.g. count=1 if a future refactor
+    // breaks region-grouping).
+    expect(r!.contributingAttachments.length).toBe(3);
     const names = r!.contributingAttachments.map((c) => c.attachmentName);
     // The path-indirected names from the source rig:
     expect(names).toContain('5/5/5/7/7');
     expect(names).toContain('5/5/7/7');
     expect(names).toContain('5/7');
+    // Post-29-06: names array contains EXACTLY these three (no duplicates).
+    // sorted() because contributingAttachments is sorted lex ASC at toRegionRow.
+    expect([...names].sort()).toEqual(['5/5/5/7/7', '5/5/7/7', '5/7']);
   });
 
   it('REGION-04 (FALSIFIED BUG CLOSURE): overriding "5/7" → 4×4 produces ExportRow with outW === 4', () => {
