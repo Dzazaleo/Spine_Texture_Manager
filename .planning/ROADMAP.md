@@ -790,7 +790,7 @@ Plans:
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
-| 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 4/4 | Complete   | 2026-05-07 |
+| 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 5/6 | In Progress|  |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 0/0 | Not started — depends on Phase 29 (BUFFER-01..03) | — |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 0/0 | Not started — independent of 29/30 (LOAD-05..07, PANEL-08..11, PLATFORM-01) | — |
 
