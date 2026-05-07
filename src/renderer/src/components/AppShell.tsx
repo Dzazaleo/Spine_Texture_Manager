@@ -403,6 +403,15 @@ export function AppShell({
     scope: string[];
     currentPercent: number;
     anyOverridden: boolean;
+    /**
+     * Max peakScale across the batch scope. Drives the dialog's
+     * extrapolation explainer (only renders when > 1). Carrying this on
+     * dialogState — rather than recomputing in OverrideDialog from a
+     * scope+summary lookup — keeps OverrideDialog ignorant of the peaks
+     * map and the per-row peakScale field; the prefill site already
+     * walks summary.peaks so capturing it there is free.
+     */
+    peakScale: number;
   } | null>(null);
 
   // Phase 6 Plan 06 — export dialog state. Held independently of
@@ -520,7 +529,15 @@ export function AppShell({
       }
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
       const anyOverridden = scope.some((name) => overrides.has(name));
-      setDialogState({ scope, currentPercent, anyOverridden });
+      // Max peakScale across the scope drives the dialog's extrapolation
+      // explainer. For batch overrides on mixed-extrapolation scopes, the
+      // worst case (highest demand) is the user-relevant value: if any
+      // selected row is being capped, the dialog should explain.
+      const peakScale = scope.reduce((maxScale, name) => {
+        const p = summary.peaks.find((q) => q.attachmentName === name);
+        return p !== undefined && p.peakScale > maxScale ? p.peakScale : maxScale;
+      }, 0);
+      setDialogState({ scope, currentPercent, anyOverridden, peakScale });
     },
     [overrides, summary.peaks],
   );
@@ -1789,6 +1806,7 @@ export function AppShell({
           scope={dialogState.scope}
           currentPercent={dialogState.currentPercent}
           anyOverridden={dialogState.anyOverridden}
+          peakScale={dialogState.peakScale}
           onApply={(percent) => onApplyOverride(dialogState.scope, percent)}
           onClear={() => onClearOverride(dialogState.scope)}
           onCancel={() => setDialogState(null)}

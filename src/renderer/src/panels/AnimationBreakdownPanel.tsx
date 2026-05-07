@@ -84,6 +84,7 @@ import type {
 import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
+import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
 
 /**
@@ -786,14 +787,23 @@ function BreakdownRowItem({
           row.override !== undefined && 'text-accent',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row)}
-        title={
-          row.override !== undefined
-            ? `Override set • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to edit`
-            : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
-        }
+        title={(() => {
+          const aabbLabel = `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`;
+          const editHint =
+            row.override !== undefined ? 'double-click to edit' : 'double-click to override';
+          const extrapHint =
+            row.peakScale > 1
+              ? ` • Spine rig peak: ${row.peakScale.toFixed(2)}× source (export capped at canonical)`
+              : '';
+          const overrideLabel = row.override !== undefined ? 'Override set • ' : '';
+          return `${overrideLabel}${aabbLabel}${extrapHint} • ${editHint}`;
+        })()}
       >
         <span className="inline-flex items-center justify-end gap-1">
           <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          {row.peakScale > 1 && (
+            <ExtrapolationIcon className="w-3.5 h-3.5 inline-block text-fg-muted" />
+          )}
           {row.override !== undefined && (
             <PencilIcon className="w-3.5 h-3.5 inline-block text-white" />
           )}
