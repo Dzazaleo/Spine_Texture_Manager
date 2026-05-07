@@ -50,21 +50,14 @@ describe('REL-03: INSTALL.md cookbook surface', () => {
     expect(existsSync(resolve(REPO_ROOT, 'INSTALL.md'))).toBe(true);
   });
 
-  test('INSTALL.md has macOS / Windows / Linux sections', () => {
+  test('INSTALL.md has macOS / Windows sections (Linux dropped at v1.3)', () => {
     const text = read('INSTALL.md');
     expect(text).toMatch(/^##\s+macOS/m);
     expect(text).toMatch(/^##\s+Windows/m);
-    expect(text).toMatch(/^##\s+Linux/m);
-  });
-
-  test('INSTALL.md documents libfuse2 / libfuse2t64 caveat (D-15)', () => {
-    const text = read('INSTALL.md');
-    // libfuse2t64 — Ubuntu 24.04+ package name (the t64 variant).
-    expect(text).toContain('libfuse2t64');
-    // libfuse2 (without t64) — the older Ubuntu 22.04 / Fedora / Debian 11
-    // package name. Match \blibfuse2 followed by NOT a "t" so we don't
-    // accept `libfuse2t64` on its own as a positive match.
-    expect(text).toMatch(/\blibfuse2(?!t)/);
+    // Linux section dropped at v1.3 close — Linux AppImage build is no
+    // longer in CI (commit bbaf714). Re-enable the Linux assertion when
+    // the build-linux job comes back post-UAT.
+    expect(text).not.toMatch(/^##\s+Linux/m);
   });
 
   test('INSTALL.md documents Gatekeeper + SmartScreen bypass copy', () => {

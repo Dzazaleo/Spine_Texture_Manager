@@ -75,9 +75,9 @@ describe('Phase 15 RESEARCH §A2 — package.json build:* scripts drop explicit 
     expect(pkg.scripts['build:linux']).toMatch(/electron-builder\s+--linux\s+--publish/);
   });
 
-  test('package.json version is 1.1.3', () => {
+  test('package.json version is 1.3.0', () => {
     const pkg = JSON.parse(read('package.json'));
-    expect(pkg.version).toBe('1.1.3');
+    expect(pkg.version).toBe('1.3.0');
   });
 });
 
@@ -110,9 +110,12 @@ describe('Phase 15 D-05 — release.yml CI workflow extends with .zip globs', ()
 
   test('fail-fast gates preserved (if-no-files-found + fail_on_unmatched_files)', () => {
     const text = read('.github/workflows/release.yml');
-    // 3 build jobs each have if-no-files-found: error
+    // 2 build jobs each have if-no-files-found: error.
+    // (build-linux dropped from CI v1.3 — untested target. package.json
+    // build:linux script retained for local builds; re-add the CI job
+    // when Linux UAT lands.)
     const ifNoFilesMatches = text.match(/if-no-files-found:\s*error/g) ?? [];
-    expect(ifNoFilesMatches.length).toBe(3);
+    expect(ifNoFilesMatches.length).toBe(2);
     expect(text).toMatch(/fail_on_unmatched_files:\s*true/);
   });
 });
@@ -130,14 +133,14 @@ describe('Phase 15 D-05 — sibling platforms (win, linux) byte-identical to v1.
     }
   });
 
-  test('build-linux upload-artifact path has only .AppImage + latest-linux.yml', () => {
+  test('build-linux job is removed from CI (v1.3 — untested target)', () => {
     const text = read('.github/workflows/release.yml');
-    const linuxSection = text.match(/name:\s*installer-linux\b[\s\S]*?if-no-files-found/);
-    expect(linuxSection).not.toBeNull();
-    if (linuxSection) {
-      expect(linuxSection[0]).toMatch(/release\/\*\.AppImage/);
-      expect(linuxSection[0]).toMatch(/release\/latest-linux\.yml/);
-      expect(linuxSection[0]).not.toMatch(/release\/\*\.zip/);
-    }
+    // Phase 15-era assertion inverted at v1.3 close: build-linux job dropped
+    // from .github/workflows/release.yml (commit bbaf714). Re-enable when
+    // Linux UAT lands.
+    expect(text).not.toMatch(/^  build-linux:/m);
+    expect(text).not.toMatch(/name:\s*installer-linux/);
+    expect(text).not.toMatch(/release\/\*\.AppImage/);
+    expect(text).not.toMatch(/release\/latest-linux\.yml/);
   });
 });

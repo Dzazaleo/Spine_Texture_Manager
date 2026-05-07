@@ -1085,51 +1085,11 @@ export function AppShell({
     setLastOutDir(project.lastOutDir ?? null);
   }, []);
 
-  const onClickOpen = useCallback(async () => {
-    // Phase 9 Plan 02 D-194 — if a sample is in flight (e.g., user clicked
-    // Cmd+O via the 08.2 menu while the previous Open's sample is still
-    // running), abort the in-flight sample first. The new Open's sample
-    // contests for the same module-level samplerWorkerHandle in main; pre-
-    // empting cleanly via terminate() avoids the user briefly seeing stale
-    // peaks from the old project.
-    if (samplingInFlight) {
-      window.api.cancelSampler();
-      // Optimistic UI clear — the cancelled response will arrive shortly via
-      // the open's ok:false branch but clearing immediately gives crisper UX.
-      setSamplingInFlight(false);
-    }
-    const resp = await window.api.openProject();
-    if (!resp.ok) {
-      if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {
-        // Phase 8.1 D-160: read the threaded recovery payload from the typed
-        // envelope. The discriminated-union narrowing exposes 7 additional
-        // fields populated by handleProjectOpenFromPath at
-        // src/main/project-io.ts:333-343 (Plan 08.1-02). The toolbar Open
-        // path now has full parity with the drag-drop path —
-        // onClickLocateSkeleton's reloadProjectWithSkeleton call receives
-        // the real projectPath, the real originalSkeletonPath, and the
-        // real cached overrides + settings. Pre-Phase-8.1 these were empty
-        // literals, causing main's input validator to reject the recovery
-        // request with kind:'Unknown', message:'projectPath must be a
-        // .stmproj path' — VR-02 from 08-VERIFICATION.md.
-        setSkeletonNotFoundError({
-          message: resp.error.message,
-          originalSkeletonPath: resp.error.originalSkeletonPath,
-          projectPath: resp.error.projectPath,
-          mergedOverrides: resp.error.mergedOverrides,
-          cachedSamplingHz: resp.error.samplingHz,
-          cachedLastOutDir: resp.error.lastOutDir,
-          cachedSortColumn: resp.error.sortColumn,
-          cachedSortDir: resp.error.sortDir,
-        });
-        return;
-      }
-      // Other errors: surface via existing error UI. The inline banner pattern
-      // is the standard.
-      return;
-    }
-    mountOpenResponse(resp.project);
-  }, [mountOpenResponse, samplingInFlight]);
+  // Phase 19 onClickOpen callback removed — toolbar "Open" button was lifted
+  // to the File menu (Cmd+O) and onMenuOpen IPC channel during UI redesign.
+  // Stale comments elsewhere in this file still reference onClickOpen as
+  // historical context for parallel state-machine paths (mountOpenResponse,
+  // skeletonNotFoundError handling).
 
   /**
    * D-149 recovery flow (Approach A). Triggered by the inline error

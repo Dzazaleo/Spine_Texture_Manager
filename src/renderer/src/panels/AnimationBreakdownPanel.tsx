@@ -324,7 +324,7 @@ export function AnimationBreakdownPanel({
   overrides,
   onOpenOverrideDialog,
   query,
-  onQueryChange,
+  onQueryChange: _onQueryChange,
   loaderMode,
 }: AnimationBreakdownPanelProps) {
   // Phase 4 Plan 03: default-prop shims so the panel stays usable standalone

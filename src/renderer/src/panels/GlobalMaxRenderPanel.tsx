@@ -63,7 +63,6 @@ import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
 import { computeExportDims, safeScale } from '../lib/export-view.js';
-import { formatBytes } from '../lib/format-bytes';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { PencilIcon } from '../components/icons/PencilIcon';
@@ -686,7 +685,7 @@ export function GlobalMaxRenderPanel({
   focusAttachmentName,
   onFocusConsumed,
   query,
-  onQueryChange,
+  onQueryChange: _onQueryChange,
   loaderMode,
   savingsPct,
 }: GlobalMaxRenderPanelProps) {
