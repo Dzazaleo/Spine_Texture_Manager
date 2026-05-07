@@ -238,10 +238,12 @@ export function computeExportDims(
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  opts?: BuildExportPlanOptions,
+  _opts?: BuildExportPlanOptions,
 ): ExportPlan {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // excluded set now always empty; Plan 02 wires new exclusion surface.
+  // _opts (renamed from opts to satisfy noUnusedParameters) preserves
+  // API backward-compat with the canonical core/export.ts signature.
   const excluded = new Set<string>();
 
   // 2. Group by sourcePath; per group keep highest-effective-scale row +

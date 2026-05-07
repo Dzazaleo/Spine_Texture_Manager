@@ -137,13 +137,14 @@ export function safeScale(s: number): number {
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  opts?: BuildExportPlanOptions,
+  _opts?: BuildExportPlanOptions,
 ): ExportPlan {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // The excluded set is now always empty — D-109 exclusion semantics are
   // superseded by Phase 24's orphanedFiles concept (images/ folder vs rig,
-  // not attachment-visibility vs sampler). opts.includeUnused is kept for
-  // API backward-compat; Plan 02 will wire the new exclusion surface.
+  // not attachment-visibility vs sampler). _opts (renamed from opts to
+  // satisfy noUnusedParameters) is kept for API backward-compat;
+  // Plan 02 will wire the new exclusion surface.
   const excluded = new Set<string>();
 
   // 2. Group by sourcePath; per group keep highest-effective-scale row +

@@ -1324,58 +1324,12 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
   });
 
   it('CHECKER FIX 2026-05-02 — passthrough ExportRow carries actualSourceW + actualSourceH from DisplayRow', () => {
-    // Phase 22.1 D-06: passthrough now requires outW === sourceW.
-    // Use unified model: sourceW=actualSourceW=811, peakScale=1.0 (full-size attach) →
-    // effScale=1.0 → outW=811=sourceW → passthroughCopies.
-    // actualSourceW/H are threaded to ExportRow for OptimizeDialog dim label.
-    const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/UNIFIED_DRIFTED',
-          attachmentName: 'UNIFIED_DRIFTED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 1.0,  // full-size → effScale=1.0 → outW=sourceW
-          peakScaleX: 1.0,
-          peakScaleY: 1.0,
-          worldW: 811,
-          worldH: 962,
-          sourceW: 811,   // unified: sourceW === actualSourceW
-          sourceH: 962,
-          sourcePath: '/fake/UNIFIED.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,  // from atlas originalWidth (22.1-01 G-01)
-          actualSourceH: 962,
-          dimsMismatch: true,  // 811 ≠ 1628
-        },
-      ],
-      orphanedFiles: [],
-    } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map());
-    // peakScale=1.0 → effScale=min(1.0, sourceRatio=811/1628)=0.498 — wait, cap fires!
-    // outW = ceil(811 × 0.498) = 404 ≠ 811. Hmm.
-    // The cap fires because peakScale(1.0) > sourceRatio(811/1628≈0.498).
-    // For a true passthrough in the unified model with drift, need peakScale ≤ sourceRatio.
-    // With peakScale=0.4 < sourceRatio=0.498: effScale=0.4, outW=ceil(811×0.4)=325 ≠ 811.
-    // → passthrough requires effScale=1.0 → requires sourceRatio=1.0 → no drift.
-    //
-    // For passthrough in drifted unified model: need sourceW=actualSourceW AND no cap firing.
-    // Cap fires when peakScale > sourceRatio = actualSourceW/canonicalW.
-    // If peakScale=5.0 (clamps to 1.0), cap fires. outW = ceil(811×sourceRatio) ≠ 811.
-    //
-    // Conclusion: with drifted unified shape, passthrough NEVER occurs because
-    // outW = ceil(sourceW × sourceRatio) ≠ sourceW (sourceRatio < 1.0 for drifted rows).
-    // passthrough ONLY occurs for non-drifted rows with peakScale≥1.0.
-    //
-    // Redesign: use non-drifted row with dimsMismatch=false + actualSource set
-    // (covers the "actualSource fields carried to passthrough row" invariant).
-    // Actually: passthrough rows have actualSourceW/H only when explicitly set.
-    // The test was about OptimizeDialog seeing actual dims. Use G-04 TRIANGLE-style
-    // but with actualSource set (simulating unified atlas-source mode, no drift).
+    // Phase 22.1 D-06: passthrough requires outW === sourceW (post-cap, post-override).
+    // With drifted unified shape (sourceW < canonicalW), passthrough NEVER occurs
+    // because outW = ceil(sourceW × sourceRatio) ≠ sourceW for sourceRatio < 1.0.
+    // → Test the actualSource-threading invariant on a non-drifted row instead:
+    // peakScale=1.0 + dimsMismatch=false → effScale=1.0 → outW=sourceW → passthrough,
+    // and actualSource fields (when explicitly set) carry through to the passthrough row.
     const nonDriftedSummary = {
       peaks: [
         {
