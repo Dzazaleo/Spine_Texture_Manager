@@ -21,6 +21,8 @@ temp/
 fixtures/Jokerman/
 fixtures/Girl/
 fixtures/images/
+fixtures/Chicken/
+fixtures/3Queens/
 # Joker assets (TOPSCREEN_ANIMATION_JOKER.*) — proprietary, kept local only.
 # Note: a handful of test specs read from this fixture (loader, analyzer,
 # sampler-skin-defined-unbound-attachment, atlas-preview) and will fail on
