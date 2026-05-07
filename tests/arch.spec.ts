@@ -100,33 +100,42 @@ describe('Main-bundle invariant: main must be CJS (Node 24 ESM loader cannot des
   });
 });
 
-describe('GlobalMaxRenderPanel batch-scope invariant (04-03 gap-fix A regression guard)', () => {
-  // Locks the attachmentKey → attachmentName conversion at the batch override
-  // invocation site. Human-verify 2026-04-24 surfaced that passing raw
-  // `selected` (attachmentKey strings) to onOpenOverrideDialog silently
-  // collapses batch scope to the clicked row because AppShell's scope check
-  // uses `selectedKeys.has(row.attachmentName)`. The fix introduces a named
-  // intermediate `selectedAttachmentNames`; this spec grep-anchors that
-  // contract so a regression fails CI immediately.
+describe('GlobalMaxRenderPanel batch-scope invariant (Phase 29 Plan 29-05 / CR-01 regression guard)', () => {
+  // Pre-Phase-29: panel selection was attachmentKey-keyed; AppShell's batch
+  // scope check used `selectedKeys.has(row.attachmentName)`, so the panel
+  // had to convert attachmentKey → attachmentName via a named intermediate
+  // (selectedAttachmentNames) before handing the set to onOpenOverrideDialog.
+  //
+  // Post-Phase-29 Plan 29-02: panel selection is regionName-keyed (one row
+  // per source PNG / atlas region).
+  // Post-Phase-29 Plan 29-03: AppShell's overrides Map + batch-scope check
+  // are also regionName-keyed (`rowKey = row.regionName ?? row.attachmentName`).
+  // Post-Phase-29 Plan 29-05 (CR-01 fix): the obsolete contributor-fan-out
+  // intermediate is removed — both ends key on regionName, so the panel
+  // passes the regionName-keyed `selected` Set verbatim as `selectedKeys`.
+  //
+  // The guards below now lock the POST-29-05 contract — passing `selected`
+  // verbatim (no fan-out intermediate). A regression that re-introduces the
+  // attachmentName fan-out would fail CI here AND fail the
+  // tests/regression/path-indirection.spec.ts REGION-04 batch-apply UI block.
   const SRC = readFileSync('src/renderer/src/panels/GlobalMaxRenderPanel.tsx', 'utf8');
 
-  it('does not pass the raw attachmentKey selection set to onOpenOverrideDialog', () => {
-    // Forbid passing the `selected` state directly as the selectedKeys prop
-    // for the Row, because that set contains attachmentKey values not
-    // attachmentName values. (The Row's onDoubleClick hands the set to
-    // onOpenOverrideDialog unchanged.)
-    expect(SRC, 'GlobalMaxRenderPanel must NOT pass raw `selected` (attachmentKey set) as selectedKeys').not.toMatch(
-      /selectedKeys=\{selected\}/,
-    );
+  it('passes the regionName-keyed `selected` Set verbatim as selectedKeys at both Row prop sites (CR-01 fix)', () => {
+    // The post-CR-01 contract: AppShell's overrides Map is regionName-keyed,
+    // so the panel passes `selected` (regionName-keyed) directly. No
+    // contributor-fan-out conversion needed. Both Row prop sites
+    // (virtualized branch + flat-table branch) must use this shape.
+    const selectedKeysHits = (SRC.match(/selectedKeys=\{selected\}/g) ?? []).length;
+    expect(selectedKeysHits, 'Both Row prop sites (virtualized + flat-table) must pass `selected` verbatim').toBeGreaterThanOrEqual(2);
   });
 
-  it('uses a named intermediate attachmentName set for the outbound contract', () => {
-    // Lock the conversion helper name so the grep has a stable anchor.
-    expect(SRC, 'GlobalMaxRenderPanel must declare selectedAttachmentNames intermediate').toMatch(
+  it('does not re-introduce the obsolete contributor-fan-out intermediate (selectedAttachmentNames)', () => {
+    // The pre-29-05 fan-out intermediate poisoned AppShell's regionName-keyed
+    // override Map with contributor attachmentNames on path-indirected
+    // fixtures (CR-01). Removed in Plan 29-05; this guard prevents
+    // re-introduction.
+    expect(SRC, 'GlobalMaxRenderPanel must NOT re-introduce the contributor-fan-out intermediate').not.toMatch(
       /selectedAttachmentNames/,
-    );
-    expect(SRC, 'Row must receive selectedAttachmentNames, not raw selected').toMatch(
-      /selectedKeys=\{selectedAttachmentNames\}/,
     );
   });
 });
