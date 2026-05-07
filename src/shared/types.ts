@@ -146,6 +146,19 @@ export interface DisplayRow {
    * existing IPC payloads.
    */
   isMissing?: boolean;
+  /**
+   * Phase 29 D-01 — atlas region name (loader-populated; same source as
+   * `PeakRecord.regionName` per analyzer.ts:220 idiom). When the upstream
+   * Spine attachment uses path indirection (`att.path` field), multiple
+   * attachments may share a `regionName`. The CLI does not iterate row keys
+   * (CLAUDE.md fact #5 + D-102 byte-lock), so this additive field is
+   * invisible to scripts/cli.ts table output.
+   *
+   * Optional for backward-compat with synthetic test fixtures that build
+   * PeakRecords without `regionName` set; consumers fall back to
+   * `attachmentName` per the same analyzer.ts:220 idiom.
+   */
+  regionName?: string;
 }
 
 /**
