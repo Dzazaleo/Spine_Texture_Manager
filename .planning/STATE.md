@@ -1,26 +1,26 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Polish & UX
-status: completed
-last_updated: "2026-05-07T09:05:53.281Z"
+milestone: v1.3.1
+milestone_name: Correctness & Refinements
+status: planning
+last_updated: "2026-05-07T16:35:36.080Z"
 last_activity: 2026-05-07
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 22
-  completed_plans: 22
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 28 (last shipped)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1.3 milestone shipped
-Last activity: 2026-05-07
+Status: Defining requirements
+Last activity: 2026-05-07 — Milestone v1.3.1 started
 
 ## Project Reference
 

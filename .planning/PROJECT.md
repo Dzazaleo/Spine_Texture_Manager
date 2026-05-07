@@ -8,6 +8,18 @@ A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSO
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
+## Current Milestone: v1.3.1 Correctness & Refinements
+
+**Goal:** Close v1.3 post-ship correctness gaps (per-region dedup + override-region semantics; atlas-preview pack-page accuracy) and refine the Optimize/load workflow with a user-configurable safety buffer + Animation Breakdown UX polish + platform-specific drag-drop fallback.
+
+**Target features:**
+- Per-region dedup + override-region semantics (one row per unique source PNG across Global / Atlas Preview / Optimize / exported folder; override binds to region; row label `{regionName}.png` with `images/` stripped in Global; Source Animation/Frame columns attribute to winning contributing attachment)
+- User-configurable safety buffer in Optimize dialog (multiplicative on calculated peak AND overrides; capped at source dims preserving D-91; persisted in `.stmproj` mirroring `sharpenOnExport` precedent)
+- Windows admin drag-drop fallback (detect elevation; disable drop targets + clear message routing user to File → Open or unprivileged relaunch)
+- Source-toggle disabling (greyed-out + tooltip when atlas absent or images-folder absent)
+- Atlas-preview pack-page accuracy fix (Chicken: 13 actual atlas PNGs vs app's 14 — investigate + fix)
+- Animation Breakdown default-collapsed + bulk Expand all / Collapse all (Setup Pose remains first card, just collapsed; per-session in-memory state; `h-8` toolbar buttons mirror v1.3 style)
+
 ## Current State (post v1.3)
 
 **Shipped:** v1.3.0 Polish & UX — 2026-05-07 (7 phases, ~22 plans, ~21,000+ LOC TS/TSX in `src/`). Tag: `v1.3.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
@@ -106,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-07 after v1.3 milestone complete. v1.3.0 shipped — 7 phases (23, 24, 25, 26.1, 26.2, 27, 28) closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale. Linux AppImage build dropped from CI as an untested target. SEED-003 (Spine 4.3 compatibility) planted for v1.4 pickup. Next: `/gsd-new-milestone` to start v1.4.*
+*Last updated: 2026-05-07 — v1.3.1 milestone started (Correctness & Refinements). Inserts a patch milestone before v1.4 to close path-indirection correctness bug surfaced post-ship + 5 user-prioritized refinements. SEED-003 (Spine 4.3 compatibility) remains earmarked for v1.4. Phase numbering continues from v1.3's last phase (28); v1.3.1 phases start at 29. Prior: v1.3.0 (2026-05-07) — 7 phases (23, 24, 25, 26.1, 26.2, 27, 28) closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale.*
