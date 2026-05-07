@@ -2,25 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
-status: planning
-last_updated: "2026-05-07T17:00:00.000Z"
-last_activity: 2026-05-07
+status: Phase 29 context gathered; ready for /gsd-plan-phase 29
+last_updated: "2026-05-07T18:30:00.000Z"
+last_activity: 2026-05-07 — Phase 29 context gathered (9 implementation decisions across 4 areas)
 progress:
-  total_phases: 3
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) — pending /gsd-discuss-phase 29 then /gsd-plan-phase 29
+Phase: 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) — context gathered 2026-05-07; ready for /gsd-plan-phase 29
 Plan: —
-Status: Roadmap authored; ready for Phase 29 discuss
-Last activity: 2026-05-07 — v1.3.1 roadmap created (Phases 29–31)
+Status: 29-CONTEXT.md authored; 9 implementation decisions locked across Data shape (D-01..D-04), Override migration (D-05/D-06), Atlas Preview UX (D-07), Drill-down (D-08/D-09)
+Last activity: 2026-05-07 — Phase 29 context gathered (4 areas discussed)
 
 ## Project Reference
 
