@@ -149,6 +149,98 @@ export interface DisplayRow {
 }
 
 /**
+ * Phase 29 D-01 + D-02 + REGION-05 — One row per unique region (one source
+ * PNG / one atlas region) across the four user-named surfaces (Global Max
+ * Render panel, Atlas Preview, Optimize dialog, exported folder). Multiple
+ * Spine attachments resolving to the same atlas region via path indirection
+ * (`att.path` field) collapse into a single RegionRow whose
+ * `contributingAttachments[]` preserves the per-attachment detail.
+ *
+ * `attachmentName` carries the WINNING contributor (REGION-05 lex tiebreak
+ * on attachmentName when two contributors share peakScale; analyzer.ts
+ * pickRegionWinner). Source Animation + Frame columns attribute to this
+ * winner; the array surface lists every contributor for hover-tooltip /
+ * tooltip drill-down.
+ *
+ * Mirrors DisplayRow's primitive scalar field-set so existing rendering /
+ * sort code can operate on RegionRow with minimal adapter logic. Every
+ * field is primitive | array of primitives | plain object — D-21
+ * structuredClone-safe per the file-top docblock.
+ *
+ * Inline `atlasSource` shape duplicates DisplayRow's per the file-top
+ * comment at the AtlasPreview block ("DO NOT extract a named type;
+ * precedent is duplication") — keep it inline.
+ */
+export interface RegionRow {
+  /** Primary key — one row per unique regionName. Path-indirected projects
+   *  see this column as the user-visible source PNG name. */
+  regionName: string;
+  /** Winning contributor's attachmentName (REGION-05 lex tiebreak on ties). */
+  attachmentName: string;
+  skinName: string;
+  slotName: string;
+  animationName: string;
+  time: number;
+  frame: number;
+  peakScale: number;
+  peakScaleX: number;
+  peakScaleY: number;
+  worldW: number;
+  worldH: number;
+  sourceW: number;
+  sourceH: number;
+  isSetupPosePeak: boolean;
+  sourcePath: string;
+  // Phase 22 DIMS-01 fields (carry forward from DisplayRow; same semantics):
+  canonicalW: number;
+  canonicalH: number;
+  actualSourceW: number | undefined;
+  actualSourceH: number | undefined;
+  dimsMismatch: boolean;
+  // Phase 25 — true when winning row's source PNG was missing at load time:
+  isMissing?: boolean;
+  /**
+   * Atlas-source metadata duplicates the inline shape from DisplayRow.atlasSource
+   * (line ~109) — precedent is duplication per the AtlasPreview block comment;
+   * DO NOT extract a named type.
+   */
+  atlasSource?: {
+    pagePath: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+  };
+  // Preformatted labels — mirror DisplayRow lines 70-74. The renderer reads
+  // these directly so it does zero formatting on RegionRow either.
+  originalSizeLabel: string;
+  peakSizeLabel: string;
+  scaleLabel: string;
+  sourceLabel: string;
+  frameLabel: string;
+  /**
+   * Phase 29 D-02 — per-attachment detail folded into the row. One entry per
+   * Spine attachment that resolved to this region. Sorted by attachmentName
+   * lex ASC (deterministic across runs). Powers REGION-05 attribution and
+   * lets the Global panel hover tooltip / Atlas Preview tooltip render the
+   * breakdown without a second IPC lookup.
+   *
+   * Plain objects of primitives — D-21 structuredClone-safe.
+   */
+  contributingAttachments: Array<{
+    attachmentName: string;
+    skinName: string;
+    slotName: string;
+    peakScale: number;
+    animationName: string;
+    time: number;
+    frame: number;
+    isSetupPosePeak: boolean;
+  }>;
+}
+
+/**
  * Phase 3 Plan 01 — Row shape consumed by the per-animation cards.
  *
  * Extends DisplayRow with the two Bone Path fields required by F4.3. All
@@ -458,8 +550,20 @@ export type ProbeConflictsResponse =
  * DisplayRow.atlasSource (lines 85-92) and ExportRow.atlasSource (lines 213-220)
  * for consistency — DO NOT extract a named type (precedent is duplication).
  */
+/**
+ * Phase 29 D-03 — Re-keyed from `attachmentName: string` to
+ * `regionName: string` + `attachmentNames: string[]`. Mirrors the
+ * `ExportRow.attachmentNames[]` precedent at line 240 ("one row per region
+ * with attachmentNames array for traceability"). One AtlasPreviewInput
+ * emits ONE tile per region in both Original + Optimized modes (closes
+ * PREVIEW-01 — Chicken: 13 actual atlas pages, not 14).
+ *
+ * Wave 1 (plan 29-01) ships the type-only re-key; the production logic in
+ * `src/core/atlas-preview.ts` + the renderer mirror are owned by plan 29-02.
+ */
 export interface AtlasPreviewInput {
-  attachmentName: string;
+  regionName: string;
+  attachmentNames: string[];
   sourceW: number;
   sourceH: number;
   outW: number;
@@ -479,8 +583,15 @@ export interface AtlasPreviewInput {
   };
 }
 
+/**
+ * Phase 29 D-03 — Re-keyed from `attachmentName: string` to
+ * `regionName: string` + `attachmentNames: string[]`. The post-pack rect
+ * carries the per-region contributor list for click hit-test attribution
+ * (Atlas Preview modal D-07: hover tooltip + dblclick → onJumpToRegion).
+ */
 export interface PackedRegion {
-  attachmentName: string;
+  regionName: string;
+  attachmentNames: string[];
   x: number;
   y: number;
   w: number;
@@ -554,6 +665,14 @@ export interface SkeletonSummary {
   events: { count: number; names: string[] };
   /** Sorted by (skinName, slotName, attachmentName) — matches CLI byte-for-byte. */
   peaks: DisplayRow[];
+  /**
+   * Phase 29 D-01 — per-region view alongside per-attachment peaks. One row
+   * per unique regionName (one source PNG); contributingAttachments[] carries
+   * full per-attachment detail per name. Consumed by the Global Max Render
+   * panel + Atlas Preview modal + doc-export chip strip; summary.peaks stays
+   * per-attachment for CLI byte-lock + AnimationBreakdownPanel drill-down.
+   */
+  regions: RegionRow[];
   /** Phase 3: static-pose card first (cardId === 'setup-pose'), then one card per animation in JSON order. */
   animationBreakdown: AnimationBreakdown[];
   /**
