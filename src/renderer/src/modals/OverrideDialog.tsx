@@ -58,15 +58,6 @@ export interface OverrideDialogProps {
   scope: string[];
   currentPercent: number;
   anyOverridden: boolean;
-  /**
-   * Peak demand multiplier for the clicked row (or the max across the
-   * batch scope). When > 1 the rig renders the asset above its source
-   * resolution at the peak frame; the dialog surfaces a short explanation
-   * so the displayed percent (% of peak demand satisfied, capped at
-   * canonical) is interpretable. Optional for backward-compat; absent
-   * means "no extrapolation, treat as ≤ 1."
-   */
-  peakScale?: number;
   onApply: (percent: number) => void;
   onClear: () => void;
   onCancel: () => void;
@@ -162,20 +153,6 @@ export function OverrideDialog(props: OverrideDialogProps) {
             source ceiling and silently cap at min(canonical, on-disk PNG)
             in both the panel display and the export pipeline. */}
         <p className="text-fg-muted text-xs mt-2">100% = peak demand.</p>
-        {/* Extrapolation explainer (peakScale > 1): the rig renders the
-            asset above source resolution at peak. Export caps at canonical,
-            so the percent shown reflects "% of rig demand satisfied," not
-            "% of canonical." Conditional — clean dialog for the common
-            peakScale ≤ 1 case where percent maps 1:1 to canonical export. */}
-        {props.peakScale !== undefined && props.peakScale > 1 && (
-          <p className="text-fg-muted text-xs mt-2 leading-relaxed">
-            Spine rig renders this asset at{' '}
-            <span className="text-fg">{props.peakScale.toFixed(2)}× source</span>{' '}
-            at peak. Export is capped at canonical, so the percentage shown
-            reflects how much of the rig's peak demand the export satisfies —
-            not the export size relative to canonical.
-          </p>
-        )}
         <div className="flex gap-2 mt-6 justify-end">
           {/* Peak-anchored redesign (2026-05-05): under the new semantics
               applying 100% produces the same effScale as clearing the

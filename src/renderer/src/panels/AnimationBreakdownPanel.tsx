@@ -787,22 +787,21 @@ function BreakdownRowItem({
           row.override !== undefined && 'text-accent',
         )}
         onDoubleClick={() => onOpenOverrideDialog(row)}
-        title={(() => {
-          const aabbLabel = `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)}`;
-          const editHint =
-            row.override !== undefined ? 'double-click to edit' : 'double-click to override';
-          const extrapHint =
-            row.peakScale > 1
-              ? ` • Spine rig peak: ${row.peakScale.toFixed(2)}× source (export capped at canonical)`
-              : '';
-          const overrideLabel = row.override !== undefined ? 'Override set • ' : '';
-          return `${overrideLabel}${aabbLabel}${extrapHint} • ${editHint}`;
-        })()}
+        title={
+          row.override !== undefined
+            ? `Override set • World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to edit`
+            : `World AABB at peak: ${row.worldW.toFixed(0)}×${row.worldH.toFixed(0)} • double-click to override`
+        }
       >
         <span className="inline-flex items-center justify-end gap-1">
           <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
           {row.peakScale > 1 && (
-            <ExtrapolationIcon className="w-3.5 h-3.5 inline-block text-fg-muted" />
+            <span
+              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
+              className="inline-flex"
+            >
+              <ExtrapolationIcon className="w-3.5 h-3.5 inline-block text-white" />
+            </span>
           )}
           {row.override !== undefined && (
             <PencilIcon className="w-3.5 h-3.5 inline-block text-white" />
