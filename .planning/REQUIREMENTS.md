@@ -82,22 +82,22 @@ Close v1.3 post-ship correctness gaps (per-region dedup + override-region semant
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| REGION-01 | TBD | Pending |
-| REGION-02 | TBD | Pending |
-| REGION-03 | TBD | Pending |
-| REGION-04 | TBD | Pending |
-| REGION-05 | TBD | Pending |
-| REGION-06 | TBD | Pending |
-| REGION-07 | TBD | Pending |
-| BUFFER-01 | TBD | Pending |
-| BUFFER-02 | TBD | Pending |
-| BUFFER-03 | TBD | Pending |
-| PLATFORM-01 | TBD | Pending |
-| LOAD-05 | TBD | Pending |
-| LOAD-06 | TBD | Pending |
-| LOAD-07 | TBD | Pending |
-| PREVIEW-01 | TBD | Pending |
-| PANEL-08 | TBD | Pending |
-| PANEL-09 | TBD | Pending |
-| PANEL-10 | TBD | Pending |
-| PANEL-11 | TBD | Pending |
+| REGION-01 | Phase 29 | Pending |
+| REGION-02 | Phase 29 | Pending |
+| REGION-03 | Phase 29 | Pending |
+| REGION-04 | Phase 29 | Pending |
+| REGION-05 | Phase 29 | Pending |
+| REGION-06 | Phase 29 | Pending |
+| REGION-07 | Phase 29 | Pending |
+| PREVIEW-01 | Phase 29 | Pending (folded — same dedup-key bug surface as REGION-02; debug session § Surface Audit) |
+| BUFFER-01 | Phase 30 | Pending |
+| BUFFER-02 | Phase 30 | Pending |
+| BUFFER-03 | Phase 30 | Pending |
+| LOAD-05 | Phase 31 | Pending |
+| LOAD-06 | Phase 31 | Pending |
+| LOAD-07 | Phase 31 | Pending |
+| PANEL-08 | Phase 31 | Pending |
+| PANEL-09 | Phase 31 | Pending |
+| PANEL-10 | Phase 31 | Pending |
+| PANEL-11 | Phase 31 | Pending |
+| PLATFORM-01 | Phase 31 | Pending |

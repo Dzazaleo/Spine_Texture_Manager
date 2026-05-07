@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
 status: planning
-last_updated: "2026-05-07T16:35:36.080Z"
+last_updated: "2026-05-07T17:00:00.000Z"
 last_activity: 2026-05-07
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,19 +17,21 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) — pending /gsd-discuss-phase 29 then /gsd-plan-phase 29
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-07 — Milestone v1.3.1 started
+Status: Roadmap authored; ready for Phase 29 discuss
+Last activity: 2026-05-07 — v1.3.1 roadmap created (Phases 29–31)
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-07 after v1.3 milestone)
+See: .planning/PROJECT.md (updated 2026-05-07 — v1.3.1 milestone block at top reflects Correctness & Refinements scope)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** v1.3 shipped — preparing `v1.3.0` tag push. Next milestone: v1.4 (start with `/gsd-new-milestone`).
+**Current focus:** v1.3.1 Correctness & Refinements — Phase 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) is next. Closes the path-indirection correctness bug surfaced post-v1.3 ship (overrides keyed by attachmentName never reach the export pipeline keyed by region — confirmed by user repro 2026-05-07; debug session at `.planning/debug/path-indirected-duplicate-rows.md`).
 
 ## Last Roadmap Update
+
+2026-05-07 — v1.3.1 roadmap created. Three phases authored (29 / 30 / 31) covering 19 REQ-IDs across 6 categories (REGION-01..07 + PREVIEW-01 → Phase 29; BUFFER-01..03 → Phase 30; LOAD-05..07 + PANEL-08..11 + PLATFORM-01 → Phase 31). Phase numbering continues from v1.3 (last phase 28). PREVIEW-01 folded into Phase 29 per debug session § Surface Audit — Atlas Preview's optimized-mode tile expansion is the same dedup-key bug surface as REGION-02 (Chicken 13-vs-14 page-count drift). ROADMAP.md updated: v1.3.1 milestone bullet appended (after v1.3 shipped bullet); v1.3.1 phase summary checklist block inserted after v1.3 details block; Phase 29/30/31 detail sections inserted before Progress; Progress table extended with rows for 29/30/31; Out-of-scope for v1.3.1 section added (8 items: no Spine math/sampler changes, no schema-version bump, no auto-update changes, Linux still host-blocked, no signing posture change, no Sentry, no Spine 4.3+ adapters, no .stmproj persistence for collapse state, no UIPI workaround). REQUIREMENTS.md traceability table updated — all 19 REQ-IDs mapped to a phase (no orphans). STATE.md total_phases set to 3.
 
 2026-05-03 — v1.3 roadmap created. Phases 23–27 appended to ROADMAP.md (section "v1.3 Polish & UX"); v1.3 milestone bullet added; Progress table extended; Out-of-scope for v1.3 section added. REQUIREMENTS.md traceability table updated with phase assignments. STATE.md total_phases set to 5.
 

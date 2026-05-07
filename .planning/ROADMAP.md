@@ -8,6 +8,7 @@
 - ✅ **v1.1.2 Auto-update fixes** — Phases 14–15 (shipped 2026-04-29; v1.1.2 published with broken mac auto-update D-15-LIVE-1; v1.1.3 same-day hotfix at https://github.com/Dzazaleo/Spine_Texture_Manager/releases/tag/v1.1.3 closed UPDFIX-01 / D-15-LIVE-1 empirically via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact at canonical dotted URL. D-15-LIVE-2 (Squirrel.Mac code-sig swap fail on ad-hoc builds) + D-15-LIVE-3 (Help → Check menu gating) routed to backlog 999.2 + 999.3 per user decision — manual-download UX path, NOT Apple Developer Program enrollment. Phase 13.1 — live UAT carry-forwards from v1.1.1 — remains separately tracked, NOT part of v1.1.2)
 - ✅ **v1.2 Expansion** — Phases 13.1 (deferred), 16, 18–22.1 (shipped 2026-05-03; v1.2.0 final; 40 plans across 8 executed phases; 23/26 REQs closed — UAT-01..03 host-blocked, carried to v1.3) — full archive at [.planning/milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Polish & UX** — Phases 23–28 (shipped 2026-05-07; v1.3.0 final; 7 phases / ~22 plans; correctness/semantic gaps closed + Optimize-flow UX + UI polish; Linux AppImage build dropped from CI as untested target) — full archive at [.planning/milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
+- **v1.3.1 Correctness & Refinements** — Phases 29–31 (in progress; 19 REQs across 6 categories — REGION-01..07, BUFFER-01..03, PLATFORM-01, LOAD-05..07, PREVIEW-01, PANEL-08..11) — closes the per-region dedup + override-region semantics correctness bug surfaced post-v1.3 ship (debug session at .planning/debug/path-indirected-duplicate-rows.md), adds a user-configurable safety buffer in Optimize, and lands targeted UX refinements (source-toggle disabling, Animation Breakdown collapse defaults, Windows admin DnD fallback)
 - **v1.3 Polish & UX** — Phases 23–28 (in progress; 18 REQs — PANEL-01..04, OPT-01..03, UI-06..08, UI-10, QA-01..04, SHARP-01..03) — Phase 26 split into 26.1/26.2 (UI-09 dropped 2026-05-05; Phase 26.3 removed); Phase 28 added 2026-05-06 (originally PMA correctness fix promoted from backlog 999.9; PIVOTED to opt-in output sharpening 2026-05-06 after PMA premise empirically falsified during /gsd-discuss-phase 28 — see 28-CONTEXT.md D-01 + scripts/pma-probe.mjs)
 
 ## Phases
@@ -73,6 +74,12 @@
 - [x] **Phase 28: Optional output sharpening on downscale** — Opt-in `sharpen({ sigma: 0.5 })` post-Lanczos3, downscale-only gate, persists per-project in `.stmproj` (additive optional `sharpenOnExport: boolean`). Mirrors Photoshop's "Bicubic Sharper (reduction)" preset. Originally scoped as PMA-preservation (backlog 999.9); PIVOTED same day after empirical falsification — sharp 0.34 + libvips 8.17 auto-handle PMA on resize. `scripts/pma-probe.mjs` retained as regression sentinel; backlog 999.9 closed `falsified`. (SHARP-01..03) (completed 2026-05-06)
 
 </details>
+
+### v1.3.1 Correctness & Refinements (Phases 29–31)
+
+- [ ] **Phase 29: Per-region dedup + override-region semantics + atlas-preview pack-page accuracy** — Re-key Global panel + Atlas Preview deduplication from `attachmentName` to `regionName`; flip override semantics from per-attachment to per-region (overrides bind to the source PNG, all contributing attachments inherit at export time); row label format `{regionName}.png` with `images/` prefix stripped in Global; Source Animation/Frame columns attribute to the winning contributing attachment (lex-tiebreak); add `contributingAttachments[]` to `DisplayRow`; migrate ~8+ call sites currently keyed on `attachmentName`; commit a stripped <1MB Chicken-derived regression fixture exercising path-indirection. Folds PREVIEW-01 — the Atlas Preview optimized-mode tile expansion (one tile per `attachmentNames[i]`) is the same dedup-key bug surfacing as the Chicken 13-vs-14 page-count drift; the regionName re-key fixes both. (REGION-01..07, PREVIEW-01)
+- [ ] **Phase 30: Safety buffer in Optimize dialog** — User-configurable safety-buffer percentage control in OptimizeDialog (integer-percent input with small step). Multiplicatively increases each row's calculated effective scale AND any user-set overrides BEFORE the export plan is computed. Hard-cap at source dimensions on both axes (preserves D-91 + uniform-only Phase 6 invariant). Persists per-project in `.stmproj` v1 as additive optional field (mirrors `sharpenOnExport` precedent from Phase 28; missing field defaults to 0% for v1.2/v1.3-era backward compat; no schema-version bump). Depends on Phase 29 — buffer applies to the *region-level* effective scale, so per-region dedup must land first. (BUFFER-01..03)
+- [ ] **Phase 31: Loader & UX small-fixes batch** — Three independent UX wirings on existing surfaces, batched per granularity calibration: (a) source-toggle disable+tooltip when atlas/images-folder absent (LOAD-05..07); (b) Animation Breakdown default-collapsed + bulk Expand all/Collapse all toolbar buttons + Setup Pose stays first (PANEL-08..11); (c) Windows admin drag-drop fallback — detect elevation, disable drop targets, route user to File → Open or unprivileged relaunch via clear message (PLATFORM-01). No cross-dependency with Phases 29/30. (LOAD-05..07, PANEL-08..11, PLATFORM-01)
 
 ## Phase Details
 
@@ -660,6 +667,97 @@ Plans:
 - [x] 28-02-PLAN.md — image-worker integration with DRY helper (SHARP-02) (Wave 2)
 - [x] 28-03-PLAN.md — Regression test + housekeeping (SHARP-03) (Wave 3)
 
+### Phase 29: Per-region dedup + override-region semantics + atlas-preview pack-page accuracy
+
+**Goal**: After this phase, the user sees one row per unique source PNG across all four surfaces (Global panel, Atlas Preview, Optimize dialog, exported folder), and overrides set on those rows actually reach the export pipeline — closing the correctness bug confirmed in `.planning/debug/path-indirected-duplicate-rows.md` where a user override on `5/7.png` (4×4) was silently erased because the export pipeline took the per-region max across non-overridden sibling attachments.
+
+**Depends on**: Phase 22.1 (override-aware passthrough partition + dims-badge cap; per-region dedup must preserve the POST-override partition contract). Phase 24 (atlas-savings metric pulls counts from the same `summary.peaks` shape that's about to change). Phase 28 (`.stmproj` `sharpenOnExport` precedent for additive-optional persistence — referenced as the migration template for any new optional field, though Phase 29 does not add `.stmproj` fields itself).
+
+**Requirements**: REGION-01, REGION-02, REGION-03, REGION-04, REGION-05, REGION-06, REGION-07, PREVIEW-01
+
+**Background**: User reproduced 2026-05-07 — overriding `5/7` to ~0% (4×4 / 0.011×) in the Global panel produced an exported `5/7.png` at 273×309 (the per-region max across `5/5/5/7/7` + `5/5/7/7` + `5/7`) instead of 4×4. The override was correctly stored keyed by `attachmentName` and correctly read by `OverrideDialog`, but the export pipeline keys by region (`sourcePath`) and silently took the max across all contributing attachments — so the two non-overridden siblings won. Surface audit (`.planning/debug/path-indirected-duplicate-rows.md` § Surface Audit) found 2 of 4 user-named surfaces non-conforming (Global panel + Atlas Preview), 8+ downstream call sites currently doing `summary.peaks.find(p => p.attachmentName === X)` that must migrate, plus likely changes to `DisplayRow` and `AtlasPreviewInput` in `src/shared/types.ts` (which crosses the IPC structuredClone boundary). User-locked design decisions (recorded verbatim in the debug session): per-region dedup across all 4 surfaces; row label `{regionName}.png` with `images/` stripped in Global, kept in Optimize; overrides bind per-region; Source Animation + Frame attribute to the winning attachment with lex-tiebreak; regression fixture is a stripped <1MB Chicken subset.
+
+**PREVIEW-01 fold rationale**: The Atlas Preview surface audit identified that the optimized-mode branch at `src/core/atlas-preview.ts:191-207` deliberately re-emits one preview tile per `attachmentNames[i]` (so click hit-tests work on every named attachment). Under path-indirection this DOUBLES the projected page count for projects where multiple attachments share one source PNG — which is exactly the symptom in PREVIEW-01 (Chicken: 13 actual atlas pages, app projects 14). The Phase 29 dedup-key change (`attachmentName` → `regionName`) is the upstream fix for both REGION-02 and PREVIEW-01; folding them avoids two phases touching the same file with the same edit.
+
+**Constraints to preserve** (from project memories):
+- **Sampler visibility invariant** (`project_sampler_visibility_invariant.md`) — sampler must continue to measure ALL skin-declared attachments. Region dedup happens STRICTLY DOWNSTREAM (analyzer + atlas-preview + UI consumers); never by dropping records in `src/core/sampler.ts`.
+- **Strict loaderMode separation** (`project_strict_loadermode_separation.md`) — `regionName` is already populated in both atlas-source and atlas-less modes by the loader/sampler. No new branches keyed on `load.atlasPath` introduced by this phase.
+- **Layer 3 invariant** — `src/core/` remains DOM-free, sharp-free, electron-free.
+- **Compute-export-dims canonical base** (`project_compute_export_dims_canonical_base.md`) — export-side untouched. The exported folder already conforms (Surface #4 in the debug audit); `outW = ceil(canonicalW × effScale)` invariant preserved.
+- **Override semantics flip** — overrides currently keyed by `attachmentName` (`AppShell.tsx:544`); new contract binds them to `regionName`. Migration of stored `.stmproj` overrides is additive (the field shape stays — just the key meaning shifts). Round-trip identity must hold for v1.3-era project files: a v1.3 `.stmproj` whose overrides happen to reference attachment names that ARE region names (the non-path-indirected common case) loads identically; a v1.3 `.stmproj` whose overrides reference path-indirected attachment names migrates to the corresponding region key on first load (or surfaces a clear migration notice — design decision deferred to `/gsd-plan-phase 29`).
+- **Regression fixture** — full 152MB Chicken stays gitignored; phase produces a stripped subset (<1MB committed) under e.g. `fixtures/Chicken-Min/` exercising path-indirection (multiple attachment names resolving to one region).
+
+**Success Criteria** (what must be TRUE):
+  1. User loads a path-indirected project (e.g. the new Chicken-Min regression fixture) and the Global Max Render Source panel shows N rows for N unique source PNGs — NOT N rows per authored attachment name. Each row's identifier reads `{regionName}.png` with `images/` stripped.
+  2. User overrides one such region row to a small dimension (e.g. `5/7.png` → 4×4); the exported `5/7.png` is 4×4 — the override reaches export through the region binding, regardless of how many attachments path-indirect to that region.
+  3. Atlas Preview modal projects exactly the actual atlas page count for path-indirected projects: Chicken renders 13 pages, not 14 — AND the same one-tile-per-region invariant holds across the regression-fixture set. Click hit-tests on a tile attribute to all contributing attachments via the row's `contributingAttachments[]` (or equivalent) field.
+  4. The Source Animation column and Frame column on each Global row report the values from the winning contributing attachment (the one whose calculated peak equals the row's displayed peak); ties break deterministically by attachment-name lex order.
+  5. Drilling into a row's per-attachment detail (Animation Breakdown panel or equivalent surface) preserves the per-attachment mesh / weight-map / slot-binding info — region-level dedup at the top-level table does not erase per-attachment information from the analysis surface.
+  6. A regression fixture stripped from Chicken (target <1MB committed under `fixtures/Chicken-Min/` or equivalent) is added; vitest suite includes a path-indirection regression test exercising the per-region dedup contract across analyzer + atlas-preview + export.
+  7. All ~8+ existing call sites that currently do `summary.peaks.find(p => p.attachmentName === X)` are migrated to the new contract (region-keyed lookup or region+contributingAttachments resolution) without behavior regression on non-path-indirected projects (SIMPLE_PROJECT golden tests pass byte-for-byte where applicable).
+
+**Plans**: TBD (run `/gsd-discuss-phase 29` then `/gsd-plan-phase 29`)
+
+**UI hint**: yes
+
+### Phase 30: Safety buffer in Optimize dialog
+
+**Goal**: After this phase, the user can dial in a percentage safety buffer in the Optimize dialog that multiplicatively grows every row's effective export scale (calculated peak AND user-set overrides) before the export plan is computed — capped uniformly at source dimensions so D-91 (no texture surpasses source dims) and the Phase 6 uniform-only invariant are both preserved.
+
+**Depends on**: Phase 29 (the safety buffer applies to the row's *region-level* effective scale; per-region dedup must land first so the buffer applies once per source PNG, not once per contributing attachment). Phase 28 (`.stmproj` additive-optional persistence template; `sharpenOnExport` precedent for adding a new optional field without bumping the schema-version).
+
+**Requirements**: BUFFER-01, BUFFER-02, BUFFER-03
+
+**Background**: Animators frequently want to ship slightly-larger-than-mathematically-required textures as insurance against unforeseen runtime effects (spotlight tints, post-processing sharpen passes, future bone-chain edits). Today they get this by manually nudging individual overrides — tedious on rigs with hundreds of attachments. A single multiplicative buffer slider on the Optimize dialog gives them one knob to turn. The control must NOT punch through the source-dim ceiling locked by D-91 (Phase 4) — the cap is hard, not advisory, and applies uniformly on both axes (Phase 6 export-sizing invariant).
+
+**Constraints to preserve**:
+- **D-91 source-dim cap** — buffered effective scale must be hard-capped at `min(sourceW/canonicalW, sourceH/canonicalH)` BEFORE the export plan computes outW/outH. The cap is uniform on both axes (anisotropic export breaks Spine UV sampling per memory `project_phase6_default_scaling.md`).
+- **`.stmproj` v1 forward-compat** — additive optional field only (default 0% when missing). Schema version stays at `1`. Mirror the Phase 28 `sharpenOnExport` plumbing precedent: types → validator/serializer/materializer → main IPC envelope → preload bridge → AppShell lifecycle → OptimizeDialog UI. Round-trip identity test must lock both directions (v1.2-era file loads with buffer 0%; freshly-saved file with non-zero buffer loads byte-equal).
+- **Layer 3 invariant** — buffer math lives in `src/core/` (export plan computation). No new sharp/electron/DOM imports.
+- **Override-aware partition** (Phase 22.1) — buffer applies BEFORE the passthrough partition runs, so a row that was passthrough at 1.0× but is now 1.05× after a 5% buffer correctly partitions OUT of passthrough into the resize bucket.
+- **Per-region semantics** (Phase 29) — buffer is a row-level multiplier on the region's effective scale; it does not bypass the per-region dedup contract.
+
+**Success Criteria** (what must be TRUE):
+  1. User opens the Optimize Assets dialog and sees a safety-buffer percentage control (integer percent input with small step) initially at 0%; the export plan summary tiles update reactively as the buffer changes.
+  2. With buffer set to e.g. 5%, the export pipeline grows each row's effective scale by ×1.05 (calculated peak AND any user-set override) BEFORE computing outW/outH; rows whose buffered scale would exceed source dims are hard-capped at source dims uniformly on both axes (D-91 + Phase 6 invariant preserved). Round-trip Spine UV sampling test passes.
+  3. User saves a project with non-zero buffer, closes, re-opens — the buffer value persists exactly as additive optional `safetyBufferPercent` (or equivalent) in the `.stmproj` v1 schema. A v1.2/v1.3-era `.stmproj` (no buffer field) loads with buffer = 0% (backward-compat). Schema version field still reads `1` — no bump.
+  4. Layer 3 invariant preserved — `grep -rn "from 'sharp'" src/core/` returns zero hits; buffer math is in `src/core/export.ts` (or equivalent) using only pure-TS.
+  5. Existing Phase 22.1 override-aware passthrough partition continues to work correctly when buffer is non-zero — a row that was passthrough at 1.0× moves into the resize bucket at 1.05× as expected.
+
+**Plans**: TBD (run `/gsd-plan-phase 30` after Phase 29 completes)
+
+**UI hint**: yes
+
+### Phase 31: Loader & UX small-fixes batch
+
+**Goal**: After this phase, three independent UX papercuts are closed — source-toggle controls clearly indicate when they're unavailable (no atlas / no images folder); Animation Breakdown panel cards default to collapsed with bulk-expand/collapse toolbar buttons; and Windows admin sessions get a clear drag-drop unavailability message instead of silently broken DnD targets.
+
+**Depends on**: Phase 26.2 (toolbar h-8 button style + 2-tab subtoolbar layout — bulk Expand all/Collapse all buttons inherit the same style). No code-level dependencies on Phases 29 / 30.
+
+**Requirements**: LOAD-05, LOAD-06, LOAD-07, PANEL-08, PANEL-09, PANEL-10, PANEL-11, PLATFORM-01
+
+**Background**: Three separate user-friction surfaces, each small enough to batch into one phase per granularity calibration. None require new design decisions:
+- **LOAD-05..07** — Today the source-toggle ("Use Atlas as Source" / "Use Images Folder as Source") shows enabled-state styling even when the toggled source doesn't exist; clicking surfaces an error. Greying-out + tooltip is the established pattern (mirrors disabled toolbar button state from Phase 26.1).
+- **PANEL-08..11** — Animation Breakdown panel currently expands all cards by default; on rigs with 50+ animations the panel is unscrollably long on first open. User-decided design: all cards collapsed by default (Setup Pose stays first card, just collapsed); per-session in-memory state only (no `.stmproj` persistence — explicit user choice to keep schema additive-only); toolbar gains "Expand all" + "Collapse all" buttons sharing the v1.3 `h-8` style.
+- **PLATFORM-01** — On Windows, when the app runs as administrator, the OS UIPI message-filter blocks DnD events from non-elevated processes (Explorer). Today the user drops a file and nothing happens — no error, no feedback. Fix: detect elevation at startup, disable drop targets, surface a clear message routing the user to File → Open or to relaunch unprivileged. UIPI message-filter workaround is explicitly OUT of scope (Microsoft-discouraged for security; see Out-of-Scope section). Windows-only — Linux is host-blocked, macOS doesn't have an equivalent elevation surface.
+
+**Constraints to preserve**:
+- **Layer 3 invariant** — no DOM/electron/sharp imports in `src/core/`. All three changes are renderer-only or main-process-only (elevation detection lives in `src/main/`).
+- **Toolbar style consistency** — bulk Expand all/Collapse all buttons share `h-8` height + button-style tokens from Phase 26.1 / 26.2.
+- **No `.stmproj` schema changes** — Animation Breakdown collapse state is per-session in-memory React state only, by user decision (out of scope for v1.3.1).
+- **No auto-update path changes** — PLATFORM-01 fix does not touch updater paths (out of scope per REQUIREMENTS.md).
+- **Sort-pinning** — Setup Pose remains the first card in the Animation Breakdown sort order; only its default-expanded behavior changes (PANEL-11).
+
+**Success Criteria** (what must be TRUE):
+  1. User loads a project that has no `.atlas` file in its folder; the "Use Atlas as Source" toggle is greyed-out (visually disabled, non-interactive) and on hover surfaces a tooltip explaining "No .atlas file found in this project's folder". Symmetric behavior holds for "Use Images Folder as Source" when there is no `images/` directory. (LOAD-05, LOAD-06, LOAD-07)
+  2. User loads a project and switches to the Animation Breakdown tab; all cards (including the Setup Pose card, which is still pinned first) are collapsed. User opens any individual card; that card retains its open state for the session. User reloads the project; all cards reset to collapsed. (PANEL-08, PANEL-09, PANEL-11)
+  3. The Animation Breakdown panel header exposes "Expand all" and "Collapse all" buttons styled as `h-8` toolbar buttons matching the v1.3 unified style; activating either sets all cards to the corresponding state in one click. (PANEL-10)
+  4. On Windows, when the app starts as administrator, drop targets (project window + drop zones) are visually disabled and show a clear, user-visible message explaining drag-drop is unavailable under elevated privileges, with a routing hint to File → Open or relaunch unprivileged. macOS + Linux behavior is unchanged. (PLATFORM-01)
+
+**Plans**: TBD (run `/gsd-plan-phase 31`; Wave-1 candidates: LOAD-05..07 toggle-disable, PANEL-08..11 collapse defaults + bulk buttons, PLATFORM-01 elevation detection — three independent diff slices, no cross-dependency)
+
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -687,6 +785,9 @@ Plans:
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
+| 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 0/0 | Not started — pending /gsd-discuss-phase 29 then /gsd-plan-phase 29 (REGION-01..07, PREVIEW-01) | — |
+| 30. Safety buffer in Optimize dialog | v1.3.1 | 0/0 | Not started — depends on Phase 29 (BUFFER-01..03) | — |
+| 31. Loader & UX small-fixes batch | v1.3.1 | 0/0 | Not started — independent of 29/30 (LOAD-05..07, PANEL-08..11, PLATFORM-01) | — |
 
 ## Deferred (post-v1.1)
 
@@ -732,6 +833,17 @@ Out-of-scope for v1.3 specifically:
 - Per-combined-skin compositing.
 - Code-signing posture changes (Apple Developer ID, Windows EV cert) — declined again; revisit at v1.4+ once tester base justifies enrollment cost.
 - Crash + error reporting (Sentry or equivalent) — declined again; revisit at v1.4+.
+
+Out-of-scope for v1.3.1 specifically:
+- New Spine math or sampler changes — sampler must continue to measure all skin-declared attachments verbatim (memory `project_sampler_visibility_invariant.md`); region-dedup happens strictly downstream in analyzer + atlas-preview + UI layers.
+- `.stmproj` schema-version bump — safety-buffer persistence is additive optional only, mirroring `sharpenOnExport` (Phase 28) precedent. No schema-version bump anywhere in v1.3.1.
+- Auto-update changes of any kind — distribution surface stable post-v1.2; PLATFORM-01 (Windows admin DnD fallback) explicitly does NOT touch updater paths.
+- Linux testing / AppImage UAT — still host-blocked; carry to v1.4+. Linux build dropped from v1.3 CI remains so for v1.3.1.
+- Code-signing posture changes (Apple Developer ID, Windows EV cert) — declined again; revisit at v1.4+.
+- Crash + error reporting (Sentry / equivalent) — declined again; revisit at v1.4+.
+- Spine 4.3+ adapter work — SEED-003 stays earmarked for v1.4.
+- Cross-session persistence of Animation Breakdown collapse state — in-memory only by user decision (PANEL-09).
+- UIPI message-filter workaround for Windows admin DnD — Microsoft-discouraged for security; deliberately not pursued. The fallback message is the contract (PLATFORM-01).
 
 ## Backlog
 
