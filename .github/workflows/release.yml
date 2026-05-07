@@ -101,29 +101,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  build-linux:
-    needs: test
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 22
-          cache: 'npm'
-      - run: npm ci
-      - name: Build Linux AppImage
-        run: npm run build:linux -- --publish never
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: installer-linux
-          path: |
-            release/*.AppImage
-            release/latest-linux.yml
-          if-no-files-found: error
-          retention-days: 14
-
   publish:
-    needs: [build-mac, build-win, build-linux]
+    needs: [build-mac, build-win]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -161,7 +140,5 @@ jobs:
             assets/*.dmg
             assets/*.zip
             assets/*.exe
-            assets/*.AppImage
             assets/latest.yml
             assets/latest-mac.yml
-            assets/latest-linux.yml

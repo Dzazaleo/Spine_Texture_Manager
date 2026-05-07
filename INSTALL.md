@@ -1,6 +1,6 @@
 # Installing Spine Texture Manager
 
-Pre-built installers are published to GitHub Releases for each tagged version. This guide walks through download → install → first-launch on macOS, Windows, and Linux. No `git`, Node.js, or developer tooling required.
+Pre-built installers are published to GitHub Releases for each tagged version. This guide walks through download → install → first-launch on macOS and Windows. No `git`, Node.js, or developer tooling required.
 
 > **Latest release:** [github.com/Dzazaleo/Spine_Texture_Manager/releases](https://github.com/Dzazaleo/Spine_Texture_Manager/releases)
 >
@@ -8,7 +8,6 @@ Pre-built installers are published to GitHub Releases for each tagged version. T
 >
 > - macOS (Apple Silicon): `Spine-Texture-Manager-<version>-arm64.dmg`
 > - Windows (64-bit): `Spine-Texture-Manager-<version>-x64.exe`
-> - Linux (64-bit AppImage): `Spine-Texture-Manager-<version>-x86_64.AppImage`
 
 ---
 
@@ -84,61 +83,11 @@ If the right-click path doesn't show an "Open Anyway" option, fall back to the S
 
 ---
 
-## Linux
-
-**Note:** This is a portable AppImage — no installer, no system-wide install. Just download, mark executable, run. Tested against Ubuntu 22.04+ and Fedora 40+.
-
-### Steps
-
-1. Download `Spine-Texture-Manager-<version>-x86_64.AppImage` from the Releases page.
-2. Mark the file executable. In Terminal:
-
-   ```bash
-   chmod +x ~/Downloads/Spine-Texture-Manager-*.AppImage
-   ```
-
-   Or right-click in your file manager → Properties → Permissions → Allow executing as program.
-
-3. Install the FUSE library (one-time setup; required for AppImage launch):
-
-   **On Ubuntu 24.04 and later:**
-
-   ```bash
-   sudo apt install libfuse2t64
-   ```
-
-   **On Ubuntu 22.04 and earlier (and most other distros — Fedora, Debian 11, etc.):**
-
-   ```bash
-   sudo apt install libfuse2
-   ```
-
-   _If you skip step 3 and run the AppImage, you'll see a "dlopen(): error loading libfuse.so.2" error. That's the libfuse2-not-installed signal._
-
-   ![Linux libfuse2 error](docs/install-images/linux-libfuse2-error.png)
-
-   _(Screenshot deferred to v1.1.1 — placeholder until a real Ubuntu 24.04 capture lands.)_
-
-4. Launch:
-
-   ```bash
-   ~/Downloads/Spine-Texture-Manager-*.AppImage
-   ```
-
-   Or double-click in your file manager.
-
-### Troubleshooting
-
-- **AppImage won't run after libfuse2 install**: confirm the file is executable (`ls -l ~/Downloads/Spine-Texture-Manager-*.AppImage` should show `-rwxr-xr-x` or similar). If not, redo `chmod +x`.
-- **Wayland-only systems**: Electron apps run under XWayland by default and should work on GNOME 46+ / KDE Plasma 6 + Wayland sessions without extra configuration.
-
----
-
 ## After installation: auto-update
 
 Once installed, the app checks GitHub Releases for newer versions on startup (silently — only shows a prompt if an update is available). You can also check manually via **Help → Check for Updates**.
 
-On Linux, accepting an update downloads the new version and prompts you to restart. On macOS and Windows, the app shows a non-blocking notice with a button to open the Releases page — download the new installer manually and run it (re-triggering the first-launch Gatekeeper / SmartScreen step).
+On macOS and Windows, the app shows a non-blocking notice with a button to open the Releases page — download the new installer manually and run it (re-triggering the first-launch Gatekeeper / SmartScreen step).
 
 ---
 
