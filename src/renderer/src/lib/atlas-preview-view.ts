@@ -66,23 +66,25 @@ export function buildAtlasPreview(
   // 2a. D-139 follow-up: filter inputs whose packed dims exceed maxPageDim on
   // either axis. The packer would otherwise expand the bin past the cap to fit
   // them — masking a real export failure and producing a misleading preview.
-  // Collected attachmentNames bubble up to the renderer as a warning banner.
+  // Phase 29 D-03: oversize is collected as regionName (one tile per region;
+  // inp.attachmentNames carries the contributors). Renders to "X regions
+  // exceed the Ypx atlas" banner copy.
   const oversize: string[] = [];
   const inputs: AtlasPreviewInput[] = [];
   for (const inp of allInputs) {
     if (inp.packW > opts.maxPageDim || inp.packH > opts.maxPageDim) {
-      oversize.push(inp.attachmentName);
+      oversize.push(inp.regionName);
     } else {
       inputs.push(inp);
     }
   }
   oversize.sort();
 
-  // 3. Determinism: sort by sourcePath then attachmentName so two runs over the
+  // 3. Determinism: sort by sourcePath then regionName so two runs over the
   //    same summary produce byte-identical packer output (matches src/core/export.ts:223).
   inputs.sort((a, b) => {
     const cmp = a.sourcePath.localeCompare(b.sourcePath);
-    return cmp !== 0 ? cmp : a.attachmentName.localeCompare(b.attachmentName);
+    return cmp !== 0 ? cmp : a.regionName.localeCompare(b.regionName);
   });
 
   // 4. D-132 hardcoded packer params + RESEARCH Recommendation A (pot:false, square:false).
@@ -102,7 +104,8 @@ export function buildAtlasPreview(
     const regions: PackedRegion[] = bin.rects.map((r) => {
       const inp = (r as unknown as { data: AtlasPreviewInput }).data;
       return {
-        attachmentName: inp.attachmentName,
+        regionName: inp.regionName,
+        attachmentNames: inp.attachmentNames,
         x: r.x,
         y: r.y,
         w: r.width,
@@ -165,11 +168,12 @@ function deriveInputs(
     // buildExportPlan ALREADY excludes summary.unusedAttachments per D-109, but we
     // re-apply the filter here for symmetry with the 'original' branch.
     //
-    // ExportRow is deduped per sourcePath (D-108) and carries attachmentNames[] —
-    // we need to emit one AtlasPreviewInput per attachment so the user can hit-test
-    // every region in the modal canvas. Walk every attachmentName in the row and
-    // resolve dims from the matching DisplayRow (peak record) so the input shape
-    // carries both source AND output dims regardless of mode.
+    // Phase 29 D-03 (PREVIEW-01): emit ONE AtlasPreviewInput per ExportRow
+    // (region-keyed) instead of one per attachmentName. ExportRow.attachmentNames[]
+    // is the per-region contributor list — we forward it as the input's
+    // `attachmentNames` field for hit-test attribution. This makes atlas-preview
+    // page count match the actual atlas page count for path-indirected projects
+    // (Chicken: 13 pages, not 14).
     //
     // Why both rows + passthroughCopies: buildExportPlan splits scale=1.0× rows
     // (no-resize, byte-copy at export) into passthroughCopies. They still occupy
@@ -179,43 +183,54 @@ function deriveInputs(
     const plan = buildExportPlan(summary, overrides);
     const out: AtlasPreviewInput[] = [];
     for (const row of [...plan.rows, ...plan.passthroughCopies]) {
-      for (const attachmentName of row.attachmentNames) {
-        if (excluded.has(attachmentName)) continue;
-        const peak = summary.peaks.find((p) => p.attachmentName === attachmentName);
-        if (!peak) continue;  // defensive — buildExportPlan rows mirror peaks
-        out.push({
-          attachmentName,
-          sourceW: peak.sourceW,
-          sourceH: peak.sourceH,
-          outW: row.outW,
-          outH: row.outH,
-          packW: row.outW,
-          packH: row.outH,
-          sourcePath: row.sourcePath,
-          ...(row.atlasSource ? { atlasSource: row.atlasSource } : {}),
-        });
-      }
+      // ExportRow is region-keyed via sourcePath. row.attachmentNames[] is the
+      // contributor list — emit ONE input per row, not one per attachment.
+      const filteredNames = row.attachmentNames.filter((n) => !excluded.has(n));
+      if (filteredNames.length === 0) continue;
+      // Look up regionName from summary.regions (Plan 29-01) via sourcePath join.
+      // Defensive — should not happen post-29-01: every ExportRow.sourcePath
+      // has a matching RegionRow.sourcePath.
+      const regionRow = summary.regions.find((r) => r.sourcePath === row.sourcePath);
+      if (!regionRow) continue;
+      out.push({
+        regionName: regionRow.regionName,
+        attachmentNames: filteredNames,
+        sourceW: regionRow.sourceW,
+        sourceH: regionRow.sourceH,
+        outW: row.outW,
+        outH: row.outH,
+        packW: row.outW,
+        packH: row.outH,
+        sourcePath: row.sourcePath,
+        ...(row.atlasSource ? { atlasSource: row.atlasSource } : {}),
+      });
     }
     return out;
   }
 
-  // mode === 'original': read sourceW/H from DisplayRow.peaks (D-124),
-  //   OR atlasSource.w/atlasSource.h for atlas-packed (D-126).
+  // mode === 'original': walk summary.regions (Plan 29-01) for one-tile-per-region
+  // symmetry with the optimized branch. Source dims come from the RegionRow
+  // (D-124 + D-126: atlasSource.w/h for atlas-packed regions; sourceW/H otherwise).
   const out: AtlasPreviewInput[] = [];
-  for (const peak of summary.peaks) {
-    if (excluded.has(peak.attachmentName)) continue;
-    const packW = peak.atlasSource ? peak.atlasSource.w : peak.sourceW;
-    const packH = peak.atlasSource ? peak.atlasSource.h : peak.sourceH;
+  for (const region of summary.regions) {
+    // Filter excluded — emit only when at least one contributing attachment is NOT excluded.
+    const filteredNames = region.contributingAttachments
+      .map((c) => c.attachmentName)
+      .filter((n) => !excluded.has(n));
+    if (filteredNames.length === 0) continue;
+    const packW = region.atlasSource ? region.atlasSource.w : region.sourceW;
+    const packH = region.atlasSource ? region.atlasSource.h : region.sourceH;
     out.push({
-      attachmentName: peak.attachmentName,
-      sourceW: peak.sourceW,
-      sourceH: peak.sourceH,
+      regionName: region.regionName,
+      attachmentNames: filteredNames,
+      sourceW: region.sourceW,
+      sourceH: region.sourceH,
       outW: packW,        // 'original' mode: output dims === source dims
       outH: packH,
       packW,
       packH,
-      sourcePath: peak.sourcePath,
-      ...(peak.atlasSource ? { atlasSource: peak.atlasSource } : {}),
+      sourcePath: region.sourcePath,
+      ...(region.atlasSource ? { atlasSource: region.atlasSource } : {}),
     });
   }
   return out;

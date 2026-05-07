@@ -62,6 +62,17 @@ function makeSummary(): SkeletonSummary {
       { attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
         worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png' } as any,
     ],
+    // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with peaks.
+    regions: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'CIRCLE', attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', sourceW: 64, sourceH: 64,
+        worldW: 32, worldH: 32, peakScale: 0.5, animationName: 'idle', frame: 12, sourcePath: '/a/b/images/CIRCLE.png',
+        contributingAttachments: [{ attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', peakScale: 0.5, animationName: 'idle', time: 0, frame: 12, isSetupPosePeak: false }] } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'SQUARE', attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
+        worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png',
+        contributingAttachments: [{ attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', peakScale: 1.0, animationName: 'idle', time: 0, frame: 0, isSetupPosePeak: false }] } as any,
+    ],
     animationBreakdown: [],
     elapsedMs: 5,
   } as unknown as SkeletonSummary;
@@ -190,7 +201,7 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
     // === null, so dirty = overrides.size > 0). Mirrors save-load.spec.tsx's
     // 8.1-VR-03a fixture; React 19's MessageChannel-flushed update scheduler
     // requires findBy* polling rather than naked microtask awaits.
-    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
     const circleRow = circleNameCell.closest('tr')!;
     const peakCell = within(circleRow).getByText(/^32×32$/);
     fireEvent.doubleClick(peakCell);
@@ -232,7 +243,7 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
     fireEvent.drop(dropTarget, { dataTransfer: { files: [f1] } as unknown as DataTransfer });
 
     // Mark dirty via the OverrideDialog Apply path (same as 18-c).
-    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
     const circleRow = circleNameCell.closest('tr')!;
     const peakCell = within(circleRow).getByText(/^32×32$/);
     fireEvent.doubleClick(peakCell);

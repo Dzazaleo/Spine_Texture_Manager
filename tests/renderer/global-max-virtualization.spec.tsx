@@ -93,6 +93,7 @@ function makeRow(i: number): DisplayRow {
     skinName: 'default',
     slotName: `slot-${i}`,
     attachmentName: name,
+    regionName: name,
     animationName: '__SETUP__',
     time: 0,
     frame: 0,
@@ -137,6 +138,53 @@ function makeDriftedRow(i: number): DisplayRow {
   };
 }
 
+/**
+ * Phase 29 D-01 — synthesize summary.regions in 1:1 correspondence with peaks
+ * (no path indirection — regionName === attachmentName for these fixtures).
+ */
+function regionsFromPeaks(peaks: DisplayRow[]): SkeletonSummary['regions'] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return peaks.map((r): any => ({
+    regionName: r.regionName ?? r.attachmentName,
+    attachmentName: r.attachmentName,
+    skinName: r.skinName,
+    slotName: r.slotName,
+    animationName: r.animationName,
+    time: r.time,
+    frame: r.frame,
+    peakScale: r.peakScale,
+    peakScaleX: r.peakScaleX,
+    peakScaleY: r.peakScaleY,
+    worldW: r.worldW,
+    worldH: r.worldH,
+    sourceW: r.sourceW,
+    sourceH: r.sourceH,
+    isSetupPosePeak: r.isSetupPosePeak,
+    sourcePath: r.sourcePath,
+    canonicalW: r.canonicalW,
+    canonicalH: r.canonicalH,
+    actualSourceW: r.actualSourceW,
+    actualSourceH: r.actualSourceH,
+    dimsMismatch: r.dimsMismatch,
+    isMissing: r.isMissing,
+    originalSizeLabel: r.originalSizeLabel,
+    peakSizeLabel: r.peakSizeLabel,
+    scaleLabel: r.scaleLabel,
+    sourceLabel: r.sourceLabel,
+    frameLabel: r.frameLabel,
+    contributingAttachments: [{
+      attachmentName: r.attachmentName,
+      skinName: r.skinName,
+      slotName: r.slotName,
+      peakScale: r.peakScale,
+      animationName: r.animationName,
+      time: r.time,
+      frame: r.frame,
+      isSetupPosePeak: r.isSetupPosePeak,
+    }],
+  }));
+}
+
 function makeSummary(rowCount: number): SkeletonSummary {
   const peaks: DisplayRow[] = Array.from({ length: rowCount }, (_, i) => makeRow(i));
   return {
@@ -148,11 +196,12 @@ function makeSummary(rowCount: number): SkeletonSummary {
     skins: { count: 1, names: ['default'] },
     animations: { count: 0, names: [] },
     peaks,
+    regions: regionsFromPeaks(peaks),
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 1,
     editorFps: 30,
-  };
+  } as unknown as SkeletonSummary;
 }
 
 /**
@@ -197,11 +246,12 @@ function PanelRowsHarness({ rows }: { rows: DisplayRow[] }) {
     skins: { count: 1, names: ['default'] },
     animations: { count: 0, names: [] },
     peaks: rows,
+    regions: regionsFromPeaks(rows),
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 1,
     editorFps: 30,
-  };
+  } as unknown as SkeletonSummary;
   return (
     <>
       <SearchBar value={query} onChange={setQuery} />

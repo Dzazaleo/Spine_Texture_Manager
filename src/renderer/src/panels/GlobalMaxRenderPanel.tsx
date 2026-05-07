@@ -33,13 +33,12 @@
  * clicking the Scale cell does not toggle selection).
  *
  * Phase 4 Plan 03 gap-fixes (human-verify 2026-04-24):
- *   - Gap A: selection set is converted from attachmentKey identities to
- *     attachmentName identities at the dialog invocation site (the outbound
- *     onOpenOverrideDialog contract uses attachmentName; this panel's
- *     internal React row key remains attachmentKey). Without the
- *     conversion, AppShell's `selectedKeys.has(row.attachmentName)` check
- *     always misses and batch scope silently collapses to the clicked row.
- *     See 04-03-SUMMARY.md §Deviations for the verbatim user quote.
+ *   - Gap A: selection set is converted from internal row identity (post Phase
+ *     29: regionName) to attachmentName at the dialog invocation site so the
+ *     outbound onOpenOverrideDialog contract reaches AppShell as a Set of
+ *     attachmentNames (the override Map is still attachmentName-keyed pre
+ *     Plan 29-03). Path-indirected regions expand into the union of their
+ *     contributing attachments. See 04-03-SUMMARY.md §Deviations.
  *   - Gap B: applyOverride is called with the single-arg signature
  *     (overridePercent) — effective scale = percent / 100. Non-overridden
  *     rows still show peakScale; peak is no longer threaded through the
@@ -61,7 +60,7 @@ import {
 } from 'react';
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { SkeletonSummary, DisplayRow } from '../../../shared/types.js';
+import type { SkeletonSummary, RegionRow } from '../../../shared/types.js';
 import { computeExportDims, safeScale } from '../lib/export-view.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
@@ -99,8 +98,17 @@ type SortDir = 'asc' | 'desc';
  *
  * effExportW/effExportH replace the legacy effectiveWorldW/H names so the
  * semantic shift is explicit at every read site.
+ *
+ * Phase 29 D-01 (Plan 29-02 Task 3): EnrichedRow now extends RegionRow (one
+ * row per source PNG) instead of DisplayRow (one row per attachment). The
+ * selection key is `regionName`; row label format is `{regionName}.png` with
+ * `images/` prefix stripped (REGION-03); a parenthetical "(used by N
+ * attachments)" indicator renders when contributingAttachments.length > 1
+ * (D-08). The shape preserves DisplayRow's render-relevant scalars (skinName,
+ * peakScale, sourceW, etc.) so the existing render code mostly works
+ * unchanged after the rename.
  */
-type EnrichedRow = DisplayRow & {
+type EnrichedRow = RegionRow & {
   effectiveScale: number;
   effExportW: number;
   effExportH: number;
@@ -137,10 +145,15 @@ export interface GlobalMaxRenderPanelProps {
    * Phase 4 Plan 02: override-aware render + dialog trigger. AppShell passes
    * its overrides map + dialog-open callback; panel body wiring lands in
    * Plan 04-03. Optional today so this plan's AppShell changes typecheck.
+   *
+   * Phase 29 (Plan 29-02 Task 3): row is now a RegionRow (one row per source
+   * PNG). AppShell still treats `row.attachmentName` (RegionRow's REGION-05
+   * winning contributor) as the override key — Plan 29-03 will flip the
+   * override Map to `Map<regionName, number>`.
    */
   overrides?: ReadonlyMap<string, number>;
   onOpenOverrideDialog?: (
-    row: DisplayRow,
+    row: RegionRow,
     selectedKeys?: ReadonlySet<string>,
   ) => void;
   /**
@@ -150,8 +163,11 @@ export interface GlobalMaxRenderPanelProps {
    * the same tick (RESEARCH Pitfall 5 — re-mount leak prevention; carry-over
    * from Phase 3 D-66). Optional today so other callers of this panel
    * (standalone tests, future surfaces) typecheck without these props.
+   *
+   * Phase 29 D-07 (Plan 29-02 Task 3): renamed from `focusAttachmentName`
+   * to `focusRegionName` because the row identity flipped to regionName.
    */
-  focusAttachmentName?: string | null;
+  focusRegionName?: string | null;
   onFocusConsumed?: () => void;
   /**
    * Phase 19 UI-01 + D-04 — REQUIRED props for the lifted SearchBar query
@@ -214,25 +230,35 @@ const EMPTY_OVERRIDES: ReadonlyMap<string, number> = new Map();
 /** Phase 4 Plan 03: no-op default for the open-dialog callback when the panel
  *  is rendered standalone (outside AppShell). */
 const NOOP_OPEN_DIALOG: (
-  row: DisplayRow,
+  row: RegionRow,
   selectedKeys?: ReadonlySet<string>,
 ) => void = () => undefined;
 
 /**
- * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw DisplayRow[] with
+ * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw row[] with
  * render-time effective fields. Now uses the renderer-side computeExportDims
  * helper (single source of truth shared with OptimizeDialog), so the panel's
  * "Peak W×H" column shows the EXPORT dims — Math.ceil(sourceDim ×
  * ceil-thousandth-effScale, clamped ≤ source) — instead of the world-AABB.
  *
  * The world-AABB (worldW/worldH from the sampler) is preserved on the raw
- * DisplayRow fields and surfaced via the cell's hover tooltip for power users.
+ * fields and surfaced via the cell's hover tooltip for power users.
+ *
+ * Phase 29 D-01 (Plan 29-02 Task 3): operates on RegionRow[] (one row per
+ * source PNG / regionName) instead of DisplayRow[]. The override Map is
+ * still keyed on the attachmentName at this checkpoint — Plan 29-03 owns the
+ * Map<regionName, number> flip. As an intermediate-state lookup, we use the
+ * RegionRow's winning attachmentName (winner-pick scalar) to query overrides;
+ * after Plan 29-03 the lookup will switch to row.regionName.
  */
 function enrichWithEffective(
-  rows: readonly DisplayRow[],
+  rows: readonly RegionRow[],
   overrides: ReadonlyMap<string, number>,
 ): EnrichedRow[] {
   return rows.map((row) => {
+    // Plan 29-03 will flip overrides to Map<regionName, number>; until then
+    // the existing per-attachment storage is queried via the RegionRow's
+    // winning attachmentName (REGION-05 lex tiebreak winner from analyzer.ts).
     const override = overrides.get(row.attachmentName);
     // Phase 22 DIMS-03 (Plan 22-04) — pass actualSourceW/H + dimsMismatch
     // through so the panel's Peak W×H column reflects cap math (drifted rows
@@ -278,7 +304,10 @@ function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[
   if ('override'.startsWith(q) && q.length >= 4) {
     return rows.filter((r) => r.override !== undefined);
   }
-  return rows.filter((r) => r.attachmentName.toLowerCase().includes(q));
+  // Phase 29 — filter by regionName (the user-visible row label is the source
+  // PNG name, not an attachment name). Path-indirected projects: user typing
+  // "5/7" matches the SHARED region whose contributors include 5/5/7/7 and 5/7.
+  return rows.filter((r) => r.regionName.toLowerCase().includes(q));
 }
 
 // QA-03 (Phase 27): string-comparator branches pass { sensitivity: 'base',
@@ -295,7 +324,10 @@ function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[
 function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
   switch (col) {
     case 'attachmentName':
-      return a.attachmentName.localeCompare(b.attachmentName, undefined, { sensitivity: 'base', numeric: true });
+      // Phase 29 — sort by regionName (user-visible label is the source PNG
+      // name); the SortCol literal stays 'attachmentName' for back-compat with
+      // saved sort state, but the comparator now reads regionName.
+      return a.regionName.localeCompare(b.regionName, undefined, { sensitivity: 'base', numeric: true });
     case 'skinName':
       return a.skinName.localeCompare(b.skinName, undefined, { sensitivity: 'base', numeric: true });
     case 'animationName':
@@ -393,7 +425,7 @@ interface RowProps {
   /** Phase 3 D-72 — see GlobalMaxRenderPanelProps.onJumpToAnimation. */
   onJumpToAnimation?: (animationName: string) => void;
   /** Phase 4 D-77 + D-86 dialog trigger. */
-  onOpenOverrideDialog: (row: DisplayRow, selectedKeys: ReadonlySet<string>) => void;
+  onOpenOverrideDialog: (row: RegionRow, selectedKeys: ReadonlySet<string>) => void;
   /** Phase 4 D-86 — live selection set passed through for batch detection in AppShell. */
   selectedKeys: ReadonlySet<string>;
   /** Phase 7 D-130: true while this row is the jump-target flash subject (900ms). */
@@ -453,26 +485,26 @@ function Row({
         // instead. The suppressNextChangeRef is read by handleChange below; when it
         // matches this row's key, handleChange returns early so the single-toggle
         // does not stomp the range state.
-        suppressNextChangeRef.current = row.attachmentKey;
-        onRangeToggle(row.attachmentKey);
+        suppressNextChangeRef.current = row.regionName;
+        onRangeToggle(row.regionName);
       }
       // Plain click falls through: the label click propagates to the input, which
       // fires onChange, and handleChange performs the single-toggle. shiftKey=false
       // means no suppression flag is set.
     },
-    [onRangeToggle, row.attachmentKey, suppressNextChangeRef],
+    [onRangeToggle, row.regionName, suppressNextChangeRef],
   );
 
   const handleChange = useCallback(
     (_e: ChangeEvent<HTMLInputElement>) => {
-      if (suppressNextChangeRef.current === row.attachmentKey) {
+      if (suppressNextChangeRef.current === row.regionName) {
         // Shift-click path already set the range state; skip the single-toggle.
         suppressNextChangeRef.current = null;
         return;
       }
-      onToggle(row.attachmentKey);
+      onToggle(row.regionName);
     },
-    [onToggle, row.attachmentKey, suppressNextChangeRef],
+    [onToggle, row.regionName, suppressNextChangeRef],
   );
 
   return (
@@ -521,7 +553,7 @@ function Row({
           <input
             type="checkbox"
             checked={checked}
-            aria-label={'Select ' + row.attachmentName}
+            aria-label={'Select ' + row.regionName}
             onChange={handleChange}
           />
         </label>
@@ -535,7 +567,17 @@ function Row({
             <WarningTriangleIcon className="w-4 h-4" />
           </span>
         )}
-        {highlightMatch(row.attachmentName, query)}
+        {/* Phase 29 REGION-03 + D-08: row label is `{regionName}.png` with
+            `images/` prefix stripped; (used by N attachments) indicator
+            renders only when contributingAttachments.length > 1. Tailwind v4
+            literal-class discipline (Pitfall 8) — no template interpolation
+            in className. */}
+        {highlightMatch(row.regionName.replace(/^images\//, '') + '.png', query)}
+        {row.contributingAttachments.length > 1 && (
+          <span className="ml-1.5 text-xs text-fg-muted">
+            {`(used by ${row.contributingAttachments.length} attachments)`}
+          </span>
+        )}
         {row.isMissing && (
           <span className="ml-1.5 text-xs text-danger font-semibold">(missing)</span>
         )}
@@ -695,7 +737,7 @@ export function GlobalMaxRenderPanel({
   onJumpToAnimation,
   overrides,
   onOpenOverrideDialog,
-  focusAttachmentName,
+  focusRegionName,
   onFocusConsumed,
   query,
   onQueryChange: _onQueryChange,
@@ -723,9 +765,7 @@ export function GlobalMaxRenderPanel({
   // single-toggle does not undo the range state.
   const suppressNextChangeRef = useRef<string | null>(null);
 
-  // Phase 7 D-130 — keyed by row.attachmentName (NOT attachmentKey or cardId
-  // — the modal hits via attachmentName, since that's the identity AtlasPage
-  // regions carry from buildAtlasPreview).
+  // Phase 29 D-07 — keyed by row.regionName (the row identity post-29-02).
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const registerRowRef = useCallback((name: string, el: HTMLElement | null) => {
     if (el === null) rowRefs.current.delete(name);
@@ -738,28 +778,30 @@ export function GlobalMaxRenderPanel({
   // consume callback so the focus can never leak across re-mounts
   // (RESEARCH §Pitfall 5 — Phase 3 D-66 carry-over). Cloned 1:1 from
   // AnimationBreakdownPanel.tsx:299-325 with these adaptations:
-  //   - Key by attachmentName directly (no setup-pose / anim: prefix derivation).
+  //   - Key by regionName (Phase 29 D-07).
   //   - Scroll block: 'center' (table rows are shorter than animation cards;
   //     'start' would clip cells with overflowing content like the override
   //     percentage badge or long bone-path tooltip).
   useEffect(() => {
-    if (!focusAttachmentName) return;
-    setIsFlashing(focusAttachmentName);
-    const el = rowRefs.current.get(focusAttachmentName);
+    if (!focusRegionName) return;
+    setIsFlashing(focusRegionName);
+    const el = rowRefs.current.get(focusRegionName);
     if (el !== undefined) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     onFocusConsumed?.();   // SYNCHRONOUS — no setTimeout/RAF (Pitfall 5)
     const timer = setTimeout(() => setIsFlashing(null), 900);
     return () => clearTimeout(timer);
-  }, [focusAttachmentName, onFocusConsumed]);
+  }, [focusRegionName, onFocusConsumed]);
 
   // Phase 4 Plan 03 + Round 5: enrichment runs BEFORE filter + sort so the
   // comparator reads .effectiveScale / .effExportW (Round 5: export dims,
   // not world-AABB) without other restructuring (pattern-mapper flag 3).
+  // Phase 29 D-01 (Plan 29-02 Task 3): consume `summary.regions` (RegionRow[])
+  // instead of the per-attachment list — one row per source PNG (regionName-keyed).
   const enriched = useMemo(
-    () => enrichWithEffective(summary.peaks, overridesMap),
-    [summary.peaks, overridesMap],
+    () => enrichWithEffective(summary.regions, overridesMap),
+    [summary.regions, overridesMap],
   );
   const filtered = useMemo(
     () => filterByName(enriched, query),
@@ -769,30 +811,26 @@ export function GlobalMaxRenderPanel({
     () => sortRows(filtered, sortCol, sortDir),
     [filtered, sortCol, sortDir],
   );
-  const visibleKeys = useMemo(() => sorted.map((r) => r.attachmentKey), [sorted]);
+  const visibleKeys = useMemo(() => sorted.map((r) => r.regionName), [sorted]);
 
 
-  // Gap-fix A (human-verify 2026-04-24): convert the internal attachmentKey
-  // selection to the outbound attachmentName contract BEFORE handing the set
-  // to onOpenOverrideDialog. AppShell's batch-scope check
-  // (selectedKeys.has(row.attachmentName)) requires attachmentName values;
-  // passing raw `selected` (attachmentKey strings) silently collapses batch
-  // scope to the clicked row. Lookup key→name via the enriched row list
-  // (attachmentKey is unique per row so the map yields one name per key).
-  // See 04-03-SUMMARY.md §Deviations for the verbatim user quote.
-  const keyToName = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const r of enriched) m.set(r.attachmentKey, r.attachmentName);
-    return m;
-  }, [enriched]);
+  // Phase 29 (Plan 29-02 Task 3): the panel's selection key is now `regionName`
+  // (one row per source PNG / atlas region). The outbound onOpenOverrideDialog
+  // contract still hands AppShell a Set of names — at this checkpoint AppShell's
+  // override Map is keyed by attachmentName (Plan 29-03 will flip it). For now,
+  // expand each selected regionName into the union of its contributing
+  // attachmentNames so the existing AppShell batch-scope check (which reads the
+  // attachmentName-keyed override Map) keeps working unchanged.
+  // Gap-fix A (human-verify 2026-04-24) — original Plan 04-03 mapping doc.
   const selectedAttachmentNames = useMemo(() => {
     const names = new Set<string>();
-    for (const key of selected) {
-      const name = keyToName.get(key);
-      if (name !== undefined) names.add(name);
+    for (const r of enriched) {
+      if (selected.has(r.regionName)) {
+        for (const c of r.contributingAttachments) names.add(c.attachmentName);
+      }
     }
     return names;
-  }, [selected, keyToName]);
+  }, [selected, enriched]);
 
   const handleSort = useCallback(
     (col: SortCol) => {
@@ -816,7 +854,7 @@ export function GlobalMaxRenderPanel({
   // Stable identity for measurement-cache survival across sort/filter
   // (RESEARCH §Pitfall 2 — index-based default keys cause measurement flicker).
   const getItemKey = useCallback(
-    (index: number) => sorted[index].attachmentKey,
+    (index: number) => sorted[index].regionName,
     [sorted],
   );
 
@@ -847,19 +885,19 @@ export function GlobalMaxRenderPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortCol, sortDir, query, useVirtual]);
 
-  // Phase 9 D-191 — focusAttachmentName cross-panel jump (Phase 7 D-130) MUST
-  // continue to work in the virtualized path. Find the row's index in `sorted`
-  // and scrollToIndex; the existing registerRowRef + isFlashing keep handling
-  // the visual flash once the row is mounted.
+  // Phase 9 D-191 — focusRegionName cross-panel jump (Phase 7 D-130 + Phase
+  // 29 D-07) MUST continue to work in the virtualized path. Find the row's
+  // index in `sorted` and scrollToIndex; the existing registerRowRef +
+  // isFlashing keep handling the visual flash once the row is mounted.
   useEffect(() => {
     if (!useVirtual) return;
-    if (!focusAttachmentName) return;
-    const idx = sorted.findIndex((r) => r.attachmentName === focusAttachmentName);
+    if (!focusRegionName) return;
+    const idx = sorted.findIndex((r) => r.regionName === focusRegionName);
     if (idx >= 0) {
       virtualizer.scrollToIndex(idx, { align: 'center' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusAttachmentName, sorted, useVirtual]);
+  }, [focusRegionName, sorted, useVirtual]);
 
   // Plain single-toggle (Space / Enter keyboard path, or plain mouse click).
   // QA-01 (Phase 27): functional updater form — `prev` reads the latest queued
@@ -1066,18 +1104,18 @@ export function GlobalMaxRenderPanel({
                   const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
                   return (
                     <Row
-                      key={row.attachmentKey}
+                      key={row.regionName}
                       row={row}
                       query={query}
-                      checked={selected.has(row.attachmentKey)}
+                      checked={selected.has(row.regionName)}
                       onToggle={handleToggleRow}
                       onRangeToggle={handleRangeToggle}
                       suppressNextChangeRef={suppressNextChangeRef}
                       onJumpToAnimation={onJumpToAnimation}
                       onOpenOverrideDialog={openDialog}
                       selectedKeys={selectedAttachmentNames}
-                      isFlashing={isFlashing === row.attachmentName}
-                      registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                      isFlashing={isFlashing === row.regionName}
+                      registerRef={(el) => registerRowRef(row.regionName, el)}
                       state={state}
                       loaderMode={loaderMode}
                       measureRef={virtualizer.measureElement}
@@ -1190,19 +1228,19 @@ export function GlobalMaxRenderPanel({
               const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <Row
-                  key={row.attachmentKey}
+                  key={row.regionName}
                   row={row}
                   query={query}
-                  checked={selected.has(row.attachmentKey)}
+                  checked={selected.has(row.regionName)}
                   onToggle={handleToggleRow}
                   onRangeToggle={handleRangeToggle}
                   suppressNextChangeRef={suppressNextChangeRef}
                   onJumpToAnimation={onJumpToAnimation}
                   onOpenOverrideDialog={openDialog}
                   selectedKeys={selectedAttachmentNames}
-                  /* Phase 7 D-130 NEW: */
-                  isFlashing={isFlashing === row.attachmentName}
-                  registerRef={(el) => registerRowRef(row.attachmentName, el)}
+                  /* Phase 7 D-130 NEW (Phase 29 D-07: keyed by regionName): */
+                  isFlashing={isFlashing === row.regionName}
+                  registerRef={(el) => registerRowRef(row.regionName, el)}
                   state={state}
                   loaderMode={loaderMode}
                 />

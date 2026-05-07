@@ -52,6 +52,7 @@ function makeRow(attachmentName: string, isMissing?: boolean): DisplayRow {
     skinName: 'default',
     slotName: 'slot',
     attachmentName,
+    regionName: attachmentName,
     animationName: 'Setup Pose (Default)',
     time: 0,
     frame: 0,
@@ -79,6 +80,48 @@ function makeRow(attachmentName: string, isMissing?: boolean): DisplayRow {
 }
 
 function makeSummary(rows: DisplayRow[]): SkeletonSummary {
+  // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with peaks
+  // (no path indirection — regionName === attachmentName here).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const regions = rows.map((r): any => ({
+    regionName: r.regionName ?? r.attachmentName,
+    attachmentName: r.attachmentName,
+    skinName: r.skinName,
+    slotName: r.slotName,
+    animationName: r.animationName,
+    time: r.time,
+    frame: r.frame,
+    peakScale: r.peakScale,
+    peakScaleX: r.peakScaleX,
+    peakScaleY: r.peakScaleY,
+    worldW: r.worldW,
+    worldH: r.worldH,
+    sourceW: r.sourceW,
+    sourceH: r.sourceH,
+    isSetupPosePeak: r.isSetupPosePeak,
+    sourcePath: r.sourcePath,
+    canonicalW: r.canonicalW,
+    canonicalH: r.canonicalH,
+    actualSourceW: r.actualSourceW,
+    actualSourceH: r.actualSourceH,
+    dimsMismatch: r.dimsMismatch,
+    isMissing: r.isMissing,
+    originalSizeLabel: r.originalSizeLabel,
+    peakSizeLabel: r.peakSizeLabel,
+    scaleLabel: r.scaleLabel,
+    sourceLabel: r.sourceLabel,
+    frameLabel: r.frameLabel,
+    contributingAttachments: [{
+      attachmentName: r.attachmentName,
+      skinName: r.skinName,
+      slotName: r.slotName,
+      peakScale: r.peakScale,
+      animationName: r.animationName,
+      time: r.time,
+      frame: r.frame,
+      isSetupPosePeak: r.isSetupPosePeak,
+    }],
+  }));
   return {
     skeletonPath: '/fake/skeleton.json',
     atlasPath: null,
@@ -89,6 +132,7 @@ function makeSummary(rows: DisplayRow[]): SkeletonSummary {
     animations: { count: 0, names: [] },
     events: { count: 0, names: [] },
     peaks: rows,
+    regions,
     animationBreakdown: [],
     orphanedFiles: [],
     skippedAttachments: [],
@@ -158,6 +202,7 @@ describe('Phase 25: GlobalMaxRenderPanel missing row danger indicators', () => {
     render(<PanelHarness rows={[lowScaleRow]} />);
     expect(screen.queryByLabelText('Missing PNG')).toBeNull();
     // Row name is still present in the DOM (row renders; just without danger icon).
-    expect(screen.getByText('LOW_SCALE_ATT')).not.toBeNull();
+    // Phase 29 REGION-03 — row label format is `{regionName}.png`.
+    expect(screen.getByText('LOW_SCALE_ATT.png')).not.toBeNull();
   });
 });

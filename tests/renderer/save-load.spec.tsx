@@ -39,6 +39,18 @@ function makeSummary(): SkeletonSummary {
       { attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
         worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png' } as any,
     ],
+    // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with
+    // peaks (no path indirection — regionName === attachmentName here).
+    regions: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'CIRCLE', attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', sourceW: 64, sourceH: 64,
+        worldW: 32, worldH: 32, peakScale: 0.5, animationName: 'idle', frame: 12, sourcePath: '/a/b/images/CIRCLE.png',
+        contributingAttachments: [{ attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', peakScale: 0.5, animationName: 'idle', time: 0, frame: 12, isSetupPosePeak: false }] } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'SQUARE', attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
+        worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png',
+        contributingAttachments: [{ attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', peakScale: 1.0, animationName: 'idle', time: 0, frame: 0, isSetupPosePeak: false }] } as any,
+    ],
     animationBreakdown: [],
     elapsedMs: 5,
   } as unknown as SkeletonSummary;
@@ -209,7 +221,7 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // Note: onDoubleClick lives on the Peak <td> (e.g. "0.500×"), NOT the
     // attachmentName <td> — so we target the row containing CIRCLE and
     // find the Scale cell within it.
-    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
     const circleRow = circleNameCell.closest('tr')!;
     const peakCell = within(circleRow).getByText(/^32×32$/);
     fireEvent.doubleClick(peakCell);
@@ -251,7 +263,7 @@ describe('SaveQuitDialog three-button flow (D-143)', () => {
     // rendering); CIRCLE replaces TRIANGLE (CIRCLE is in makeSummary()).
     // onDoubleClick lives on the Peak <td>, so we find the row containing
     // CIRCLE then target the Peak cell within it (peakScale 0.5 → "0.500×").
-    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
     const circleRow = circleNameCell.closest('tr')!;
     const peakCell = within(circleRow).getByText(/^32×32$/);
     fireEvent.doubleClick(peakCell);
@@ -428,7 +440,7 @@ describe('Phase 08.2 menu wiring', () => {
     // Wait for the load → AppShell mount → useEffect chain.
     // makeSummary().peaks contains a CIRCLE row (peakScale 0.5) — its presence
     // proves AppShell rendered and the mount-time notifyMenuState push fired.
-    await screen.findByText(/^CIRCLE$/i);
+    await screen.findByText(/^CIRCLE\.png$/i);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const api = (globalThis as any).api;
     // The mount-time push has canSave/canSaveAs:true (summary loaded), modalOpen:false.
@@ -445,7 +457,7 @@ describe('Phase 08.2 menu wiring', () => {
     // Same fixture / row-targeting pattern Plan 08.1-05 uses (lines 160-167):
     // makeSummary() peaks contain CIRCLE + SQUARE (no TRIANGLE) — target CIRCLE
     // (peakScale 0.5 → "0.500×" in the Scale cell, where onDoubleClick lives).
-    const circleNameCell = await screen.findByText(/^CIRCLE$/i);
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
     const circleRow = circleNameCell.closest('tr')!;
     const peakCell = within(circleRow).getByText(/^32×32$/);
     fireEvent.doubleClick(peakCell);

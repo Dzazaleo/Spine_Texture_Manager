@@ -44,6 +44,7 @@ import type {
   SkeletonSummary,
   DisplayRow,
   BreakdownRow,
+  RegionRow,
   ExportPlan,
   AppSessionState,
   MaterializedProject,
@@ -195,9 +196,12 @@ export function AppShell({
   // D-52: jump-target; null means no pending focus.
   const [focusAnimationName, setFocusAnimationName] = useState<string | null>(null);
 
-  // Phase 7 D-130 — NEW: attachment jump-target plumbing (parallel to
-  // focusAnimationName, different consumer panel — GlobalMaxRenderPanel).
-  const [focusAttachmentName, setFocusAttachmentName] = useState<string | null>(null);
+  // Phase 7 D-130 — NEW: jump-target plumbing (parallel to focusAnimationName,
+  // different consumer panel — GlobalMaxRenderPanel).
+  // Phase 29 D-07 — Renamed from focusAttachmentName to focusRegionName: Atlas
+  // Preview modal's dblclick now sends the regionName, and Global panel's row
+  // identity flipped to regionName too (Plan 29-02 Task 3).
+  const [focusRegionName, setFocusRegionName] = useState<string | null>(null);
 
   // Phase 7 D-134 — NEW: Atlas Preview modal lifecycle. Plain boolean, no
   // snapshot state — the modal reads summary + overrides directly (D-131).
@@ -465,18 +469,21 @@ export function AppShell({
     setFocusAnimationName(null);
   }, []);
 
-  // Phase 7 D-130 — NEW: Atlas Preview canvas dblclick → close modal +
-  // switch to Global tab + dispatch focus to GlobalMaxRenderPanel. Three
-  // state writes; narrow useCallback deps (only setters; React guarantees
-  // setState identity is stable — empty deps array is correct).
-  const onJumpToAttachment = useCallback((name: string) => {
+  // Phase 7 D-130 — Atlas Preview canvas dblclick → close modal + switch to
+  // Global tab + dispatch focus to GlobalMaxRenderPanel. Three state writes;
+  // narrow useCallback deps (only setters; React guarantees setState identity
+  // is stable — empty deps array is correct).
+  // Phase 29 D-07 — Renamed from onJumpToAttachment to onJumpToRegion. The
+  // modal sends regionName; the panel scrolls to the matching region row
+  // (Plan 29-02 Task 3 will retarget the panel-side selection key).
+  const onJumpToRegion = useCallback((regionName: string) => {
     setActiveTab('global');
-    setFocusAttachmentName(name);
+    setFocusRegionName(regionName);
     setAtlasPreviewOpen(false);
   }, []);
 
-  const onFocusAttachmentConsumed = useCallback(() => {
-    setFocusAttachmentName(null);
+  const onFocusRegionConsumed = useCallback(() => {
+    setFocusRegionName(null);
   }, []);
 
   // Phase 7 D-134 — NEW: toolbar button click handler.
@@ -485,7 +492,7 @@ export function AppShell({
   }, []);
 
   const onOpenOverrideDialog = useCallback(
-    (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
+    (row: DisplayRow | BreakdownRow | RegionRow, selectedKeys?: ReadonlySet<string>) => {
       // D-86: batch only when the clicked row is in the selection set AND size > 1.
       // D-87: "clicked row not in selection" = per-row, ignore selection.
       // Gap-fix A + B (human-verify 2026-04-24): the selectedKeys contract
@@ -1811,9 +1818,11 @@ export function AppShell({
             overrides={overrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
             /* Phase 7 D-130 NEW props — mirror AnimationBreakdownPanel's
-               focusAnimationName/onFocusConsumed pair. */
-            focusAttachmentName={focusAttachmentName}
-            onFocusConsumed={onFocusAttachmentConsumed}
+               focusAnimationName/onFocusConsumed pair.
+               Phase 29 D-07 — renamed to focusRegionName + onFocusConsumed
+               to match Atlas Preview's onJumpToRegion semantics. */
+            focusRegionName={focusRegionName}
+            onFocusConsumed={onFocusRegionConsumed}
             query={query}
             onQueryChange={setQuery}
             loaderMode={loaderMode}
@@ -1898,7 +1907,7 @@ export function AppShell({
           open={true}
           summary={effectiveSummary}
           overrides={overrides}
-          onJumpToAttachment={onJumpToAttachment}
+          onJumpToRegion={onJumpToRegion}
           onClose={() => setAtlasPreviewOpen(false)}
           onOpenOptimizeDialog={onClickOptimize}
         />

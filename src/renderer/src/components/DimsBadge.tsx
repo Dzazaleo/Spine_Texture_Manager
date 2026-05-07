@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { DisplayRow } from '../../../shared/types.js';
+import type { DisplayRow, RegionRow } from '../../../shared/types.js';
 import { buildDimsTooltipText, deriveIsCapped } from '../lib/dims-tooltip-view.js';
 
 type LoaderMode = 'auto' | 'atlas-less';
@@ -31,7 +31,11 @@ export function DimsBadge({
   effectiveScale,
   loaderMode,
 }: {
-  row: DisplayRow;
+  // Phase 29 (Plan 29-02 Task 3) — accept either DisplayRow (per-attachment
+  // — AnimationBreakdownPanel) or RegionRow (per-region — GlobalMaxRenderPanel
+  // post-Phase 29). Tooltip id derives from attachmentKey when present, else
+  // regionName, so each badge stays ARIA-collision-free in either panel.
+  row: DisplayRow | RegionRow;
   effectiveScale: number;
   loaderMode: LoaderMode;
 }) {
@@ -42,7 +46,8 @@ export function DimsBadge({
   const tooltipText = buildDimsTooltipText(row, loaderMode, isCapped);
   // tooltipId must be unique per rendered DimsBadge instance to support
   // multiple badges on the same page without ARIA collision.
-  const tooltipId = `dims-badge-tooltip-${row.attachmentKey}`;
+  const idKey = 'attachmentKey' in row ? row.attachmentKey : row.regionName;
+  const tooltipId = `dims-badge-tooltip-${idKey}`;
   const ariaLabel =
     `Source dims differ from canonical: source ${row.actualSourceW}×${row.actualSourceH}, canonical ${row.canonicalW}×${row.canonicalH}` +
     (isCapped

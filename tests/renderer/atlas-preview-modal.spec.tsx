@@ -65,12 +65,14 @@ function row(
   sourceW: number,
   sourceH: number,
   sourcePath: string,
+  regionName?: string,
 ): DisplayRow {
   return {
     attachmentKey: `default::${attachmentName}::${attachmentName}`,
     skinName: 'default',
     slotName: attachmentName,
     attachmentName,
+    regionName: regionName ?? attachmentName,
     animationName: '__SETUP__',
     time: 0,
     frame: 0,
@@ -88,6 +90,57 @@ function row(
     sourceLabel: '__SETUP__',
     frameLabel: '—',
     sourcePath,
+    canonicalW: sourceW,
+    canonicalH: sourceH,
+    actualSourceW: undefined,
+    actualSourceH: undefined,
+    dimsMismatch: false,
+  };
+}
+
+/**
+ * Phase 29 — Build a RegionRow mirror of a DisplayRow for synthetic tests.
+ * Used to populate summary.regions so deriveInputs() can join via sourcePath.
+ */
+function regionFromRows(rows: DisplayRow[]): import('../../src/shared/types').RegionRow {
+  const winner = rows[0];
+  return {
+    regionName: winner.regionName ?? winner.attachmentName,
+    attachmentName: winner.attachmentName,
+    skinName: winner.skinName,
+    slotName: winner.slotName,
+    animationName: winner.animationName,
+    time: winner.time,
+    frame: winner.frame,
+    peakScale: winner.peakScale,
+    peakScaleX: winner.peakScaleX,
+    peakScaleY: winner.peakScaleY,
+    worldW: winner.worldW,
+    worldH: winner.worldH,
+    sourceW: winner.sourceW,
+    sourceH: winner.sourceH,
+    isSetupPosePeak: winner.isSetupPosePeak,
+    sourcePath: winner.sourcePath,
+    canonicalW: winner.canonicalW,
+    canonicalH: winner.canonicalH,
+    actualSourceW: winner.actualSourceW,
+    actualSourceH: winner.actualSourceH,
+    dimsMismatch: winner.dimsMismatch,
+    originalSizeLabel: winner.originalSizeLabel,
+    peakSizeLabel: winner.peakSizeLabel,
+    scaleLabel: winner.scaleLabel,
+    sourceLabel: winner.sourceLabel,
+    frameLabel: winner.frameLabel,
+    contributingAttachments: rows.map((r) => ({
+      attachmentName: r.attachmentName,
+      skinName: r.skinName,
+      slotName: r.slotName,
+      peakScale: r.peakScale,
+      animationName: r.animationName,
+      time: r.time,
+      frame: r.frame,
+      isSetupPosePeak: r.isSetupPosePeak,
+    })),
   };
 }
 
@@ -99,6 +152,9 @@ function makeSummary(): SkeletonSummary {
     row('SQUARE', 128, 128, '/fake/SQUARE.png'),
     row('TRIANGLE', 96, 96, '/fake/TRIANGLE.png'),
   ];
+  // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with peaks
+  // (no path indirection — regionName === attachmentName for these synthetics).
+  const regions = peaks.map((p) => regionFromRows([p]));
   return {
     skeletonPath: '/fake/skeleton.json',
     atlasPath: '/fake/skeleton.atlas',
@@ -108,11 +164,12 @@ function makeSummary(): SkeletonSummary {
     skins: { count: 1, names: ['default'] },
     animations: { count: 0, names: [] },
     peaks,
+    regions,
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 1,
     editorFps: 30,
-  };
+  } as unknown as SkeletonSummary;
 }
 
 describe('AtlasPreviewModal — default view (D-135)', () => {
@@ -122,7 +179,7 @@ describe('AtlasPreviewModal — default view (D-135)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -142,7 +199,7 @@ describe('AtlasPreviewModal — default view (D-135)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -157,7 +214,7 @@ describe('AtlasPreviewModal — default view (D-135)', () => {
         open={false}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -172,7 +229,7 @@ describe('AtlasPreviewModal — toggle re-render (D-128)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -190,7 +247,7 @@ describe('AtlasPreviewModal — toggle re-render (D-128)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -207,7 +264,7 @@ describe('AtlasPreviewModal — pager bounds (D-128)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -221,15 +278,15 @@ describe('AtlasPreviewModal — pager bounds (D-128)', () => {
   });
 });
 
-describe('AtlasPreviewModal — dblclick jump-target (D-130)', () => {
-  it('dblclick on canvas calls onJumpToAttachment with the hit region attachmentName', () => {
+describe('AtlasPreviewModal — dblclick jump-target (D-130 + Phase 29 D-07)', () => {
+  it('dblclick on canvas calls onJumpToRegion with the hit region regionName', () => {
     const onJump = vi.fn();
     render(
       <AtlasPreviewModal
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={onJump}
+        onJumpToRegion={onJump}
         onClose={vi.fn()}
       />,
     );
@@ -260,14 +317,14 @@ describe('AtlasPreviewModal — dblclick jump-target (D-130)', () => {
     expect(['CIRCLE', 'SQUARE', 'TRIANGLE']).toContain(onJump.mock.calls[0][0]);
   });
 
-  it('dblclick on empty canvas area does NOT call onJumpToAttachment', () => {
+  it('dblclick on empty canvas area does NOT call onJumpToRegion', () => {
     const onJump = vi.fn();
     render(
       <AtlasPreviewModal
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={onJump}
+        onJumpToRegion={onJump}
         onClose={vi.fn()}
       />,
     );
@@ -300,7 +357,7 @@ describe('AtlasPreviewModal — accessibility (D-138)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={vi.fn()}
       />,
     );
@@ -320,7 +377,7 @@ describe('AtlasPreviewModal — close interactions (D-81)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={onClose}
       />,
     );
@@ -335,13 +392,157 @@ describe('AtlasPreviewModal — close interactions (D-81)', () => {
         open={true}
         summary={makeSummary()}
         overrides={new Map()}
-        onJumpToAttachment={vi.fn()}
+        onJumpToRegion={vi.fn()}
         onClose={onClose}
       />,
     );
     const dialog = screen.getByRole('dialog');
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Phase 29 D-07 — HoverTooltip 3-line layout tests for path-indirected regions.
+ *
+ * Background: post-29-02, hover on an atlas tile shows three lines:
+ *   1. {regionName}.png (font-semibold)
+ *   2. {w} × {h} dims
+ *   3. "used by N attachments" (only when contributingAttachments.length > 1)
+ *
+ * The tooltip mounts on the document body via fixed positioning. Because jsdom
+ * does NOT execute the canvas's drawing useEffect (no 2d context) but DOES run
+ * the React render tree + event handlers, mousemove/dblclick events still fire
+ * with hit-test results.
+ */
+describe('AtlasPreviewModal — Phase 29 D-07 HoverTooltip 3-line layout', () => {
+  // Synthetic SkeletonSummary with one path-indirected region (3 contributors)
+  // alongside a single-contributor control region.
+  function makePathIndirectSummary(): SkeletonSummary {
+    const sharedPath = '/fake/SHARED.png';
+    const peaks: DisplayRow[] = ['a', 'b', 'c'].map((name) => ({
+      ...row(name, 64, 64, sharedPath, 'SHARED'),
+    }));
+    peaks.push(row('SOLO', 64, 64, '/fake/SOLO.png'));
+    const sharedRegion = regionFromRows(peaks.slice(0, 3));
+    const soloRegion = regionFromRows([peaks[3]]);
+    return {
+      skeletonPath: '/fake/skeleton.json',
+      atlasPath: '/fake/skeleton.atlas',
+      bones: { count: 1, names: ['root'] },
+      slots: { count: 4 },
+      attachments: { count: 4, byType: { RegionAttachment: 4 } },
+      skins: { count: 1, names: ['default'] },
+      animations: { count: 0, names: [] },
+      peaks,
+      regions: [sharedRegion, soloRegion],
+      animationBreakdown: [],
+      unusedAttachments: [],
+      elapsedMs: 1,
+      editorFps: 30,
+    } as unknown as SkeletonSummary;
+  }
+
+  it('hover on path-indirected region renders 3 tooltip lines (regionName + dims + "used by N attachments")', () => {
+    render(
+      <AtlasPreviewModal
+        open={true}
+        summary={makePathIndirectSummary()}
+        overrides={new Map()}
+        onJumpToRegion={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const canvas = screen.getByRole('img', { name: /packed atlas page/i }) as HTMLCanvasElement;
+    canvas.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 2048,
+        bottom: 2048,
+        width: 2048,
+        height: 2048,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    // Hover near origin — packer places the first sorted region at (0,0)+padding.
+    fireEvent.mouseMove(canvas, { clientX: 5, clientY: 5 });
+    // After hover, the tooltip mounts. Inspect its text content. The hovered
+    // region depends on sort order (by sourcePath); both SHARED and SOLO sort
+    // alphabetically by path, so SHARED comes first ('/fake/SHARED.png' <
+    // '/fake/SOLO.png'). Assert tooltip semantics:
+    const tooltip = screen.queryByRole('tooltip');
+    expect(tooltip).not.toBeNull();
+    // Line 1 — '{regionName}.png'.
+    expect(tooltip!.textContent).toMatch(/SHARED\.png/);
+    // Line 3 — 'used by 3 attachments'.
+    expect(tooltip!.textContent).toMatch(/used by 3 attachments/);
+  });
+
+  it('hover on single-contributor region does NOT render the third "used by N" line', () => {
+    // Use the default makeSummary (CIRCLE/SQUARE/TRIANGLE — all 1 contributor each).
+    render(
+      <AtlasPreviewModal
+        open={true}
+        summary={makeSummary()}
+        overrides={new Map()}
+        onJumpToRegion={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const canvas = screen.getByRole('img', { name: /packed atlas page/i }) as HTMLCanvasElement;
+    canvas.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 2048,
+        bottom: 2048,
+        width: 2048,
+        height: 2048,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    fireEvent.mouseMove(canvas, { clientX: 5, clientY: 5 });
+    const tooltip = screen.queryByRole('tooltip');
+    expect(tooltip).not.toBeNull();
+    // Tooltip line 1 is one of CIRCLE/SQUARE/TRIANGLE.png
+    expect(tooltip!.textContent).toMatch(/(CIRCLE|SQUARE|TRIANGLE)\.png/);
+    // No "used by N attachments" copy when there is exactly 1 contributor.
+    expect(tooltip!.textContent).not.toMatch(/used by/);
+  });
+
+  it('dblclick on path-indirected tile fires onJumpToRegion with the regionName (NOT an attachmentName)', () => {
+    const onJump = vi.fn();
+    render(
+      <AtlasPreviewModal
+        open={true}
+        summary={makePathIndirectSummary()}
+        overrides={new Map()}
+        onJumpToRegion={onJump}
+        onClose={vi.fn()}
+      />,
+    );
+    const canvas = screen.getByRole('img', { name: /packed atlas page/i }) as HTMLCanvasElement;
+    canvas.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 2048,
+        bottom: 2048,
+        width: 2048,
+        height: 2048,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    fireEvent.doubleClick(canvas, { clientX: 5, clientY: 5 });
+    expect(onJump).toHaveBeenCalledTimes(1);
+    // Argument is one of the regionNames in the synthetic summary (SHARED or SOLO).
+    expect(['SHARED', 'SOLO']).toContain(onJump.mock.calls[0][0]);
+    // Argument is NOT one of the per-attachment names (a/b/c).
+    expect(['a', 'b', 'c']).not.toContain(onJump.mock.calls[0][0]);
   });
 });
 
