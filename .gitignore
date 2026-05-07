@@ -26,6 +26,8 @@ fixtures/images/
 # sampler-skin-defined-unbound-attachment, atlas-preview) and will fail on
 # fresh clones / CI until ported to a SIMPLE_PROJECT-equivalent fixture.
 fixtures/SAMPLER_ALPHA_ZERO/
+# Spine 4.3-beta exports of the same proprietary Joker rigs (SEED-003 reproduction fixtures).
+fixtures/test_4.3/
 
 # OS cruft
 .DS_Store
