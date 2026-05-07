@@ -698,7 +698,7 @@ Plans:
 
 **Plans**: 4 plans
 
-- [ ] 29-01-PLAN.md — RegionRow types + analyzer dedupByRegionName + summary.regions field + doc-export count flip (REGION-01, REGION-05) (Wave 1)
+- [x] 29-01-PLAN.md — RegionRow types + analyzer dedupByRegionName + summary.regions field + doc-export count flip (REGION-01, REGION-05) (Wave 1)
 - [ ] 29-02-PLAN.md — Atlas Preview re-key + Global panel consumer flip + tooltip + label format (REGION-01, REGION-02, REGION-03, REGION-06, PREVIEW-01) (Wave 2)
 - [ ] 29-03-PLAN.md — Override storage Map<regionName> flip + .stmproj migration + AppShell migration banner + export.ts override-read flip (REGION-04) (Wave 3)
 - [ ] 29-04-PLAN.md — fixtures/Chicken-Min/ regression fixture + path-indirection vitest spec (REGION-06, REGION-07) (Wave 4)
@@ -790,7 +790,7 @@ Plans:
 | 26.1. UI polish — visual wins | v1.3 | 4/4 | Complete    | 2026-05-04 |
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
-| 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 0/0 | Not started — pending /gsd-discuss-phase 29 then /gsd-plan-phase 29 (REGION-01..07, PREVIEW-01) | — |
+| 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 1/4 | In Progress|  |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 0/0 | Not started — depends on Phase 29 (BUFFER-01..03) | — |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 0/0 | Not started — independent of 29/30 (LOAD-05..07, PANEL-08..11, PLATFORM-01) | — |
 

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
 status: executing
-last_updated: "2026-05-07T18:05:40.170Z"
-last_activity: 2026-05-07 -- Phase 29 planning complete
+last_updated: "2026-05-07T19:09:31.510Z"
+last_activity: 2026-05-07 -- Phase 29 execution started
 progress:
   total_phases: 16
   completed_phases: 0
@@ -16,17 +16,17 @@ progress:
 
 ## Current Position
 
-Phase: 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) — context gathered 2026-05-07; ready for /gsd-plan-phase 29
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-07 -- Phase 29 planning complete
+Phase: 29 (per-region-dedup-override-region-semantics-atlas-preview-pac) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 29
+Last activity: 2026-05-07 -- Phase 29 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-07 — v1.3.1 milestone block at top reflects Correctness & Refinements scope)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** v1.3.1 Correctness & Refinements — Phase 29 (per-region dedup + override-region semantics + atlas-preview pack-page accuracy) is next. Closes the path-indirection correctness bug surfaced post-v1.3 ship (overrides keyed by attachmentName never reach the export pipeline keyed by region — confirmed by user repro 2026-05-07; debug session at `.planning/debug/path-indirected-duplicate-rows.md`).
+**Current focus:** Phase 29 — per-region-dedup-override-region-semantics-atlas-preview-pac
 
 ## Last Roadmap Update
 
