@@ -13,11 +13,11 @@ Animators ship atlases that are as small as they mathematically can be without v
 **Goal:** Close v1.3 post-ship correctness gaps (per-region dedup + override-region semantics; atlas-preview pack-page accuracy) and refine the Optimize/load workflow with a user-configurable safety buffer + Animation Breakdown UX polish + platform-specific drag-drop fallback.
 
 **Target features:**
-- Per-region dedup + override-region semantics (one row per unique source PNG across Global / Atlas Preview / Optimize / exported folder; override binds to region; row label `{regionName}.png` with `images/` stripped in Global; Source Animation/Frame columns attribute to winning contributing attachment)
+- ✓ Per-region dedup + override-region semantics — shipped Phase 29 (2026-05-07): one row per unique source PNG across Global / Atlas Preview / Optimize / exported folder; override binds to region (regionName-keyed end-to-end across panel READ, AppShell WRITE, and export-math read); Chicken-Min path-indirection regression fixture committed.
+- ✓ Atlas-preview pack-page accuracy fix — shipped Phase 29: page count matches actual atlas page count for path-indirected projects.
 - User-configurable safety buffer in Optimize dialog (multiplicative on calculated peak AND overrides; capped at source dims preserving D-91; persisted in `.stmproj` mirroring `sharpenOnExport` precedent)
 - Windows admin drag-drop fallback (detect elevation; disable drop targets + clear message routing user to File → Open or unprivileged relaunch)
 - Source-toggle disabling (greyed-out + tooltip when atlas absent or images-folder absent)
-- Atlas-preview pack-page accuracy fix (Chicken: 13 actual atlas PNGs vs app's 14 — investigate + fix)
 - Animation Breakdown default-collapsed + bulk Expand all / Collapse all (Setup Pose remains first card, just collapsed; per-session in-memory state; `h-8` toolbar buttons mirror v1.3 style)
 
 ## Current State (post v1.3)
@@ -118,4 +118,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-07 — v1.3.1 milestone started (Correctness & Refinements). Inserts a patch milestone before v1.4 to close path-indirection correctness bug surfaced post-ship + 5 user-prioritized refinements. SEED-003 (Spine 4.3 compatibility) remains earmarked for v1.4. Phase numbering continues from v1.3's last phase (28); v1.3.1 phases start at 29. Prior: v1.3.0 (2026-05-07) — 7 phases (23, 24, 25, 26.1, 26.2, 27, 28) closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale.*
+*Last updated: 2026-05-07 — Phase 29 complete (per-region dedup + override-region semantics + atlas-preview pack-page accuracy). 7 plans landed: data-shape foundation (29-01), production wiring (29-02), override storage flip + .stmproj migration (29-03), regression fixture + suite (29-04), batch-apply UI handoff fix (29-05), contributingAttachments dedup (29-06), panel READ-side override-key fix (29-07). The falsified bug from `.planning/debug/path-indirected-duplicate-rows.md` (Chicken `5/7.png` 4×4 override silently erased) no longer reproduces. v1.3.1 milestone started (Correctness & Refinements) — phases 30 (safety buffer in Optimize dialog) + 31 (loader & UX small-fixes batch) remain. Prior: v1.3.0 (2026-05-07) — 7 phases closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale.*
