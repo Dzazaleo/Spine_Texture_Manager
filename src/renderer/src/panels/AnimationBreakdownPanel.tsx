@@ -796,12 +796,10 @@ function BreakdownRowItem({
         <span className="inline-flex items-center justify-end gap-1">
           <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
           {row.peakScale > 1 && (
-            <span
+            <ExtrapolationIcon
+              className="w-3.5 h-3.5 inline-block text-white"
               title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
-              className="inline-flex"
-            >
-              <ExtrapolationIcon className="w-3.5 h-3.5 inline-block text-white" />
-            </span>
+            />
           )}
           {row.override !== undefined && (
             <PencilIcon className="w-3.5 h-3.5 inline-block text-white" />

@@ -599,16 +599,16 @@ function Row({
         <span className="inline-flex items-center justify-end gap-1">
           <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
           {row.peakScale > 1 && (
-            // Wrapper span carries the icon-specific tooltip — children's
-            // `title` wins over the parent <td>'s on hover, so users hovering
-            // the arrow see the extrapolation explanation without bloating
-            // the cell-wide tooltip.
-            <span
+            // Tooltip is rendered as an SVG <title> child via ExtrapolationIcon's
+            // `title` prop. SVG <title> reliably wins over the parent <td>'s
+            // HTML title attribute on hover — a wrapper-span with a `title`
+            // attribute does not, because browsers prefer titles directly on
+            // the hovered element (the SVG) and the SVG had no title of its
+            // own.
+            <ExtrapolationIcon
+              className="w-3.5 h-3.5 inline-block text-white"
               title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
-              className="inline-flex"
-            >
-              <ExtrapolationIcon className="w-3.5 h-3.5 inline-block text-white" />
-            </span>
+            />
           )}
           {row.override !== undefined && (
             <PencilIcon className="w-3.5 h-3.5 inline-block text-white" />

@@ -2,8 +2,17 @@
  * Extrapolation icon — marks the Peak W×H cell when the Spine rig demands
  * resolution above canonical (`peakScale > 1`). The export pipeline caps
  * at canonical, so the icon signals "rig wants more than the source can
- * provide; export capped at canonical." Hover tooltip on the parent cell
- * surfaces the exact ratio.
+ * provide; export capped at canonical."
+ *
+ * Tooltip: the `title` prop renders as an SVG `<title>` child element
+ * (not a wrapper-span title attribute) — this is the canonical SVG
+ * tooltip approach and reliably wins over the parent cell's HTML title
+ * attribute when the cursor is over the icon. Without this pattern, the
+ * cell's `<td title="…">` would always take precedence on hover.
+ *
+ * When `title` is provided, the icon also gets a `role="img"` +
+ * `aria-label` so screen readers announce it; without `title` the icon
+ * stays `aria-hidden` (decorative).
  *
  * Same stroke discipline as PencilIcon / WarningTriangleIcon: viewBox
  * 20×20, stroke="currentColor", strokeWidth 1.5, round caps/joins, no
@@ -17,9 +26,10 @@
  */
 export interface ExtrapolationIconProps {
   className?: string;
+  title?: string;
 }
 
-export function ExtrapolationIcon({ className }: ExtrapolationIconProps) {
+export function ExtrapolationIcon({ className, title }: ExtrapolationIconProps) {
   return (
     <svg
       viewBox="0 0 20 20"
@@ -29,8 +39,11 @@ export function ExtrapolationIcon({ className }: ExtrapolationIconProps) {
       strokeLinejoin="round"
       fill="none"
       className={className}
-      aria-hidden="true"
+      role={title !== undefined ? 'img' : undefined}
+      aria-label={title}
+      aria-hidden={title === undefined ? true : undefined}
     >
+      {title !== undefined && <title>{title}</title>}
       {/* Vertical shaft */}
       <path d="M10 16 L10 4" />
       {/* Arrowhead */}
