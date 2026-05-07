@@ -10,7 +10,9 @@
  *   - projection: AtlasPreviewProjection — recomputed via useMemo([summary,
  *     overrides, mode, maxPageDim]); D-131 captures overrides at mount and
  *     does NOT subscribe to changes — user closes + reopens to refresh.
- *   - hoveredAttachmentName: string | null (mousemove hit-test result)
+ *   - hoveredRegionName: string | null (mousemove hit-test result; Phase 29
+ *     D-07 — re-keyed from hoveredAttachmentName since PackedRegion is now
+ *     region-keyed and may carry multiple contributors per tile)
  *
  * ARIA scaffold cloned verbatim from OverrideDialog.tsx (Phase 4 D-81)
  * + OptimizeDialog.tsx (Phase 6 Round 6): role='dialog' + aria-modal='true' +
@@ -24,7 +26,7 @@
  *     atlas) and full-image for per-region PNGs (RESEARCH §Pattern 4).
  *   - Hover: linear-scan hit-test (RESEARCH §Code Examples 2; O(N) acceptable
  *     per CONTEXT §Claude's Discretion).
- *   - Dblclick: same hit-test → props.onJumpToAttachment(region.attachmentName).
+ *   - Dblclick: same hit-test → props.onJumpToRegion(region.regionName).
  *
  * Image cache: hoisted into useRef per Pitfall 4 (no module-scope leaks).
  *   <img> sources are app-image:// URLs constructed in main via
@@ -67,7 +69,13 @@ export interface AtlasPreviewModalProps {
   open: boolean;
   summary: SkeletonSummary;
   overrides: ReadonlyMap<string, number>;
-  onJumpToAttachment: (attachmentName: string) => void;
+  /**
+   * Phase 29 D-07 — Re-keyed from `onJumpToAttachment`. Dblclick on an atlas
+   * tile invokes this with the region's regionName, navigating to the matching
+   * row in the Global Max Render panel. Per-attachment drill-down lives in
+   * AnimationBreakdownPanel (REGION-06 + D-09).
+   */
+  onJumpToRegion: (regionName: string) => void;
   onClose: () => void;
   /**
    * Phase 19 UI-03 + D-11/D-12 — REQUIRED cross-nav handler. The modal
@@ -97,7 +105,10 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
   const [mode, setMode] = useState<'original' | 'optimized'>('optimized');
   const [maxPageDim, setMaxPageDim] = useState<2048 | 4096>(2048);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [hoveredAttachmentName, setHoveredAttachmentName] = useState<string | null>(null);
+  // Phase 29 D-07 — Re-keyed from hoveredAttachmentName. PackedRegion's primary
+  // key is now regionName; the canvas hit-test compare + tooltip lookup both
+  // match on regionName.
+  const [hoveredRegionName, setHoveredRegionName] = useState<string | null>(null);
 
   // D-131 snapshot-at-open: useMemo on the three axes + summary + overrides.
   // Overrides Map identity is captured here; changes after mount are ignored.
@@ -271,19 +282,19 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
                 className="text-xs px-3 py-2 border rounded-md"
                 style={{ borderColor: 'var(--color-danger, #e06b55)', color: 'var(--color-danger, #e06b55)' }}
               >
-                {`${projection.oversize.length} attachment${projection.oversize.length === 1 ? '' : 's'} exceed the ${maxPageDim}px atlas and ${projection.oversize.length === 1 ? 'is' : 'are'} excluded from this preview: ${projection.oversize.join(', ')}`}
+                {`${projection.oversize.length} region${projection.oversize.length === 1 ? '' : 's'} exceed the ${maxPageDim}px atlas and ${projection.oversize.length === 1 ? 'is' : 'are'} excluded from this preview: ${projection.oversize.join(', ')}`}
               </div>
             )}
             <div className="flex-1 overflow-hidden">
               <AtlasCanvas
                 page={currentPage}
                 frameDim={maxPageDim}
-                hoveredAttachmentName={hoveredAttachmentName}
-                setHoveredAttachmentName={setHoveredAttachmentName}
+                hoveredRegionName={hoveredRegionName}
+                setHoveredRegionName={setHoveredRegionName}
                 loadImage={loadImage}
                 missingPaths={missingPathsRef.current}
                 imageCacheVersion={imageCacheVersion}
-                onJumpToAttachment={props.onJumpToAttachment}
+                onJumpToRegion={props.onJumpToRegion}
               />
             </div>
           </main>
@@ -465,23 +476,23 @@ function InfoCard({ label, value, sub }: InfoCardProps) {
 interface AtlasCanvasProps {
   page: AtlasPage | undefined;
   frameDim: 2048 | 4096;
-  hoveredAttachmentName: string | null;
-  setHoveredAttachmentName: (name: string | null) => void;
+  hoveredRegionName: string | null;
+  setHoveredRegionName: (name: string | null) => void;
   loadImage: (absolutePath: string) => HTMLImageElement;
   missingPaths: Set<string>;
   imageCacheVersion: number;
-  onJumpToAttachment: (attachmentName: string) => void;
+  onJumpToRegion: (regionName: string) => void;
 }
 
 function AtlasCanvas({
   page,
   frameDim,
-  hoveredAttachmentName,
-  setHoveredAttachmentName,
+  hoveredRegionName,
+  setHoveredRegionName,
   loadImage,
   missingPaths,
   imageCacheVersion,
-  onJumpToAttachment,
+  onJumpToRegion,
 }: AtlasCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
@@ -552,7 +563,7 @@ function AtlasCanvas({
       // (rendered outside the canvas) — small/narrow regions can't fit
       // readable in-canvas text, and HTML text stays crisp regardless of
       // the canvas's CSS-vs-backing-store downscale.
-      const isHovered = hoveredAttachmentName === region.attachmentName;
+      const isHovered = hoveredRegionName === region.regionName;
       ctx.strokeStyle = isHovered ? 'rgba(249, 115, 22, 1)' : 'rgba(255, 255, 255, 0.4)';
       ctx.strokeRect(region.x, region.y, region.w, region.h);
       if (isHovered) {
@@ -560,7 +571,7 @@ function AtlasCanvas({
         ctx.fillRect(region.x, region.y, region.w, region.h);
       }
     }
-  }, [page, frameDim, hoveredAttachmentName, imageCacheVersion, loadImage, missingPaths]);
+  }, [page, frameDim, hoveredRegionName, imageCacheVersion, loadImage, missingPaths]);
 
   const hitTest = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>): PackedRegion | null => {
@@ -590,28 +601,28 @@ function AtlasCanvas({
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
       if (hit) {
-        setHoveredAttachmentName(hit.attachmentName);
+        setHoveredRegionName(hit.regionName);
         setCursorPos({ x: e.clientX, y: e.clientY });
       } else {
-        setHoveredAttachmentName(null);
+        setHoveredRegionName(null);
         setCursorPos(null);
       }
     },
-    [hitTest, setHoveredAttachmentName],
+    [hitTest, setHoveredRegionName],
   );
 
   const onDoubleClick = useCallback(
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       const hit = hitTest(e);
-      if (hit) onJumpToAttachment(hit.attachmentName);
+      if (hit) onJumpToRegion(hit.regionName);
     },
-    [hitTest, onJumpToAttachment],
+    [hitTest, onJumpToRegion],
   );
 
   if (!page) return <div className="text-fg-muted text-xs">No projection.</div>;
 
-  const hoveredRegion = hoveredAttachmentName
-    ? page.regions.find((r) => r.attachmentName === hoveredAttachmentName) ?? null
+  const hoveredRegion = hoveredRegionName
+    ? page.regions.find((r) => r.regionName === hoveredRegionName) ?? null
     : null;
 
   // D-139 (Plan 06 amendment): canvas frame is the fixed maxPageDim × maxPageDim
@@ -633,7 +644,7 @@ function AtlasCanvas({
           className="block w-full h-full border border-border"
           onMouseMove={onMouseMove}
           onMouseLeave={() => {
-            setHoveredAttachmentName(null);
+            setHoveredRegionName(null);
             setCursorPos(null);
           }}
           onDoubleClick={onDoubleClick}
@@ -662,7 +673,9 @@ function HoverTooltip({
 }) {
   const OFFSET = 14;
   const W_ESTIMATE = 320;
-  const H_ESTIMATE = 64;
+  // Phase 29 D-07 — bumped from 64 to accommodate optional third line
+  // ("used by N attachments") for path-indirected regions.
+  const H_ESTIMATE = 80;
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
   const flipH = cursorPos.x + OFFSET + W_ESTIMATE > vw - 8;
@@ -677,10 +690,15 @@ function HoverTooltip({
         transform: `translate(${flipH ? '-100%' : '0'}, ${flipV ? '-100%' : '0'})`,
       }}
     >
-      <div className="font-semibold break-all">{region.attachmentName}</div>
+      <div className="font-semibold break-all">{`${region.regionName}.png`}</div>
       <div className="text-xs text-fg-muted mt-0.5">
         {`${Math.round(region.w)} × ${Math.round(region.h)}`}
       </div>
+      {region.attachmentNames.length > 1 && (
+        <div className="text-xs text-fg-muted mt-0.5">
+          {`used by ${region.attachmentNames.length} attachments`}
+        </div>
+      )}
     </div>
   );
 }

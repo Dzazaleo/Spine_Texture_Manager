@@ -39,6 +39,18 @@ function makeSummary(): SkeletonSummary {
       { attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
         worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png' } as any,
     ],
+    // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with
+    // peaks (no path indirection — regionName === attachmentName here).
+    regions: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'CIRCLE', attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', sourceW: 64, sourceH: 64,
+        worldW: 32, worldH: 32, peakScale: 0.5, animationName: 'idle', frame: 12, sourcePath: '/a/b/images/CIRCLE.png',
+        contributingAttachments: [{ attachmentName: 'CIRCLE', skinName: 'default', slotName: 'slot-circle', peakScale: 0.5, animationName: 'idle', time: 0, frame: 12, isSetupPosePeak: false }] } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { regionName: 'SQUARE', attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', sourceW: 64, sourceH: 64,
+        worldW: 64, worldH: 64, peakScale: 1.0, animationName: 'idle', frame: 0, sourcePath: '/a/b/images/SQUARE.png',
+        contributingAttachments: [{ attachmentName: 'SQUARE', skinName: 'default', slotName: 'slot-square', peakScale: 1.0, animationName: 'idle', time: 0, frame: 0, isSetupPosePeak: false }] } as any,
+    ],
     animationBreakdown: [],
     elapsedMs: 5,
   } as unknown as SkeletonSummary;
