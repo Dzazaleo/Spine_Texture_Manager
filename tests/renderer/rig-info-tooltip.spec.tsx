@@ -91,11 +91,13 @@ function makeSummary(): SkeletonSummary {
     // Phase 20 D-09 — events field added to SkeletonSummary in Plan 20-01.
     events: { count: 0, names: [] },
     peaks: [],
+    // Phase 29 D-01 — populate empty regions array (no path indirection on this fixture).
+    regions: [],
     animationBreakdown: [],
     unusedAttachments: [],
     elapsedMs: 42,
     editorFps: 30,
-  };
+  } as unknown as SkeletonSummary;
 }
 
 describe('RigInfoTooltip — Wave 4 (Claude Discretion: rig-info on filename chip)', () => {

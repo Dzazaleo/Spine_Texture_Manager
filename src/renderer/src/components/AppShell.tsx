@@ -44,6 +44,7 @@ import type {
   SkeletonSummary,
   DisplayRow,
   BreakdownRow,
+  RegionRow,
   ExportPlan,
   AppSessionState,
   MaterializedProject,
@@ -491,7 +492,7 @@ export function AppShell({
   }, []);
 
   const onOpenOverrideDialog = useCallback(
-    (row: DisplayRow | BreakdownRow, selectedKeys?: ReadonlySet<string>) => {
+    (row: DisplayRow | BreakdownRow | RegionRow, selectedKeys?: ReadonlySet<string>) => {
       // D-86: batch only when the clicked row is in the selection set AND size > 1.
       // D-87: "clicked row not in selection" = per-row, ignore selection.
       // Gap-fix A + B (human-verify 2026-04-24): the selectedKeys contract

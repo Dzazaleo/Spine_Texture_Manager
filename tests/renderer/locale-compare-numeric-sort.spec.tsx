@@ -65,6 +65,7 @@ function makeRow(attachmentName: string): DisplayRow {
     skinName: 'default',
     slotName: 'slot',
     attachmentName,
+    regionName: attachmentName,
     animationName: 'Setup Pose (Default)',
     time: 0,
     frame: 0,
@@ -92,6 +93,46 @@ function makeRow(attachmentName: string): DisplayRow {
 
 function buildSummary(names: string[]): SkeletonSummary {
   const peaks = names.map((n) => makeRow(n));
+  // Phase 29 D-01 — populate summary.regions in 1:1 correspondence with peaks.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const regions = peaks.map((r): any => ({
+    regionName: r.regionName ?? r.attachmentName,
+    attachmentName: r.attachmentName,
+    skinName: r.skinName,
+    slotName: r.slotName,
+    animationName: r.animationName,
+    time: r.time,
+    frame: r.frame,
+    peakScale: r.peakScale,
+    peakScaleX: r.peakScaleX,
+    peakScaleY: r.peakScaleY,
+    worldW: r.worldW,
+    worldH: r.worldH,
+    sourceW: r.sourceW,
+    sourceH: r.sourceH,
+    isSetupPosePeak: r.isSetupPosePeak,
+    sourcePath: r.sourcePath,
+    canonicalW: r.canonicalW,
+    canonicalH: r.canonicalH,
+    actualSourceW: r.actualSourceW,
+    actualSourceH: r.actualSourceH,
+    dimsMismatch: r.dimsMismatch,
+    originalSizeLabel: r.originalSizeLabel,
+    peakSizeLabel: r.peakSizeLabel,
+    scaleLabel: r.scaleLabel,
+    sourceLabel: r.sourceLabel,
+    frameLabel: r.frameLabel,
+    contributingAttachments: [{
+      attachmentName: r.attachmentName,
+      skinName: r.skinName,
+      slotName: r.slotName,
+      peakScale: r.peakScale,
+      animationName: r.animationName,
+      time: r.time,
+      frame: r.frame,
+      isSetupPosePeak: r.isSetupPosePeak,
+    }],
+  }));
   return {
     skeletonPath: '/fake/skeleton.json',
     atlasPath: null,
@@ -102,12 +143,13 @@ function buildSummary(names: string[]): SkeletonSummary {
     animations: { count: 0, names: [] },
     events: { count: 0, names: [] },
     peaks,
+    regions,
     animationBreakdown: [],
     orphanedFiles: [],
     skippedAttachments: [],
     elapsedMs: 1,
     editorFps: 30,
-  };
+  } as unknown as SkeletonSummary;
 }
 
 function PanelWrapper({ summary }: { summary: SkeletonSummary }) {
@@ -145,7 +187,8 @@ describe('renderer localeCompare numeric sort — GlobalMaxRenderPanel', () => {
   it('sorts CHAIN_2 before CHAIN_10 (natural numeric order)', () => {
     render(<PanelWrapper summary={buildSummary(['CHAIN_10', 'CHAIN_2'])} />);
     // Default sort is attachmentName asc (panel line 612-613).
-    expect(getAttachmentNamesInOrder()).toEqual(['CHAIN_2', 'CHAIN_10']);
+    // Phase 29 REGION-03 — row label format is `{regionName}.png`.
+    expect(getAttachmentNamesInOrder()).toEqual(['CHAIN_2.png', 'CHAIN_10.png']);
   });
 
   it('handles mixed-arity natural sort: CHAIN_1, CHAIN_2, CHAIN_3, CHAIN_10, CHAIN_11', () => {
@@ -155,11 +198,11 @@ describe('renderer localeCompare numeric sort — GlobalMaxRenderPanel', () => {
       />,
     );
     expect(getAttachmentNamesInOrder()).toEqual([
-      'CHAIN_1',
-      'CHAIN_2',
-      'CHAIN_3',
-      'CHAIN_10',
-      'CHAIN_11',
+      'CHAIN_1.png',
+      'CHAIN_2.png',
+      'CHAIN_3.png',
+      'CHAIN_10.png',
+      'CHAIN_11.png',
     ]);
   });
 });
