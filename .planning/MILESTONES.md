@@ -1,5 +1,41 @@
 # Milestones
 
+## v1.3 Polish & UX (Shipped: 2026-05-07)
+
+**Phases completed:** 7 (Phase 23, 24, 25, 26.1, 26.2, 27, 28)
+**Plans:** ~22 across the 7 phases
+**Source LOC:** ~21,000+ (TS/TSX) in `src/` (modest growth over v1.2 ~20,174 — polish milestone, not feature-heavy)
+**Timeline:** 2026-05-03 → 2026-05-07 (5 days, 293 commits since v1.2.0)
+**Git range:** `v1.2.0` tag → `bbaf714` (drop Linux build for v1.3)
+**Tag:** `v1.3.0`
+
+**Delivered:** Closed v1.2 correctness/semantic gaps, refined the optimize workflow UX, and shipped a thorough UI polish pass — no new math, no new distribution work. Linux AppImage build dropped from CI (untested target; re-enable when UAT lands).
+
+**Key accomplishments:**
+
+1. **Optimize flow — defer folder picker** (Phase 23, OPT-01/OPT-02) — OptimizeDialog opens immediately on toolbar click; output-folder picker moves to the Start/Export click. Eliminates the up-front native-dialog stall before the user sees the export plan. 8-test regression suite locks the deferred-picker contract via OptimizeDialog render tests and AppShell source-grep gates.
+2. **Panel semantics + atlas-savings metric** (Phase 24, PANEL-01/PANEL-02/OPT-03/PANEL-04) — Unused Assets panel now reports images-folder-vs-JSON orphaned PNGs (atlas-less semantics fixed) and is extracted as a collapsible sibling panel. The misleading "MB unused-attachment" callout is replaced by an atlas-savings metric. AtlasNotFoundError message mentions the images-folder alternative path. Orphaned-file I/O wired through `summary.ts` (`fs.readdirSync` + mode-aware `inUseNames` + `findOrphanedFiles`).
+3. **Missing attachments in-context** (Phase 25, PANEL-03) — Rows with missing source PNGs stay visible in Global Max Render Source + Animation Breakdown panels with a red left-border accent, danger-triangle icon, and danger-tinted ratio cell. `DisplayRow.isMissing?: boolean` added to the IPC contract. Root cause: synthetic-atlas intentionally excludes stub regions from the sampler — the fix synthesizes stub rows in `buildSummary` for each `skippedAttachment` not already in peaks.
+4. **UI polish — visual wins** (Phase 26.1, UI-06/UI-07/UI-10) — `#232732` cool blue-dark surface tokens, full-width panels, full-row zebra striping, danger-tinted missing rows with precise 16×16 inline SVG warning triangle (replacing Unicode ⚠), all 5 toolbar buttons unified to `h-8`, atlas-less chip surfaces image count via `loaderMode` conditional, danger-themed headers (`bg-danger/10` + `border-danger/40`) on problem-zone panels, AnimationBreakdownPanel gains bar-chart icon + animation count chip, GlobalMaxRenderPanel count cell `min-w-[6rem]` prevents layout shift.
+5. **UI polish — tab restructure + icon audit** (Phase 26.2, UI-08) — 2-tab strip (Global / Animation Breakdown) lifted into a dedicated sub-toolbar row (sketch-001 variant A; resolves AP-01 anti-pattern from 2 prior reverts). Filmstrip + bar-chart icons added to both tabs (verbatim panel-header SVG reuse, `w-4 h-4`). "orphaned" → "unused" rename on 2 user-visible strings in UnusedAssetsPanel. Inline SearchBar removed from UnusedAssetsPanel. 4 fill warning-triangle icons converted to stroke style via shared `WarningTriangleIcon` component (D-06 single source of truth). The 3-tab restructure was DROPPED 2026-05-04 per user redesign — alert-bar layout retained (memory `project_alert_bars_top_on_both_tabs`).
+6. **Code quality sweep** (Phase 27) — Phase 4 carry-forwards closed: `handleToggleRow` + `handleRangeToggle` in GlobalMaxRenderPanel converted to functional `setSelected((prev) => ...)` form (eliminates a latent stale-closure race; durable regression spec compares closure-form vs functional-form handlers side-by-side); OverrideDialog Apply button now disabled on empty/whitespace input (closes silent `Number('') === 0` clamp-to-1% floor); dead `open` prop + early-return guard removed in favor of AppShell's mount gate.
+7. **Optional Output Sharpening on Downscale** (Phase 28, SHARP-01/SHARP-02/SHARP-03) — End-to-end `sharpenOnExport` toggle plumbing through types → validator/serializer/materializer → main IPC envelope → preload bridge → AppShell lifecycle → OptimizeDialog checkbox. `SHARPEN_SIGMA = 0.5` constant + private `applyResizeAndSharpen` helper added to `image-worker.ts`; both resize call sites (per-region + atlas-extract) collapse onto the helper. 5 integration-level regression tests + 4 unit-level round-trip tests lock SHARP-02 + SHARP-03 invariants. Note: PMA preservation is a no-op in the current sharp 0.34 + libvips 8.17 stack (verified by `scripts/pma-probe.mjs`; backlog 999.9 closed `falsified` 2026-05-06).
+
+**Release-engineering changes:**
+
+- Linux AppImage build dropped from CI (`build-linux:` job + `assets/*.AppImage` + `assets/latest-linux.yml` removed from `release.yml`; Linux section + auto-update Linux clause stripped from INSTALL.md). `electron-builder.yml` `linux:` block retained as a no-op for re-enable. (commit `bbaf714`)
+- SEED-003 (Spine 4.3 compatibility) planted at end of milestone for v1.4 pickup; `fixtures/test_4.3/` etc. gitignored as proprietary 4.3-beta rigs. (commit `823f490`)
+
+**Known deferred at close:** 21 items acknowledged (see STATE.md → Deferred Items). Most are pre-v1.3 carry-forwards (Phase 14/15/20/21 verification + UAT debt — host-blocked or human-eyeballs-required). v1.3-era jsdom-blocked items: Phase 23 + 25 verification (`human_needed` only because Electron native dialogs and visual UAT can't run headless), Phase 23 + 26.1 partial UATs.
+
+**Archived artifacts:**
+
+- `.planning/milestones/v1.3-ROADMAP.md` (full phase details preserved)
+- `.planning/milestones/v1.3-REQUIREMENTS.md` (all v1.3 requirements with outcomes)
+- `.planning/milestones/v1.3-phases/` (Phase 23–28 directories)
+
+---
+
 ## v1.0 — MVP (Shipped: 2026-04-26)
 
 **Phases completed:** 12 (Phase 0–9, plus 08.1 + 08.2 inserted)
@@ -25,6 +61,7 @@
 **Known deferred items:** 5 (see STATE.md → Deferred Items). Two seeds (atlas-less mode, dims-badge override-cap) are post-MVP by design; one debug session (phase-0-scale-overshoot) and one Phase 4 code-review todo carry forward as tech debt; one stale Phase 07 UAT flag (signed-off, 0 pending scenarios).
 
 **Archived artifacts:**
+
 - `.planning/milestones/v1.0-ROADMAP.md` (full phase details preserved)
 - `.planning/milestones/v1.0-REQUIREMENTS.md` (all v1 requirements with outcomes)
 
@@ -59,6 +96,7 @@
 - Phase 20 Windows/Linux DnD cross-platform UAT: host-blocked.
 
 **Archived artifacts:**
+
 - `.planning/milestones/v1.2-ROADMAP.md` (full phase details Phases 16–22.1 preserved)
 - `.planning/milestones/v1.2-REQUIREMENTS.md` (all v1.2 requirements with final statuses)
 

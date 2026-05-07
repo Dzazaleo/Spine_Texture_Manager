@@ -2,31 +2,19 @@
 
 ## What This Is
 
-A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. The animator exports a per-attachment-optimized `images/` folder via sharp Lanczos3. v1.2 adds atlas-less mode (json + images folder, no .atlas), dims-badge round-trip safety (cap export at actual source PNG dims), per-skeleton Documentation Builder with HTML export, a full UI redesign, and two macOS UX regressions closed.
+A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. The animator exports a per-attachment-optimized `images/` folder via sharp Lanczos3. v1.2 added atlas-less mode (json + images folder, no .atlas), dims-badge round-trip safety (cap export at actual source PNG dims), per-skeleton Documentation Builder with HTML export, a full UI redesign, and two macOS UX regressions closed. v1.3 closes correctness/semantic gaps, refines the Optimize workflow UX, polishes the UI, and adds optional output sharpening on downscale.
 
 ## Core Value
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-## Current Milestone: v1.3 Polish & UX
+## Current State (post v1.3)
 
-**Goal:** Close v1.2 correctness/semantic gaps, improve the optimize workflow UX, and do a thorough UI polish pass — no new math or distribution work.
+**Shipped:** v1.3.0 Polish & UX — 2026-05-07 (7 phases, ~22 plans, ~21,000+ LOC TS/TSX in `src/`). Tag: `v1.3.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
 
-**Target features:**
-- Correct Unused Assets semantics (images-folder-vs-JSON orphaned PNGs; extracted collapsible panel)
-- Missing-attachment rows shown in-context with red accent in main panels
-- AtlasNotFoundError mentions images-folder alternative
-- Optimize modal opens immediately; folder picker deferred to Start/Export click
-- Atlas-savings metric replaces misleading MB unused-attachment callout
-- Sticky-bar height harmonization + Global panel counter cell layout-shift fix
-- Alternating row colors, icon refresh, unified toolbar button heights, draggable modals
-- Phase 4 code-quality carry-forwards (functional setSelected, input validation, localeCompare, dead prop guard)
+**v1.3 highlights:** Optimize workflow UX (defer folder picker; OptimizeDialog opens immediately) + Unused Assets semantics fixed (images-folder-vs-JSON orphaned PNGs; collapsible sibling panel) + missing-attachment in-context display (red left-border + danger triangle in Global + Animation Breakdown) + UI polish pass (`#232732` surface tokens, full-width panels, zebra rows, unified `h-8` toolbar buttons, danger-themed problem-zone headers, `WarningTriangleIcon` SVG component, 2-tab strip in dedicated sub-toolbar) + Phase 4 code-quality carry-forwards closed (functional `setSelected`, OverrideDialog input guard, dead prop removed) + optional output sharpening on downscale (`sharpen({ sigma: 0.5 })`, persisted in `.stmproj`). Linux AppImage build dropped from CI (untested target; re-enable when UAT lands).
 
-## Current State (post v1.2)
-
-**Shipped:** v1.2.0 Expansion — 2026-05-03 (8 phases executed, 40 plans, ~20,174 LOC TS/TSX in `src/`). Tag: `v1.2.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26). Phase 26.1 (UI Polish Visual Wins) complete 2026-05-04 — cool blue-dark color token foundation, full-width panels, zebra striping + danger tint, SVG ⚠ row icon, toolbar height harmonization, atlas-less chip label, danger-themed problem-zone panel headers.
-
-**Working:** Drop Spine `.json` + `.atlas` (or `.json` + images folder, no atlas — v1.2 atlas-less mode) or `.stmproj` → Global + Animation Breakdown panels populate → dims-badge surfaces when actual source PNG dims drift from canonical → set per-attachment overrides → preview the resulting atlas pack → export an optimized `images/` folder (cap prevents upscaling beyond actual source dims). Documentation Builder accessible from sticky header. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under N2.2 contract). macOS Cmd+Q + AppleScript quit work correctly (v1.2 fix). Update dialog routes macOS to manual-download (GitHub Releases page).
+**Working:** Drop Spine `.json` + `.atlas` (or `.json` + images folder, no atlas — atlas-less mode) or `.stmproj` → Global + Animation Breakdown panels populate (rows with missing source PNGs stay visible with red accent + danger triangle) → dims-badge surfaces when actual source PNG dims drift from canonical → set per-attachment overrides → preview the resulting atlas pack → click Optimize → OptimizeDialog opens immediately, folder picker fires on Start → export an optimized `images/` folder (cap prevents upscaling beyond actual source dims; optional sharpen-on-downscale; passthrough byte-copies for already-optimized rows). Documentation Builder accessible from sticky header. Atlas-savings metric replaces the older MB unused-attachment callout. `worker_threads` sampler offload + TanStack Virtual at N≥100 keep complex rigs interactive — `fixtures/Girl/TOPSCREEN_ANIMATION_JOKER.json` samples in 606 ms (~17× under N2.2 contract). macOS Cmd+Q + AppleScript quit work correctly. Update dialog routes macOS to manual-download (GitHub Releases page).
 
 **Tech stack (locked, validated through v1.2):**
 - Electron 41 + electron-vite 5 + electron-builder 26
@@ -37,12 +25,14 @@ Animators ship atlases that are as small as they mathematically can be without v
 - `@tanstack/react-virtual` — Phase 9 row virtualization
 - `vitest` 4 — testing
 
-**Known deferred (carried into v1.3):**
-- Phase 13.1: Linux AppImage + macOS/Windows v1.1.0→v1.1.1 auto-update lifecycle observation (host-blocked)
-- Apple Developer ID code-signing + notarization ($99/yr; declined for v1.2)
-- Crash + error reporting (Sentry / equivalent; declined for v1.2)
-- F1.5 Spine 4.3+ versioned loader adapters; `.skel` binary loader
+**Known deferred (carried into v1.4):**
+- Phase 13.1: Linux AppImage + macOS/Windows v1.1.0→v1.1.1 auto-update lifecycle observation (host-blocked; Linux now out of release scope per v1.3 ship decision)
+- Apple Developer ID code-signing + notarization ($99/yr; revisit at v1.4)
+- Crash + error reporting (Sentry / equivalent; revisit at v1.4)
+- SEED-003: Spine 4.3+ versioned loader adapters (planted 2026-05-07; primary v1.4 candidate)
+- `.skel` binary loader (still deferred)
 - Phase-0 scale-overshoot debug session (`investigating`; long-lived tech debt)
+- 21 audit-acknowledged carry-forwards from v1.0–v1.3 (see STATE.md → Deferred Items)
 
 ## Primary user
 
@@ -67,6 +57,14 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 | Discriminated-union typed-error envelope (D-158/D-171) | ✓ Good | 8 kinds including 7-field `SkeletonNotFoundOnLoadError` recovery payload. Caught misuse at compile time during Phase 8.1. |
 | Atomic Pattern-B write (`.tmp` + `fs.rename`) | ✓ Good | Reused across Phase 6 (sharp export) and Phase 8 (.stmproj save) — load-bearing across two subsystems. |
 | Hand-rolled ARIA modals (no library) | ✓ Good | OverrideDialog scaffold cloned by OptimizeDialog → AtlasPreviewModal → SaveQuitDialog → SettingsDialog → HelpDialog. Five dialogs, one pattern. |
+| Optimize folder picker deferred to Start/Export click (Phase 23) | ✓ Good | Dialog opens immediately on toolbar click — user sees the export plan before the native folder picker stalls. Eliminates up-front modal-on-modal sequencing. |
+| Missing-attachment rows synthesized post-sampler in `buildSummary` (Phase 25) | ✓ Good | Synthetic-atlas excludes stub regions from sampler output; `.map()+mark` had nothing to mark. Synthesizing stub `DisplayRow` entries from `skippedAttachments` is the only way to keep missing rows visible in panels. |
+| `WarningTriangleIcon` shared component (Phase 26.2 D-06) | ✓ Good | Single source of truth for the 4 fill→stroke conversions. Replaces ad-hoc Unicode ⚠ glyphs that couldn't size precisely. |
+| Tab strip in dedicated sub-toolbar row (Phase 26.2 sketch-001 variant A) | ✓ Good | Two prior reverts surfaced AP-01: tabs-in-main-toolbar caused vertical-space contention. Lifting to a separate row resolved AP-01 cleanly. The 3-tab restructure was DROPPED same milestone in favor of alert-bar layout. |
+| Functional `setSelected((prev) => ...)` updater (Phase 27) | ✓ Good | Closes a latent stale-closure race in `handleToggleRow` + `handleRangeToggle`. Durable regression spec compares closure-form vs functional-form side-by-side. |
+| Optional output sharpening on downscale, default OFF (Phase 28) | ✓ Good | `sharpen({ sigma: 0.5 })` mirrors Photoshop's "Bicubic Sharper (reduction)" preset. Downscale-only gate (`effectiveScale < 1.0`); passthrough rows + 1.0× rows unaffected. Persists per-project in `.stmproj` (additive optional `sharpenOnExport: boolean`). |
+| PMA preservation falsified — sharp 0.34 + libvips 8.17 auto-handle PMA (Phase 28 pivot) | ✓ Good | Backlog 999.9 ("PMA preservation in Optimize Assets export") closed `falsified` 2026-05-06. `scripts/pma-probe.mjs` retained as regression sentinel. Phase 28 pivoted same day to optional sharpening — the actual user-visible quality lever. |
+| Linux AppImage dropped from v1.3 release CI (untested target) | ✓ Good | Linux build path never verified live against a real Linux host. `electron-builder.yml linux:` block retained as no-op for re-enable after Linux UAT lands. |
 
 ## Constraints (still valid)
 
@@ -108,4 +106,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-04 after Phase 25 complete. v1.3 in progress (Phase 25 complete). Missing-attachment rows now shown in-context in Global Max Render Source and Animation Breakdown panels with red left-border accent, ⚠ icon, and danger-tinted ratio cell — alongside the existing MissingAttachmentsPanel. Root cause: `synthetic-atlas.ts` intentionally excludes stub regions from sampler; fix synthesizes `DisplayRow` entries from `skippedAttachments` post-sampler. `DisplayRow.isMissing?: boolean` added to IPC contract. Phase 26 (ui-polish) is next.*
+*Last updated: 2026-05-07 after v1.3 milestone complete. v1.3.0 shipped — 7 phases (23, 24, 25, 26.1, 26.2, 27, 28) closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale. Linux AppImage build dropped from CI as an untested target. SEED-003 (Spine 4.3 compatibility) planted for v1.4 pickup. Next: `/gsd-new-milestone` to start v1.4.*

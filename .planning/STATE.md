@@ -2,32 +2,32 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Polish & UX
-status: milestone_complete
-last_updated: "2026-05-06T21:55:44.106Z"
-last_activity: 2026-05-06
+status: completed
+last_updated: "2026-05-07T09:05:53.281Z"
+last_activity: 2026-05-07
 progress:
-  total_phases: 22
-  completed_phases: 16
-  total_plans: 70
-  completed_plans: 72
-  percent: 73
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 22
+  completed_plans: 22
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-06
+Phase: 28 (last shipped)
+Plan: —
+Status: v1.3 milestone shipped
+Last activity: 2026-05-07
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-03 after v1.2 milestone)
+See: .planning/PROJECT.md (updated 2026-05-07 after v1.3 milestone)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 28 — optional-output-sharpening
+**Current focus:** v1.3 shipped — preparing `v1.3.0` tag push. Next milestone: v1.4 (start with `/gsd-new-milestone`).
 
 ## Last Roadmap Update
 
@@ -96,21 +96,40 @@ Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-05-03:
+Items acknowledged and deferred at milestone close on 2026-05-07 (v1.3). 21 items total — most are pre-v1.3 carry-forwards or jsdom-blocked structural gaps.
+
+**Pre-v1.3 carry-forwards (still open from v1.0–v1.2):**
 
 | Category | Item | Status |
 |----------|------|--------|
-| debug | phase-0-scale-overshoot | investigating — v1.0-era AABB/rotation tech debt; no regression observed across 4 milestones |
-| uat_gaps | Phase 14 14-HUMAN-UAT.md | signed-off — 6 pending auto-update live-observation scenarios; pre-v1.2 milestone carry-forward |
-| uat_gaps | Phase 15 15-HUMAN-UAT.md | signed-off — 12 pending scenarios; pre-v1.2 milestone carry-forward |
-| uat_gaps | Phase 20 20-HUMAN-UAT.md | partial — Windows/Linux DnD cross-platform UAT; host-unavailable deferred |
-| verification_gaps | Phase 14 14-VERIFICATION.md | human_needed — auto-update live verification; pre-v1.2 carry-forward |
-| verification_gaps | Phase 20 20-VERIFICATION.md | human_needed — Doc Builder Windows/Linux DnD; host-deferred |
+| debug | phase-0-scale-overshoot | investigating — v1.0-era AABB/rotation tech debt; no regression observed across 5 milestones |
+| uat_gaps | Phase 14 14-HUMAN-UAT.md | signed-off — 6 pending auto-update live-observation scenarios; v1.1.x carry-forward |
+| uat_gaps | Phase 15 15-HUMAN-UAT.md | signed-off — 12 pending scenarios; v1.1.x carry-forward |
+| uat_gaps | Phase 16 16-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
+| uat_gaps | Phase 20 20-HUMAN-UAT.md | partial — Doc Builder Windows DnD UAT; host-blocked. Linux dropped from v1.3 — see below. |
+| uat_gaps | Phase 21 21-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
+| uat_gaps | Phase 24 24-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
+| verification_gaps | Phase 14 14-VERIFICATION.md | human_needed — auto-update live verification; v1.1.x carry-forward |
+| verification_gaps | Phase 20 20-VERIFICATION.md | human_needed — Doc Builder Windows/Linux DnD; host-deferred (Linux now out of scope) |
 | verification_gaps | Phase 21 21-VERIFICATION.md | human_needed — atlas-less mode HUMAN-UAT; explicitly deferred per user during Phase 21 execute |
 | quick_task | 2026-04-24-phase-4-code-review-follow-up.md | v1.0-era Phase 4 code review todo; long-lived tech debt |
-| quick_task | 2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md | Phase 20 Windows/Linux UAT; host-blocked |
+| quick_task | 2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md | Phase 20 Windows DnD UAT; host-blocked. Linux clause now obsolete (Linux build dropped in v1.3). |
 
-Seeds SEED-001 and SEED-002 were marked dormant by the audit tool but have been shipped as Phases 21 and 22 respectively — status updated to `shipped` in seed files.
+**v1.3-era acknowledgments:**
+
+| Category | Item | Status |
+|----------|------|--------|
+| uat_gaps | Phase 23 23-HUMAN-UAT.md | partial — 4 pending scenarios; require Electron native folder picker (not jsdom-testable) |
+| uat_gaps | Phase 25 25-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
+| uat_gaps | Phase 26.1 26.1-HUMAN-UAT.md | partial — 7 pending visual scenarios; require running dev server |
+| uat_gaps | Phase 26.2 26.2-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
+| uat_gaps | Phase 28 28-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
+| verification_gaps | Phase 23 23-VERIFICATION.md | human_needed — 7/7 must-haves verified at code level; "human_needed" status only because Electron native dialogs cannot run in jsdom. No real implementation gap. |
+| verification_gaps | Phase 25 25-VERIFICATION.md | human_needed — 10/13 verified; 3 visual UAT items require running Electron dev server (no implementation gap) |
+| quick_task | 260505-lk0-fix-sampler-silent-discard-of-alpha-0-at | shipped — fix landed in commit `0832660` (see `## Quick Tasks Completed` table); SUMMARY.md missing top-level `status:` field — cosmetic only |
+| pending_todo | 2026-05-04-phase-26-tab-system-global-unused-animation.md | superseded — became Phase 26.1 + 26.2; both shipped 2026-05-04. File should be moved to `.planning/todos/resolved/` post-ship. |
+
+Seeds SEED-001 and SEED-002 are shipped as Phases 21 and 22. SEED-003 (Spine 4.3 compatibility) planted 2026-05-07 (commit `823f490`) for v1.4 pickup.
 
 ## Accumulated Context (carries across milestones)
 

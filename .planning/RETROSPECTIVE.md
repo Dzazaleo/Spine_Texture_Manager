@@ -113,6 +113,57 @@
 
 ---
 
+## Milestone: v1.3 — Polish & UX
+
+**Shipped:** 2026-05-07
+**Phases:** 7 (23, 24, 25, 26.1, 26.2, 27, 28) | **Plans:** ~22
+**Timeline:** 2026-05-03 → 2026-05-07 (5 days, 293 commits)
+
+### What Was Built
+
+- **Optimize-flow UX correctness** (Phase 23) — OptimizeDialog opens immediately; folder picker fires on Start/Export click. Eliminates the up-front native-dialog stall.
+- **Panel semantics rewrite** (Phase 24) — Unused Assets reports images-folder-vs-JSON orphans (correct atlas-less semantics); extracted as collapsible sibling panel; atlas-savings metric replaces the misleading MB callout.
+- **Missing-attachment in-context rows** (Phase 25) — Stub `DisplayRow` synthesis post-sampler so missing-PNG rows stay visible in Global + Animation Breakdown with red accent + danger triangle.
+- **Comprehensive UI polish** (Phase 26.1 + 26.2) — `#232732` surface tokens, full-width panels, full-row zebra, danger-tinted missing rows, `WarningTriangleIcon` shared component, unified `h-8` toolbar buttons, tab strip in dedicated sub-toolbar (resolves AP-01 anti-pattern from 2 prior reverts).
+- **Phase 4 code-quality carry-forwards** (Phase 27) — Functional `setSelected` updater (closes stale-closure race); OverrideDialog empty-input Apply guard; dead `open` prop removal.
+- **Optional output sharpening** (Phase 28) — `sharpen({ sigma: 0.5 })` post-Lanczos3 on downscale-only rows. Persists per-project in `.stmproj`. Mirrors Photoshop's "Bicubic Sharper (reduction)" preset.
+
+### What Worked
+
+- **Cheap diagnostic before scoping a fix.** Confirmed twice this milestone — Windows GPU ruling and Phase 28 PMA falsification via `scripts/pma-probe.mjs`. Both saved a multi-day implementation that would have been a no-op. Memory `feedback_narrow_before_fixing` upgraded from "validated" to "load-bearing."
+- **Phase 28 same-day pivot from PMA to sharpening.** Original scope was promoted from backlog 999.9 (PMA preservation in Optimize Assets export). Within the discuss-phase, empirical falsification (sharp 0.34 + libvips 8.17 already auto-handle PMA) collapsed the original scope. The pivot to optional output sharpening was a clean replacement — same code surface, different lever, real user value.
+- **Strict `loaderMode` separation lock-in.** Memory locked 2026-05-06: atlas-source and atlas-less are self-contained; `load.atlasPath` gates every read of the opposite artifact set. Held across the v1.3 panel-semantics rewrite without a single cross-mode leak.
+- **`computeExportDims` canonical-base fix.** Surfaced + locked during Phase 22.1 fallout work — `outW` and `sourceRatio` must both use `canonicalW` to match `buildExportPlan`. Prevented atlas-source drift bug from re-emerging across v1.3 phases.
+- **Layout bugs: ask for screenshot before iterating.** Memory `feedback_layout_bugs_request_screenshots_early` saved 3+ rounds of speculative-fix-then-verify cycles on Phase 26.1 visual work. jsdom can't compute layout — one screenshot replaced an iterative debug loop.
+
+### What Was Inefficient
+
+- **3-tab restructure scoped + dropped same milestone (Phase 26.2).** Two prior reverts on the tabs-in-main-toolbar layout surfaced AP-01 (vertical-space contention), which prompted the 3-tab redesign — but the user dropped 3-tab same milestone in favor of the alert-bar layout. Lifting the existing 2-tab strip to a sub-toolbar row landed clean. **Lesson: when prior reverts indicate the layout space is contested, prototype the full restructure as a sketch (`/gsd-sketch`) before scoping a phase around it.**
+- **MILESTONES.md auto-extraction noise.** SDK's `milestone.complete` accomplishment-extractor scraped fragments across 16 phases (it didn't filter by milestone version), producing a noisy default entry full of "One-liner:" / "File:" stubs. Required full manual rewrite. **Lesson: same as v1.0 retrospective — enforce consistent SUMMARY.md frontmatter (`one_liner:`) and have the extractor filter by milestone-tagged phases. The SDK miscounts phases too (memory: `project_gsd_phase_complete_state_miscount`).**
+- **Audit-acknowledged carry-forwards growing.** v1.0 close: 5 deferred items. v1.2 close: 9 items. v1.3 close: 21 items. Most are jsdom-blocked structural gaps (Phase 14/15/20/21/23/25 verification) that can't be closed without running the actual app. **Lesson: stop counting these as "deferred" — they're "host-required UAT" and need their own category in the audit-open output. The `human_needed` verification status is structural, not a real implementation gap.**
+
+### Patterns Established
+
+- **Empirical falsification before scope.** Build a 30-line probe script (`scripts/pma-probe.mjs`) before committing to a multi-day implementation. If the premise falsifies, the probe is the regression sentinel. (Phase 28 precedent.)
+- **Stub-row synthesis post-sampler.** When a downstream consumer needs entries that the upstream pipeline intentionally drops, synthesize them at the consumer boundary, don't propagate stubs upstream. (Phase 25 `buildSummary` pattern.)
+- **Shared SVG icon component over Unicode glyphs.** When you need precise sizing, theming, and accessibility on a graphical mark, ship a typed component (`WarningTriangleIcon`) instead of a Unicode codepoint. (Phase 26.2 D-06 pattern.)
+- **Functional state updaters everywhere selectivity matters.** `setX((prev) => ...)` over `setX(currentValue)` for any handler that can be invoked in close succession. Closure-form vs functional-form parity tests are the proof. (Phase 27 pattern.)
+
+### Key Lessons
+
+1. **Falsify before you implement.** Phase 28's same-day pivot was the clearest payoff this milestone. A 30-line probe replaced a 5-day implementation.
+2. **Memory pays back during cross-cutting work.** `feedback_narrow_before_fixing`, `feedback_layout_bugs_request_screenshots_early`, `project_compute_export_dims_canonical_base`, and `project_strict_loadermode_separation` all fired during v1.3. None were needed for the immediate phase, but each saved iterations on cross-cutting concerns.
+3. **The audit-open count is becoming load-bearing.** 21 items at v1.3 close. Most aren't real gaps — they're structural jsdom limits or human-eyeballs-required UAT. The audit needs a category split (or these items need their own state outside the audit) before v1.4 close.
+4. **Don't ship to untested targets.** Linux AppImage was in CI without ever being verified live. The v1.3 ship decision (drop Linux, retain electron-builder.yml `linux:` block as a no-op) made the surface honest. Re-enable when UAT lands.
+
+### Cost Observations
+
+- Model mix: not tracked formally — sub-agent usage was significant for parallel research (Phase 28 PMA discuss-phase) and for code-review followups (REVIEW-FIX 4 commits).
+- Notable: Phase 28 had the most discuss-phase iteration (PMA falsification → pivot). Phase 26.1 had the most visual-UAT iteration (screenshots in 5+ rounds). Phase 27 was the cheapest (4 carry-forward fixes, 1 day).
+- Notable: 293 commits in 5 days — high cadence due to atomic per-task commits. Rebase-friendly history paid off during Phase 28 REVIEW-FIX (4 fixes, 4 commits, all isolated).
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -121,6 +172,7 @@
 |-----------|----------|--------|------------|
 | v1.0 | (untracked) | 12 | Initial GSD workflow adoption — Wave-0 RED-spec pattern, decimal-phase insertions, Layer 3 arch invariants. |
 | v1.2 | ~5 | 8 executed | SEED promotion via backlog review, Phase 17 skip via discuss-phase, POST-override partition pattern locked. |
+| v1.3 | ~6 | 7 | Empirical falsification before scope (Phase 28 same-day pivot), strict loaderMode separation lock-in, screenshots-first for layout bugs, Linux dropped from release CI as untested target. |
 
 ### Cumulative Quality
 
@@ -128,6 +180,7 @@
 |-----------|-------|----------|-------------------|
 | v1.0 | 333 (331 pass + 1 skip + 1 todo) | (untracked) | spine-core, sharp, maxrects-packer, @tanstack/react-virtual |
 | v1.2 | ~700+ (vitest) | (untracked) | No new deps. PNG IHDR byte-parser in pure TS; synthetic atlas builder in pure TS. |
+| v1.3 | ~720+ (vitest) | (untracked) | No new deps. `WarningTriangleIcon` shared SVG component; `pma-probe.mjs` regression sentinel. |
 
 ### Top Lessons (Verified Across Milestones)
 
