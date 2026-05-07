@@ -15,7 +15,7 @@ import * as path from 'node:path';
 import { Skeleton } from '@esotericsoftware/spine-core';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton, type PeakRecord } from '../../src/core/sampler.js';
-import { analyze, analyzeBreakdown } from '../../src/core/analyzer.js';
+import { analyze, analyzeBreakdown, analyzeRegions } from '../../src/core/analyzer.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const ANALYZER_SRC = path.resolve('src/core/analyzer.ts');
@@ -679,5 +679,261 @@ describe('analyzer: path-indirection lookup (regionName key)', () => {
     const sourcePaths = new Map([['CIRCLE', '/abs/path/CIRCLE.png']]);
     const rows = analyze(new Map([[rec.attachmentKey, rec]]), sourcePaths);
     expect(rows[0].sourcePath).toBe('/abs/path/CIRCLE.png');
+  });
+});
+
+// ===========================================================================
+// Phase 29 Plan 01 Task 2 — analyzeRegions + dedupByRegionName + REGION-05.
+//
+// 6 behaviors:
+//   1. No-indirection (SIMPLE_PROJECT shape) — N regions == N peaks; every
+//      RegionRow has contributingAttachments.length === 1.
+//   2. Path-indirection (Chicken shape) — three peaks sharing regionName fold
+//      into ONE RegionRow with 3 contributors, sorted by attachmentName lex.
+//   3. REGION-05 lex tiebreak — equal peakScale: lex-smallest attachmentName
+//      wins; higher peakScale wins outright when scales differ.
+//   4. regionName fallback — peaks with regionName === undefined fall back
+//      to attachmentName-keyed (matches analyzer.ts:220 idiom).
+//   5. RegionRow scalar fields = winner's fields — winning peakScale, winning
+//      skinName/slotName/animationName/time/frame/etc.
+//   6. Output sorted by regionName ASC.
+// ===========================================================================
+describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
+  function makePeak(overrides: Partial<PeakRecord> & {
+    attachmentName: string;
+    regionName?: string;
+  }): PeakRecord {
+    const defaults: PeakRecord = {
+      attachmentKey: `default/SLOT/${overrides.attachmentName}`,
+      skinName: 'default',
+      slotName: 'SLOT',
+      attachmentName: overrides.attachmentName,
+      regionName: overrides.regionName,
+      animationName: 'IDLE',
+      time: 0,
+      frame: 0,
+      peakScaleX: 1,
+      peakScaleY: 1,
+      peakScale: 1,
+      worldW: 100,
+      worldH: 100,
+      sourceW: 100,
+      sourceH: 100,
+      isSetupPosePeak: false,
+    };
+    return { ...defaults, ...overrides };
+  }
+
+  it('1. no-indirection (SIMPLE_PROJECT shape): unique regionNames count matches attachment-deduped peaks; regionName === attachmentName for every row', () => {
+    const load = loadSkeleton(FIXTURE);
+    const { globalPeaks: peaks } = sampleSkeleton(load);
+    const regions = analyzeRegions(peaks);
+    // SIMPLE_PROJECT has no path indirection: regionName === attachmentName for
+    // every peak. SQUARE's attachmentName appears on TWO slots (SQUARE +
+    // SQUARE2), so the SQUARE region naturally has 2 contributors. CIRCLE +
+    // TRIANGLE have 1 each → 3 unique region names total.
+    expect(regions.length).toBe(3);
+    const names = regions.map((r) => r.regionName).sort();
+    expect(names).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
+    for (const r of regions) {
+      // Every contributor's attachmentName equals the row's regionName under
+      // the no-indirection invariant — what makes this fixture exercise the
+      // "no path indirection" code path.
+      for (const c of r.contributingAttachments) {
+        expect(c.attachmentName).toBe(r.regionName);
+      }
+      expect(r.regionName).toBe(r.attachmentName);
+    }
+    // CIRCLE + TRIANGLE: one contributor each (single slot).
+    // SQUARE: two contributors (SQUARE slot + SQUARE2 slot, both named SQUARE).
+    const circle = regions.find((r) => r.regionName === 'CIRCLE')!;
+    const triangle = regions.find((r) => r.regionName === 'TRIANGLE')!;
+    const square = regions.find((r) => r.regionName === 'SQUARE')!;
+    expect(circle.contributingAttachments.length).toBe(1);
+    expect(triangle.contributingAttachments.length).toBe(1);
+    expect(square.contributingAttachments.length).toBe(2);
+  });
+
+  it('2. path-indirection (Chicken shape): three peaks sharing regionName="5/7" fold into ONE RegionRow with 3 contributors sorted by attachmentName lex', () => {
+    const a = makePeak({
+      attachmentName: '5/5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+      peakScaleX: 0.722,
+      peakScaleY: 0.722,
+    });
+    const b = makePeak({
+      attachmentName: '5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+      peakScaleX: 0.722,
+      peakScaleY: 0.722,
+    });
+    const c = makePeak({
+      attachmentName: '5/7',
+      regionName: '5/7',
+      peakScale: 0.746,
+      peakScaleX: 0.746,
+      peakScaleY: 0.746,
+    });
+    const peaks = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [b.attachmentKey, b],
+      [c.attachmentKey, c],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(1);
+    const row = regions[0];
+    expect(row.regionName).toBe('5/7');
+    expect(row.contributingAttachments.length).toBe(3);
+    // Contributors sorted by attachmentName lex ASC for determinism.
+    expect(row.contributingAttachments.map((c) => c.attachmentName)).toEqual([
+      '5/5/5/7/7',
+      '5/5/7/7',
+      '5/7',
+    ]);
+  });
+
+  it('3. REGION-05 lex tiebreak: equal peakScale → lex-smallest attachmentName wins; higher peakScale wins outright when scales differ', () => {
+    // Tie case: both peakScales 0.722 — lex-smallest "5/5/5/7/7" wins.
+    const a = makePeak({
+      attachmentName: '5/5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+      peakScaleX: 0.722,
+      peakScaleY: 0.722,
+    });
+    const b = makePeak({
+      attachmentName: '5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+      peakScaleX: 0.722,
+      peakScaleY: 0.722,
+    });
+    const peaksTie = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [b.attachmentKey, b],
+    ]);
+    const regionsTie = analyzeRegions(peaksTie);
+    expect(regionsTie.length).toBe(1);
+    expect(regionsTie[0].attachmentName).toBe('5/5/5/7/7');
+    expect(regionsTie[0].peakScale).toBeCloseTo(0.722, 6);
+
+    // Stable across Map insertion order — REGION-05 must be deterministic.
+    const peaksTieRev = new Map<string, PeakRecord>([
+      [b.attachmentKey, b],
+      [a.attachmentKey, a],
+    ]);
+    expect(analyzeRegions(peaksTieRev)[0].attachmentName).toBe('5/5/5/7/7');
+
+    // Higher peakScale wins outright: c has 0.746 > 0.722, so c wins even though
+    // its attachmentName ("5/7") is lex-LARGER than '5/5/5/7/7'.
+    const c = makePeak({
+      attachmentName: '5/7',
+      regionName: '5/7',
+      peakScale: 0.746,
+      peakScaleX: 0.746,
+      peakScaleY: 0.746,
+    });
+    const peaksDiff = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [c.attachmentKey, c],
+    ]);
+    const regionsDiff = analyzeRegions(peaksDiff);
+    expect(regionsDiff.length).toBe(1);
+    expect(regionsDiff[0].attachmentName).toBe('5/7');
+    expect(regionsDiff[0].peakScale).toBeCloseTo(0.746, 6);
+  });
+
+  it('4. regionName fallback: peaks with regionName === undefined fall back to attachmentName key (analyzer.ts:220 idiom)', () => {
+    // Synthetic fixture: no regionName set, three distinct attachmentNames.
+    // Behavior collapses to attachmentName-keyed dedup → 3 regions.
+    const a = makePeak({ attachmentName: 'TEX_A', peakScale: 0.5 });
+    const b = makePeak({ attachmentName: 'TEX_B', peakScale: 0.5 });
+    const c = makePeak({ attachmentName: 'TEX_C', peakScale: 0.5 });
+    const peaks = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [b.attachmentKey, b],
+      [c.attachmentKey, c],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(3);
+    const names = regions.map((r) => r.regionName).sort();
+    expect(names).toEqual(['TEX_A', 'TEX_B', 'TEX_C']);
+    // regionName falls back to attachmentName when peak.regionName is undefined.
+    for (const r of regions) {
+      expect(r.regionName).toBe(r.attachmentName);
+    }
+  });
+
+  it('5. RegionRow scalar fields = winner peak fields (path-indirected case)', () => {
+    const a = makePeak({
+      attachmentName: '5/5/5/7/7',
+      regionName: '5/7',
+      peakScale: 0.722,
+      peakScaleX: 0.722,
+      peakScaleY: 0.722,
+      animationName: 'WALK',
+      time: 0.5,
+      frame: 30,
+      skinName: 'default',
+      slotName: 'BODY',
+    });
+    const winner = makePeak({
+      attachmentName: '5/7',
+      regionName: '5/7',
+      peakScale: 0.746,
+      peakScaleX: 0.746,
+      peakScaleY: 0.746,
+      animationName: 'JUMP',
+      time: 1.5,
+      frame: 90,
+      skinName: 'skinB',
+      slotName: 'TORSO',
+    });
+    const peaks = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [winner.attachmentKey, winner],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(1);
+    const row = regions[0];
+    // Winner = higher peakScale → 0.746 (winner)
+    expect(row.peakScale).toBeCloseTo(0.746, 6);
+    // Top-level scalars come from the winner.
+    expect(row.attachmentName).toBe('5/7');
+    expect(row.skinName).toBe('skinB');
+    expect(row.slotName).toBe('TORSO');
+    expect(row.animationName).toBe('JUMP');
+    expect(row.time).toBe(1.5);
+    expect(row.frame).toBe(90);
+    // contributingAttachments[] still has both, sorted by attachmentName lex.
+    expect(row.contributingAttachments.length).toBe(2);
+    expect(row.contributingAttachments.map((c) => c.attachmentName)).toEqual([
+      '5/5/5/7/7',
+      '5/7',
+    ]);
+  });
+
+  it('6. output sorted by regionName ASC', () => {
+    const a = makePeak({ attachmentName: 'C_TEX', regionName: 'C_TEX' });
+    const b = makePeak({ attachmentName: 'A_TEX', regionName: 'A_TEX' });
+    const c = makePeak({ attachmentName: 'B_TEX', regionName: 'B_TEX' });
+    const peaks = new Map<string, PeakRecord>([
+      [a.attachmentKey, a],
+      [b.attachmentKey, b],
+      [c.attachmentKey, c],
+    ]);
+    const regions = analyzeRegions(peaks);
+    expect(regions.length).toBe(3);
+    const names = regions.map((r) => r.regionName);
+    expect(names).toEqual(['A_TEX', 'B_TEX', 'C_TEX']);
+  });
+
+  it('Layer 3 invariant: src/core/analyzer.ts has no electron / sharp / react imports', () => {
+    const src = readFileSync(ANALYZER_SRC, 'utf8');
+    expect(src).not.toMatch(/from ['"]sharp['"]/);
+    expect(src).not.toMatch(/from ['"]electron['"]/);
+    expect(src).not.toMatch(/from ['"]react['"]/);
   });
 });

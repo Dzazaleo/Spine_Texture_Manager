@@ -59,6 +59,7 @@ import type {
   DisplayRow,
   BreakdownRow,
   AnimationBreakdown,
+  RegionRow,
 } from '../shared/types.js';
 import { boneChainPath } from './bones.js';
 
@@ -147,6 +148,11 @@ function toDisplayRow(
     actualSourceW,
     actualSourceH,
     dimsMismatch,
+    // Phase 29 D-01 — atlas region name (path-indirection collapse key).
+    // Falls back to attachmentName per analyzer.ts:220 idiom — no behavioral
+    // change for non-indirected fixtures (regionName === attachmentName).
+    // CLI byte-lock D-102 preserved: scripts/cli.ts does not iterate this field.
+    regionName: p.regionName ?? p.attachmentName,
   };
 }
 
@@ -234,6 +240,171 @@ export function analyze(
   return dedupByAttachmentName(allRows).sort(byCliContract);
 }
 
+// ===========================================================================
+// Phase 29 Plan 01 Task 2 — Region-keyed dedup + analyzeRegions sibling fold.
+//
+// The fold collapses peaks by `regionName` (with `?? attachmentName` fallback
+// per the analyzer.ts:220 idiom), uses REGION-05 lex tiebreak on
+// `attachmentName` for equal-peakScale ties, and folds every contributing
+// peak into RegionRow.contributingAttachments[].
+// ===========================================================================
+
+/**
+ * Phase 29 D-02 + REGION-05 — Pick the winning peak within a region group.
+ *
+ * Higher peakScale wins outright; on ties, the lex-smallest attachmentName
+ * wins. Same one rule is reused at three call sites: this winner pick;
+ * override-migration collisions in project-io.ts (plan 29-03);
+ * equal-peak attribution in the Global panel.
+ *
+ * Differs from `pickHigherPeak` (skin/slot tiebreak) — REGION-05's contract
+ * is explicit lex on attachmentName, NOT (skinName, slotName).
+ */
+function pickRegionWinner(a: DisplayRow, b: DisplayRow): DisplayRow {
+  if (b.peakScale > a.peakScale) return b;
+  if (a.peakScale > b.peakScale) return a;
+  // REGION-05 lex tiebreak on attachmentName (NOT skin/slot).
+  return a.attachmentName.localeCompare(b.attachmentName) <= 0 ? a : b;
+}
+
+/**
+ * Phase 29 D-02 — Build a RegionRow from (regionName, winner peak, full
+ * contributor bucket). The bucket is sorted by attachmentName lex ASC before
+ * mapping into `contributingAttachments[]` so the array is deterministic
+ * across runs. Top-level scalars come from the winner; the array surface
+ * carries every per-attachment record that resolved to this region.
+ */
+function toRegionRow(
+  regionName: string,
+  winner: DisplayRow,
+  bucket: readonly DisplayRow[],
+): RegionRow {
+  const sortedBucket = [...bucket].sort((a, b) =>
+    a.attachmentName.localeCompare(b.attachmentName),
+  );
+  const contributingAttachments = sortedBucket.map((r) => ({
+    attachmentName: r.attachmentName,
+    skinName: r.skinName,
+    slotName: r.slotName,
+    peakScale: r.peakScale,
+    animationName: r.animationName,
+    time: r.time,
+    frame: r.frame,
+    isSetupPosePeak: r.isSetupPosePeak,
+  }));
+  return {
+    regionName,
+    // Winning contributor's scalars (REGION-05 lex tiebreak applied upstream).
+    attachmentName: winner.attachmentName,
+    skinName: winner.skinName,
+    slotName: winner.slotName,
+    animationName: winner.animationName,
+    time: winner.time,
+    frame: winner.frame,
+    peakScale: winner.peakScale,
+    peakScaleX: winner.peakScaleX,
+    peakScaleY: winner.peakScaleY,
+    worldW: winner.worldW,
+    worldH: winner.worldH,
+    sourceW: winner.sourceW,
+    sourceH: winner.sourceH,
+    isSetupPosePeak: winner.isSetupPosePeak,
+    sourcePath: winner.sourcePath,
+    canonicalW: winner.canonicalW,
+    canonicalH: winner.canonicalH,
+    actualSourceW: winner.actualSourceW,
+    actualSourceH: winner.actualSourceH,
+    dimsMismatch: winner.dimsMismatch,
+    isMissing: winner.isMissing,
+    ...(winner.atlasSource ? { atlasSource: winner.atlasSource } : {}),
+    // Preformatted labels reuse the winner's pre-computed strings.
+    originalSizeLabel: winner.originalSizeLabel,
+    peakSizeLabel: winner.peakSizeLabel,
+    scaleLabel: winner.scaleLabel,
+    sourceLabel: winner.sourceLabel,
+    frameLabel: winner.frameLabel,
+    contributingAttachments,
+  };
+}
+
+/**
+ * Phase 29 D-01 — Fold per-attachment DisplayRows by `regionName`. Multiple
+ * attachments resolving to one source PNG via Spine path indirection
+ * (att.path field) collapse into a single RegionRow whose
+ * `contributingAttachments[]` preserves the full per-attachment detail
+ * (D-02). Layer 3 — pure-TS, no I/O.
+ *
+ * Defensive fallback per the analyzer.ts:220 idiom: synthetic test fixtures
+ * may omit regionName; behavior collapses to attachmentName-keyed dedup
+ * (correct for the no-indirection case).
+ */
+function dedupByRegionName(rows: readonly DisplayRow[]): RegionRow[] {
+  const groups = new Map<string, DisplayRow[]>();
+  for (const r of rows) {
+    const key = r.regionName ?? r.attachmentName;
+    const bucket = groups.get(key);
+    if (bucket === undefined) groups.set(key, [r]);
+    else bucket.push(r);
+  }
+  const out: RegionRow[] = [];
+  for (const [regionName, bucket] of groups) {
+    let winner = bucket[0];
+    for (let i = 1; i < bucket.length; i++) {
+      winner = pickRegionWinner(winner, bucket[i]);
+    }
+    out.push(toRegionRow(regionName, winner, bucket));
+  }
+  return out;
+}
+
+/**
+ * Phase 29 D-01 — Sibling fold to `analyze()` that returns RegionRow[]
+ * instead of DisplayRow[]. One row per unique regionName; preserves full
+ * per-attachment detail under contributingAttachments[]. Sorted by
+ * regionName ASC for IPC-time determinism (the panel re-sorts by displayed
+ * column at runtime — Phase 19 visual ordering invariant).
+ *
+ * Internally builds the FULL per-attachment row stream via `toDisplayRow`
+ * (mirroring the per-row construction inside `analyze()`), then folds by
+ * regionName. CLI golden lock D-102 is preserved because `analyze()`'s
+ * public return + sort order are unchanged on SIMPLE_PROJECT (regionName
+ * === attachmentName when there is no path indirection).
+ *
+ * Mirrors `analyze()`'s parameter shape exactly so summary.ts can pass the
+ * same maps to both functions in lock-step (plan 29-01 Task 3).
+ */
+export function analyzeRegions(
+  peaks: Map<string, PeakRecord>,
+  sourcePaths?: ReadonlyMap<string, string>,
+  atlasSources?: ReadonlyMap<string, NonNullable<DisplayRow['atlasSource']>>,
+  canonicalDims?: ReadonlyMap<string, { canonicalW: number; canonicalH: number }>,
+  actualDims?: ReadonlyMap<string, { actualSourceW: number; actualSourceH: number }>,
+): RegionRow[] {
+  // Per-attachment row construction mirrors analyze() lines 214-233 exactly —
+  // we cannot call analyze() directly because that would yield the
+  // attachmentName-DEDUPED row list (loses the per-attachment fan-out we need
+  // for contributingAttachments[]). Reuse toDisplayRow + the same lookup-key
+  // idiom; only the downstream fold differs (dedupByRegionName vs
+  // dedupByAttachmentName).
+  const allRows: DisplayRow[] = [...peaks.values()].map((p) => {
+    const lookupKey = p.regionName ?? p.attachmentName;
+    const cd = canonicalDims?.get(lookupKey);
+    const ad = actualDims?.get(lookupKey);
+    return toDisplayRow(
+      p,
+      sourcePaths?.get(lookupKey) ?? '',
+      atlasSources?.get(lookupKey),
+      cd?.canonicalW,
+      cd?.canonicalH,
+      ad?.actualSourceW,
+      ad?.actualSourceH,
+    );
+  });
+  return dedupByRegionName(allRows).sort((a, b) =>
+    a.regionName.localeCompare(b.regionName),
+  );
+}
+
 /**
  * Phase 3 Plan 01 — Convert a PeakRecord to a BreakdownRow.
  *
@@ -302,6 +473,10 @@ function toBreakdownRow(
     actualSourceW,
     actualSourceH,
     dimsMismatch,
+    // Phase 29 D-01 — propagate regionName so per-card BreakdownRow consumers
+    // can route through the same key as DisplayRow / RegionRow when needed.
+    // No behavior change on SIMPLE_PROJECT (regionName === attachmentName).
+    regionName: p.regionName ?? p.attachmentName,
     // Phase 3 additions (D-67, F4.3):
     bonePath,
     bonePathLabel: bonePath.join(BONE_PATH_SEPARATOR),
