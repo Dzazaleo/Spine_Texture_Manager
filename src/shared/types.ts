@@ -835,6 +835,14 @@ export interface MaterializedProject {
   // legacy files without the field default to 'auto' via the validator.
   loaderMode: 'auto' | 'atlas-less';
   /**
+   * True when materializeProjectFile healed an inconsistent
+   * `(loaderMode='atlas-less', atlasPath != null)` pair on Open by snapping
+   * loaderMode to 'auto'. The renderer surfaces a notice so the user knows
+   * the in-memory state diverges from the on-disk file until the next save.
+   * Absent for healthy round-tripped files.
+   */
+  loaderModeHealed?: boolean;
+  /**
    * Phase 28 SHARP-01 — threaded through main/project-io.ts so AppShell
    * seeds its sharpenOnExportLocal slot on Open / locate-skeleton recovery.
    */

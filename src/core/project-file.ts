@@ -364,6 +364,15 @@ export interface PartialMaterialized {
    */
   loaderMode: 'auto' | 'atlas-less';
   /**
+   * True when the materializer detected an inconsistent
+   * `(loaderMode === 'atlas-less' && atlasPath !== null)` pair on disk and
+   * healed the in-memory `loaderMode` to `'auto'`. The on-disk file is left
+   * untouched until the user saves; the renderer surfaces a notice so the
+   * user knows their next save will rewrite the file consistently. Absent
+   * for round-tripped healthy files.
+   */
+  loaderModeHealed?: boolean;
+  /**
    * Phase 28 SHARP-01 — defence-in-depth fallback (validator pre-massage
    * already substitutes false, but defaults here too in case any future
    * code path bypasses the validator). Mirrors loaderMode field above.
@@ -401,6 +410,20 @@ export function materializeProjectFile(
   projectFilePath: string,
 ): PartialMaterialized {
   const basedir = path.dirname(projectFilePath);
+  // L3 heal — older builds (and a brief Windows-build window) could persist
+  // an inconsistent (loaderMode='atlas-less', atlasPath != null) pair when
+  // the user's UI toggle raced the save path. The locked invariant
+  // `project_strict_loadermode_separation` requires the two branches to be
+  // self-contained: atlas-less ignores atlasPath, atlas-source ignores
+  // imagesDir. With atlas-less + atlasPath set + imagesDir null, the loader
+  // forces synthesis (project-io.ts:414) which fails when no images/ folder
+  // exists — but the .atlas file is right there, so atlas-source works.
+  // Snap loaderMode to 'auto' (which honors atlasPath) and flag the heal so
+  // the renderer can surface a "your next save will fix this" notice.
+  const rawLoaderMode = file.loaderMode ?? 'auto';
+  const loaderModeHealed =
+    rawLoaderMode === 'atlas-less' && file.atlasPath !== null;
+  const loaderMode: 'auto' | 'atlas-less' = loaderModeHealed ? 'auto' : rawLoaderMode;
   return {
     skeletonPath: absolutizePath(file.skeletonPath, basedir),
     atlasPath: file.atlasPath !== null ? absolutizePath(file.atlasPath, basedir) : null,
@@ -419,10 +442,8 @@ export function materializeProjectFile(
     // constructs a ProjectFileV1 literal that bypasses the validator, the
     // materializer back-fill keeps the renderer safe.
     documentation: { ...DEFAULT_DOCUMENTATION, ...file.documentation },
-    // Phase 21 D-08 — defence-in-depth fallback (validator pre-massage
-    // already substitutes 'auto', but defaults here too in case any
-    // future code path bypasses the validator).
-    loaderMode: file.loaderMode ?? 'auto',
+    loaderMode,
+    ...(loaderModeHealed ? { loaderModeHealed: true } : {}),
     // Phase 28 SHARP-01 — defence-in-depth nullish-coalesce; validator
     // pre-massage already substitutes false. Mirrors loaderMode line above.
     sharpenOnExport: file.sharpenOnExport ?? false,

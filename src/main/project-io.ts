@@ -551,6 +551,9 @@ export async function handleProjectOpenFromPath(
     // Phase 21 D-08 — thread loaderMode so AppShell can seed its toggle UI
     // state on Open. Validator already defaulted legacy files to 'auto'.
     loaderMode: materialized.loaderMode,
+    // L3 — propagate the heal flag so AppShell can render a notice. Spread
+    // conditionally so healthy files don't carry the field across IPC.
+    ...(materialized.loaderModeHealed === true ? { loaderModeHealed: true } : {}),
     // Phase 28 SHARP-01 — thread sharpenOnExport so AppShell can seed its
     // sharpenOnExportLocal slot on Open. Mirrors loaderMode site immediately
     // above (Phase 21 D-08 Site 2).

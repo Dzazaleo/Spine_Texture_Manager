@@ -381,6 +381,14 @@ export function AppShell({
       : null,
   );
 
+  // L3 heal notice — true when materializeProjectFile snapped an inconsistent
+  // (loaderMode='atlas-less', atlasPath!=null) pair to 'auto' on Open. Cleared
+  // on next successful Save (the L1 sanitize will rewrite the file
+  // consistently) or by the user dismissing the banner.
+  const [loaderModeHealedNotice, setLoaderModeHealedNotice] = useState<boolean>(
+    initialProject?.loaderModeHealed === true,
+  );
+
   /**
    * D-149 inline error state. Set when a load attempt returns
    * SkeletonNotFoundOnLoadError; cleared after the locate-skeleton + reload
@@ -715,7 +723,15 @@ export function AppShell({
   const buildSessionState = useCallback(
     (): AppSessionState => ({
       skeletonPath: summary.skeletonPath,
-      atlasPath: summary.atlasPath ?? null,
+      // L1 sanitize — atlas-less mode must NOT persist atlasPath. The locked
+      // invariant `project_strict_loadermode_separation` requires the two
+      // branches to be self-contained; persisting both produces an
+      // unsatisfiable file (loader takes the synth-atlas branch and fails
+      // when no images/ folder exists, even though the atlas is sitting
+      // right there). Drop atlasPath at save time when atlas-less is the
+      // active mode; materializeProjectFile's L3 heal recovers existing
+      // pre-sanitize files on Open.
+      atlasPath: loaderMode === 'atlas-less' ? null : (summary.atlasPath ?? null),
       imagesDir: null,
       overrides: Object.fromEntries(overrides),
       // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
@@ -847,6 +863,9 @@ export function AppShell({
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
+        // Save rewrites the .stmproj via the L1-sanitized buildSessionState,
+        // so the on-disk inconsistency that triggered L3 heal is now gone.
+        setLoaderModeHealedNotice(false);
       }
       return resp;
     } finally {
@@ -880,6 +899,8 @@ export function AppShell({
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
         });
         setStaleOverrideNotice(null);
+        // L3 heal — Save As also rewrites the .stmproj consistently.
+        setLoaderModeHealedNotice(false);
       }
       return resp;
     } finally {
@@ -1065,6 +1086,9 @@ export function AppShell({
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
     );
+    // L3 heal — surface materializeProjectFile's snap-to-auto so the user
+    // knows the on-disk file diverges from the in-memory state until next save.
+    setLoaderModeHealedNotice(project.loaderModeHealed === true);
     setSkeletonNotFoundError(null);
     // Phase 20 D-09/D-10/D-11 — drift-policy intersection on every materialize/
     // load. Any saved documentation entries whose names no longer exist in
@@ -1710,6 +1734,31 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setStaleOverrideNotice(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {/* L3 heal banner — shown when materializeProjectFile snapped an
+          inconsistent (loaderMode='atlas-less', atlasPath!=null) pair to
+          'auto' on Open. Mirrors the staleOverrideNotice surface above so
+          the visual idiom for "loaded with corrections" is consistent.
+          Auto-clears on next successful Save (the L1-sanitized buildSessionState
+          rewrites the .stmproj consistently). */}
+      {loaderModeHealedNotice && (
+        <div
+          role="status"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />
+          <span className="flex-1">
+            Project file had an inconsistent loader-mode setting and was
+            opened in atlas-source mode. Save again to fix the file on disk.
+          </span>
+          <button
+            type="button"
+            onClick={() => setLoaderModeHealedNotice(false)}
             className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
           >
             Dismiss
