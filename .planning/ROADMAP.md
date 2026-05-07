@@ -696,7 +696,12 @@ Plans:
   6. A regression fixture stripped from Chicken (target <1MB committed under `fixtures/Chicken-Min/` or equivalent) is added; vitest suite includes a path-indirection regression test exercising the per-region dedup contract across analyzer + atlas-preview + export.
   7. All ~8+ existing call sites that currently do `summary.peaks.find(p => p.attachmentName === X)` are migrated to the new contract (region-keyed lookup or region+contributingAttachments resolution) without behavior regression on non-path-indirected projects (SIMPLE_PROJECT golden tests pass byte-for-byte where applicable).
 
-**Plans**: TBD (run `/gsd-discuss-phase 29` then `/gsd-plan-phase 29`)
+**Plans**: 4 plans
+
+- [ ] 29-01-PLAN.md — RegionRow types + analyzer dedupByRegionName + summary.regions field + doc-export count flip (REGION-01, REGION-05) (Wave 1)
+- [ ] 29-02-PLAN.md — Atlas Preview re-key + Global panel consumer flip + tooltip + label format (REGION-01, REGION-02, REGION-03, REGION-06, PREVIEW-01) (Wave 2)
+- [ ] 29-03-PLAN.md — Override storage Map<regionName> flip + .stmproj migration + AppShell migration banner + export.ts override-read flip (REGION-04) (Wave 3)
+- [ ] 29-04-PLAN.md — fixtures/Chicken-Min/ regression fixture + path-indirection vitest spec (REGION-06, REGION-07) (Wave 4)
 
 **UI hint**: yes
 
