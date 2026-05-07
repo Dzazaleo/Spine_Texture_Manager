@@ -61,7 +61,8 @@ import {
 import clsx from 'clsx';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, RegionRow } from '../../../shared/types.js';
-import { computeExportDims, safeScale } from '../lib/export-view.js';
+import { safeScale } from '../lib/export-view.js';
+import { type EnrichedRow, enrichWithEffective } from '../lib/enrich-overrides.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
@@ -99,37 +100,12 @@ type SortDir = 'asc' | 'desc';
  * effExportW/effExportH replace the legacy effectiveWorldW/H names so the
  * semantic shift is explicit at every read site.
  *
- * Phase 29 D-01 (Plan 29-02 Task 3): EnrichedRow now extends RegionRow (one
- * row per source PNG) instead of DisplayRow (one row per attachment). The
- * selection key is `regionName`; row label format is `{regionName}.png` with
- * `images/` prefix stripped (REGION-03); a parenthetical "(used by N
- * attachments)" indicator renders when contributingAttachments.length > 1
- * (D-08). The shape preserves DisplayRow's render-relevant scalars (skinName,
- * peakScale, sourceW, etc.) so the existing render code mostly works
- * unchanged after the rename.
+ * Phase 29 D-01 (Plan 29-02 Task 3): EnrichedRow extends RegionRow (one row
+ * per source PNG) instead of DisplayRow (one row per attachment). Type +
+ * helper extracted to ../lib/enrich-overrides.ts (post-29-07 cleanup) so the
+ * regression test can import the pure logic without pulling the panel's
+ * DOM/JSX surface into tsconfig.node.json scope.
  */
-type EnrichedRow = RegionRow & {
-  effectiveScale: number;
-  effExportW: number;
-  effExportH: number;
-  /**
-   * Source-shrink display scale (2026-05-05): outW / sourceW. Answers "how
-   * much will the on-disk PNG be reduced to reach the export size?" — the
-   * number that goes into the panel's Scale column.
-   */
-  displayScale: number;
-  /**
-   * Peak display dims (2026-05-05): the world-space pixel demand the rig
-   * needs at peak (or override-adjusted peak), clamped at canonical so we
-   * never extrapolate. INVARIANT of source PNG dims — does not shift across
-   * re-optimize/reload cycles. Distinct from effExportW/H, which is capped
-   * by sourceRatio for the actual export-write safety.
-   */
-  peakDisplayW: number;
-  peakDisplayH: number;
-  /** undefined when no override; else the clamped integer percent. */
-  override: number | undefined;
-};
 
 export interface GlobalMaxRenderPanelProps {
   summary: SkeletonSummary;
@@ -235,73 +211,6 @@ const NOOP_OPEN_DIALOG: (
   row: RegionRow,
   selectedKeys?: ReadonlySet<string>,
 ) => void = () => undefined;
-
-/**
- * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw row[] with
- * render-time effective fields. Now uses the renderer-side computeExportDims
- * helper (single source of truth shared with OptimizeDialog), so the panel's
- * "Peak W×H" column shows the EXPORT dims — Math.ceil(sourceDim ×
- * ceil-thousandth-effScale, clamped ≤ source) — instead of the world-AABB.
- *
- * The world-AABB (worldW/worldH from the sampler) is preserved on the raw
- * fields and surfaced via the cell's hover tooltip for power users.
- *
- * Phase 29 D-04 (Plan 29-03 + 29-05 + 29-07): operates on RegionRow[] (one
- * row per source PNG / regionName). The override Map is regionName-keyed
- * end-to-end (AppShell.tsx WRITE side + export.ts READ side + this panel
- * READ side all speak the same `row.regionName ?? row.attachmentName` key
- * contract). The fallback covers synthetic test fixtures and the
- * no-indirection legacy case where `regionName === attachmentName`.
- */
-function enrichWithEffective(
-  rows: readonly RegionRow[],
-  overrides: ReadonlyMap<string, number>,
-): EnrichedRow[] {
-  return rows.map((row) => {
-    // Phase 29 D-04 (Plan 29-07): query by `row.regionName ?? row.attachmentName`
-    // to mirror AppShell's regionName-keyed write contract (AppShell.tsx:523-526)
-    // and the export-math read (export.ts:187-188). The fallback handles
-    // synthetic test fixtures and no-indirection legacy callers where
-    // `regionName` may be undefined.
-    const override = overrides.get(row.regionName ?? row.attachmentName);
-    // Phase 22 DIMS-03 (Plan 22-04) — pass actualSourceW/H + dimsMismatch
-    // through so the panel's Peak W×H column reflects cap math (drifted rows
-    // show on-disk dims, NOT pre-cap canonical × peakScale). Without these,
-    // the panel would lie to the user about what the export will actually
-    // produce when the cap binds.
-    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
-      row.sourceW,
-      row.sourceH,
-      row.peakScale,
-      override,
-      row.actualSourceW,
-      row.actualSourceH,
-      row.dimsMismatch,
-      row.canonicalW,
-      row.canonicalH,
-    );
-    return {
-      ...row,
-      effectiveScale: effScale,
-      effExportW: outW,
-      effExportH: outH,
-      displayScale,
-      peakDisplayW,
-      peakDisplayH,
-      override,
-    };
-  });
-}
-
-/**
- * Phase 29 D-04 (Plan 29-07): named export of the module-private
- * `enrichWithEffective` for panel READ-side regression testing in
- * tests/regression/path-indirection.spec.ts. The double-underscore prefix
- * signals "test-only — do not import from production code". The named export
- * is a 1-line re-export with zero behavior delta; the panel's default-render
- * path continues to call the local binding.
- */
-export const __test_only_enrichWithEffective = enrichWithEffective;
 
 function filterByName(rows: readonly EnrichedRow[], query: string): EnrichedRow[] {
   const q = query.trim().toLowerCase();

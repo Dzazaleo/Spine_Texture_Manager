@@ -37,7 +37,7 @@ import { buildSummary } from '../../src/main/summary.js';
 import { buildExportPlan } from '../../src/core/export.js';
 import { buildAtlasPreview } from '../../src/core/atlas-preview.js';
 import type { SkeletonSummary, RegionRow } from '../../src/shared/types.js';
-import { __test_only_enrichWithEffective } from '../../src/renderer/src/panels/GlobalMaxRenderPanel.js';
+import { enrichWithEffective } from '../../src/renderer/src/lib/enrich-overrides.js';
 
 const FIXTURE = path.resolve('fixtures/Chicken-Min/Chicken-Min.json');
 
@@ -458,7 +458,7 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     // Plan-29-07 named test export. Pre-29-07 fix this asserts
     // `enriched[0].override === undefined` (Map miss); post-fix it asserts
     // `enriched[0].override === 0.011` (Map hit by regionName).
-    const enriched = __test_only_enrichWithEffective([region57], overrides);
+    const enriched = enrichWithEffective([region57], overrides);
 
     // The post-29-07 contract — the override REACHES the EnrichedRow.
     expect(enriched).toHaveLength(1);
@@ -468,7 +468,7 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     // (the pre-29-07 lookup) must NOT match — this proves the fix removed the
     // attachmentName-keyed lookup, not just added a regionName branch alongside.
     const wrongKeyOverrides: ReadonlyMap<string, number> = new Map([['5/5/5/7/7', 0.011]]);
-    const wrongKeyEnriched = __test_only_enrichWithEffective([region57], wrongKeyOverrides);
+    const wrongKeyEnriched = enrichWithEffective([region57], wrongKeyOverrides);
     expect(wrongKeyEnriched[0].override).toBeUndefined();
 
     // Backward-compat lock for the no-indirection case: a synthetic row whose
@@ -476,7 +476,7 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     // continues to resolve via the `?? row.attachmentName` fallback.
     const noIndirectionRow: RegionRow = { ...region57, regionName: 'CIRCLE', attachmentName: 'CIRCLE' } as RegionRow;
     const noIndirectionOverrides: ReadonlyMap<string, number> = new Map([['CIRCLE', 0.5]]);
-    const noIndirectionEnriched = __test_only_enrichWithEffective(
+    const noIndirectionEnriched = enrichWithEffective(
       [noIndirectionRow],
       noIndirectionOverrides,
     );
