@@ -33,12 +33,12 @@
  * clicking the Scale cell does not toggle selection).
  *
  * Phase 4 Plan 03 gap-fixes (human-verify 2026-04-24):
- *   - Gap A: selection set is converted from internal row identity (post Phase
- *     29: regionName) to attachmentName at the dialog invocation site so the
- *     outbound onOpenOverrideDialog contract reaches AppShell as a Set of
- *     attachmentNames (the override Map is still attachmentName-keyed pre
- *     Plan 29-03). Path-indirected regions expand into the union of their
- *     contributing attachments. See 04-03-SUMMARY.md §Deviations.
+ *   - Gap A (superseded by Phase 29 Plan 29-05 / CR-01 fix): selection set is
+ *     passed verbatim as a Set<regionName> to AppShell. The override Map is
+ *     regionName-keyed (Plan 29-03 + 29-05) so no contributor-fan-out
+ *     conversion exists in the panel. The pre-29-05 contributor-fan-out memo
+ *     poisoned the Map with contributor names on path-indirected fixtures;
+ *     removed in Plan 29-05.
  *   - Gap B: applyOverride is called with the single-arg signature
  *     (overridePercent) — effective scale = percent / 100. Non-overridden
  *     rows still show peakScale; peak is no longer threaded through the
@@ -814,23 +814,9 @@ export function GlobalMaxRenderPanel({
   const visibleKeys = useMemo(() => sorted.map((r) => r.regionName), [sorted]);
 
 
-  // Phase 29 (Plan 29-02 Task 3): the panel's selection key is now `regionName`
-  // (one row per source PNG / atlas region). The outbound onOpenOverrideDialog
-  // contract still hands AppShell a Set of names — at this checkpoint AppShell's
-  // override Map is keyed by attachmentName (Plan 29-03 will flip it). For now,
-  // expand each selected regionName into the union of its contributing
-  // attachmentNames so the existing AppShell batch-scope check (which reads the
-  // attachmentName-keyed override Map) keeps working unchanged.
-  // Gap-fix A (human-verify 2026-04-24) — original Plan 04-03 mapping doc.
-  const selectedAttachmentNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const r of enriched) {
-      if (selected.has(r.regionName)) {
-        for (const c of r.contributingAttachments) names.add(c.attachmentName);
-      }
-    }
-    return names;
-  }, [selected, enriched]);
+  // Phase 29 Plan 29-05 (CR-01 fix): the panel's regionName-keyed `selected`
+  // Set is passed verbatim to AppShell as `selectedKeys`. AppShell's override
+  // Map is regionName-keyed post-29-03; no fan-out conversion needed.
 
   const handleSort = useCallback(
     (col: SortCol) => {
@@ -1113,7 +1099,7 @@ export function GlobalMaxRenderPanel({
                       suppressNextChangeRef={suppressNextChangeRef}
                       onJumpToAnimation={onJumpToAnimation}
                       onOpenOverrideDialog={openDialog}
-                      selectedKeys={selectedAttachmentNames}
+                      selectedKeys={selected}
                       isFlashing={isFlashing === row.regionName}
                       registerRef={(el) => registerRowRef(row.regionName, el)}
                       state={state}
@@ -1237,7 +1223,7 @@ export function GlobalMaxRenderPanel({
                   suppressNextChangeRef={suppressNextChangeRef}
                   onJumpToAnimation={onJumpToAnimation}
                   onOpenOverrideDialog={openDialog}
-                  selectedKeys={selectedAttachmentNames}
+                  selectedKeys={selected}
                   /* Phase 7 D-130 NEW (Phase 29 D-07: keyed by regionName): */
                   isFlashing={isFlashing === row.regionName}
                   registerRef={(el) => registerRowRef(row.regionName, el)}
