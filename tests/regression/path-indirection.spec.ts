@@ -37,6 +37,7 @@ import { buildSummary } from '../../src/main/summary.js';
 import { buildExportPlan } from '../../src/core/export.js';
 import { buildAtlasPreview } from '../../src/core/atlas-preview.js';
 import type { SkeletonSummary, RegionRow } from '../../src/shared/types.js';
+import { __test_only_enrichWithEffective } from '../../src/renderer/src/panels/GlobalMaxRenderPanel.js';
 
 const FIXTURE = path.resolve('fixtures/Chicken-Min/Chicken-Min.json');
 
@@ -381,6 +382,105 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
       expect(exportRow!.outW).toBe(expectedOutW);
       expect(exportRow!.outH).toBe(expectedOutH);
     }
+  });
+
+  it('REGION-04 (Plan 29-07): panel READ-side reads override by regionName, not attachmentName, on path-indirected rigs', () => {
+    // Phase 29 Plan 29-07 — panel READ-side closure of REGION-04. The
+    // .planning/phases/.../29-VERIFICATION.md `gaps[0].missing[2]` requires:
+    // "Add a panel-level test that builds a path-indirected synthetic summary
+    // where row.regionName != row.attachmentName, builds an overrides Map
+    // keyed by regionName, calls enrichWithEffective(rows, overrides), and
+    // asserts enriched[0].override === <expected percent>."
+    //
+    // Pre-29-07 the panel's enrichWithEffective at line 262 read
+    // `overrides.get(row.attachmentName)`. On path-indirected rigs where the
+    // lex-tiebreak winner.attachmentName differs from regionName (Chicken-Min:
+    // regionName='5/7' has winner.attachmentName='5/5/5/7/7'), the Map miss
+    // cascaded through EnrichedRow.override → Peak-cell text-accent class →
+    // PencilIcon → displayScale + peakDisplayW/H → state tinting → 'override'
+    // filter keyword → DimsBadge.effectiveScale prop. Export pipeline applied
+    // the override correctly (export.ts:187-188 reads regionName-keyed) so the
+    // user observed a screen-vs-disk divergence: panel showed full-size
+    // rendering, on-disk PNG was correctly downscaled.
+    //
+    // Post-29-07 the panel's enrichWithEffective reads
+    // `overrides.get(row.regionName ?? row.attachmentName)` — symmetric with
+    // AppShell.tsx:523-526 (WRITE side) and export.ts:187-188 (export-math
+    // read). All three sites speak the same key contract.
+
+    // Build a synthetic path-indirected RegionRow mirroring Chicken-Min's
+    // '5/7' region: 3 contributing attachments ('5/5/5/7/7', '5/5/7/7', '5/7'),
+    // lex-tiebreak winner '5/5/5/7/7' (lex-smallest), regionName '5/7'.
+    // Critical: regionName !== winner.attachmentName, which is the exact
+    // condition that triggered the Map miss pre-29-07.
+    const region57: RegionRow = {
+      regionName: '5/7',
+      // Lex-tiebreak winner — '5/5/5/7/7' < '5/5/7/7' < '5/7' in lex order:
+      attachmentName: '5/5/5/7/7',
+      skinName: 'default',
+      slotName: 'SLOT_5/5/5/7/7',
+      animationName: 'IDLE',
+      time: 0,
+      frame: 0,
+      peakScale: 1.0,
+      peakScaleX: 1.0,
+      peakScaleY: 1.0,
+      worldW: 378,
+      worldH: 428,
+      sourceW: 378,
+      sourceH: 428,
+      isSetupPosePeak: false,
+      sourcePath: '/fake/5/7.png',
+      canonicalW: 378,
+      canonicalH: 428,
+      actualSourceW: undefined,
+      actualSourceH: undefined,
+      dimsMismatch: false,
+      originalSizeLabel: '378×428',
+      peakSizeLabel: '378×428',
+      scaleLabel: '1.000×',
+      sourceLabel: 'IDLE',
+      frameLabel: '0',
+      contributingAttachments: [
+        { attachmentName: '5/5/5/7/7', skinName: 'default', slotName: 'SLOT_5/5/5/7/7', peakScale: 1.0, animationName: 'IDLE', time: 0, frame: 0, isSetupPosePeak: false },
+        { attachmentName: '5/5/7/7',   skinName: 'default', slotName: 'SLOT_5/5/7/7',   peakScale: 1.0, animationName: 'IDLE', time: 0, frame: 0, isSetupPosePeak: false },
+        { attachmentName: '5/7',       skinName: 'default', slotName: 'SLOT_5/7',       peakScale: 1.0, animationName: 'IDLE', time: 0, frame: 0, isSetupPosePeak: false },
+      ],
+    } as RegionRow;
+
+    // Build the overrides Map keyed by regionName (matches AppShell's
+    // post-29-03 contract). The percent (0.011) is the user's reproduced
+    // bug from .planning/debug/path-indirected-duplicate-rows.md — the
+    // 4×4-on-378-wide repro that Phase 29 set out to close.
+    const overrides: ReadonlyMap<string, number> = new Map([['5/7', 0.011]]);
+
+    // Drive the panel's READ-side enrichment helper directly via the
+    // Plan-29-07 named test export. Pre-29-07 fix this asserts
+    // `enriched[0].override === undefined` (Map miss); post-fix it asserts
+    // `enriched[0].override === 0.011` (Map hit by regionName).
+    const enriched = __test_only_enrichWithEffective([region57], overrides);
+
+    // The post-29-07 contract — the override REACHES the EnrichedRow.
+    expect(enriched).toHaveLength(1);
+    expect(enriched[0].override).toBe(0.011);
+
+    // Symmetric negative assertion: a Map keyed by the WINNING attachmentName
+    // (the pre-29-07 lookup) must NOT match — this proves the fix removed the
+    // attachmentName-keyed lookup, not just added a regionName branch alongside.
+    const wrongKeyOverrides: ReadonlyMap<string, number> = new Map([['5/5/5/7/7', 0.011]]);
+    const wrongKeyEnriched = __test_only_enrichWithEffective([region57], wrongKeyOverrides);
+    expect(wrongKeyEnriched[0].override).toBeUndefined();
+
+    // Backward-compat lock for the no-indirection case: a synthetic row whose
+    // `regionName === attachmentName` (or whose regionName is undefined)
+    // continues to resolve via the `?? row.attachmentName` fallback.
+    const noIndirectionRow: RegionRow = { ...region57, regionName: 'CIRCLE', attachmentName: 'CIRCLE' } as RegionRow;
+    const noIndirectionOverrides: ReadonlyMap<string, number> = new Map([['CIRCLE', 0.5]]);
+    const noIndirectionEnriched = __test_only_enrichWithEffective(
+      [noIndirectionRow],
+      noIndirectionOverrides,
+    );
+    expect(noIndirectionEnriched[0].override).toBe(0.5);
   });
 });
 
