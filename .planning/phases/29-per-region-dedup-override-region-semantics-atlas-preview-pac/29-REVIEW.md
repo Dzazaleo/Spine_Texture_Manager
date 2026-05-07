@@ -2,192 +2,158 @@
 phase: 29-per-region-dedup-override-region-semantics-atlas-preview-pac
 reviewed: 2026-05-07T00:00:00Z
 depth: standard
-files_reviewed: 5
+files_reviewed: 3
 files_reviewed_list:
+  - src/renderer/src/lib/enrich-overrides.ts
   - src/renderer/src/panels/GlobalMaxRenderPanel.tsx
-  - src/core/analyzer.ts
   - tests/regression/path-indirection.spec.ts
-  - tests/core/analyzer.spec.ts
-  - tests/arch.spec.ts
 findings:
-  critical: 1
-  warning: 3
-  info: 2
-  total: 6
+  blocker: 0
+  warning: 4
+  total: 4
 status: issues_found
 ---
 
-# Phase 29: Code Review Report (Gap-Closure 29-05 + 29-06)
+# Phase 29: Code Review Report — Plan 29-07 + extraction commit (889a379)
 
 **Reviewed:** 2026-05-07
 **Depth:** standard
-**Files Reviewed:** 5
-**Status:** issues_found
+**Files Reviewed:** 3
+**Status:** issues_found (no BLOCKERs; 4 WARNINGs)
 
 ## Summary
 
-Scope: the gap-closure changes for Plans 29-05 (CR-01) and 29-06 (WR-01) at HEAD vs c35b9d3 — five files covering the panel selection-passthrough fix, the analyzer contributor dedup, and the three test files locking those contracts.
+The Plan 29-07 fix (panel READ-side `enrichWithEffective` flipped from `overrides.get(row.attachmentName)` to `overrides.get(row.regionName ?? row.attachmentName)`) is correctly applied at `enrich-overrides.ts:44` and the symmetry contract with the WRITE side (`AppShell.tsx:520-528`) and export-math read (`src/core/export.ts:187-188` and `src/renderer/src/lib/export-view.ts:279-280`) is preserved. The 4-surface invariant (panel display, atlas preview, optimize plan, exported PNGs) is now restored on path-indirected rigs.
 
-The advertised gap fixes are mechanically correct in isolation:
-- `toRegionRow` correctly dedups `contributingAttachments[]` by `attachmentName` using a Set + lex-sorted filter; the lex-sort is preserved.
-- `GlobalMaxRenderPanel.tsx` removes the contributor-fan-out memo; both Row prop sites now pass `selected` verbatim as `selectedKeys`.
-- `selectedAttachmentNames` is fully expunged from in-tree source. The `.bak3` backup file is gitignored (`*.bak*`) and untracked, so it cannot taint the `arch.spec.ts` / regression-test source-grep guards (which read explicit paths anyway).
+The extraction of `enrichWithEffective` + `EnrichedRow` from `GlobalMaxRenderPanel.tsx` into `src/renderer/src/lib/enrich-overrides.ts` (commit 889a379) is mechanically sound — the panel re-imports both via a type-modifier import, the inline definitions are removed, and `tests/regression/path-indirection.spec.ts` can now import the helper from a `src/renderer/src/lib/**/*.ts` path that `tsconfig.node.json` already includes. No DOM/JSX surface leaks into node-tsc scope.
 
-However, one BLOCKER survived this gap-closure pass — the panel's *read-side* override lookup (`enrichWithEffective` line 262) still keys by `row.attachmentName`, while AppShell's override Map is now `regionName`-keyed (Plan 29-03 + 29-05 contract). On path-indirected fixtures where the lex-smallest contributor's attachmentName differs from the regionName (e.g. Chicken-Min: lex winner `5/5/5/7/7` vs regionName `5/7`), the panel's display code can never see the override — the orange Peak cell, PencilIcon, "override" search keyword, and DimsBadge cap-binding wording all silently fail. The export pipeline still applies the override correctly (it reads `row.regionName ?? row.attachmentName`), so the user observes a screen-vs-disk divergence with no diagnostic surface.
+The CR-01 closure regression test at `path-indirection.spec.ts:387-484` correctly drives `enrichWithEffective` directly with a synthetic path-indirected `RegionRow` and asserts (a) post-fix Map-hit by regionName, (b) symmetric negative — Map keyed by winning attachmentName misses, (c) backward-compat — `regionName === attachmentName` legacy case still works.
 
-The new tests close the WRITE side of the override contract (CR-01 batch-apply assertions in `path-indirection.spec.ts:282-384`, the WR-01 dedup assertions in `analyzer.spec.ts:937-1021`) but neither covers the READ side (`enrichWithEffective` → `EnrichedRow.override`). This is why the bug slipped through 29-05 verification.
-
-Three secondary issues worth fixing: a non-deterministic-by-design contributor `peakScale` in cross-slot binding (analyzer dedup picks first lex-stable occurrence rather than highest peakScale per attachmentName), a stale code comment, and two slightly weak test assertions.
-
-## Critical Issues
-
-### CR-01: panel `enrichWithEffective` reads overrides by `row.attachmentName`, but Map is now `regionName`-keyed — silent display divergence on path-indirected rigs
-
-**File:** `src/renderer/src/panels/GlobalMaxRenderPanel.tsx:262`
-
-**Issue:**
-The `enrichWithEffective` helper still queries the override Map by `row.attachmentName`:
-```ts
-const override = overrides.get(row.attachmentName);
-```
-The accompanying comment at lines 259-261 / 250-252 acknowledges the migration-in-progress state: *"Plan 29-03 will flip overrides to Map<regionName, number>; until then..."*. Plan 29-03 has shipped (commit `2bea027 feat(29-03): regionName-keyed overrides end-to-end + migration banner UI + export-read flip`), and Plan 29-05's CR-01 fix completes the WRITE side: `AppShell.tsx:523-526` derives `rowKey = row.regionName ?? row.attachmentName` and `AppShell.tsx:583` writes `next.set(name, clamped)` keyed by regionName.
-
-The panel READ side was never updated. For path-indirected regions where the REGION-05 lex-tiebreak winner's `attachmentName` differs from the `regionName` (Chicken-Min's region `5/7` has `winner.attachmentName === '5/5/5/7/7'`), `overrides.get('5/5/5/7/7')` returns `undefined`. Cascade:
-
-1. `EnrichedRow.override` is `undefined` even when an override is set.
-2. `Row` cell at line 632 omits the `text-accent` class — Peak cell stays the wrong colour.
-3. `PencilIcon` (line 655) is not rendered — no visual signal of the override.
-4. `displayScale` and `peakDisplayW/H` are computed without the override percent (computeExportDims with `override=undefined` falls back to peakScale).
-5. `state` (line 1090, 1214) is computed from a wrong `peakDisplayW`, so the green/yellow tint and left-accent bar are wrong.
-6. `filterByName` "override" keyword (line 304-306) cannot find overridden rows whose contributor names diverge from regionName.
-7. `DimsBadge.effectiveScale` prop (line 600-606) reads `row.override` directly → cap-binding-aware tooltip wording is wrong.
-
-The export pipeline (`src/core/export.ts:187-188`) reads `overrideKey = row.regionName ?? row.attachmentName`, so the on-disk export DOES apply the override correctly. Net effect: user sees full-size rendering in the panel, exports a 50%-scaled PNG, with no diagnostic.
-
-This bug predates the current gap-closure pass (introduced in `0011f0d feat(04-03)`, missed by 29-02 and 29-03), but the CR-01 closure attempt at this same data path means the gap is in scope for this review. The CR-01 batch-apply test in `path-indirection.spec.ts:282-384` asserts the WRITE side (`buildExportPlan` outW) but never the READ side (panel `EnrichedRow.override` for the same region).
-
-**Fix:**
-Update line 262 to query by regionName, with the standard fallback idiom used throughout the codebase:
-```ts
-// AppShell stores overrides keyed by regionName post-Plan-29-03 + 29-05.
-// Fallback to attachmentName preserves the no-indirection case (regionName
-// === attachmentName) and synthetic test fixtures that omit regionName.
-const override = overrides.get(row.regionName ?? row.attachmentName);
-```
-Also remove the now-stale comment at lines 250-252 / 259-261 and update the prop docblock at line 152 ("AppShell still treats `row.attachmentName`..."). Add a panel-level test (jsdom or behavior-level) that:
-1. Builds a path-indirected synthetic summary where `row.regionName !== row.attachmentName`.
-2. Builds an `overrides` Map keyed by `regionName`.
-3. Calls `enrichWithEffective(rows, overrides)` and asserts `enriched[0].override === <expected percent>`.
+The 4 WARNINGs below are correctness-adjacent rough edges that should be smoothed before this code is treated as load-bearing reference material. None block shipping the panel READ-side fix.
 
 ## Warnings
 
-### WR-01: contributor dedup discards higher-peakScale slot binding when one attachmentName binds to multiple slots
+### WR-01: `?? row.attachmentName` fallback is dead code under strict typing — comment misleads future readers
 
-**File:** `src/core/analyzer.ts:290-297`
+**File:** `src/renderer/src/lib/enrich-overrides.ts:44`
+**Issue:** `RegionRow.regionName` is typed as `string` (NOT `string | undefined` — see `src/shared/types.ts:190`). Under `"strict": true` (tsconfig.node.json line 14) the `?? row.attachmentName` branch is unreachable for every value satisfying the `RegionRow` type contract — `??` only fires on `null | undefined`, and `regionName` cannot be either.
 
-**Issue:**
-The Plan 29-06 dedup keeps the FIRST occurrence in `[...bucket].sort((a,b) => a.attachmentName.localeCompare(b.attachmentName))`. When two `DisplayRow` records share an `attachmentName` but differ in `slotName` and `peakScale` (e.g. attachment `X` bound to slots A + B with peakScales 0.3 and 0.9 respectively, both resolving to the same `regionName`), the `localeCompare` is 0 for the duplicate pair, so post-sort order falls back to stable-sort iteration of the input bucket — i.e. Map insertion order from `dedupByRegionName`. The kept contributor entry's `peakScale` is therefore the FIRST inserted slot's value (0.3), not the maximum (0.9).
+The docblock at lines 36-37 claims the fallback "covers synthetic test fixtures and the no-indirection legacy case where regionName === attachmentName." Both cases are misstated:
+- For synthetic fixtures: every fixture in `path-indirection.spec.ts` (lines 416, 477, 506, 691, 752) sets `regionName: <string>` — the field is never absent. The `as RegionRow` casts at lines 449, 477 of the spec only widen the assertion, they don't allow undefined either.
+- For the no-indirection legacy case: when `regionName === attachmentName`, the LEFT side of `??` is a defined non-empty string, so the fallback still doesn't fire — the lookup returns the correct value via the left operand.
 
-The row-level `winner` from `pickRegionWinner` correctly captures peakScale 0.9 (across all slots), so the row's top-level scalars (`row.peakScale`, `row.skinName`, `row.slotName`, etc.) are correct. But the per-contributor entry exposed via `RegionRow.contributingAttachments[]` carries the lower number, leading to internal inconsistency: the row says peak=0.9 while the lone contributor entry for that name says peak=0.3.
+A stronger argument for keeping the `??` is "defense against runtime values that bypass the type system" (deserialization from IPC, etc.) — but that's not what the comment says. The symmetric reads in `src/core/export.ts:187` and `src/renderer/src/lib/export-view.ts:279` use the same `??` pattern, where it's also only justified via defensive runtime behavior.
 
-The tests that lock this contract (`analyzer.spec.ts:937-985`, `path-indirection.spec.ts:60-82`) all use EQUAL peakScales across slots (0.7/0.7), so they cannot expose the ambiguity. The Phase 29 D-09 contract reserves per-attachment detail for `AnimationBreakdownPanel`, but the renderer in `atlas-preview-view.ts:217-219` reads `region.contributingAttachments` for excluded-attachment filtering — if a future surface reads `contributor.peakScale` for any user-visible purpose, this becomes a bug. Today it's a data-quality / consistency warning.
-
-**Fix:**
-Pick the per-attachmentName highest-peakScale record before lex-stripping duplicates, so the kept contributor matches the per-attachment maximum. Two-step approach preserves determinism:
+**Fix:** Either drop the `??` (match the type contract):
 ```ts
-// Group by attachmentName first so the dedup picks the per-name peak, not
-// an arbitrary slot binding. Equal-peakScale ties on (skinName, slotName)
-// for stability.
-const perName = new Map<string, DisplayRow>();
-for (const r of bucket) {
-  const prev = perName.get(r.attachmentName);
-  if (prev === undefined) perName.set(r.attachmentName, r);
-  else perName.set(r.attachmentName, pickHigherPeak(prev, r));
-}
-const sortedBucket = [...perName.values()].sort((a, b) =>
-  a.attachmentName.localeCompare(b.attachmentName),
-);
+const override = overrides.get(row.regionName);
 ```
-Add a test in `analyzer.spec.ts` that pins this: two slot bindings of attachmentName `X` (regionName `R`) with peakScales 0.3 + 0.9; assert the contributor entry's `peakScale === 0.9`.
-
-### WR-02: stale code comment claims Plan 29-03 is pending
-
-**File:** `src/renderer/src/panels/GlobalMaxRenderPanel.tsx:152, 248-252, 259-262`
-
-**Issue:**
-Three separate comments still reference Plan 29-03 as future work:
-- Line 152 (prop docblock): *"Phase 29 (Plan 29-02 Task 3): row is now a RegionRow (one row per source PNG). AppShell still treats `row.attachmentName` (RegionRow's REGION-05 winning contributor) as the override key — Plan 29-03 will flip the override Map to `Map<regionName, number>`."*
-- Line 248-252 (function docblock): *"The override Map is still keyed on the attachmentName at this checkpoint — Plan 29-03 owns the Map<regionName, number> flip."*
-- Line 259-261 (inline): *"Plan 29-03 will flip overrides to Map<regionName, number>; until then..."*
-
-Plan 29-03 shipped 6 commits ago (`2bea027`). These comments mislead anyone tracing the override pipeline and rationalize the bug at line 262 (CR-01 above). They must be updated as part of the CR-01 fix — leaving them in place after the read-side flip would create new contradictions.
-
-**Fix:**
-After the CR-01 fix lands (line 262 → `overrides.get(row.regionName ?? row.attachmentName)`), rewrite all three comments to describe the post-29-05 state plainly:
+or update the comment to state the actual rationale:
 ```ts
-// AppShell's overrides Map is regionName-keyed (Plan 29-03 + 29-05).
-// Fallback to attachmentName for synthetic test fixtures and the
-// no-indirection case where the loader stored maps under entryName.
+// Defensive runtime fallback for IPC payloads or test fixtures that
+// bypass type checking. Under strict typing RegionRow.regionName is
+// always a non-empty string and the left operand always wins.
 const override = overrides.get(row.regionName ?? row.attachmentName);
 ```
+The second option is strongly preferred — it preserves byte-identical symmetry with the export-side reads (which makes the 3-site key contract greppable) without claiming behavior the type system rules out.
 
-### WR-03: regression-test source-grep guards over-anchor on string-literal panel JSX
+### WR-02: Plan-29-07 regression test asserts on a clamped degenerate override value, not the user's reproduced bug
 
-**File:** `tests/arch.spec.ts:128`, `tests/regression/path-indirection.spec.ts:320`
+**File:** `tests/regression/path-indirection.spec.ts:455, 465, 470-472`
+**Issue:** The test comment at lines 451-454 claims:
 
-**Issue:**
-Both test files lock the post-CR-01 contract via `panelSrc.match(/selectedKeys=\{selected\}/g)` — an exact JSX-literal match. This catches the immediate regression class (re-introducing a `selectedAttachmentNames` intermediate) but breaks under innocent refactors that preserve the contract:
-- Renaming `selected` to `selectedRegionKeys` for clarity.
-- Lifting both Row blocks into a shared sub-component that destructures props.
-- Switching from JSX prop-attribute to spread (`{...rowProps}` where `rowProps.selectedKeys = selected`).
+> The percent (0.011) is the user's reproduced bug from .planning/debug/path-indirected-duplicate-rows.md — the 4×4-on-378-wide repro that Phase 29 set out to close.
 
-In any of those cases the test fails CI even though the contract is intact.
+But `0.011` placed in `overrides.set('5/7', 0.011)` is `0.011 percent` (since the override Map stores percent values per `src/renderer/src/lib/overrides-view.ts:35-41`). The user's repro from the existing REGION-04 test at line 113 uses `overrideFraction * 100 ≈ 1.058 percent`, NOT `0.011 percent`. The new test value is two orders of magnitude smaller than the documented repro.
 
-The negative-match guard `expect(panelSrc).not.toMatch(/selectedAttachmentNames/)` is a stronger anti-regression anchor on its own. The positive `selectedKeys=\{selected\}` count is redundant once the symbol-removal guard is in place.
+Behavioral consequence: `clampOverride(0.011)` returns `1` (the floor — see overrides-view.ts:38 `if (rounded < 1) return 1`), so the chosen override percent is degenerate — it gets clamped to the minimum 1% on every read path. The assertion still passes because `enrichWithEffective` returns the RAW Map-fetched value as `EnrichedRow.override` (no clamping at the enrich layer), but the test does NOT exercise the documented user repro and DOES NOT assert on `effectiveScale` / `effExportW` / `effExportH` to verify downstream propagation through `computeExportDims`.
 
-**Fix:**
-Either drop the positive `selectedKeysHits >= 2` assertion (keep only the negative `selectedAttachmentNames` guard, which catches the actual regression class), or rewrite as a behavior-level assertion:
-1. Render the panel in jsdom with mock summary.regions including a path-indirected region.
-2. Open the override dialog via simulated double-click + simulated shift-select.
-3. Assert the `onOpenOverrideDialog` mock receives a `selectedKeys` set containing only regionNames (not contributor attachmentNames).
+This means a future regression that, say, accidentally double-applied `applyOverride` inside `enrichWithEffective`, or dropped the `computeExportDims` call entirely and synthesized fields by hand, would not be caught by this test.
 
-This is what the prompt's CR-01 closure asked for ("regression test that shift-selects multiple regions in the panel, batch-applies an override") — the current node-env source-grep is a proxy, not the test.
-
-## Info
-
-### IN-01: WR-01 test does not lock the contributor-pick rule when peakScales differ across slots
-
-**File:** `tests/core/analyzer.spec.ts:937-985`, `tests/regression/path-indirection.spec.ts:60-82`
-
-**Issue:**
-The new tests asserting the Plan 29-06 dedup contract use equal peakScales across slot bindings (`peakScale: 0.7` on both VOLUME_7 and VOLUME_8 in `analyzer.spec.ts:951-963`; the Chicken-Min fixture coincidentally has identical scales). This makes the kept-entry assertion at line 982-984 (`expect(['VOLUME_7', 'VOLUME_8']).toContain(...)`) permissive enough to pass under any tiebreak rule, including ones that vary per Map insertion order or per JS engine sort stability.
-
-If WR-01 above is addressed (peak-aware contributor dedup), this test must be tightened to assert the WINNER slot. If WR-01 is rejected as not-a-bug, the test should at least document the "first-after-lex-sort" rule explicitly with synthetic peakScales differing across slots, so a future engine sort-stability change becomes a CI failure rather than a silent semantic shift.
-
-**Fix:**
-Add an assertion that locks the chosen rule explicitly. Either:
-- (if WR-01 fixed) `expect(row.contributingAttachments[0].peakScale).toBe(0.9)` with a 0.3/0.9 slot pair.
-- (if WR-01 deferred) Document and assert the first-insertion rule with differing peakScales, and add a comment naming the JS spec-mandated stable sort property as the load-bearing invariant.
-
-### IN-02: synthetic-summary helper omits `winner.peakScale` consistency check
-
-**File:** `tests/regression/path-indirection.spec.ts:541-694` (`buildSyntheticBatchApplySummary`)
-
-**Issue:**
-The helper hand-builds `RegionRow` scalars (peakScale, sourceW, etc.) and `contributingAttachments[]` entries independently, with no assertion that the winner's scalars match the lex-smallest contributor's scalars at peak ties. The `5/7` region at lines 591-619 sets `peakScale: 1.0` on the row scalar AND on every contributor — consistent today, but a copy-paste edit could decouple them silently.
-
-Not a current bug; future-proofing concern. Synthetic summaries that diverge from the analyzer's invariants would mask real bugs in downstream consumers (`buildExportPlan`, `buildAtlasPreview`).
-
-**Fix:**
-Add a sanity assertion at the top of the test block, immediately after `buildSyntheticBatchApplySummary()`:
+**Fix:** Either pass the documented repro value (`(4 / 378) * 100 ≈ 1.058`) and assert downstream:
 ```ts
-// Sanity: synthetic summary must satisfy the toRegionRow invariant
-// (winner.peakScale === max contributor peakScale).
-for (const region of synth.regions) {
-  const maxPeak = Math.max(...region.contributingAttachments.map((c) => c.peakScale));
-  expect(region.peakScale).toBe(maxPeak);
-}
+const overridePct = (4 / 378) * 100;
+const overrides: ReadonlyMap<string, number> = new Map([['5/7', overridePct]]);
+const enriched = enrichWithEffective([region57], overrides);
+expect(enriched[0].override).toBe(overridePct);
+expect(enriched[0].effExportW).toBe(4); // mirrors the integration test at line 119
+expect(enriched[0].effExportH).toBe(Math.ceil(428 * 0.008));
 ```
+or update the comment to drop the "user's reproduced bug" framing and state the test value is a sentinel for the Map-key plumbing only:
+```ts
+// Test value is intentionally degenerate (clamped to 1% on every downstream
+// read) — this assertion checks ONLY the Map-key plumbing, not effective-
+// scale propagation. See REGION-04 (line 85) for the integration test that
+// exercises the user's reproduced bug end-to-end with a non-degenerate value.
+```
+
+### WR-03: `noIndirectionRow` synthetic in REGION-04 (Plan 29-07) test has internally inconsistent `contributingAttachments` after spread
+
+**File:** `tests/regression/path-indirection.spec.ts:477`
+**Issue:** The backward-compat synthetic at line 477 is built via:
+
+```ts
+const noIndirectionRow: RegionRow = { ...region57, regionName: 'CIRCLE', attachmentName: 'CIRCLE' } as RegionRow;
+```
+
+`contributingAttachments` is NOT overridden — it inherits the 3 path-indirected contributors from `region57` (`5/5/5/7/7`, `5/5/7/7`, `5/7`). This produces a structurally invalid row: a "no-indirection" region (`regionName === attachmentName === 'CIRCLE'`) whose `contributingAttachments` are 3 unrelated names.
+
+Behaviorally this works because `enrichWithEffective` reads only `regionName`, `sourceW`, `sourceH`, `peakScale`, `actualSourceW`, `actualSourceH`, `dimsMismatch`, `canonicalW`, `canonicalH` (lines 44-55) — never `contributingAttachments`. But the test labels its purpose as "Backward-compat lock for the no-indirection case" (line 474), which is undermined when the synthetic data shape doesn't match the case being tested. A maintainer extending this test to also assert on `EnrichedRow` invariants involving `contributingAttachments` (e.g. "no-indirection rows have `contributingAttachments.length === 1`") would silently pass a broken assertion.
+
+**Fix:** Override `contributingAttachments` to match the no-indirection contract:
+```ts
+const noIndirectionRow: RegionRow = {
+  ...region57,
+  regionName: 'CIRCLE',
+  attachmentName: 'CIRCLE',
+  contributingAttachments: [{
+    attachmentName: 'CIRCLE',
+    skinName: 'default',
+    slotName: 'SLOT_5/5/5/7/7',
+    peakScale: 1.0,
+    animationName: 'IDLE',
+    time: 0,
+    frame: 0,
+    isSetupPosePeak: false,
+  }],
+} as RegionRow;
+```
+
+### WR-04: Stale doc reference — `enrichWithEffective at line 262` no longer exists
+
+**File:** `tests/regression/path-indirection.spec.ts:395`; cross-refs in `src/renderer/src/panels/GlobalMaxRenderPanel.tsx:23-48, 720-728`
+**Issue:** Comment at spec line 395 reads:
+
+> Pre-29-07 the panel's enrichWithEffective at line 262 read `overrides.get(row.attachmentName)`.
+
+After commit 889a379 the helper has been extracted to `src/renderer/src/lib/enrich-overrides.ts:44` — there is no `enrichWithEffective` in `GlobalMaxRenderPanel.tsx` at any line number anymore. A future reader who follows the breadcrumb to `GlobalMaxRenderPanel.tsx:262` will land on `compareRows` (the `worldW` case branch), not the helper.
+
+Same staleness in panel docblock at `GlobalMaxRenderPanel.tsx:23-48` and the `useMemo` comment at lines 720-728: both still use "module-top helper" / "Plan 29-07 line 262" framing as if the helper lived in this file. The panel's import at line 65 (`from '../lib/enrich-overrides.js'`) tells the truth.
+
+**Fix:** Update spec comment line 395 to:
+```ts
+// Pre-29-07 the panel's enrichWithEffective (then defined inline in
+// GlobalMaxRenderPanel.tsx, now extracted to src/renderer/src/lib/
+// enrich-overrides.ts) read `overrides.get(row.attachmentName)`.
+```
+Also pass over the panel docblock at lines 23-48 and 720-728: every reference to "module-top helper" or implicit "this file's helper" should clarify the helper now lives in `../lib/enrich-overrides.ts`.
+
+---
+
+## Cross-cutting observations (no findings)
+
+**Symmetry verified across 3 sites:** The override-Map key contract `row.regionName ?? row.attachmentName` is now grep-uniform at:
+- `src/renderer/src/lib/enrich-overrides.ts:44` (panel READ — Plan 29-07)
+- `src/renderer/src/lib/export-view.ts:279` (renderer-side export read)
+- `src/core/export.ts:187` (core export read)
+
+This satisfies the "all three sites speak the same key contract" claim in the panel's prop docblock at lines 124-130.
+
+**Type-modifier import (panel line 65):** `import { type EnrichedRow, enrichWithEffective } from '../lib/enrich-overrides.js';` — correct: the type tag elides `EnrichedRow` from emit, the function ships verbatim. Compatible with the project's strict TS posture.
+
+**No `.tsx` leak into tsconfig.node.json:** The new `enrich-overrides.ts` lives under `src/renderer/src/lib/` which is whitelisted in `tsconfig.node.json` line 11. The test imports the `.ts` file (not the panel `.tsx`), so node-tsc scope stays clean. The stated extraction rationale matches the actual extraction.
+
+**Panel `onOpenOverrideDialog` prop signature mismatch (NOT a bug, worth knowing):** The panel-level prop type at line 133 declares `selectedKeys?: ReadonlySet<string>` (optional), but `RowProps` line 351 declares the same callback as `selectedKeys: ReadonlySet<string>` (required). The actual call at line 557 always passes `selectedKeys`, so this never manifests. Pre-existing — not introduced by Plan 29-07 or the extraction commit.
 
 ---
 
