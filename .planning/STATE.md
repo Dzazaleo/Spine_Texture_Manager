@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
-status: executing
+status: ready_to_plan
 last_updated: "2026-05-07T22:17:57.057Z"
 last_activity: 2026-05-07 -- Phase 29 execution started
 progress:
   total_phases: 16
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 29 (per-region-dedup-override-region-semantics-atlas-preview-pac) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 29
-Last activity: 2026-05-07 -- Phase 29 execution started
+Phase: 30
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-07
 
 ## Project Reference
 
