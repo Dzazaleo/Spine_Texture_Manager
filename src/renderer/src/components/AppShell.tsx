@@ -385,6 +385,22 @@ export function AppShell({
       : null,
   );
 
+  // Phase 29 D-06 — sibling banner to staleOverrideNotice. Shows
+  // `Updated N override(s) to per-region keys.` when the load-time helper
+  // (src/main/override-migration.ts) translated v1.3-era attachmentName
+  // keys to v1.3.1+ regionName keys. Auto-clears on next successful Save
+  // (mirrors staleOverrideNotice's clearing in onClickSave / onClickSaveAs).
+  // Dismissible. Initialized once at mount from initialProject.migratedKeyCount.
+  const [overrideMigrationNotice, setOverrideMigrationNotice] = useState<number | null>(
+    () =>
+      initialProject !== null &&
+      initialProject !== undefined &&
+      typeof initialProject.migratedKeyCount === 'number' &&
+      initialProject.migratedKeyCount > 0
+        ? initialProject.migratedKeyCount
+        : null,
+  );
+
   // L3 heal notice — true when materializeProjectFile snapped an inconsistent
   // (loaderMode='atlas-less', atlasPath!=null) pair to 'auto' on Open. Cleared
   // on next successful Save (the L1 sanitize will rewrite the file
@@ -499,11 +515,20 @@ export function AppShell({
       // now carries attachmentName values (GlobalMaxRenderPanel converts its
       // internal attachmentKey selection before calling). See
       // 04-03-SUMMARY.md §Deviations.
+      // Phase 29 D-04 — selection set is regionName-keyed (panel passes
+      // regionNames after Plan 29-02 Task 3). The single-row scope falls back
+      // to row.regionName for RegionRow callers (Global panel) and to
+      // row.attachmentName for DisplayRow|BreakdownRow callers
+      // (AnimationBreakdownPanel — drill-down per D-09).
+      const rowKey =
+        'regionName' in row && typeof (row as { regionName?: string }).regionName === 'string'
+          ? (row as { regionName: string }).regionName
+          : row.attachmentName;
       const inSelection =
         selectedKeys !== undefined &&
-        selectedKeys.has(row.attachmentName) &&
+        selectedKeys.has(rowKey) &&
         selectedKeys.size > 1;
-      const scope = inSelection ? [...selectedKeys] : [row.attachmentName];
+      const scope = inSelection ? [...selectedKeys] : [rowKey];
       // Effective-percent prefill (2026-05-05): the dialog opens with the
       // EXACT percent that's forcing the row's current peak — i.e. the
       // post-cap effective. When the canonical/source clamp binds (typical
@@ -516,20 +541,27 @@ export function AppShell({
       //
       // Computed without the safeScale ceil-thousandth (which is an export-
       // path lower-bound) so the prefill keeps full decimal fidelity.
-      const peak = summary.peaks.find((p) => p.attachmentName === row.attachmentName);
+      //
+      // Phase 29 D-04 — peak source flips per row type. RegionRow (Global
+      // panel) carries the same scalar fields as a DisplayRow for the
+      // REGION-05 winning contributor (peakScale, canonicalW/H,
+      // actualSourceW/H, dimsMismatch); read directly off the row.
+      // DisplayRow|BreakdownRow (AnimationBreakdownPanel drill-down) reads
+      // off the same scalars too — both shapes expose them, so the prefill
+      // math is row-agnostic.
       let currentPercent = 100;
-      if (peak !== undefined && peak.peakScale > 0) {
-        const stored = overrides.get(row.attachmentName);
+      if (row.peakScale > 0) {
+        const stored = overrides.get(rowKey);
         const overrideFrac = stored !== undefined ? clampOverride(stored) / 100 : 1;
-        const canonW = peak.canonicalW ?? peak.sourceW;
-        const canonH = peak.canonicalH ?? peak.sourceH;
+        const canonW = row.canonicalW ?? row.sourceW;
+        const canonH = row.canonicalH ?? row.sourceH;
         const sourceRatio =
-          peak.dimsMismatch && peak.actualSourceW !== undefined && peak.actualSourceH !== undefined && canonW > 0 && canonH > 0
-            ? Math.min(peak.actualSourceW / canonW, peak.actualSourceH / canonH)
+          row.dimsMismatch && row.actualSourceW !== undefined && row.actualSourceH !== undefined && canonW > 0 && canonH > 0
+            ? Math.min(row.actualSourceW / canonW, row.actualSourceH / canonH)
             : Infinity;
-        const cappedRaw = Math.min(peak.peakScale * overrideFrac, 1, sourceRatio);
+        const cappedRaw = Math.min(row.peakScale * overrideFrac, 1, sourceRatio);
         // toFixed(2) → parseFloat trims float-drift while keeping 2-decimal precision.
-        currentPercent = parseFloat(((cappedRaw / peak.peakScale) * 100).toFixed(2));
+        currentPercent = parseFloat(((cappedRaw / row.peakScale) * 100).toFixed(2));
         // Defensive: clampOverride enforces the [1, 999] range at the same precision.
         currentPercent = clampOverride(currentPercent);
       }
@@ -537,7 +569,7 @@ export function AppShell({
       const anyOverridden = scope.some((name) => overrides.has(name));
       setDialogState({ scope, currentPercent, anyOverridden });
     },
-    [overrides, summary.peaks],
+    [overrides],
   );
 
   const onApplyOverride = useCallback((scope: string[], percent: number) => {
@@ -870,6 +902,9 @@ export function AppShell({
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
+        // Phase 29 D-06 — Save rewrites the .stmproj with regionName-keyed
+        // overrides; the migration banner is no longer informational.
+        setOverrideMigrationNotice(null);
         // Save rewrites the .stmproj via the L1-sanitized buildSessionState,
         // so the on-disk inconsistency that triggered L3 heal is now gone.
         setLoaderModeHealedNotice(false);
@@ -906,6 +941,8 @@ export function AppShell({
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
         });
         setStaleOverrideNotice(null);
+        // Phase 29 D-06 — Save As also rewrites with regionName-keyed overrides.
+        setOverrideMigrationNotice(null);
         // L3 heal — Save As also rewrites the .stmproj consistently.
         setLoaderModeHealedNotice(false);
       }
@@ -959,6 +996,15 @@ export function AppShell({
       resp.project.staleOverrideKeys.length > 0
         ? resp.project.staleOverrideKeys
         : null,
+    );
+    // Phase 29 D-06 — re-running the loader/sampler against the same skeleton
+    // re-runs the migration helper. The renderer already speaks regionName
+    // post-Plan-29-03, so re-running migration on a regionName-keyed Map is
+    // a no-op (Pass 1 wins; migratedKeyCount === 0). Surface the count so a
+    // genuine resample-after-edit-on-disk that still finds Case B keys can
+    // still inform the user.
+    setOverrideMigrationNotice(
+      resp.project.migratedKeyCount > 0 ? resp.project.migratedKeyCount : null,
     );
     setDocumentation((prev) =>
       intersectDocumentationWithSummary(prev, resp.project.summary),
@@ -1092,6 +1138,11 @@ export function AppShell({
     });
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
+    );
+    // Phase 29 D-06 — surface migration count (sibling banner). Cleared on
+    // next successful Save (mirrors staleOverrideNotice).
+    setOverrideMigrationNotice(
+      project.migratedKeyCount > 0 ? project.migratedKeyCount : null,
     );
     // L3 heal — surface materializeProjectFile's snap-to-auto so the user
     // knows the on-disk file diverges from the in-memory state until next save.
@@ -1370,6 +1421,14 @@ export function AppShell({
           resp.project.staleOverrideKeys.length > 0
             ? resp.project.staleOverrideKeys
             : null,
+        );
+        // Phase 29 D-06 — surface migration count if any v1.3-era keys
+        // remained in the renderer's overrides (rare on the
+        // samplingHz-change resample path; the renderer is already
+        // regionName-keyed post-Plan-29-03 so the helper is a no-op for
+        // already-migrated state).
+        setOverrideMigrationNotice(
+          resp.project.migratedKeyCount > 0 ? resp.project.migratedKeyCount : null,
         );
         // Phase 20 D-09/D-10/D-11 — re-intersect documentation against the
         // post-resample summary. The resample IPC payload's `documentation`
@@ -1741,6 +1800,31 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setStaleOverrideNotice(null)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {/* Phase 29 D-06 — sibling banner reporting v1.3-era → v1.3.1 override
+          migration count. Auto-clears on next successful Save (mirrors
+          staleOverrideNotice). Visual idiom matches Phase 8 D-150 + Phase 24
+          alert-bar precedent (project memory project_alert_bars_top_on_both_tabs.md).
+          Tailwind v4 Pitfall 8: every className is a literal string; no template
+          interpolation. */}
+      {overrideMigrationNotice !== null && overrideMigrationNotice > 0 && (
+        <div
+          role="status"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />
+          <span className="flex-1">
+            Updated {overrideMigrationNotice} override
+            {overrideMigrationNotice === 1 ? '' : 's'} to per-region keys.
+          </span>
+          <button
+            type="button"
+            onClick={() => setOverrideMigrationNotice(null)}
             className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
           >
             Dismiss

@@ -1676,3 +1676,242 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     }
   });
 });
+
+/**
+ * Phase 29 D-04 — overrides Map keyed by regionName (not attachmentName).
+ *
+ * Two regression cases lock the contract:
+ *   - Test 5 (THE FALSIFIED BUG, .planning/debug/path-indirected-duplicate-rows.md
+ *     2026-05-07): a path-indirected region '5/7' with 3 contributing
+ *     attachments. User sets overrides.set('5/7', 4 / canonicalW × 100). The
+ *     resulting ExportRow for that source PNG has outW === 4 (NOT 273 — the
+ *     pre-flip per-region max ignored the override because the Map was keyed
+ *     by attachmentName and the contributors '5/5/5/7/7' / '5/5/7/7' were
+ *     non-overridden).
+ *   - Test 6 (BACKWARD COMPAT, SIMPLE_PROJECT-shaped fixture without path
+ *     indirection): a single-attachment region 'CIRCLE'. overrides.set('CIRCLE',
+ *     0.5 × something) produces the same result before and after the flip,
+ *     because regionName === attachmentName === 'CIRCLE'.
+ *
+ * Both tests use synthetic fixtures (3-region path-indirected for Test 5;
+ * SIMPLE_PROJECT-style single-attachment for Test 6) — Plan 29-04 commits the
+ * real Chicken-Min on-disk fixture and runs the same regression at the
+ * integration level.
+ */
+describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () => {
+  it('Test 5 (FALSIFIED BUG CLOSURE): path-indirected `5/7 → 4` override produces ExportRow.outW === 4', () => {
+    // The .planning/debug/path-indirected-duplicate-rows.md repro: source PNG
+    // 5/7.png has 3 contributing attachments ('5/5/5/7/7', '5/5/7/7', '5/7'),
+    // each with its own peakScale. Pre-Phase-29, an override on
+    // attachmentName='5/7' attached to ONE of the three; the other two
+    // siblings still won the per-sourcePath dedup max via their unmodified
+    // peakScale, producing outW=273 instead of the user's intended 4×4.
+    //
+    // Post-Phase-29 (this test): overrides.set('5/7', tinyPercent) sets the
+    // regionName-keyed entry; the for-loop over summary.peaks reads
+    // `overrides.get(row.regionName ?? row.attachmentName)` for EVERY
+    // contributing attachment, so each one gets the same override applied,
+    // and the per-sourcePath max binds to the user's intended dim.
+    const canonicalW = 378;
+    const canonicalH = 428;
+    // 4×4 from a 378×canonicalW source on peakScale=1.0. The math chain in
+    // buildExportPlan is:
+    //   1. effScale = applyOverride(pct, peakScale).effectiveScale = pct/100 × 1.0
+    //   2. safeScale rounds UP to nearest thousandth (Round 5 ceil-thousandth).
+    //   3. outW = ceil(canonicalW × effScale).
+    // pct=1.0 → applyOverride gives 0.010 exactly → safeScale(0.010) = 0.010
+    //          → outW = ceil(378 × 0.010) = ceil(3.78) = 4. ✓
+    // (pct=1.1 would safeScale to 0.011 → outW = ceil(4.158) = 5; the
+    // 1% boundary is what produces the user's intended 4-pixel result.)
+    const peakScale = 1.0;
+    const overridePct = 1.0;
+
+    const sharedSourcePath = '/fake/images/5/7.png';
+    const summary = {
+      peaks: [
+        // Contributor 1 — non-overridden peakScale 1.0
+        {
+          attachmentKey: 'default/SLOT1/5/5/5/7/7',
+          attachmentName: '5/5/5/7/7',
+          regionName: '5/7',
+          skinName: 'default',
+          slotName: 'SLOT1',
+          animationName: 'PATH',
+          time: 0.5,
+          frame: 30,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalW,
+          worldH: canonicalH,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          sourcePath: sharedSourcePath,
+          canonicalW,
+          canonicalH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+        // Contributor 2 — also non-overridden
+        {
+          attachmentKey: 'default/SLOT2/5/5/7/7',
+          attachmentName: '5/5/7/7',
+          regionName: '5/7',
+          skinName: 'default',
+          slotName: 'SLOT2',
+          animationName: 'PATH',
+          time: 0.5,
+          frame: 30,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalW,
+          worldH: canonicalH,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          sourcePath: sharedSourcePath,
+          canonicalW,
+          canonicalH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+        // Contributor 3 — winning attachmentName 5/7 (matches regionName)
+        {
+          attachmentKey: 'default/SLOT3/5/7',
+          attachmentName: '5/7',
+          regionName: '5/7',
+          skinName: 'default',
+          slotName: 'SLOT3',
+          animationName: 'PATH',
+          time: 0.5,
+          frame: 30,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalW,
+          worldH: canonicalH,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          sourcePath: sharedSourcePath,
+          canonicalW,
+          canonicalH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // POST-FLIP: override is keyed by regionName.
+    const overrides = new Map<string, number>([['5/7', overridePct]]);
+    const plan = buildExportPlan(summary, overrides);
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    expect(allRows.length).toBe(1);
+    const row = allRows[0];
+    // The falsifying assertion: outW === 4 (the user's intended ~1% override
+    // wins). Pre-flip this would be ceil(378 × 1.0) = 378 (one of the
+    // siblings winning the per-sourcePath max) — definitively NOT 4.
+    expect(row.outW).toBe(4);
+    expect(row.attachmentNames.sort()).toEqual(['5/5/5/7/7', '5/5/7/7', '5/7']);
+  });
+
+  it('Test 5b (negative case): pre-flip pattern (overrides keyed by attachmentName ONLY) does NOT bind under post-flip read', () => {
+    // The complement of Test 5: if a v1.3-era saved override key '5/5/7/7'
+    // (a contributor name, not the regionName) reaches buildExportPlan
+    // unmigrated, it does NOT bind. The migration helper at the project-io.ts
+    // seam translates the key BEFORE buildExportPlan runs (Plan 29-03 Task 1);
+    // export.ts itself reads only the regionName side of the Map.
+    const canonicalW = 378;
+    const canonicalH = 428;
+    const peakScale = 1.0;
+
+    const sharedSourcePath = '/fake/images/5/7.png';
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/SLOT/5/5/7/7',
+          attachmentName: '5/5/7/7',
+          regionName: '5/7',
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'PATH',
+          time: 0,
+          frame: 0,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalW,
+          worldH: canonicalH,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          sourcePath: sharedSourcePath,
+          canonicalW,
+          canonicalH,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // BAD-INPUT: override keyed by attachmentName (the unmigrated v1.3-era
+    // shape). Post-flip, export.ts reads `row.regionName ?? row.attachmentName`
+    // — regionName is '5/7', so this key does NOT bind, and the row exports
+    // at peakScale (== 1.0 → passthrough at sourceW).
+    const overrides = new Map<string, number>([['5/5/7/7', 1]]);
+    const plan = buildExportPlan(summary, overrides);
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    expect(allRows.length).toBe(1);
+    const row = allRows[0];
+    // outW === sourceW → passthrough (no override bound).
+    expect(row.outW).toBe(canonicalW);
+  });
+
+  it('Test 6 (BACKWARD COMPAT): SIMPLE_PROJECT-shape fixture (regionName === attachmentName) — CIRCLE 25% override unchanged', () => {
+    // Pre-flip + post-flip produce the same result on non-indirected fixtures
+    // because regionName === attachmentName. CIRCLE peakScale 0.8, override
+    // 25% → effScale = 0.25 × 0.8 = 0.2 → outW = ceil(699 × 0.2) = 140.
+    const summary = {
+      peaks: [
+        {
+          attachmentKey: 'default/CIRCLE/CIRCLE',
+          attachmentName: 'CIRCLE',
+          regionName: 'CIRCLE', // matches attachmentName — non-indirected
+          skinName: 'default',
+          slotName: 'CIRCLE',
+          animationName: 'PATH',
+          time: 0.5,
+          frame: 30,
+          peakScale: 0.8,
+          peakScaleX: 0.8,
+          peakScaleY: 0.8,
+          worldW: 559,
+          worldH: 559,
+          sourceW: 699,
+          sourceH: 699,
+          sourcePath: '/fake/CIRCLE.png',
+          canonicalW: 699,
+          canonicalH: 699,
+          actualSourceW: undefined,
+          actualSourceH: undefined,
+          dimsMismatch: false,
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+    const overrides = new Map<string, number>([['CIRCLE', 25]]);
+    const plan = buildExportPlan(summary, overrides);
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+    expect(allRows.length).toBe(1);
+    const row = allRows[0];
+    // effScale = safeScale(0.25 × 0.8) = ceil(0.2 × 1000) / 1000 = 0.2
+    expect(row.effectiveScale).toBeCloseTo(0.2, 6);
+    expect(row.outW).toBe(Math.ceil(699 * 0.2)); // 140
+    expect(row.outH).toBe(Math.ceil(699 * 0.2));
+  });
+});
+

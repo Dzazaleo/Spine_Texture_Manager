@@ -172,7 +172,20 @@ export function buildExportPlan(
     // 100% override === no-override (effScale === peakScale): export is
     // idempotent across re-optimize/reload cycles because peakScale is an
     // invariant world-space measurement, not source-PNG-relative.
-    const overridePct = overrides.get(row.attachmentName);
+    //
+    // Phase 29 D-04 — overrides Map keyed by regionName (one source PNG /
+    // one atlas region). Read by `row.regionName ?? row.attachmentName`:
+    // path-indirected projects have multiple attachments sharing a region,
+    // so the per-region override binds at the dedup layer (bySourcePath),
+    // not per-attachment. Closes the falsified bug from
+    // .planning/debug/path-indirected-duplicate-rows.md (2026-05-07): a
+    // user override on `5/7 → 4×4` no longer gets ignored by non-overridden
+    // sibling attachments winning the per-sourcePath max. Fallback to
+    // attachmentName preserves the SIMPLE_PROJECT contract (regionName ===
+    // attachmentName for non-indirected fixtures) and synthetic test
+    // fixtures that build PeakRecords without regionName set.
+    const overrideKey = row.regionName ?? row.attachmentName;
+    const overridePct = overrides.get(overrideKey);
     const rawEffScale =
       overridePct !== undefined
         ? applyOverride(overridePct, row.peakScale).effectiveScale
