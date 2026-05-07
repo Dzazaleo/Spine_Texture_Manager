@@ -272,7 +272,12 @@ export function buildExportPlan(
     // idempotent across re-optimize/reload cycles because peakScale is an
     // invariant world-space measurement, not source-PNG-relative.
     // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
-    const overridePct = overrides.get(row.attachmentName);
+    //
+    // Phase 29 D-04 — overrides Map keyed by regionName. See src/core/export.ts
+    // for full rationale. Lockstep duplication invariant: the byte-identical
+    // body is mirrored in src/core/export.ts's buildExportPlan.
+    const overrideKey = row.regionName ?? row.attachmentName;
+    const overridePct = overrides.get(overrideKey);
     const rawEffScale =
       overridePct !== undefined
         ? applyOverride(overridePct, row.peakScale).effectiveScale

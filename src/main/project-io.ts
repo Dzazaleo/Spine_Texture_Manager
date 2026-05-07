@@ -65,6 +65,11 @@ import type { SamplerOutput } from '../core/sampler.js';
 // addRecent; Plan 02 (index.ts) provides applyMenu / getCurrentMenuState /
 // getMainWindow.
 import { addRecent } from './recent.js';
+// Phase 29 D-06 — load-time attachmentName → regionName migration helper.
+// Replaces the per-seam D-150 stale-key intersect at three sites below
+// (mountOpenResponse / locate-skeleton-recovery / resample). Helper is pure
+// and unit-testable in isolation; main-side only (no IPC type implications).
+import { migrateOverrides } from './override-migration.js';
 import type {
   AppSessionState,
   SaveResponse,
@@ -523,22 +528,23 @@ export async function handleProjectOpenFromPath(
   // 8. Build summary (Phase 1 projection — same shape as skeleton:load).
   const summary = buildSummary(load, samplerOutput, elapsedMs);
 
-  // 9. Compute stale-override keys (D-150). The summary's peaks list every
-  //    attachment that produced a peak; intersect saved overrides with this
-  //    list. Dropped names travel as `staleOverrideKeys` for the renderer's
-  //    Cmd+S persist-write-back.
-  const presentNames = new Set(summary.peaks.map((r) => r.attachmentName));
-  const restored: Record<string, number> = {};
-  const stale: string[] = [];
-  for (const [name, percent] of Object.entries(materialized.overrides)) {
-    if (presentNames.has(name)) restored[name] = percent;
-    else stale.push(name);
-  }
+  // 9. Compute stale-override keys + migrate v1.3-era attachmentName-keyed
+  //    overrides to v1.3.1 regionName keys (Phase 29 D-06; supersedes the
+  //    D-150 stale-key intersect with a richer 3-pass migration — Case A
+  //    region-keyed wins, Case B contributor-keyed migrates with lex-
+  //    smallest-wins, Case C orphans drop into the existing stale-override
+  //    banner). Dropped names travel as `staleOverrideKeys`; migrated count
+  //    travels as `migratedKeyCount` for the new sibling banner.
+  const { restored, stale, migratedKeyCount } = migrateOverrides(
+    materialized.overrides as Record<string, unknown>,
+    summary,
+  );
 
   const project: MaterializedProject = {
     summary,
     restoredOverrides: restored,
     staleOverrideKeys: stale,
+    migratedKeyCount,
     samplingHz: materialized.samplingHz,
     lastOutDir: materialized.lastOutDir,
     sortColumn: materialized.sortColumn,
@@ -799,23 +805,20 @@ export async function handleProjectReloadWithSkeleton(
   const elapsedMs = Math.round(performance.now() - t0);
   const summary = buildSummary(load, samplerOutput, elapsedMs);
 
-  // D-150 stale-drop applies on every load, including recovery — the new
-  // skeleton may have different attachments than the old one.
-  const presentNames = new Set(summary.peaks.map((r) => r.attachmentName));
-  const restored: Record<string, number> = {};
-  const stale: string[] = [];
-  for (const [name, percent] of Object.entries(
+  // D-150 stale-drop + Phase 29 D-06 migration apply on every load, including
+  // recovery — the new skeleton may have different attachments than the old
+  // one. The helper preserves the typeof+isFinite guard from the original
+  // per-seam loop (silently skips bad serialized values).
+  const { restored, stale, migratedKeyCount } = migrateOverrides(
     a.mergedOverrides as Record<string, unknown>,
-  )) {
-    if (typeof percent !== 'number' || !Number.isFinite(percent)) continue;
-    if (presentNames.has(name)) restored[name] = percent;
-    else stale.push(name);
-  }
+    summary,
+  );
 
   const project: MaterializedProject = {
     summary,
     restoredOverrides: restored,
     staleOverrideKeys: stale,
+    migratedKeyCount,
     samplingHz,
     lastOutDir,
     sortColumn,
@@ -996,23 +999,19 @@ export async function handleProjectResample(
   const elapsedMs = Math.round(performance.now() - t0);
   const summary = buildSummary(load, samplerOutput, elapsedMs);
 
-  // D-150 stale-key intersect (mirrors lines 484-490 + 701-710). Per-key
-  // value validation guards against bad serialization across IPC.
-  const presentNames = new Set(summary.peaks.map((r) => r.attachmentName));
-  const restored: Record<string, number> = {};
-  const stale: string[] = [];
-  for (const [name, percent] of Object.entries(
+  // D-150 stale-key intersect + Phase 29 D-06 migration (mirrors the two
+  // earlier seams). Per-key value validation guards against bad serialization
+  // across IPC; migration counts travel through to the renderer banner.
+  const { restored, stale, migratedKeyCount } = migrateOverrides(
     a.overrides as Record<string, unknown>,
-  )) {
-    if (typeof percent !== 'number' || !Number.isFinite(percent)) continue;
-    if (presentNames.has(name)) restored[name] = percent;
-    else stale.push(name);
-  }
+    summary,
+  );
 
   const project: MaterializedProject = {
     summary,
     restoredOverrides: restored,
     staleOverrideKeys: stale,
+    migratedKeyCount,
     samplingHz: a.samplingHz,
     lastOutDir: typeof a.lastOutDir === 'string' ? a.lastOutDir : null,
     sortColumn: typeof a.sortColumn === 'string' ? a.sortColumn : null,

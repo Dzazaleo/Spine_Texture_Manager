@@ -952,6 +952,21 @@ export interface MaterializedProject {
   summary: SkeletonSummary;
   restoredOverrides: Record<string, number>;
   staleOverrideKeys: string[];
+  /**
+   * Phase 29 D-06 — count of v1.3-era contributor-keyed override entries
+   * that the load-time migration step consumed (either by becoming the
+   * winning regionName value via lex-smallest-wins, or being silently
+   * dropped because a Case A entry already won). Drives the new
+   * "Updated N overrides to per-region keys." banner in AppShell —
+   * sibling to staleOverrideKeys' existing surface; auto-clears on Save.
+   *
+   * 0 when no migration ran (typical case for fresh sessions or already-
+   * v1.3.1-region-keyed .stmproj files). Non-negative integer. In-process
+   * IPC only — NOT persisted to .stmproj (Phase 8 D-146 schema-version 1
+   * additive-only precedent: only override key meaning shifts; no schema
+   * field is added).
+   */
+  migratedKeyCount: number;
   samplingHz: number;
   lastOutDir: string | null;
   sortColumn: string | null;
