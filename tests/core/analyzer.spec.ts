@@ -730,8 +730,10 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
     const regions = analyzeRegions(peaks);
     // SIMPLE_PROJECT has no path indirection: regionName === attachmentName for
     // every peak. SQUARE's attachmentName appears on TWO slots (SQUARE +
-    // SQUARE2), so the SQUARE region naturally has 2 contributors. CIRCLE +
-    // TRIANGLE have 1 each → 3 unique region names total.
+    // SQUARE2), but Phase 29 Plan 29-06 / WR-01 dedups contributingAttachments[]
+    // by attachmentName at the toRegionRow boundary, so the SQUARE region has
+    // ONE entry (slot fan-out collapses). CIRCLE + TRIANGLE have 1 each →
+    // 3 unique region names total, each with exactly 1 contributor.
     expect(regions.length).toBe(3);
     const names = regions.map((r) => r.regionName).sort();
     expect(names).toEqual(['CIRCLE', 'SQUARE', 'TRIANGLE']);
@@ -744,14 +746,16 @@ describe('analyzeRegions (Phase 29 D-01 + D-02 + REGION-05)', () => {
       }
       expect(r.regionName).toBe(r.attachmentName);
     }
-    // CIRCLE + TRIANGLE: one contributor each (single slot).
-    // SQUARE: two contributors (SQUARE slot + SQUARE2 slot, both named SQUARE).
+    // Post-Plan-29-06 / WR-01: contributingAttachments[] is deduped by
+    // attachmentName. CIRCLE + TRIANGLE + SQUARE: one unique attachmentName
+    // each. SQUARE's two slot bindings (SQUARE + SQUARE2) collapse to one
+    // contributor entry — slot fan-out does NOT inflate the contributor count.
     const circle = regions.find((r) => r.regionName === 'CIRCLE')!;
     const triangle = regions.find((r) => r.regionName === 'TRIANGLE')!;
     const square = regions.find((r) => r.regionName === 'SQUARE')!;
     expect(circle.contributingAttachments.length).toBe(1);
     expect(triangle.contributingAttachments.length).toBe(1);
-    expect(square.contributingAttachments.length).toBe(2);
+    expect(square.contributingAttachments.length).toBe(1);
   });
 
   it('2. path-indirection (Chicken shape): three peaks sharing regionName="5/7" fold into ONE RegionRow with 3 contributors sorted by attachmentName lex', () => {
