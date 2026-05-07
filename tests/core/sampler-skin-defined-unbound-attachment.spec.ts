@@ -67,7 +67,13 @@ const REGRESSION_TARGETS = [
   },
 ] as const;
 
-describe('sampler — skin-declared but never-bound attachments are measured (regression for silent-discard at sampler.ts:285)', () => {
+// fixtures/SAMPLER_ALPHA_ZERO/ is gitignored (proprietary Joker rig — see
+// .gitignore L25-28), so the beforeAll(loadSkeleton) cannot run on CI. Skip
+// the entire describe block on CI; local `npm run test` remains the
+// non-negotiable gate. Mirrors the pattern used by tests/main/sampler-worker-
+// girl.spec.ts. Tracked for v1.4: port to a SIMPLE_PROJECT-equivalent fixture
+// per the .gitignore self-doc note.
+describe.skipIf(process.env.CI)('sampler — skin-declared but never-bound attachments are measured (regression for silent-discard at sampler.ts:285)', () => {
   let output: SamplerOutput;
 
   beforeAll(() => {
