@@ -768,9 +768,9 @@ Plans:
   4. On Windows, when the app starts as administrator, drop targets (project window + drop zones) are visually disabled and show a clear, user-visible message explaining drag-drop is unavailable under elevated privileges, with a routing hint to File → Open or relaunch unprivileged. macOS + Linux behavior is unchanged. (PLATFORM-01)
   5. User loads a fixture with `peakScale > 1` rows; the up-arrow `ExtrapolationIcon` next to the Peak W×H value surfaces its hover tooltip ("Spine rig peak: X.XX× source — export capped at canonical") instead of the parent cell tooltip. Holds across both Global Max Render Source panel and Animation Breakdown panel. (TOOLTIP-01)
 
-**Plans:** 4 plans (Wave 1: 31-01, 31-02 in parallel; Wave 2: 31-03, 31-04 — share files with Wave 1 plans)
-- [ ] 31-01-PLAN.md — Sub-feature A: source-toggle disable + verbatim tooltip (LOAD-05, LOAD-06, LOAD-07) (Wave 1)
-- [ ] 31-02-PLAN.md — Sub-feature B: AB collapse defaults + Expand all/Collapse all bulk buttons (PANEL-08, PANEL-09, PANEL-10, PANEL-11) (Wave 1)
+**Plans:** 2/4 plans executed
+- [x] 31-01-PLAN.md — Sub-feature A: source-toggle disable + verbatim tooltip (LOAD-05, LOAD-06, LOAD-07) (Wave 1)
+- [x] 31-02-PLAN.md — Sub-feature B: AB collapse defaults + Expand all/Collapse all bulk buttons (PANEL-08, PANEL-09, PANEL-10, PANEL-11) (Wave 1)
 - [ ] 31-03-PLAN.md — Sub-feature C: Windows admin DnD fallback (elevation probe + IPC + advisory copy) (PLATFORM-01) (Wave 2; types.ts overlap with 31-01)
 - [ ] 31-04-PLAN.md — Sub-feature D: ExtrapolationIcon tooltip regression — diagnose-then-fix spike (TOOLTIP-01) (Wave 2; AnimationBreakdownPanel.tsx overlap with 31-02)
 
@@ -805,7 +805,7 @@ Plans:
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
 | 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 7/7 | Complete    | 2026-05-07 |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
-| 31. Loader & UX small-fixes batch | v1.3.1 | 0/0 | Not started — independent of 29/30 (LOAD-05..07, PANEL-08..11, PLATFORM-01) | — |
+| 31. Loader & UX small-fixes batch | v1.3.1 | 2/4 | In Progress|  |
 
 ## Deferred (post-v1.1)
 
