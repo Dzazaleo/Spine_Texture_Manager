@@ -339,10 +339,17 @@ export function AnimationBreakdownPanel({
   // SearchBar in AppShell is the sole input). `onQueryChange` is destructured
   // to satisfy the props contract but never invoked from this panel — the
   // sticky-bar SearchBar calls it directly through AppShell's binding.
-  // D-63/D-64: static-pose card seeded as the only initially-expanded cardId.
-  // The literal construction is a grep-verified signature.
+  //
+  // Phase 31 PANEL-08 — default seed flipped from ['setup-pose'] to [].
+  // All cards (Setup Pose + animations) start collapsed; user opens what
+  // they want via per-card toggle or the bulk Expand all button below.
+  // PANEL-09 lock: in-memory React state only; no .stmproj persistence.
+  // Tab-switch from AB → Global → AB unmounts this panel (per AppShell
+  // conditional render at lines 2018-2040), so seed-on-remount is also
+  // the natural reset path. Supersedes the prior D-63/D-64 static-pose-
+  // expanded seed.
   const [userExpanded, setUserExpanded] = useState<Set<string>>(
-    new Set(['setup-pose']),
+    new Set(),
   );
   const [isFlashing, setIsFlashing] = useState<string | null>(null);
 
@@ -358,6 +365,15 @@ export function AnimationBreakdownPanel({
   // of override enrichment.
   const originalById = useMemo(
     () => new Map(summary.animationBreakdown.map((c) => [c.cardId, c])),
+    [summary.animationBreakdown],
+  );
+
+  // Phase 31 PANEL-10 / B-D-04 — absolute card-id set for bulk Expand all.
+  // Derived from `summary.animationBreakdown` (NOT `filteredCards`) so
+  // bulk actions are absolute, not filter-scoped: after clearing search
+  // the user sees the absolute state from their last bulk action.
+  const allCardIds = useMemo(
+    () => summary.animationBreakdown.map((c) => c.cardId),
     [summary.animationBreakdown],
   );
 
@@ -439,9 +455,32 @@ export function AnimationBreakdownPanel({
           </svg>
         </span>
         <h2 className="text-sm font-semibold text-fg">Animation Breakdown</h2>
-        <span className="text-fg-muted font-mono text-xs font-normal ml-auto">
-          {filteredCards.length} animations
-        </span>
+        {/* Phase 31 PANEL-10 — right-aligned cluster: count + bulk actions. */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-fg-muted font-mono text-xs font-normal">
+            {filteredCards.length} animations
+          </span>
+          {summary.animations.count > 0 && (
+            <>
+              <button
+                type="button"
+                aria-label="Expand all animation cards"
+                onClick={() => setUserExpanded(new Set(allCardIds))}
+                className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                aria-label="Collapse all animation cards"
+                onClick={() => setUserExpanded(new Set())}
+                className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
+              >
+                Collapse all
+              </button>
+            </>
+          )}
+        </div>
       </header>
       <div className="flex flex-col gap-3">
         {filteredCards.map((card) => {

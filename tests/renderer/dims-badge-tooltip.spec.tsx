@@ -320,9 +320,20 @@ describe('G-02: badge has no native title attribute', () => {
 
 describe('G-02 sibling-symmetric: AnimationBreakdownPanel badge fires on every hover', () => {
   it('AnimationBreakdownPanel badge fires deterministically with same atlas-source wording', () => {
-    render(<BreakdownPanel loaderMode="auto" />);
-    // The "Setup Pose (Default)" card is auto-expanded on mount (Phase 3 D-63/D-64).
-    // No click needed — rows are already rendered.
+    const { container } = render(<BreakdownPanel loaderMode="auto" />);
+    // Phase 31 PANEL-08 — the seed flipped from new Set(['setup-pose']) to
+    // new Set(), so the "Setup Pose (Default)" card now starts collapsed.
+    // Click the expand-toggle once to reveal the row whose dims-badge this
+    // test exercises.
+    const card = container.querySelector(
+      'section[aria-labelledby^="bd-header-"]',
+    );
+    const expandToggle = card?.querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement | null;
+    if (expandToggle !== null && expandToggle.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(expandToggle);
+    }
     const host = screen.getByTestId('dims-badge-host');
     fireEvent.mouseEnter(host);
     const tooltip = screen.getByRole('tooltip');
