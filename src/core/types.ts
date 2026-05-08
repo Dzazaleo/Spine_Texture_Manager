@@ -109,15 +109,31 @@ export interface LoadResult {
    *
    * - pagePath: absolute path to the atlas page PNG
    * - x, y: top-left of region inside the page
-   * - w, h: SOURCE dims (originalWidth/originalHeight from the atlas;
-   *   for rotated regions packed-bounds W/H are swapped so we use the
-   *   orig dims here and consumers branch on `rotated`)
+   * - packW, packH: TRIMMED page bounds (region.width/height — the actual
+   *   pixel rect that exists inside the page PNG; matches sharp.extract args)
+   * - offsetX, offsetY: libgdx-convention bottom-left offset of the trimmed
+   *   rect inside the orig canvas (region.offsetX/offsetY). Both 0 when
+   *   Strip Whitespace is disabled.
+   * - w, h: ORIG canvas dims (originalWidth/originalHeight — what canonical
+   *   JSON math speaks in). Equals packW/packH when Strip Whitespace is off.
+   *   For rotated regions packed-bounds W/H are swapped vs orig so consumers
+   *   must branch on `rotated`.
    * - rotated: true when region.degrees !== 0
+   *
+   * The four (packW, packH, offsetX, offsetY) fields were added 2026-05-08
+   * to fix the Strip-Whitespace export regression: previously the map only
+   * carried (w, h) = orig dims, which caused sharp.extract to overshoot the
+   * page PNG → libvips "extract_area: bad extract area". See debug session
+   * `.planning/debug/export-extract-area-bad-area.md` for the full trace.
    */
   atlasSources: Map<string, {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;

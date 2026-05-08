@@ -92,9 +92,17 @@ export interface DisplayRow {
    *   - pagePath: absolute path to the atlas page PNG
    *     (`<skeletonDir>/<page.name>`)
    *   - x, y: top-left coords inside the page
-   *   - w, h: SOURCE dims (originalWidth/originalHeight; for rotated
-   *     regions the packed-bounds W/H are swapped vs source so we use
-   *     orig dims here and let consumers branch on `rotated`)
+   *   - packW, packH: TRIMMED page bounds (region.width/height — the
+   *     pixel rect that physically exists in the page PNG; the args
+   *     sharp.extract must use)
+   *   - offsetX, offsetY: libgdx bottom-left offset of the trimmed rect
+   *     inside the orig canvas (region.offsetX/offsetY). 0 when Strip
+   *     Whitespace is disabled.
+   *   - w, h: ORIG canvas dims (originalWidth/originalHeight — what
+   *     canonical/JSON math speaks in). Equals packW/packH when Strip
+   *     Whitespace is off. For rotated regions packed-bounds are swapped
+   *     vs orig so we keep w/h as orig dims and consumers branch on
+   *     `rotated`.
    *   - rotated: true when region.degrees !== 0 (typically 90°). The
    *     image-worker emits `'rotated-region-unsupported'` for rotated
    *     regions rather than silently producing 90°-wrong output.
@@ -110,6 +118,10 @@ export interface DisplayRow {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;
@@ -221,6 +233,10 @@ export interface RegionRow {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;
@@ -362,6 +378,10 @@ export interface ExportRow {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;
@@ -618,6 +638,10 @@ export interface AtlasPreviewInput {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;
@@ -642,6 +666,10 @@ export interface PackedRegion {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;

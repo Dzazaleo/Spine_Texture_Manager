@@ -538,16 +538,38 @@ function AtlasCanvas({
       const img = sourceUrl ? loadImage(sourceUrl) : null;
       if (img && img.complete && img.naturalWidth > 0 && !isMissing) {
         if (region.atlasSource) {
+          // Source rect: TRIMMED page bounds (the pixels that physically
+          // exist on the page PNG). For non-Strip-Whitespace regions
+          // packW/H === w/h and the destination math collapses to
+          // (region.x, region.y, region.w, region.h) — byte-identical
+          // to pre-2026-05-08 behaviour.
+          //
+          // Destination rect: position the trimmed pixels at their offset
+          // inside the orig canvas, scaled to fit the tile. libgdx offsetY
+          // is from the BOTTOM-left; canvas y-axis is top-down — flip via
+          // (h - offsetY - packH).
+          //
+          // 2026-05-08 fix (debug session export-extract-area-bad-area):
+          // previously passed atlasSource.w/h as srcRect dims, which
+          // overshot the page PNG → canvas silently clipped to the
+          // upper-left chunk (red square rendered top-left aligned in
+          // the screenshot 2 case). Symptom shared root cause with the
+          // export pipeline crash.
+          const a = region.atlasSource;
+          const scaleX = region.w / a.w;
+          const scaleY = region.h / a.h;
+          const dstX = region.x + a.offsetX * scaleX;
+          const dstY = region.y + (a.h - a.offsetY - a.packH) * scaleY;
           ctx.drawImage(
             img,
-            region.atlasSource.x,
-            region.atlasSource.y,
-            region.atlasSource.w,
-            region.atlasSource.h,
-            region.x,
-            region.y,
-            region.w,
-            region.h,
+            a.x,
+            a.y,
+            a.packW,
+            a.packH,
+            dstX,
+            dstY,
+            a.packW * scaleX,
+            a.packH * scaleY,
           );
         } else {
           ctx.drawImage(

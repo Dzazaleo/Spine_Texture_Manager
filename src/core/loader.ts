@@ -562,25 +562,39 @@ export function loadSkeleton(
   }
 
   // 8. Build atlasSources map.
-  //    Canonical mode: pagePath under atlasDir, x/y/w/h from region (existing
-  //    Phase 6 Gap-Fix #2 pattern for atlas-packed projects e.g. Jokerman).
+  //    Canonical mode: pagePath under atlasDir; (x, y, packW, packH) is the
+  //    actual pixel rect inside the page PNG (sharp.extract args); (w, h) is
+  //    the orig canvas dim (canonical/JSON math); (offsetX, offsetY) is the
+  //    libgdx bottom-left offset of the trimmed rect inside the orig canvas.
+  //    For Strip-Whitespace-disabled regions packW/H == w/h and offsets are 0.
+  //    For Strip-Whitespace-enabled regions packW/H < w/h and offsets > 0.
   //    Atlas-less mode (D-17): pagePath = per-region PNG, x=0, y=0,
-  //    w/h=PNG header dims, rotated=false. The atlas-extract path at
-  //    image-worker.ts:148-162 never fires in atlas-less mode (every region
-  //    has a sourcePaths entry by D-09 filter), so this map is a metadata-
-  //    coherence step.
+  //    packW/H=w/h=PNG header dims, offsets=0, rotated=false. The atlas-
+  //    extract path at image-worker.ts never fires in atlas-less mode (every
+  //    region has a sourcePaths entry by D-09 filter), so this map is a
+  //    metadata-coherence step.
   //
-  // For rotated regions (region.degrees !== 0): the packed bounds W/H
-  // are swapped vs the source orig dims (libgdx packer convention). We
-  // store originalWidth/originalHeight (the SOURCE dims) here so the
-  // image-worker can size its extract correctly — but since the FIRST
-  // pass of Gap-Fix #2 emits a 'rotated-region-unsupported' error rather
-  // than attempting the rotated-extract, the precise dims don't matter
-  // for rotated rows; we still record them for diagnostic clarity.
+  // For rotated regions (region.degrees !== 0): the packed bounds W/H are
+  // swapped vs the orig dims (libgdx packer convention). We store packW/H as
+  // the actual page-PNG rect (which is what sharp.extract needs) and w/h as
+  // orig — but since Gap-Fix #2 emits 'rotated-region-unsupported' rather
+  // than attempting the rotated-extract, the precise dims don't matter for
+  // rotated rows; we still record them for diagnostic clarity.
+  //
+  // 2026-05-08 fix (debug session export-extract-area-bad-area): added
+  // packW/packH/offsetX/offsetY so consumers can extract the trimmed rect
+  // from the page PNG and (if needed) extend it back to the orig canvas.
+  // Previously the map only carried orig dims under w/h and consumers
+  // crashed when they tried to extract those out-of-bounds dims from a
+  // Strip-Whitespace-trimmed page PNG.
   const atlasSources = new Map<string, {
     pagePath: string;
     x: number;
     y: number;
+    packW: number;
+    packH: number;
+    offsetX: number;
+    offsetY: number;
     w: number;
     h: number;
     rotated: boolean;
@@ -591,6 +605,10 @@ export function loadSkeleton(
         pagePath: synthSourcePaths.get(name)!,
         x: 0,
         y: 0,
+        packW: dims.w,
+        packH: dims.h,
+        offsetX: 0,
+        offsetY: 0,
         w: dims.w,
         h: dims.h,
         rotated: false,
@@ -605,6 +623,10 @@ export function loadSkeleton(
         pagePath: path.resolve(path.join(atlasDir, region.page.name)),
         x: region.x,
         y: region.y,
+        packW: region.width,
+        packH: region.height,
+        offsetX: region.offsetX,
+        offsetY: region.offsetY,
         w: region.originalWidth,
         h: region.originalHeight,
         rotated,

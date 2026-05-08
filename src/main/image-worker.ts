@@ -272,14 +272,31 @@ export async function runExport(
     const tmpPath = resolvedOut + '.tmp';
     try {
       if (passthroughUseAtlasExtract && row.atlasSource) {
-        await sharp(row.atlasSource.pagePath)
-          .extract({
-            left: row.atlasSource.x,
-            top: row.atlasSource.y,
-            width: row.atlasSource.w,
-            height: row.atlasSource.h,
-          })
-          .toFile(tmpPath);
+        const a = row.atlasSource;
+        // Extract the trimmed rect that physically exists on the page PNG.
+        // For Strip-Whitespace regions packW/H < w/h; for non-SW regions
+        // packW/H === w/h and the extract dims match exactly.
+        let pipeline = sharp(a.pagePath).extract({
+          left: a.x,
+          top: a.y,
+          width: a.packW,
+          height: a.packH,
+        });
+        // Reconstitute the orig canvas when Strip Whitespace was on. Output
+        // becomes a w×h canvas with the trimmed pixels positioned at
+        // offsetX/Y from the bottom-left — matches a plain Spine export of
+        // the same PNG with Strip Whitespace OFF. Passthrough is 1:1 (no
+        // resize), so chaining .extend() before .toFile() is correct here.
+        if (a.packW !== a.w || a.packH !== a.h) {
+          pipeline = pipeline.extend({
+            top: a.h - a.offsetY - a.packH,
+            bottom: a.offsetY,
+            left: a.offsetX,
+            right: a.w - a.offsetX - a.packW,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          });
+        }
+        await pipeline.toFile(tmpPath);
       } else {
         await copyFile(sourcePath, tmpPath);
       }
@@ -479,20 +496,51 @@ export async function runExport(
     const tmpPath = resolvedOut + '.tmp';
     try {
       if (useAtlasExtract && row.atlasSource) {
-        // sharp.extract uses {left, top, width, height}. We pass the
-        // SOURCE-orig dims (atlasSource.w/h) as the extract size — for
-        // non-rotated regions these match the packed bounds W/H exactly,
-        // and rotated regions are blocked above. Phase 28 SHARP-02:
-        // both branches collapse onto applyResizeAndSharpen so the
-        // downscale-only sharpen gate (D-07) + sigma constant (D-05)
+        // sharp.extract uses {left, top, width, height} in PAGE-PNG coords.
+        // We pass the trimmed page bounds (atlasSource.packW/H — the actual
+        // pixel rect on disk). Strip Whitespace regions then need extend()
+        // to reconstitute the orig canvas before resize — downstream
+        // outW/outH are computed from canonicalW (orig dims) per
+        // computeExportDims, so the resize input must also be orig-sized.
+        // Phase 28 SHARP-02: both branches collapse onto applyResizeAndSharpen
+        // so the downscale-only sharpen gate (D-07) + sigma constant (D-05)
         // live in ONE place; D-08 enforces both call sites covered.
+        //
+        // 2026-05-08 fix (debug session export-extract-area-bad-area):
+        // previously passed atlasSource.w/h directly which overshot the
+        // page on Strip-Whitespace regions → libvips "extract_area: bad
+        // extract area". Sharp orders pipeline operations as
+        //   pre-extract → resize → extend → composite → post-extract
+        // regardless of chain order, so a single .extract().extend().resize()
+        // pipeline yields (resize_target + 2*padding) — wrong. For SW
+        // regions we materialize the extend output to a Buffer first, then
+        // re-open as a fresh pipeline that contains only the orig-canvas
+        // pixels, and feed that to applyResizeAndSharpen.
+        const a = row.atlasSource;
+        let pipeline: sharp.Sharp;
+        if (a.packW !== a.w || a.packH !== a.h) {
+          const orig = await sharp(a.pagePath)
+            .extract({ left: a.x, top: a.y, width: a.packW, height: a.packH })
+            .extend({
+              top: a.h - a.offsetY - a.packH,
+              bottom: a.offsetY,
+              left: a.offsetX,
+              right: a.w - a.offsetX - a.packW,
+              background: { r: 0, g: 0, b: 0, alpha: 0 },
+            })
+            .png()
+            .toBuffer();
+          pipeline = sharp(orig);
+        } else {
+          pipeline = sharp(a.pagePath).extract({
+            left: a.x,
+            top: a.y,
+            width: a.packW,
+            height: a.packH,
+          });
+        }
         await applyResizeAndSharpen(
-          sharp(row.atlasSource.pagePath).extract({
-            left: row.atlasSource.x,
-            top: row.atlasSource.y,
-            width: row.atlasSource.w,
-            height: row.atlasSource.h,
-          }),
+          pipeline,
           row.outW,
           row.outH,
           row.effectiveScale,
