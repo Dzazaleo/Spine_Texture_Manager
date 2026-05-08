@@ -692,6 +692,30 @@ export interface SkeletonSummary {
    * file path).
    */
   atlasPath: string | null;
+  /**
+   * Phase 31 LOAD-05/LOAD-06/LOAD-07 — filesystem state probe at summary
+   * build time. `hasAtlasFile` is `true` iff a `<basename>.atlas` file
+   * exists next to the skeleton JSON (mirrors src/core/loader.ts F1.2
+   * sibling-atlas discovery rule). The renderer uses this to gate the
+   * disabled state of the source-toggle menu item ("Use Atlas as Source")
+   * when the project is loaded in atlas-less mode and the alternate
+   * source is unavailable.
+   *
+   * `false` does NOT mean the project is broken — it only means the
+   * alternate source is unavailable for swapping. Re-queried atomically
+   * on every load and resample.
+   */
+  hasAtlasFile: boolean;
+  /**
+   * Phase 31 LOAD-05/LOAD-06/LOAD-07 — filesystem state probe at summary
+   * build time. `hasImagesDir` is `true` iff a directory named `images/`
+   * exists next to the skeleton JSON. The renderer uses this to gate the
+   * disabled state of the source-toggle menu item ("Use Images Folder as
+   * Source") when the project is loaded in atlas-source mode.
+   *
+   * Re-queried atomically on every load and resample.
+   */
+  hasImagesDir: boolean;
   bones: { count: number; names: string[] };
   slots: { count: number };
   /** Count + per-class-name bucket (e.g. {RegionAttachment: 3, MeshAttachment: 1}). */
