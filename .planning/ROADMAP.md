@@ -729,12 +729,12 @@ Plans:
   4. Layer 3 invariant preserved — `grep -rn "from 'sharp'" src/core/` returns zero hits; buffer math is in `src/core/export.ts` (or equivalent) using only pure-TS.
   5. Existing Phase 22.1 override-aware passthrough partition continues to work correctly when buffer is non-zero — a row that was passthrough at 1.0× moves into the resize bucket at 1.05× as expected.
 
-**Plans:** 3/5 plans complete (verifier flagged 4 BLOCKERs + 3 WARNINGs in 30-VERIFICATION.md; closure plans 30-04 + 30-05 added 2026-05-08)
+**Plans:** 5/5 plans complete
 - [x] 30-01-PLAN.md — Persistence + plumbing (types + validator/serializer/materializer + IPC envelope + AppShell lifecycle) (BUFFER-03) (Wave 1)
 - [x] 30-02-PLAN.md — Buffer math + parity (lockstep core/renderer-view; bufferCapped flag; parity regex extension) (BUFFER-01, BUFFER-02) (Wave 2)
 - [x] 30-03-PLAN.md — OptimizeDialog UI + reactive recompute + tests (Quality group + clamp + tooltip + four call sites threaded) (BUFFER-01) (Wave 3)
-- [ ] 30-04-PLAN.md — Gap closure: AppShell + dialog reactivity wiring (CR-01 reactive plan rebuild + CR-02 AtlasPreviewModal threading + WR-01 reloadProjectWithSkeleton recovery + WR-03 untitled-dirty fix + WR-04 Math.floor cleanup + IN-03 regression test) (BUFFER-01, BUFFER-03) (Wave 4)
-- [ ] 30-05-PLAN.md — Gap closure: Core mirror parity + documentation reconciliation (CR-03 src/core/atlas-preview.ts mirror restore + CR-04 doc-export reconciliation Option C + WR-02 ExportRow.bufferCapped JSDoc fix + parity regex test) (BUFFER-01, BUFFER-03) (Wave 4)
+- [x] 30-04-PLAN.md — Gap closure: AppShell + dialog reactivity wiring (CR-01 reactive plan rebuild + CR-02 AtlasPreviewModal threading + WR-01 reloadProjectWithSkeleton recovery + WR-03 untitled-dirty fix + WR-04 Math.floor cleanup + IN-03 regression test) (BUFFER-01, BUFFER-03) (Wave 4)
+- [x] 30-05-PLAN.md — Gap closure: Core mirror parity + documentation reconciliation (CR-03 src/core/atlas-preview.ts mirror restore + CR-04 doc-export reconciliation Option C + WR-02 ExportRow.bufferCapped JSDoc fix + parity regex test) (BUFFER-01, BUFFER-03) (Wave 4)
 
 **UI hint**: yes
 
@@ -796,7 +796,7 @@ Plans:
 | 27. Code quality sweep | v1.3 | 3/3 | Complete    | 2026-05-05 |
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
 | 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 7/7 | Complete    | 2026-05-07 |
-| 30. Safety buffer in Optimize dialog | v1.3.1 | 3/3 | Complete   | 2026-05-08 |
+| 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete   | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 0/0 | Not started — independent of 29/30 (LOAD-05..07, PANEL-08..11, PLATFORM-01) | — |
 
 ## Deferred (post-v1.1)
