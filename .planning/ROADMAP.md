@@ -79,7 +79,7 @@
 
 - [x] **Phase 29: Per-region dedup + override-region semantics + atlas-preview pack-page accuracy** — Re-key Global panel + Atlas Preview deduplication from `attachmentName` to `regionName`; flip override semantics from per-attachment to per-region (overrides bind to the source PNG, all contributing attachments inherit at export time); row label format `{regionName}.png` with `images/` prefix stripped in Global; Source Animation/Frame columns attribute to the winning contributing attachment (lex-tiebreak); add `contributingAttachments[]` to `DisplayRow`; migrate ~8+ call sites currently keyed on `attachmentName`; commit a stripped <1MB Chicken-derived regression fixture exercising path-indirection. Folds PREVIEW-01 — the Atlas Preview optimized-mode tile expansion (one tile per `attachmentNames[i]`) is the same dedup-key bug surfacing as the Chicken 13-vs-14 page-count drift; the regionName re-key fixes both. (REGION-01..07, PREVIEW-01) (completed 2026-05-07)
 - [x] **Phase 30: Safety buffer in Optimize dialog** — User-configurable safety-buffer percentage control in OptimizeDialog (integer-percent input with small step). Multiplicatively increases each row's calculated effective scale AND any user-set overrides BEFORE the export plan is computed. Hard-cap at source dimensions on both axes (preserves D-91 + uniform-only Phase 6 invariant). Persists per-project in `.stmproj` v1 as additive optional field (mirrors `sharpenOnExport` precedent from Phase 28; missing field defaults to 0% for v1.2/v1.3-era backward compat; no schema-version bump). Depends on Phase 29 — buffer applies to the *region-level* effective scale, so per-region dedup must land first. (BUFFER-01..03) (completed 2026-05-07)
-- [ ] **Phase 31: Loader & UX small-fixes batch** — Four independent UX wirings on existing surfaces, batched per granularity calibration: (a) source-toggle disable+tooltip when atlas/images-folder absent (LOAD-05..07); (b) Animation Breakdown default-collapsed + bulk Expand all/Collapse all toolbar buttons + Setup Pose stays first (PANEL-08..11); (c) Windows admin drag-drop fallback — detect elevation, disable drop targets, route user to File → Open or unprivileged relaunch via clear message (PLATFORM-01); (d) ExtrapolationIcon tooltip regression — up-arrow icon on Peak W×H cells with `peakScale > 1` no longer surfaces its SVG `<title>` on hover; folded mid-discussion 2026-05-08 as second known regression of this surface (TOOLTIP-01). No cross-dependency with Phases 29/30. (LOAD-05..07, PANEL-08..11, PLATFORM-01, TOOLTIP-01)
+- [x] **Phase 31: Loader & UX small-fixes batch** — Four independent UX wirings on existing surfaces, batched per granularity calibration: (a) source-toggle disable+tooltip when atlas/images-folder absent (LOAD-05..07); (b) Animation Breakdown default-collapsed + bulk Expand all/Collapse all toolbar buttons + Setup Pose stays first (PANEL-08..11); (c) Windows admin drag-drop fallback — detect elevation, disable drop targets, route user to File → Open or unprivileged relaunch via clear message (PLATFORM-01); (d) ExtrapolationIcon tooltip regression — up-arrow icon on Peak W×H cells with `peakScale > 1` no longer surfaces its SVG `<title>` on hover; folded mid-discussion 2026-05-08 as second known regression of this surface (TOOLTIP-01). No cross-dependency with Phases 29/30. (LOAD-05..07, PANEL-08..11, PLATFORM-01, TOOLTIP-01) (completed 2026-05-08)
 
 ## Phase Details
 
@@ -768,11 +768,11 @@ Plans:
   4. On Windows, when the app starts as administrator, drop targets (project window + drop zones) are visually disabled and show a clear, user-visible message explaining drag-drop is unavailable under elevated privileges, with a routing hint to File → Open or relaunch unprivileged. macOS + Linux behavior is unchanged. (PLATFORM-01)
   5. User loads a fixture with `peakScale > 1` rows; the up-arrow `ExtrapolationIcon` next to the Peak W×H value surfaces its hover tooltip ("Spine rig peak: X.XX× source — export capped at canonical") instead of the parent cell tooltip. Holds across both Global Max Render Source panel and Animation Breakdown panel. (TOOLTIP-01)
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 - [x] 31-01-PLAN.md — Sub-feature A: source-toggle disable + verbatim tooltip (LOAD-05, LOAD-06, LOAD-07) (Wave 1)
 - [x] 31-02-PLAN.md — Sub-feature B: AB collapse defaults + Expand all/Collapse all bulk buttons (PANEL-08, PANEL-09, PANEL-10, PANEL-11) (Wave 1)
-- [ ] 31-03-PLAN.md — Sub-feature C: Windows admin DnD fallback (elevation probe + IPC + advisory copy) (PLATFORM-01) (Wave 2; types.ts overlap with 31-01)
-- [ ] 31-04-PLAN.md — Sub-feature D: ExtrapolationIcon tooltip regression — diagnose-then-fix spike (TOOLTIP-01) (Wave 2; AnimationBreakdownPanel.tsx overlap with 31-02)
+- [x] 31-03-PLAN.md — Sub-feature C: Windows admin DnD fallback (elevation probe + IPC + advisory copy) (PLATFORM-01) (Wave 2; types.ts overlap with 31-01)
+- [x] 31-04-PLAN.md — Sub-feature D: ExtrapolationIcon tooltip regression — diagnose-then-fix spike (TOOLTIP-01) (Wave 2; AnimationBreakdownPanel.tsx overlap with 31-02)
 
 **UI hint**: yes
 
@@ -805,7 +805,7 @@ Plans:
 | 28. Optional output sharpening on downscale | v1.3 | 3/3 | Complete    | 2026-05-06 |
 | 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 7/7 | Complete    | 2026-05-07 |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
-| 31. Loader & UX small-fixes batch | v1.3.1 | 2/4 | In Progress|  |
+| 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete   | 2026-05-08 |
 
 ## Deferred (post-v1.1)
 
