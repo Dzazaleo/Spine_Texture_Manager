@@ -1484,6 +1484,21 @@ export interface Api {
   pathToImageUrl: (absolutePath: string) => Promise<string>;
 
   // -------------------------------------------------------------------------
+  // Phase 31 PLATFORM-01 — read the cached Windows-elevation flag.
+  //
+  // Resolves `true` iff the main process detected administrator privileges
+  // at app boot via `child_process.exec('net session')`. macOS / Linux
+  // always resolve `false` (the main-side handler short-circuits per
+  // CONTEXT.md C-D-05).
+  //
+  // The renderer reads this once at App.tsx mount and uses it to swap the
+  // DropZone empty-state body for an advisory routing the user to File →
+  // Open. Re-polling is unnecessary — Windows cannot change a process's
+  // token mid-life, so a one-shot probe + cached read is sufficient.
+  // -------------------------------------------------------------------------
+  isElevated: () => Promise<boolean>;
+
+  // -------------------------------------------------------------------------
   // Phase 20 D-21 — Documentation HTML export.
   //
   // Resolves with DocExportResponse: { ok: true; path } on success, or

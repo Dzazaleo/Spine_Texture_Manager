@@ -61,6 +61,13 @@ import {
 // registration alongside the existing project:* handlers.
 import { handleExportDocumentationHtml, type DocExportPayload } from './doc-export.js';
 import { getSamplerWorkerHandle } from './sampler-worker-bridge.js';
+// Phase 31 PLATFORM-01 — read-only accessor for the cached Windows-elevation
+// flag populated at app.whenReady() in src/main/index.ts. The handler is a
+// pure cached-boolean read (no I/O, no validation) — closest sibling shape
+// to 'atlas:resolve-image-url' below. Layer 3 carve-out: elevation.ts owns
+// the win32 platform branch + child_process.exec invocation; this file
+// stays portability-clean (no platform branching here) per D-23.
+import { getIsElevated } from './elevation.js';
 // Phase 12 Plan 01 Task 4 — auto-update IPC bridge (UPD-01..UPD-06).
 //
 // auto-update.ts imports `getMainWindow` from `./index.js`, which means an
@@ -880,6 +887,13 @@ export function registerIpcHandlers(): void {
   // renderer's "set img.src to '' → broken-image icon" fallback. Threat
   // T-12-03-04 (spoofing): the scheme + host are fixed literals controlled
   // by main; renderer-supplied input only contributes to the pathname.
+  // Phase 31 PLATFORM-01 — read cached elevation flag. Populated once at
+  // app.whenReady() via probeElevation(). No payload, no validation, no I/O.
+  // Off-Windows always returns false (probeElevation short-circuits per
+  // CONTEXT.md C-D-05); the renderer's idle DropZone advisory therefore only
+  // ever surfaces on Windows-when-elevated.
+  ipcMain.handle('platform:isElevated', () => getIsElevated());
+
   ipcMain.handle('atlas:resolve-image-url', (_evt, absolutePath: unknown): string => {
     if (typeof absolutePath !== 'string' || absolutePath.length === 0) return '';
     try {
