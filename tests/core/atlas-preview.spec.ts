@@ -407,6 +407,27 @@ describe('atlas-preview — core ↔ renderer parity (Layer 3 inline-copy invari
       expect(text).toMatch(/square:\s*false/);
     }
   });
+  it('Phase 30 BUFFER-01 — both files declare safetyBufferPercent on buildAtlasPreview opts (CR-03 closure)', () => {
+    // Phase 30 closure plan 30-05 — CR-03 mirror parity contract. Plan 30-03
+    // updated atlas-preview-view.ts (renderer copy) to thread safetyBufferPercent
+    // through opts shape + deriveInputs param + buildExportPlan call. Plan 30-05
+    // mirrors those changes byte-identically into atlas-preview.ts (core).
+    // This test locks the parity contract: both files MUST declare
+    // `safetyBufferPercent?: number` in the buildAtlasPreview opts shape (and
+    // the deriveInputs signature). Mirrors the Plan 30-02 parity-regex pattern
+    // at tests/core/export.spec.ts:719-725.
+    //
+    // Without this test, the existing 5-case projection-equality test at
+    // line 410 passes loosely because all 5 cases omit safetyBufferPercent
+    // (D-07 no-op short-circuit hides divergence: bufferPct===0 collapses to
+    // the pre-buffer baseline regardless of opts shape). The regex assertion
+    // here catches signature divergence even when the runtime equality holds.
+    const coreText = readFileSync(ATLAS_PREVIEW_SRC, 'utf8');
+    const viewText = readFileSync(ATLAS_PREVIEW_VIEW_SRC, 'utf8');
+    const sig = /safetyBufferPercent\?\s*:\s*number/;
+    expect(coreText, 'src/core/atlas-preview.ts must declare safetyBufferPercent?: number on buildAtlasPreview opts').toMatch(sig);
+    expect(viewText, 'src/renderer/src/lib/atlas-preview-view.ts must declare safetyBufferPercent?: number on buildAtlasPreview opts').toMatch(sig);
+  });
   it('renderer view buildAtlasPreview produces IDENTICAL projection to canonical for representative inputs', async () => {
     // Dynamic-import the renderer copy via its file path so the test executes
     // in node (no DOM needed; renderer copy has zero DOM deps).
