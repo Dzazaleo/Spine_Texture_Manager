@@ -2041,6 +2041,7 @@ export function AppShell({
           onJumpToRegion={onJumpToRegion}
           onClose={() => setAtlasPreviewOpen(false)}
           onOpenOptimizeDialog={onClickOptimize}
+          safetyBufferPercent={safetyBufferPercentLocal}
         />
       )}
       {/* Phase 20 D-01 — Documentation Builder modal. Mounted alongside
