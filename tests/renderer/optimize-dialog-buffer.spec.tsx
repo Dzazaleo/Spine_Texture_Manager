@@ -276,7 +276,19 @@ describe('reactive plan rebuild — Phase 30 CR-01 closure (post-mount buffer ch
   it('post-mount buffer change → startExport receives plan with rebuilt outW (CR-01 IPC closure)', async () => {
     // Warning-5 fix: this test reliably reaches the IPC path OR fails loudly
     // with `it.skip` + TODO. NO soft-fail fallback to a weaker assertion.
-    const startExportMock = vi.fn().mockResolvedValue({ ok: true });
+    // Return a complete ExportSummary shape so InProgressBody's post-export
+    // render doesn't crash on undefined.successes (pre-existing OptimizeDialog
+    // null-vs-undefined gap exposed by this test; out-of-scope per SCOPE
+    // BOUNDARY — logged to deferred-items.md).
+    const startExportMock = vi.fn().mockResolvedValue({
+      ok: true,
+      summary: {
+        successes: 1,
+        errors: [],
+        durationMs: 100,
+        cancelled: false,
+      },
+    });
     vi.stubGlobal('api', {
       onExportProgress: vi.fn(() => () => undefined),
       startExport: startExportMock,
