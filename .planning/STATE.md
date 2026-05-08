@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
-status: executing
+status: milestone_complete
 last_updated: "2026-05-08T15:54:10.307Z"
 last_activity: 2026-05-08 -- Phase 31 execution started
 progress:
   total_phases: 16
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 54
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 31 (loader-ux-small-fixes-batch) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 31
-Last activity: 2026-05-08 -- Phase 31 execution started
+Phase: 31
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-08
 
 ## Project Reference
 
