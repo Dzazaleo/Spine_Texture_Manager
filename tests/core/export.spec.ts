@@ -693,6 +693,37 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(overrideSig);
   });
 
+  it('Phase 30 BUFFER-01 — both files share the same buffer-multiply signature (D-09 step order)', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    // CONTEXT D-09 step 2: bufferedScale := buffer === 0 ? raw : raw × (1 + buffer/100).
+    // Locked literal — D-07 no-op short-circuit is structurally enforced via this regex.
+    // Either file diverging is a parity bug; tests/arch.spec.ts:19-34 keeps the renderer
+    // from importing src/core/*, so any drift would be caught here only.
+    const bufferSig = /bufferPct\s*===\s*0\s*\?\s*rawEffScale\s*:\s*rawEffScale\s*\*\s*\(1\s*\+\s*bufferPct\s*\/\s*100\)/;
+    expect(coreText, 'src/core/export.ts must contain the buffer-multiply signature').toMatch(bufferSig);
+    expect(viewText, 'src/renderer/src/lib/export-view.ts must contain the buffer-multiply signature').toMatch(bufferSig);
+  });
+
+  it('Phase 30 BUFFER-02 — both files share the same bufferCapped conditional-spread signature', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    // The flag is OPTIONAL on ExportRow (Plan 30-01); Plan 30-02 sets it via
+    // a conditional spread parallel to the existing isCapped spread at line 321.
+    // Mirror the isCapped pattern — same shape, distinct flag.
+    const sig = /acc\.bufferCapped\s*\?\s*\{\s*bufferCapped:\s*true\s*\}/;
+    expect(coreText, 'src/core/export.ts must spread bufferCapped conditionally').toMatch(sig);
+    expect(viewText, 'src/renderer/src/lib/export-view.ts must spread bufferCapped conditionally').toMatch(sig);
+  });
+
+  it('Phase 30 BUFFER-01 — both files declare safetyBufferPercent on BuildExportPlanOptions (D-09)', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /safetyBufferPercent\?\s*:\s*number/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
   it('both files export the safeScale helper (ceil-thousandth single source of truth, Round 5)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');
