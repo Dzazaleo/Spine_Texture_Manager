@@ -441,12 +441,16 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
               step={1}
               value={props.safetyBufferPercent}
               onChange={(e) => {
+                // Phase 30 closure plan 30-04 — WR-04 / IN-01 cleanup. parseInt(s, 10)
+                // already truncates fractional input (e.g. parseInt('5.9', 10) === 5),
+                // so Math.floor was a no-op. Removing it for clarity; clamp behavior
+                // unchanged.
                 const parsed = parseInt(e.target.value, 10);
                 if (!Number.isFinite(parsed)) {
                   props.onSafetyBufferChange(0);
                   return;
                 }
-                const clamped = Math.max(0, Math.min(25, Math.floor(parsed)));
+                const clamped = Math.max(0, Math.min(25, parsed));
                 props.onSafetyBufferChange(clamped);
               }}
               disabled={state === 'in-progress'}
