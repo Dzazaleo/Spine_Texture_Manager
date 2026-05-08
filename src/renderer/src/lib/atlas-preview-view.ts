@@ -48,20 +48,30 @@ import { MaxRectsPacker } from 'maxrects-packer';
  *
  * @param summary  SkeletonSummary with peaks (DisplayRow[]) + unusedAttachments.
  * @param overrides Map<attachmentName, percent> — same shape AppShell owns.
- * @param opts     mode: 'original' | 'optimized'; maxPageDim: 2048 | 4096.
+ * @param opts     mode: 'original' | 'optimized'; maxPageDim: 2048 | 4096;
+ *                 safetyBufferPercent?: integer 0-25 (Phase 30 BUFFER-01) —
+ *                 extends the existing opts shape so the optimized-mode
+ *                 projection (page count + tile dims) reflects the user's
+ *                 current safety-buffer setting reactively. The 'original'
+ *                 branch ignores the buffer (panel intentionally answers
+ *                 pre-buffer demand per RESEARCH "Anti-Patterns to Avoid" #2).
  * @returns AtlasPreviewProjection — structuredClone-safe (Phase 1 D-21).
  */
 export function buildAtlasPreview(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  opts: { mode: 'original' | 'optimized'; maxPageDim: 2048 | 4096 },
+  opts: {
+    mode: 'original' | 'optimized';
+    maxPageDim: 2048 | 4096;
+    safetyBufferPercent?: number;
+  },
 ): AtlasPreviewProjection {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // excluded set now always empty; Plan 02 wires new exclusion surface.
   const excluded = new Set<string>();
 
   // 2. Derive AtlasPreviewInput[] per mode.
-  const allInputs: AtlasPreviewInput[] = deriveInputs(summary, overrides, opts.mode, excluded);
+  const allInputs: AtlasPreviewInput[] = deriveInputs(summary, overrides, opts.mode, excluded, opts.safetyBufferPercent);
 
   // 2a. D-139 follow-up: filter inputs whose packed dims exceed maxPageDim on
   // either axis. The packer would otherwise expand the bin past the cap to fit
@@ -162,6 +172,7 @@ function deriveInputs(
   overrides: ReadonlyMap<string, number>,
   mode: 'original' | 'optimized',
   excluded: Set<string>,
+  safetyBufferPercent?: number,
 ): AtlasPreviewInput[] {
   if (mode === 'optimized') {
     // D-125: outW/outH come from buildExportPlan — single source of truth with Phase 6.
@@ -180,7 +191,10 @@ function deriveInputs(
     // atlas space at their source dims — the user opens the optimized preview to
     // see total page count / efficiency, so dropping them would understate the
     // atlas size and hide images that ship unchanged.
-    const plan = buildExportPlan(summary, overrides);
+    //
+    // Phase 30 BUFFER-01: thread the buffer into buildExportPlan so the
+    // optimized-mode page count / tile dims reflect the current setting.
+    const plan = buildExportPlan(summary, overrides, { safetyBufferPercent });
     const out: AtlasPreviewInput[] = [];
     for (const row of [...plan.rows, ...plan.passthroughCopies]) {
       // ExportRow is region-keyed via sourcePath. row.attachmentNames[] is the
