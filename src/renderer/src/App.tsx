@@ -597,6 +597,7 @@ export function App() {
       onProjectDrop={handleProjectLoad}
       onProjectDropStart={handleLoadStart}
       onBeforeDrop={handleBeforeDrop}
+      isElevated={isElevated}
     >
       {state.status === 'idle' &&
         (isElevated ? (

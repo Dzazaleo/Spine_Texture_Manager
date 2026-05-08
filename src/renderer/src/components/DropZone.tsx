@@ -59,6 +59,17 @@ export interface DropZoneProps {
    * Resolves true (Save / Don't Save) or false (Cancel).
    */
   onBeforeDrop?: (fileName: string, kind: 'json' | 'stmproj') => Promise<boolean>;
+  /**
+   * Phase 31 PLATFORM-01 — when true on Windows, drag handlers are no-op'd
+   * and the drag-over ring is suppressed. The advisory body (replacement
+   * for the idle empty-state message) is composed by App.tsx via the
+   * `children` prop. macOS + Linux always pass false (the main-side
+   * elevation handler short-circuits per CONTEXT.md C-D-05).
+   *
+   * Defaults to false so existing call sites that don't pass this prop
+   * keep their pre-Phase-31 behavior byte-identical.
+   */
+  isElevated?: boolean;
   /** State-appropriate body content injected by parent App.tsx. */
   children: ReactNode;
 }
@@ -69,32 +80,55 @@ export function DropZone({
   onProjectDrop,
   onProjectDropStart,
   onBeforeDrop,
+  isElevated = false,
   children,
 }: DropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Phase 31 PLATFORM-01 — Windows-admin DnD fallback. UIPI blocks the
+      // OS-level drop event before it ever fires, so suppressing setIsDragOver
+      // here is mostly defense-in-depth: if for any reason a drag event DOES
+      // surface (synthesized in tests, future Electron change), we want zero
+      // visual or behavioral feedback so the advisory body is the only thing
+      // the user sees.
+      if (isElevated) return;
+      setIsDragOver(true);
+    },
+    [isElevated],
+  );
 
-  const handleDragEnter = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  }, []);
+  const handleDragEnter = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isElevated) return;
+      setIsDragOver(true);
+    },
+    [isElevated],
+  );
 
-  const handleDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isElevated) return;
+      setIsDragOver(false);
+    },
+    [isElevated],
+  );
 
   const handleDrop = useCallback(
     async (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // Phase 31 PLATFORM-01 — no drop processing when running as admin on
+      // Windows. The advisory body has already routed the user to File →
+      // Open or to relaunch unprivileged.
+      if (isElevated) return;
       setIsDragOver(false);
 
       const file = e.dataTransfer.files[0];
@@ -159,7 +193,7 @@ export function DropZone({
         file.name,
       );
     },
-    [onLoad, onLoadStart, onProjectDrop, onProjectDropStart, onBeforeDrop],
+    [onLoad, onLoadStart, onProjectDrop, onProjectDropStart, onBeforeDrop, isElevated],
   );
 
   return (
