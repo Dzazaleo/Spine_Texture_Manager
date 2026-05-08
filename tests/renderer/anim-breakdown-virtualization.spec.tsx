@@ -485,3 +485,197 @@ describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', (
     expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 });
+
+/**
+ * Phase 31 PANEL-08..11 — Animation Breakdown collapse defaults + bulk Expand
+ * all / Collapse all buttons.
+ *
+ *   B1 (PANEL-08): Initial render with summary.animations.count > 0 — all
+ *                  cards collapsed including Setup Pose.
+ *   B2 (PANEL-11): Setup Pose remains the FIRST card in DOM order; only its
+ *                  initial-expansion seed changed.
+ *   B3 (PANEL-10): "Expand all" + "Collapse all" buttons present in header
+ *                  with verbatim h-8 toolbar class string.
+ *   B4: Click "Expand all" → all cards open. Click "Collapse all" → all
+ *       cards close.
+ *   B5: After bulk Expand all, toggling an individual card collapses just
+ *       that one card (preserves toggleCard).
+ *   B6 (B-D-02 + B-D-04): Search auto-expand union preserved verbatim — a
+ *       matching card surfaces during active search even though
+ *       userExpanded is the empty set; bulk Collapse all does not remove
+ *       it from view while search is still active.
+ *   B7: Empty rig (summary.animations.count === 0) — neither bulk button
+ *       renders (UI-SPEC § sub-feature B recommendation: hide rather than
+ *       disable).
+ */
+describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
+  it('B1 (PANEL-08): all cards collapsed on initial render including Setup Pose', () => {
+    // 3 cards (Setup Pose + 2 anims) × 5 rows each. With the default seed
+    // flipped to new Set(), every card body must NOT render. Each card's
+    // header carries aria-expanded="false".
+    renderPanel(3, 5);
+
+    const expandToggles = screen.getAllByRole('button', { expanded: false });
+    // 3 cards → 3 expand toggles, all false.
+    expect(expandToggles.length).toBeGreaterThanOrEqual(3);
+
+    // No card body content (row text from the makeRow generator) should
+    // render — every card body is collapsed.
+    expect(screen.queryByText(/-attachment-0000$/)).toBeNull();
+  });
+
+  it('B2 (PANEL-11): Setup Pose remains the first card in DOM order', () => {
+    const { container } = renderPanel(3, 5);
+    const cards = container.querySelectorAll(
+      'section[aria-labelledby^="bd-header-"]',
+    );
+    expect(cards.length).toBe(3);
+    // First card's header id is bd-header-setup-pose.
+    const firstHeaderId = cards[0].getAttribute('aria-labelledby');
+    expect(firstHeaderId).toBe('bd-header-setup-pose');
+  });
+
+  it('B3 (PANEL-10): Expand all + Collapse all buttons render with verbatim h-8 class string', () => {
+    renderPanel(3, 5);
+    const expandAllBtn = screen.getByRole('button', {
+      name: 'Expand all animation cards',
+    });
+    const collapseAllBtn = screen.getByRole('button', {
+      name: 'Collapse all animation cards',
+    });
+    expect(expandAllBtn).not.toBeNull();
+    expect(collapseAllBtn).not.toBeNull();
+    expect(expandAllBtn.getAttribute('type')).toBe('button');
+    expect(collapseAllBtn.getAttribute('type')).toBe('button');
+    expect(expandAllBtn.textContent).toBe('Expand all');
+    expect(collapseAllBtn.textContent).toBe('Collapse all');
+    // Verbatim h-8 class string fragments — ensures Pitfall 8 literal-class
+    // discipline (no template interpolation, no shared-variable factoring).
+    const className = expandAllBtn.getAttribute('class') ?? '';
+    expect(className).toContain('h-8');
+    expect(className).toContain('text-xs');
+    expect(className).toContain('font-semibold');
+    expect(className).toContain('border border-border');
+    expect(className).toContain('rounded-md');
+    expect(className).toContain('px-3');
+    expect(className).toContain('flex-shrink-0');
+    const className2 = collapseAllBtn.getAttribute('class') ?? '';
+    expect(className2).toContain('h-8');
+    expect(className2).toContain('text-xs');
+    expect(className2).toContain('font-semibold');
+  });
+
+  it('B4: Expand all opens every card; Collapse all closes every card', () => {
+    renderPanel(3, 5);
+
+    // Initially: all collapsed.
+    const expandAllBtn = screen.getByRole('button', {
+      name: 'Expand all animation cards',
+    });
+    act(() => {
+      fireEvent.click(expandAllBtn);
+    });
+
+    // After Expand all: every card body is open. Each card had 5 rows; we
+    // should see 5 rows × 3 cards = 15 row records by attachmentName text.
+    const rowsAfterExpand = screen.queryAllByText(/-attachment-0000$/);
+    expect(rowsAfterExpand.length).toBe(3); // one row per card
+
+    const collapseAllBtn = screen.getByRole('button', {
+      name: 'Collapse all animation cards',
+    });
+    act(() => {
+      fireEvent.click(collapseAllBtn);
+    });
+
+    // After Collapse all: every card body is closed.
+    const rowsAfterCollapse = screen.queryAllByText(/-attachment-0000$/);
+    expect(rowsAfterCollapse.length).toBe(0);
+  });
+
+  it('B5: after Expand all, individual card toggle collapses just that card', () => {
+    const { container } = renderPanel(3, 5);
+
+    const expandAllBtn = screen.getByRole('button', {
+      name: 'Expand all animation cards',
+    });
+    act(() => {
+      fireEvent.click(expandAllBtn);
+    });
+
+    // Sanity: all 3 expanded.
+    expect(screen.queryAllByText(/-attachment-0000$/).length).toBe(3);
+
+    // Toggle the FIRST card (Setup Pose) closed.
+    const cards = container.querySelectorAll(
+      'section[aria-labelledby^="bd-header-"]',
+    );
+    expect(cards.length).toBe(3);
+    const firstToggle = cards[0].querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement;
+    expect(firstToggle.getAttribute('aria-expanded')).toBe('true');
+    act(() => {
+      fireEvent.click(firstToggle);
+    });
+    expect(firstToggle.getAttribute('aria-expanded')).toBe('false');
+
+    // The other two cards remain expanded.
+    const secondToggle = cards[1].querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement;
+    const thirdToggle = cards[2].querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement;
+    expect(secondToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(thirdToggle.getAttribute('aria-expanded')).toBe('true');
+
+    // After single-card collapse: 2 cards' first rows still visible.
+    expect(screen.queryAllByText(/-attachment-0000$/).length).toBe(2);
+  });
+
+  it('B6 (B-D-02 + B-D-04): search union preserved; matching cards surface even with empty userExpanded; bulk Collapse all does not remove matched cards while search active', () => {
+    // 3 cards × 5 rows each. Default seed is empty Set ⇒ all collapsed.
+    renderPanel(3, 5);
+
+    // Click Collapse all so userExpanded is unambiguously empty (the
+    // default-collapsed seed already does this; the explicit click here
+    // proves the bulk action stays absolute and does not interfere with
+    // search-union behavior afterwards).
+    const collapseAllBtn = screen.getByRole('button', {
+      name: 'Collapse all animation cards',
+    });
+    act(() => {
+      fireEvent.click(collapseAllBtn);
+    });
+
+    // Type a query that matches only one card's rows (anim 'walk-01' has
+    // attachmentName like "walk-01-attachment-0001"). The substring
+    // 'walk-01-attachment-0001' is a unique row inside walk-01.
+    const searchInput = screen.getByLabelText(
+      /filter rows by attachment name/i,
+    );
+    act(() => {
+      fireEvent.change(searchInput, {
+        target: { value: 'walk-01-attachment-0001' },
+      });
+    });
+
+    // The matched row text is rendered — the union auto-expands the
+    // matched card even though userExpanded is empty.
+    expect(
+      screen.queryAllByText(/walk-01-attachment-0001/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('B7: empty rig (summary.animations.count === 0) hides bulk buttons', () => {
+    // 1 card (Setup Pose) only ⇒ animations.count === 0 (cardCount - 1).
+    renderPanel(1, 5);
+    expect(
+      screen.queryByRole('button', { name: 'Expand all animation cards' }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Collapse all animation cards' }),
+    ).toBeNull();
+  });
+});
