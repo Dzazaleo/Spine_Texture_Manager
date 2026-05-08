@@ -41,7 +41,11 @@ describe('runExport — Strip-Whitespace atlas-extract regression', () => {
       return;
     }
 
-    const syntheticPerRegionPath = path.join(SW_DIR, 'images', 'square.png');
+    // sourcePath must be guaranteed-missing so pre-flight access fails and
+    // the worker falls into the atlasSource extract path. Putting it under
+    // tmpDir (which is fresh per beforeEach) avoids cross-test pollution
+    // that a fixtures/-relative path would suffer.
+    const syntheticPerRegionPath = path.join(tmpDir, 'src', 'square.png');
     const plan: ExportPlan = {
       rows: [{
         sourcePath: syntheticPerRegionPath,
@@ -89,10 +93,11 @@ describe('runExport — Strip-Whitespace atlas-extract regression', () => {
       return;
     }
 
-    // passthroughCopies row exercises image-worker.ts:273-285 (the byte-copy
-    // / atlas-extract branch). The synthetic per-region path doesn't exist,
-    // so the worker falls through to the atlasSource extract → extend path.
-    const syntheticPerRegionPath = path.join(SW_DIR, 'images', 'square.png');
+    // passthroughCopies row exercises image-worker.ts:273-302 (the byte-copy
+    // / atlas-extract branch). The synthetic per-region path is under tmpDir
+    // so it's guaranteed-missing; the worker falls through to atlasSource
+    // extract → extend.
+    const syntheticPerRegionPath = path.join(tmpDir, 'src', 'square.png');
     const plan: ExportPlan = {
       rows: [],
       excludedUnused: [],

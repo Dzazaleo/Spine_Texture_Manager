@@ -176,6 +176,14 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
           next.set(event.index, errMsg);
           return next;
         });
+        // Auto-expand the failing row so the error message is visible
+        // without requiring a click. Users can still click to collapse.
+        setExpandedErrors((prev) => {
+          if (prev.has(event.index)) return prev;
+          const next = new Set(prev);
+          next.add(event.index);
+          return next;
+        });
       }
     });
     return unsubscribe;
