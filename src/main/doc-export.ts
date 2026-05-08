@@ -72,6 +72,18 @@ export interface DocExportPayload {
   lastOutDir: string | null;
   /** ms epoch — Date.now() in production; fixed in tests for snapshot stability. */
   generatedAt: number;
+  /**
+   * Phase 30 closure plan 30-05 — CR-04 fix (Option C). The new top-level
+   * safetyBufferPercent (range 0-25, integer) that drives buildExportPlan
+   * math. Pre-Phase-30, the HTML report's "Optimization Config" card read
+   * the LEGACY `documentation.safetyBufferPercent` (range 0-100, fractional,
+   * metadata-only per the v1.2 input copy). Phase 30 wires the report to
+   * read the value that actually drives the export instead. Optional for
+   * backward-compat: pre-30-05 callers (test fixtures) without this field
+   * fall through the defensive integer-range coerce in
+   * renderOptimizationConfigCard with a 0 default.
+   */
+  safetyBufferPercent?: number;
 }
 
 export type DocExportResponse =
@@ -289,13 +301,25 @@ function renderChipStrip(payload: DocExportPayload): string {
 }
 
 function renderOptimizationConfigCard(payload: DocExportPayload): string {
-  const safetyRaw = payload.documentation.safetyBufferPercent;
-  // Integer values render plain (e.g. "1"); fractional values render with
-  // one-decimal precision (e.g. "1.5"). The '%' suffix is appended once
-  // outside the value span so the snapshot is stable.
-  const safetyDisplay = Number.isInteger(safetyRaw)
-    ? `${safetyRaw}`
-    : `${safetyRaw.toFixed(1)}`;
+  // Phase 30 closure plan 30-05 — CR-04 fix (Option C). Read the new
+  // top-level safetyBufferPercent (range 0-25, integer) that ACTUALLY
+  // drives buildExportPlan math, NOT the legacy documentation.safetyBufferPercent
+  // (range 0-100, "metadata only" per v1.2 D-22 input copy). Defensive
+  // integer-and-range coerce mirrors the IPC-seam pattern at
+  // src/main/project-io.ts:700-716 — falls back to 0 for missing /
+  // out-of-range / non-integer / non-numeric values.
+  const safetyRaw = payload.safetyBufferPercent;
+  const safetyBuffer =
+    typeof safetyRaw === 'number'
+    && Number.isInteger(safetyRaw)
+    && safetyRaw >= 0
+    && safetyRaw <= 25
+      ? safetyRaw
+      : 0;
+  // Top-level field is integer-only per D-04, so always renders plain (no
+  // fractional path). The escapeHtml + '%' suffix shape preserved from the
+  // legacy implementation.
+  const safetyDisplay = `${safetyBuffer}`;
   const savingsPct = payload.exportPlanSavingsPct;
   const savingsDisplay = savingsPct === null ? '—' : `${savingsPct.toFixed(1)}%`;
   return `<div class="card">
