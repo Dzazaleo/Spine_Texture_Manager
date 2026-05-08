@@ -349,7 +349,218 @@ export function sampleSkeleton(
     }
   }
 
+  // === Sequence fan-out post-pass (debug-fix spine-sequence-undercount) ===
+  //
+  // Spine 4.2 sequence attachments share ONE MeshAttachment / RegionAttachment
+  // object across all N frames; only `attachment.region` mutates per-frame
+  // (Sequence.apply, Sequence.js:49-60). The hot loop above therefore folds
+  // all 30 frames into a single PeakRecord keyed by basePath.
+  //
+  // Option C contract (locked 2026-05-08): the bone-driven world scale is
+  // constant across frames (Sequence.apply only swaps the texture region —
+  // bone scale, mesh vertices, slot color, world transform are identical),
+  // so we measure ONCE in the hot loop above and fan that single measurement
+  // out into N PeakRecord rows here. Each fanned record carries its own
+  // per-frame regionName + sourceW/H from `attachment.sequence.regions[i]`
+  // (a TextureAtlasRegion[] populated by AtlasAttachmentLoader.loadSequence).
+  //
+  // Key shape: `${skin}/${slot}/${perFrameRegionName}` — for sequence frames
+  // the attachmentName is REPLACED with the per-frame region name so the
+  // existing analyzer/export dedup paths (by attachmentName / sourcePath)
+  // naturally yield one row per frame without further surgery. The original
+  // basePath-keyed entry is removed.
+  //
+  // Hot-loop cost: zero. The fan-out is a one-shot O(N_sequences * N_frames)
+  // walk over `skeletonData.skins` after sampling completes.
+  fanOutSequencePeaks(
+    skeleton,
+    load.sourceDims,
+    globalPeaks,
+    setupPosePeaks,
+    perAnimation,
+  );
+
   return { globalPeaks, perAnimation, setupPosePeaks };
+}
+
+/**
+ * Sequence fan-out post-pass — see Option C docblock at sampleSkeleton's
+ * sequence post-pass call site for design rationale.
+ *
+ * For each (skin, slot, sequence-bearing attachment) tuple:
+ *   1. Find the basePath-keyed PeakRecord in globalPeaks (the at-peak frame
+ *      record from the hot loop). If absent (attachment never visible across
+ *      sampling), skip — nothing to fan out.
+ *   2. For i in 0..count-1, compose the per-frame region name (matches
+ *      synthetic-atlas.composeSequenceFramePath / spine-ts Sequence.getPath).
+ *      Build a fanned PeakRecord that copies the at-peak record's bone-driven
+ *      fields (peakScale, world dims, etc.) but substitutes the per-frame
+ *      regionName + per-frame sourceW/H from the sourceDims map. Insert at the
+ *      new fanned key `${skin}/${slot}/${perFrameRegionName}`. Mirror into
+ *      setupPosePeaks if the basePath entry was there. Mirror into
+ *      perAnimation for every (animation, basePath) entry that exists.
+ *   3. Delete the basePath-keyed entry from each map after the fan completes.
+ *
+ * Pure post-pass — no skeleton mutation; reuses the already-materialized
+ * Skeleton object only to walk skin manifests and read attachment.sequence.
+ */
+function fanOutSequencePeaks(
+  skeleton: Skeleton,
+  sourceDims: Map<string, SourceDims>,
+  globalPeaks: Map<string, PeakRecord>,
+  setupPosePeaks: Map<string, PeakRecord>,
+  perAnimation: Map<string, PeakRecord>,
+): void {
+  for (const skin of skeleton.data.skins) {
+    for (const entry of skin.getAttachments()) {
+      const att = entry.attachment as {
+        sequence?: {
+          regions?: ReadonlyArray<{ name?: string } | null | undefined>;
+          start?: number;
+          digits?: number;
+        } | null;
+      };
+      const seq = att.sequence;
+      if (seq === null || seq === undefined) continue;
+      const regions = seq.regions;
+      if (regions === undefined || regions === null || regions.length === 0) continue;
+
+      const slot = skeleton.slots[entry.slotIndex];
+      if (slot === undefined) continue;
+      const slotName = slot.data.name;
+      const baseKey = `${skin.name}/${slotName}/${entry.name}`;
+
+      // Pull the at-peak record from globalPeaks (canonical source of truth
+      // for the bone-driven world scale shared across all frames). If absent,
+      // the sequence attachment was never visible during sampling — nothing
+      // to fan out.
+      const baseRecord = globalPeaks.get(baseKey);
+      if (baseRecord === undefined) continue;
+
+      const setupBase = setupPosePeaks.get(baseKey);
+
+      // Collect per-animation keys that match this baseKey before we mutate
+      // the perAnimation map. The compound key shape is
+      // `${animationName}/${baseKey}` so we identify them by suffix match
+      // — but Spine animation names can legally contain '/' (CHAR/BLINK),
+      // so we cannot first-slash split. The endsWith check is correct.
+      const perAnimSuffix = '/' + baseKey;
+      const perAnimMatches: Array<{ key: string; rec: PeakRecord }> = [];
+      for (const [paKey, rec] of perAnimation) {
+        if (paKey.endsWith(perAnimSuffix)) {
+          perAnimMatches.push({ key: paKey, rec });
+        }
+      }
+
+      // Fan out N records — one per frame — substituting the per-frame
+      // regionName + sourceW/H. The bone-driven world fields stay shared.
+      for (let i = 0; i < regions.length; i++) {
+        const frameRegion = regions[i];
+        if (frameRegion === null || frameRegion === undefined) continue;
+        const frameName = frameRegion.name;
+        if (frameName === undefined || frameName === null || frameName === '') {
+          continue; // defensive — atlas region without name (shouldn't happen)
+        }
+        const frameSd = sourceDims.get(frameName);
+        // Per-frame source dims fall back to the at-peak record's dims when
+        // the per-frame region isn't in sourceDims (e.g. atlas-source mode
+        // where the .atlas covers all frames; or atlas-less when per-frame
+        // PNG read failed → stub region not in dimsByRegionName). Failover
+        // keeps the sampler resilient to missing-frame edges; downstream
+        // surfacing of missing frames flows via skippedAttachments.
+        const sourceW = frameSd?.w ?? baseRecord.sourceW;
+        const sourceH = frameSd?.h ?? baseRecord.sourceH;
+        const fannedKey = `${skin.name}/${slotName}/${frameName}`;
+
+        // Skip if a real (non-fanned) entry already exists at this key
+        // — happens when the user has a non-sequence attachment elsewhere
+        // whose name happens to collide with a per-frame region path. Defensive.
+        // The base record is removed unconditionally below; collision-avoidance
+        // here is a paranoid check.
+        const fannedGlobal: PeakRecord = {
+          attachmentKey: fannedKey,
+          skinName: baseRecord.skinName,
+          slotName: baseRecord.slotName,
+          // For sequence frames the attachmentName surfaces as the per-frame
+          // region name — that's what the user manipulates in the panel
+          // (one row per PNG). The basePath is no longer load-bearing
+          // downstream; spine-ts's attachment.name === basePath stays
+          // accessible via the spine-ts model if ever needed.
+          attachmentName: frameName,
+          regionName: frameName,
+          animationName: baseRecord.animationName,
+          time: baseRecord.time,
+          frame: baseRecord.frame,
+          peakScaleX: baseRecord.peakScaleX,
+          peakScaleY: baseRecord.peakScaleY,
+          peakScale: baseRecord.peakScale,
+          worldW: baseRecord.worldW,
+          worldH: baseRecord.worldH,
+          sourceW,
+          sourceH,
+          isSetupPosePeak: baseRecord.isSetupPosePeak,
+        };
+        // Latch on the higher peak — if another sequence-bearing attachment
+        // (e.g. a different slot binding the same basePath) already fanned
+        // a higher-peak record into this key, keep that one.
+        const existing = globalPeaks.get(fannedKey);
+        if (existing === undefined || baseRecord.peakScale > existing.peakScale) {
+          globalPeaks.set(fannedKey, fannedGlobal);
+        }
+
+        if (setupBase !== undefined) {
+          const fannedSetup: PeakRecord = {
+            ...fannedGlobal,
+            attachmentName: frameName,
+            regionName: frameName,
+            sourceW,
+            sourceH,
+            // Setup-pose record fields come from the setup-pose pass —
+            // bone-driven values may differ from the at-peak globalPeaks
+            // record (Setup Pose uses Physics.pose; animation uses Physics.update).
+            peakScaleX: setupBase.peakScaleX,
+            peakScaleY: setupBase.peakScaleY,
+            peakScale: setupBase.peakScale,
+            worldW: setupBase.worldW,
+            worldH: setupBase.worldH,
+            time: setupBase.time,
+            frame: setupBase.frame,
+            animationName: setupBase.animationName,
+            isSetupPosePeak: true,
+          };
+          const existingSetup = setupPosePeaks.get(fannedKey);
+          if (existingSetup === undefined || setupBase.peakScale > existingSetup.peakScale) {
+            setupPosePeaks.set(fannedKey, fannedSetup);
+          }
+        }
+
+        // Mirror per-animation records — one per (animation, frame) pair.
+        for (const { rec } of perAnimMatches) {
+          const fannedPaKey = `${rec.animationName}/${fannedKey}`;
+          const fannedPa: PeakRecord = {
+            ...rec,
+            attachmentKey: fannedKey,
+            attachmentName: frameName,
+            regionName: frameName,
+            sourceW,
+            sourceH,
+          };
+          const existingPa = perAnimation.get(fannedPaKey);
+          if (existingPa === undefined || rec.peakScale > existingPa.peakScale) {
+            perAnimation.set(fannedPaKey, fannedPa);
+          }
+        }
+      }
+
+      // Remove the basePath-keyed entries — they've been replaced by the
+      // fanned per-frame entries.
+      globalPeaks.delete(baseKey);
+      setupPosePeaks.delete(baseKey);
+      for (const { key } of perAnimMatches) {
+        perAnimation.delete(key);
+      }
+    }
+  }
 }
 
 /**

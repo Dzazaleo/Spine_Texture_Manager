@@ -41,9 +41,15 @@
  * RESEARCH.md §Pitfall 4 — page name = full region path + '.png'
  * (NOT basename) so AVATAR/HEAD vs PROPS/HEAD don't collide.
  *
- * RESEARCH.md §Pitfall 7 — sequence attachments not supported in this
- * phase (no SIMPLE/EXPORT/Jokerman fixture exercises sequence: blocks;
- * if a real fixture surfaces, file Phase 999 follow-up).
+ * Sequence support (debug-fix spine-sequence-undercount, 2026-05-08):
+ * Spine 4.2 sequence attachments declare `sequence: { count, start, digits }`
+ * inside a region/mesh/linkedmesh entry. At runtime spine-ts's
+ * AtlasAttachmentLoader.loadSequence iterates `i = 0..count-1` and looks up
+ * `<basePath><start+i, zero-padded to digits>` via atlas.findRegion. The
+ * synthesizer must therefore enumerate those N composed names rather than the
+ * single basePath, so each frame's PNG (under `<imagesDir>/<basePath><frame>.png`)
+ * is registered + measured + exported independently. Filename rule verbatim
+ * from `node_modules/@esotericsoftware/spine-core/dist/attachments/Sequence.js:61-68`.
  */
 
 import * as fs from 'node:fs';
@@ -216,8 +222,33 @@ export function synthesizeAtlasText(
     atlasText: lines.join('\n'),
     pngPathsByRegionName,
     dimsByRegionName,
-    missingPngs, //                                              Plan 21-09 G-01: surface for downstream
+    missingPngs, //                                              Plan 21-09 G-01
   };
+}
+
+/**
+ * Compose the per-frame region path for a sequence attachment. Mirrors
+ * spine-core's `Sequence.getPath(basePath, index)` verbatim
+ * (Sequence.js:61-68): `basePath + (start + index).toString().padStart(digits, '0')`.
+ *
+ * Defaults match SkeletonJson.js:478 (`start` defaults to 1, `digits` to 0).
+ * Caller passes the raw JSON values; this helper handles the padding rule.
+ *
+ * Exported for use by callers that need the same composition (e.g. the
+ * loader's parsedJson walks for canonical/actual dims and atlas-source
+ * sourcePaths registration). Pure function — no I/O.
+ */
+export function composeSequenceFramePath(
+  basePath: string,
+  index: number,
+  start: number,
+  digits: number,
+): string {
+  const frame = (start + index).toString();
+  let result = basePath;
+  for (let i = digits - frame.length; i > 0; i--) result += '0';
+  result += frame;
+  return result;
 }
 
 /**
@@ -229,12 +260,29 @@ export function synthesizeAtlasText(
  * Filters on type ∈ {region, mesh, linkedmesh} per RESEARCH.md §Open
  * Question 7 — these are the three attachment types that resolve to a
  * TextureAtlas region (path/point/clipping/boundingbox don't).
+ *
+ * Sequence support (debug-fix spine-sequence-undercount, 2026-05-08): when an
+ * attachment carries a `sequence: { count, start, digits }` block, expand to
+ * N composed paths `<basePath><start+i, zero-padded>` instead of the single
+ * basePath. spine-ts's AtlasAttachmentLoader.loadSequence at runtime
+ * (AtlasAttachmentLoader.js:44-53) demands all N composed names; without
+ * this expansion the load fails with `Region not found in atlas: <basePath><frame>`.
  */
 function walkSyntheticRegionPaths(parsedJson: unknown): Set<string> {
   const paths = new Set<string>();
   const root = parsedJson as {
     skins?: Array<{
-      attachments?: Record<string, Record<string, { type?: string; path?: string }>>;
+      attachments?: Record<
+        string,
+        Record<
+          string,
+          {
+            type?: string;
+            path?: string;
+            sequence?: { count?: number; start?: number; digits?: number };
+          }
+        >
+      >;
     }>;
   };
   for (const skin of root.skins ?? []) {
@@ -245,6 +293,20 @@ function walkSyntheticRegionPaths(parsedJson: unknown): Set<string> {
         const type = att.type ?? 'region'; //                     SkeletonJson.js:366 default
         if (type !== 'region' && type !== 'mesh' && type !== 'linkedmesh') continue;
         const lookupPath = att.path ?? entryName; //              SkeletonJson.js:368, 401
+        // Sequence-aware expansion — see function docblock + Sequence.js:61-68.
+        if (att.sequence !== undefined && att.sequence !== null) {
+          const count = att.sequence.count ?? 0;
+          const start = att.sequence.start ?? 1; // SkeletonJson.js:478 default
+          const digits = att.sequence.digits ?? 0; // SkeletonJson.js:479 default
+          if (count > 0) {
+            for (let i = 0; i < count; i++) {
+              paths.add(composeSequenceFramePath(lookupPath, i, start, digits));
+            }
+            continue;
+          }
+          // Defensive: sequence with count=0 — fall through to single-path
+          // registration below (matches pre-sequence-fix behavior; harmless).
+        }
         paths.add(lookupPath);
       }
     }
@@ -275,7 +337,16 @@ export class SilentSkipAttachmentLoader extends AtlasAttachmentLoader {
     attachmentPath: string,
     sequence: SpineSequence | null,
   ): Attachment | null {
-    if (this.atlas.findRegion(attachmentPath) === null) return null;
+    // Sequence-aware silent-skip (debug-fix spine-sequence-undercount, 2026-05-08):
+    // when sequence is non-null, the basePath itself need not be findable —
+    // stock AtlasAttachmentLoader.newRegionAttachment short-circuits the
+    // basePath findRegion call and dispatches to loadSequence (per-frame
+    // paths) instead. Mirror that flow: defer to super and let loadSequence
+    // throw if a per-frame path is missing. The synthesizer registers all N
+    // composed paths, so this is the happy-path expectation.
+    if (sequence === null || sequence === undefined) {
+      if (this.atlas.findRegion(attachmentPath) === null) return null;
+    }
     return super.newRegionAttachment(
       skin,
       name,
@@ -292,7 +363,10 @@ export class SilentSkipAttachmentLoader extends AtlasAttachmentLoader {
     attachmentPath: string,
     sequence: SpineSequence | null,
   ): Attachment | null {
-    if (this.atlas.findRegion(attachmentPath) === null) return null;
+    // Sequence-aware silent-skip — same rationale as newRegionAttachment above.
+    if (sequence === null || sequence === undefined) {
+      if (this.atlas.findRegion(attachmentPath) === null) return null;
+    }
     return super.newMeshAttachment(
       skin,
       name,
