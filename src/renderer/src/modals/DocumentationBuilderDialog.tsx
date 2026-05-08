@@ -40,7 +40,7 @@
  * re-exported through shared/types.ts so the renderer never reaches into
  * src/core/* directly (tests/arch.spec.ts:19-34 grep gate honored).
  */
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import type {
@@ -73,6 +73,17 @@ export interface DocumentationBuilderDialogProps {
   exportPlanSavingsPct: number | null;
   /** AppSessionState.lastOutDir; null falls back to OS Documents in main. */
   lastOutDir: string | null;
+  /**
+   * Phase 30 closure plan 30-05 — CR-04 fix (Option C, BLOCKER 2 site 1).
+   * The new top-level safetyBufferPercent (range 0-25, integer) that drives
+   * buildExportPlan math. AppShell threads this in via the mount-site
+   * `safetyBufferPercent={safetyBufferPercentLocal}` (added by plan 30-04
+   * Task 2c Step 5 per plan-checker iter-1 BLOCKER 2 site-5 move). The
+   * dialog forwards into ExportPane (site 3) which forwards into the
+   * exportDocumentationHtml IPC payload (site 4); doc-export.ts:291 reads
+   * it via the defensive integer-range coerce in renderOptimizationConfigCard.
+   */
+  safetyBufferPercent: number;
   onChange: (next: Documentation) => void;
   onClose: () => void;
 }
@@ -154,6 +165,7 @@ export function DocumentationBuilderDialog(props: DocumentationBuilderDialogProp
               atlasPreview={props.atlasPreview}
               exportPlanSavingsPct={props.exportPlanSavingsPct}
               lastOutDir={props.lastOutDir}
+              safetyBufferPercent={props.safetyBufferPercent}
             />
           )}
         </div>
@@ -199,6 +211,14 @@ interface ExportPaneProps {
   atlasPreview: AtlasPreviewProjection;
   exportPlanSavingsPct: number | null;
   lastOutDir: string | null;
+  /**
+   * Phase 30 closure plan 30-05 — CR-04 fix (Option C, BLOCKER 2 site 2).
+   * Forwarded from DocumentationBuilderDialogProps.safetyBufferPercent
+   * (site 1). Threaded into the exportDocumentationHtml IPC payload at
+   * line ~235 (site 4) so doc-export.ts reads it instead of the legacy
+   * Documentation.safetyBufferPercent metadata field.
+   */
+  safetyBufferPercent: number;
 }
 
 function ExportPane({
@@ -207,6 +227,7 @@ function ExportPane({
   atlasPreview,
   exportPlanSavingsPct,
   lastOutDir,
+  safetyBufferPercent,
 }: ExportPaneProps) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<
@@ -232,6 +253,14 @@ function ExportPane({
         skeletonBasename,
         lastOutDir,
         generatedAt: Date.now(),
+        // Phase 30 closure plan 30-05 — CR-04 fix (Option C, BLOCKER 2 site 4).
+        // Threading the new top-level safetyBufferPercent (the value that
+        // actually drives buildExportPlan math) into the IPC payload so
+        // doc-export.ts:291 reads it via renderOptimizationConfigCard.
+        // Pre-30-05 the HTML report read the legacy
+        // Documentation.safetyBufferPercent ("Metadata only" per v1.2 D-22)
+        // — that read is removed in plan 30-05 Step 2.
+        safetyBufferPercent,
       };
       const resp = await window.api.exportDocumentationHtml(payload);
       if (resp.ok) {
@@ -820,38 +849,40 @@ function SafetyBufferSubSection({
   draft: Documentation;
   onChange: (next: Documentation) => void;
 }) {
-  // D-22: number input [0, 100]; metadata only this phase. Step 0.5.
-  // Out-of-range input is silently ignored — the validator already enforces
-  // [0, 100] on save (validateDocumentation in src/core/documentation.ts).
-  const onChangeValue = (e: ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === '') {
-      onChange({ ...draft, safetyBufferPercent: 0 });
-      return;
-    }
-    const v = Number(raw);
-    if (!Number.isFinite(v) || v < 0 || v > 100) return; // ignore out-of-range
-    onChange({ ...draft, safetyBufferPercent: v });
-  };
+  // Phase 30 closure plan 30-05 — CR-04 fix (Option C). Pre-Phase-30 this
+  // section had a writable input (range 0-100, step 0.5) that ONLY drove
+  // the HTML report's "Optimization Config" card — the v1.2 input copy
+  // ("Metadata only. Captured in the HTML export; export math wiring
+  // deferred to a future phase.") explicitly told users the value did
+  // NOT drive export math. Phase 30 introduces a TOP-LEVEL safetyBufferPercent
+  // that DOES drive export math AND now drives the HTML report (per
+  // doc-export.ts:291 read-source change in plan 30-05). The two fields
+  // share a name but represent different concepts at different ranges
+  // (legacy 0-100 metadata vs new 0-25 functional); the cleanest UX is to
+  // surface ONE control in the Optimize dialog and convert this section
+  // to an informational pointer.
+  //
+  // The legacy Documentation.safetyBufferPercent field stays present in
+  // src/core/documentation.ts (no schema migration; backward-compat per
+  // CLAUDE.md schema-additive lock) but is no longer consumed by any UI
+  // surface or export-pipeline read. v1.2-era projects with non-zero
+  // values continue to round-trip through the .stmproj — they just stop
+  // showing up in the HTML report.
+  //
+  // onChange is intentionally NOT called from this section anymore — the
+  // input is read-only (no longer editable). draft remains in scope for
+  // future re-introduction or migration logic if needed.
+  void onChange;
+  void draft;
   return (
     <section>
       <h3 className="text-base font-semibold text-fg mb-1">Safety Buffer</h3>
       <p className="text-xs text-fg-muted mb-3">
-        Metadata only. Captured in the HTML export; export math wiring deferred to a future phase.
+        Moved to Optimize dialog. Open <strong>File → Optimize Assets</strong> and
+        set <strong>Quality → Safety buffer</strong> to control the percentage
+        applied to all exports. The value entered there drives both the export
+        math and this HTML report's "Optimization Config" card.
       </p>
-      <div className="inline-flex items-center gap-2">
-        <input
-          type="number"
-          min={0}
-          max={100}
-          step={0.5}
-          value={draft.safetyBufferPercent}
-          onChange={onChangeValue}
-          aria-label="Safety buffer percent"
-          className="bg-surface border border-border rounded-md px-2 py-1 text-sm text-fg w-24 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent"
-        />
-        <span className="text-sm text-fg-muted">%</span>
-      </div>
     </section>
   );
 }

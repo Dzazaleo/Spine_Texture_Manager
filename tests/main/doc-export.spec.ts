@@ -168,11 +168,14 @@ describe('renderDocumentationHtml (DOC-04)', () => {
   });
 
   it('renders the Optimization Config card with safety buffer + savings', () => {
-    const doc: Documentation = {
-      ...DEFAULT_DOCUMENTATION,
-      safetyBufferPercent: 1,
-    };
-    const html = renderDocumentationHtml(makeMinimalPayload({ documentation: doc }));
+    // Phase 30 closure plan 30-05 — CR-04 fix (Option C). renderOptimizationConfigCard
+    // now reads payload.safetyBufferPercent (top-level, range 0-25, integer) instead
+    // of payload.documentation.safetyBufferPercent (legacy "Metadata only" v1.2 D-22
+    // field, range 0-100, fractional). This fixture passes the top-level field
+    // verbatim — the legacy Documentation.safetyBufferPercent is now ignored by
+    // the doc-export pipeline (still present in src/core/documentation.ts as
+    // round-trip metadata per the schema-additive lock in CLAUDE.md).
+    const html = renderDocumentationHtml(makeMinimalPayload({ safetyBufferPercent: 1 }));
     // Safety buffer integer — "1%"; savings preformatted as "91.7%".
     expect(html).toContain('Optimization Config');
     expect(html).toContain('Safety Buffer');
