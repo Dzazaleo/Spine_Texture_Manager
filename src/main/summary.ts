@@ -43,6 +43,11 @@ export function buildSummary(
   // (`{ [key: string]: T }`, NOT a JS Map — see node_modules/@esotericsoftware/
   // spine-core/dist/Utils.d.ts:31). We use `Object.values` to enumerate the
   // attachments per slot regardless of key name.
+  //
+  // Note: `attachmentCount` is a structural count of attachment objects in the
+  // rig — sequences count as 1 here. For user-facing image/region counters
+  // (e.g. AppShell header), use `summary.regions.length` instead (Phase 29 D-01
+  // RegionRow[] is deduped per unique regionName and IS sequence-fanned-out).
   const byType: Record<string, number> = {};
   let attachmentCount = 0;
   for (const skin of skeletonData.skins) {

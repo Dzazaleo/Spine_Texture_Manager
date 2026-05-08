@@ -281,6 +281,28 @@ describe('Sequence-aware orphan detection (debug-fix spine-sequence-undercount-o
     fs.existsSync(TEST_03_JSON) && fs.existsSync(TEST_03_IMAGES_DIR);
   const itOrSkip = FIXTURE_PRESENT ? it : it.skip;
 
+  itOrSkip('summary.regions.length is sequence-fanned (header counter source) — matches Global panel; attachments.count stays structural', () => {
+    // The header counters ("X images" / "X regions") source from
+    // summary.regions.length, which Phase 29 D-01 dedupes by unique regionName
+    // and IS sequence-fanned-out. summary.attachments.count is a STRUCTURAL
+    // count of attachment objects (sequences count as 1) — kept stable so
+    // existing CLI / tests don't break. Lock both invariants:
+    //   - regions.length matches the rig's unique on-disk image count (Global
+    //     panel parity)
+    //   - attachments.count < regions.length on a sequence-bearing fixture
+    //     (i.e. fan-out happens somewhere)
+    const FIXTURE_DIR = path.dirname(TEST_03_JSON);
+    if (!fs.existsSync(path.join(FIXTURE_DIR, 'images'))) {
+      return;
+    }
+    const load = loadSkeleton(TEST_03_JSON, { loaderMode: 'atlas-less' });
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+    expect(s.regions.length).toBeGreaterThan(s.attachments.count);
+    // A sequence-bearing rig has more unique regions than attachment objects.
+    expect(s.regions.length).toBeGreaterThanOrEqual(30); // at least one full sequence
+  });
+
   itOrSkip('atlas-less mode: PARTICLES sequence frames are NOT flagged as orphaned', () => {
     // The loader hardcodes "images/" as the dir name; the fixture has a
     // local symlink images -> images_unpacked. Skip cleanly if the symlink

@@ -1744,7 +1744,7 @@ export function AppShell({
             {effectiveSummary.atlasPath === null ? (
               <span>
                 <span className="text-fg font-semibold">
-                  {effectiveSummary.attachments.count - (effectiveSummary.skippedAttachments?.length ?? 0)}
+                  {effectiveSummary.regions.length - (effectiveSummary.skippedAttachments?.length ?? 0)}
                 </span>
                 {' images'}
               </span>
@@ -1752,7 +1752,7 @@ export function AppShell({
               <span><span className="text-fg font-semibold">1</span> atlases</span>
             )}
             <span aria-hidden="true" className="text-border">|</span>
-            <span><span className="text-fg font-semibold">{effectiveSummary.attachments.count}</span> regions</span>
+            <span><span className="text-fg font-semibold">{effectiveSummary.regions.length}</span> regions</span>
           </div>
           {loaderMenuOpen && (
             <>
