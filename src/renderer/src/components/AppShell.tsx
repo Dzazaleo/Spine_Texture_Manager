@@ -319,6 +319,14 @@ export function AppShell({
     () => initialProject?.sharpenOnExport ?? false,
   );
 
+  // Phase 30 BUFFER-03 — local safety-buffer state. Seeded from the project
+  // (initialProject?.safetyBufferPercent ?? 0). OptimizeDialog hydrates
+  // and mutates via the onSafetyBufferChange prop (wired in Plan 30-03);
+  // AppShell threads it into buildExportPlan call sites in Plan 30-02.
+  const [safetyBufferPercentLocal, setSafetyBufferPercentLocal] = useState<number>(
+    () => initialProject?.safetyBufferPercent ?? 0,
+  );
+
   const [loaderMenuOpen, setLoaderMenuOpen] = useState(false);
 
   // Phase 23 — lastOutDir: session-metadata state slot. Seeded from
@@ -356,12 +364,14 @@ export function AppShell({
     overrides: Record<string, number>;
     samplingHz: number;
     sharpenOnExport: boolean; // Phase 28 SHARP-01
+    safetyBufferPercent: number; // Phase 30 BUFFER-03
   } | null>(
     initialProject
       ? {
           overrides: { ...initialProject.restoredOverrides },
           samplingHz: initialProject.samplingHz,
           sharpenOnExport: initialProject.sharpenOnExport ?? false,
+          safetyBufferPercent: initialProject.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
         }
       : null,
   );
@@ -797,6 +807,8 @@ export function AppShell({
       loaderMode,
       // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
       sharpenOnExport: sharpenOnExportLocal,
+      // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14.
+      safetyBufferPercent: safetyBufferPercentLocal,
     }),
     [
       summary.skeletonPath,
@@ -807,6 +819,7 @@ export function AppShell({
       loaderMode,
       lastOutDir,
       sharpenOnExportLocal, // Phase 28 SHARP-01 — new dependency
+      safetyBufferPercentLocal, // Phase 30 BUFFER-03 — new dependency
     ],
   );
 
@@ -872,8 +885,11 @@ export function AppShell({
     // Phase 28 SHARP-01 — toggle change marks project dirty. Mirrors
     // samplingHz line above (D-06 — toggle persists per-project).
     if (sharpenOnExportLocal !== lastSaved.sharpenOnExport) return true;
+    // Phase 30 BUFFER-03 — buffer change marks project dirty. Mirrors
+    // sharpenOnExport line above (D-14 — buffer persists per-project).
+    if (safetyBufferPercentLocal !== lastSaved.safetyBufferPercent) return true;
     return false;
-  }, [overrides, lastSaved, samplingHzLocal, sharpenOnExportLocal]);
+  }, [overrides, lastSaved, samplingHzLocal, sharpenOnExportLocal, safetyBufferPercentLocal]);
 
   /**
    * onClickSave — Save when currentProjectPath is set; Save As otherwise.
@@ -899,6 +915,7 @@ export function AppShell({
           overrides: { ...state.overrides },
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
+          safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
@@ -939,6 +956,7 @@ export function AppShell({
           overrides: { ...state.overrides },
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
+          safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
         });
         setStaleOverrideNotice(null);
         // Phase 29 D-06 — Save As also rewrites with regionName-keyed overrides.
@@ -988,6 +1006,10 @@ export function AppShell({
       // MaterializedProject.sharpenOnExport at the resample seam stays
       // truthful (mirrors loaderMode threading above).
       sharpenOnExport: sharpenOnExportLocal,
+      // Phase 30 BUFFER-03 — preserve safetyBufferPercent across resample
+      // round-trip. ResampleArgs.safetyBufferPercent (optional) coerces
+      // at the main-process seam (project-io.ts:1044-style).
+      safetyBufferPercent: safetyBufferPercentLocal,
     });
     if (!resp.ok) return;
     setLocalSummary(resp.project.summary);
@@ -1020,6 +1042,7 @@ export function AppShell({
     currentProjectPath,
     loaderMode,
     sharpenOnExportLocal,
+    safetyBufferPercentLocal, // Phase 30 BUFFER-03 — runReload threads buffer through resample
     samplingInFlight,
   ]);
 
@@ -1135,6 +1158,7 @@ export function AppShell({
       overrides: { ...project.restoredOverrides },
       samplingHz: project.samplingHz,
       sharpenOnExport: project.sharpenOnExport ?? false, // Phase 28 SHARP-01
+      safetyBufferPercent: project.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
     });
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
@@ -1164,6 +1188,10 @@ export function AppShell({
     // Materializer back-fills file.sharpenOnExport ?? false, so legacy
     // .stmproj files load with toggle OFF. D-04.
     setSharpenOnExportLocal(project.sharpenOnExport ?? false);
+    // Phase 30 BUFFER-03 — restore safetyBufferPercent from materialized
+    // project. Materializer back-fills file.safetyBufferPercent ?? 0, so
+    // legacy .stmproj files load with buffer=0 (D-03 default).
+    setSafetyBufferPercentLocal(project.safetyBufferPercent ?? 0);
     setLastOutDir(project.lastOutDir ?? null);
   }, []);
 
@@ -1405,6 +1433,10 @@ export function AppShell({
         // MaterializedProject.sharpenOnExport at the resample seam stays
         // truthful (mirrors loaderMode threading above).
         sharpenOnExport: sharpenOnExportLocal,
+        // Phase 30 BUFFER-03 — preserve safetyBufferPercent across resample
+        // round-trip. ResampleArgs.safetyBufferPercent (optional) coerces
+        // at the main-process seam (project-io.ts:1044-style).
+        safetyBufferPercent: safetyBufferPercentLocal,
       });
       // Guard against a stale response landing after the next samplingHz
       // change (or unmount). The cancelled flag below is set by the
