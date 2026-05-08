@@ -888,7 +888,20 @@ export function AppShell({
    */
   const isDirty = useMemo(() => {
     if (lastSaved === null) {
-      return overrides.size > 0;
+      // Phase 30 closure plan 30-04 — WR-03 fix. Untitled session: dirty
+      // when overrides exist OR any session-state-with-no-untitled-tracking
+      // field has a non-default value. Pre-Phase-30 only `overrides.size > 0`
+      // triggered untitled dirty; users could drop a skeleton, set buffer/
+      // sharpen/sampling, close, and lose the values silently because
+      // SaveQuitDialog never appeared. Defaults from STATE.md / Phase 9 D-146:
+      //   safetyBufferPercent: 0  (Plan 30-01 default)
+      //   sharpenOnExport: false  (Phase 28 default)
+      //   samplingHz: 120         (Phase 9 D-146 default)
+      if (overrides.size > 0) return true;
+      if (safetyBufferPercentLocal !== 0) return true;
+      if (sharpenOnExportLocal !== false) return true;
+      if (samplingHzLocal !== 120) return true;
+      return false;
     }
     if (overrides.size !== Object.keys(lastSaved.overrides).length) return true;
     for (const [k, v] of overrides) {
@@ -903,6 +916,49 @@ export function AppShell({
     if (safetyBufferPercentLocal !== lastSaved.safetyBufferPercent) return true;
     return false;
   }, [overrides, lastSaved, samplingHzLocal, sharpenOnExportLocal, safetyBufferPercentLocal]);
+
+  /**
+   * Phase 30 closure plan 30-04 — CR-01 fix. exportDialogState.plan is
+   * captured at dialog OPEN time in onClickOptimize (line ~640). Without
+   * this effect, typing in the OptimizeDialog safety-buffer input updates
+   * AppShell.safetyBufferPercentLocal but does NOT rebuild the plan; the
+   * dialog's tiles + Pre-Flight body + window.api.startExport(props.plan,...)
+   * IPC payload all consume the stale snapshot. ROADMAP SC #1 (reactive
+   * recompute) was falsified.
+   *
+   * The fix: rebuild exportDialogState.plan whenever the buffer, summary,
+   * or overrides change WHILE the dialog is open. The boolean dep
+   * `exportDialogState !== null` (NOT the object reference) avoids a
+   * setExportDialogState → re-fire → re-set loop — the effect runs once
+   * on dialog open (false → true transition) and once on close (true → false).
+   *
+   * Match onClickOptimize at line 639 exactly: use `summary` (the raw prop)
+   * NOT `effectiveSummary` (the post-resample render-tree memo). The export
+   * pipeline reads the originally-loaded skeleton's pre-resample shape;
+   * effectiveSummary is for render-tree displays only.
+   *
+   * 30-VERIFICATION.md "Suggested closure plan" #1 (Option a) — the minimal-patch
+   * variant that aligns with Plan 30-03's originally-mandated Option A intent
+   * (AppShell owns the plan's reactivity). Picked over Option (b) (lift plan
+   * derivation into OptimizeDialog as a useMemo against summary+overrides+buffer)
+   * because (a) does not require refactoring OptimizeDialog's prop surface
+   * (which would ripple through tests).
+   *
+   * Plan-checker iter-1 Warning-6: the dep `exportDialogState !== null`
+   * is the BOOLEAN form (NOT the full object). Using the object would
+   * create a feedback loop because the effect calls setExportDialogState.
+   * react-hooks/exhaustive-deps may flag this — the suppression comment
+   * below documents the intent. We only need to re-fire when the dialog
+   * opens/closes, not when its plan/outDir change.
+   */
+  useEffect(() => {
+    if (exportDialogState === null) return;
+    const plan = buildExportPlan(summary, overrides, {
+      safetyBufferPercent: safetyBufferPercentLocal,
+    });
+    setExportDialogState((prev) => (prev !== null ? { ...prev, plan } : null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safetyBufferPercentLocal, summary, overrides, exportDialogState !== null]);
 
   /**
    * onClickSave — Save when currentProjectPath is set; Save As otherwise.
@@ -1237,6 +1293,14 @@ export function AppShell({
       lastOutDir: skeletonNotFoundError.cachedLastOutDir,
       sortColumn: skeletonNotFoundError.cachedSortColumn,
       sortDir: skeletonNotFoundError.cachedSortDir,
+      // Phase 30 closure plan 30-04 — WR-01 fix. Pre-Phase-30 these three
+      // fields were silently lost on locate-skeleton recovery (the IPC type
+      // omitted them; the renderer never threaded them; the main handler
+      // already reads them defensively at project-io.ts:700-716 with
+      // fallback to defaults). Now wired through.
+      loaderMode,
+      sharpenOnExport: sharpenOnExportLocal,
+      safetyBufferPercent: safetyBufferPercentLocal,
     });
     if (!resp.ok) {
       // Located file ALSO fails to load (rare). Update banner message but
@@ -1248,7 +1312,7 @@ export function AppShell({
       return;
     }
     mountOpenResponse(resp.project);
-  }, [skeletonNotFoundError, mountOpenResponse]);
+  }, [skeletonNotFoundError, mountOpenResponse, loaderMode, sharpenOnExportLocal, safetyBufferPercentLocal]);
 
   /**
    * Phase 08.2 D-176 — the renderer-side Cmd/Ctrl+S+O keydown listener
@@ -2041,6 +2105,7 @@ export function AppShell({
           onJumpToRegion={onJumpToRegion}
           onClose={() => setAtlasPreviewOpen(false)}
           onOpenOptimizeDialog={onClickOptimize}
+          safetyBufferPercent={safetyBufferPercentLocal}
         />
       )}
       {/* Phase 20 D-01 — Documentation Builder modal. Mounted alongside
@@ -2058,6 +2123,7 @@ export function AppShell({
         lastOutDir={lastOutDir}
         onChange={setDocumentation}
         onClose={() => setDocumentationBuilderOpen(false)}
+        safetyBufferPercent={safetyBufferPercentLocal}
       />
       {/* Phase 9 Plan 06 — Settings dialog. Edit→Preferences (Plan 09-05)
           opens this. onApply mutates samplingHzLocal which triggers the

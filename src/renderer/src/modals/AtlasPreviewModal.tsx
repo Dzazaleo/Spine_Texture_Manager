@@ -91,6 +91,15 @@ export interface AtlasPreviewModalProps {
    * unconditionally in render.
    */
   onOpenOptimizeDialog: () => void;
+  /**
+   * Phase 30 closure plan 30-04 — CR-02 fix. The buffer multiplies each
+   * row's effective scale before buildExportPlan computes outW/outH; the
+   * optimized-mode atlas projection (page count + tile dims) must reflect
+   * the same buffer to stay consistent with OptimizeDialog and the HTML
+   * doc-export. AppShell threads `safetyBufferPercent={safetyBufferPercentLocal}`
+   * into the modal's mount.
+   */
+  safetyBufferPercent: number;
 }
 
 export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
@@ -112,9 +121,17 @@ export function AtlasPreviewModal(props: AtlasPreviewModalProps) {
 
   // D-131 snapshot-at-open: useMemo on the three axes + summary + overrides.
   // Overrides Map identity is captured here; changes after mount are ignored.
+  // Phase 30 closure plan 30-04 — CR-02: thread safetyBufferPercent into
+  // buildAtlasPreview opts so optimized-mode page count + tile dims reflect
+  // the user's current safety-buffer setting, matching OptimizeDialog +
+  // savingsPctMemo + atlasPreviewState.
   const projection: AtlasPreviewProjection = useMemo(
-    () => buildAtlasPreview(props.summary, props.overrides, { mode, maxPageDim }),
-    [props.summary, props.overrides, mode, maxPageDim],
+    () => buildAtlasPreview(props.summary, props.overrides, {
+      mode,
+      maxPageDim,
+      safetyBufferPercent: props.safetyBufferPercent,
+    }),
+    [props.summary, props.overrides, mode, maxPageDim, props.safetyBufferPercent],
   );
 
   // Phase 19 UI-03 + D-10 — summary-tile derivations. Three values rendered

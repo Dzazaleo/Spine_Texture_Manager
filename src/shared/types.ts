@@ -397,21 +397,31 @@ export interface ExportRow {
    */
   isCapped?: boolean;
   /**
-   * Phase 30 BUFFER-02 D-06 — true when the buffer-induced effective scale
-   * exceeds source dims and is silently clamped. Parallel to existing
-   * isCapped from Phase 22.1; the two flags are independent — a row can be
-   * bufferCapped without being isCapped (clean atlas with no dims drift,
-   * just buffer pushing past 1.0 → canonical clamp binds). Threaded through
-   * IPC payload but NOT rendered in v1.3.1 UI per D-05 silent-cap contract.
+   * Phase 30 BUFFER-02 D-06 — true when the buffer is what pushed a
+   * drifted-row (dimsMismatch=true, actualSource defined) effective scale
+   * past the sourceRatio cap. Independent of isCapped (a row can be
+   * bufferCapped without being isCapped — see predicate below). Does NOT
+   * fire on canonical-1.0 clamp: clean atlases have sourceRatio === Infinity,
+   * so `bufferedScale > sourceRatio` is impossible by construction.
+   * Carried in IPC payload; not surfaced in v1.3.1 UI per silent-cap
+   * contract D-05.
    *
    * Populated in src/core/export.ts buildExportPlan emit loop (Plan 30-02);
    * mirrored byte-identically in src/renderer/src/lib/export-view.ts.
    *
-   * Predicate (locked NARROW per CONTEXT D-06): bufferCapped fires when
-   * `bufferedScale > sourceRatio AND rawEffScale <= sourceRatio` — i.e.
-   * the buffer is what pushed the row past the actualSource cap. Does NOT
-   * fire on the canonical-1.0 clamp; that case is captured by existing
-   * isCapped semantics. (Open Question A1 resolved narrow per D-06 verbatim.)
+   * Predicate (locked NARROW per CONTEXT D-06):
+   *   bufferPct > 0 && bufferedScale > sourceRatio && safeScale(rawEffScale) <= sourceRatio
+   *
+   * (Open Question A1 resolved narrow per D-06 verbatim. Phase 30 closure
+   * plan 30-04 — WR-02 fix [moved here from 30-05 per plan-checker iter-1
+   * BLOCKER 1 to keep src/shared/types.ts under exclusive 30-04 ownership].
+   * The pre-30-04 docblock had an upper paragraph claiming the flag could
+   * fire on canonical-1.0 clamp via "clean atlas with no dims drift, just
+   * buffer pushing past 1.0 → canonical clamp binds" — that example is
+   * impossible because clean atlases have sourceRatio === Infinity;
+   * bufferedScale > Infinity is always false. The misleading parenthetical
+   * was removed; the docblock now matches the predicate at
+   * src/core/export.ts:269-272.)
    */
   bufferCapped?: boolean;
 }
@@ -1200,6 +1210,19 @@ export interface Api {
     lastOutDir?: string | null;
     sortColumn?: string | null;
     sortDir?: 'asc' | 'desc' | null;
+    /**
+     * Phase 30 closure plan 30-04 — WR-01 fix. The main-side handler at
+     * src/main/project-io.ts:700-716 reads these defensively from the args
+     * object via `(a as Record<string, unknown>).<field>` and falls back
+     * to defaults when absent. Pre-Phase-30 the renderer never threaded
+     * them through the locate-skeleton recovery path — silent state loss
+     * for users with non-default sharpenOnExport / loaderMode. Phase 30
+     * inherits + closes the gap for the new safetyBufferPercent field
+     * AND the two pre-existing missing fields.
+     */
+    loaderMode?: 'auto' | 'atlas-less';
+    sharpenOnExport?: boolean;
+    safetyBufferPercent?: number;
   }) => Promise<OpenResponse>;
   onCheckDirtyBeforeQuit: (handler: () => void) => () => void;
   confirmQuitProceed: () => void;
