@@ -480,6 +480,18 @@ export function buildSummary(
   // atlas-source mode (load.atlasPath !== null): orphanedFiles stays []; the
   // UnusedAssetsPanel returns null when empty so no alert bar renders.
 
+  // Phase 31 LOAD-05/LOAD-06/LOAD-07 — filesystem state probe for the
+  // source-toggle disabled state. Mirrors src/core/loader.ts F1.2
+  // sibling-atlas discovery rule (`<basename>.atlas` next to the JSON).
+  // Layer 3 invariant preserved — fs probe lives in src/main/, not src/core/.
+  const projectDir = path.dirname(load.skeletonPath);
+  const siblingAtlasPath = path.join(
+    projectDir,
+    path.basename(load.skeletonPath, path.extname(load.skeletonPath)) + '.atlas',
+  );
+  const hasAtlasFile = fs.existsSync(siblingAtlasPath);
+  const hasImagesDir = fs.existsSync(path.join(projectDir, 'images'));
+
   return {
     skeletonPath: load.skeletonPath,
     atlasPath: load.atlasPath,
@@ -518,6 +530,9 @@ export function buildSummary(
      * marking contract) — they remain visible in both main panels.
      */
     skippedAttachments: load.skippedAttachments ?? [],
+    // Phase 31 LOAD-05/LOAD-06/LOAD-07 — filesystem probe results.
+    hasAtlasFile,
+    hasImagesDir,
     elapsedMs,
     /**
      * Phase 9 Plan 06 — surface the loader's `editorFps` (from

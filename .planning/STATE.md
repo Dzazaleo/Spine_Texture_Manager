@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
 status: executing
-last_updated: "2026-05-08T15:37:58.537Z"
-last_activity: 2026-05-08 -- Phase 31 planning complete
+last_updated: "2026-05-08T15:54:10.307Z"
+last_activity: 2026-05-08 -- Phase 31 execution started
 progress:
   total_phases: 16
   completed_phases: 0
@@ -16,17 +16,17 @@ progress:
 
 ## Current Position
 
-Phase: 31
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-08 -- Phase 31 planning complete
+Phase: 31 (loader-ux-small-fixes-batch) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 31
+Last activity: 2026-05-08 -- Phase 31 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-07 — v1.3.1 milestone block at top reflects Correctness & Refinements scope)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 30 — safety-buffer-in-optimize-dialog
+**Current focus:** Phase 31 — loader-ux-small-fixes-batch
 
 ## Last Roadmap Update
 

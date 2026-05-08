@@ -240,11 +240,17 @@ function makeSummary(
     animations: { count: animations.length, names: animations },
     events: { count: events.length, names: events },
     peaks: [],
+    // Phase 29 D-01 — required regions field; empty stub for drift tests.
+    regions: [],
     animationBreakdown: [],
     // Phase 21 Plan 21-10 G-02 — required field on SkeletonSummary.
     // Empty stub satisfies the contract for drift-helper tests that don't
     // exercise the missing-PNG surface.
     skippedAttachments: [],
+    // Phase 31 LOAD-05/06/07 — required filesystem-state booleans; drift
+    // tests don't exercise the source-toggle surface, so default both false.
+    hasAtlasFile: false,
+    hasImagesDir: false,
     elapsedMs: 0,
     editorFps: 30,
   } as SkeletonSummary;

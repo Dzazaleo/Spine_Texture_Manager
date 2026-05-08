@@ -1754,23 +1754,43 @@ export function AppShell({
             <span aria-hidden="true" className="text-border">|</span>
             <span><span className="text-fg font-semibold">{effectiveSummary.regions.length}</span> regions</span>
           </div>
-          {loaderMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setLoaderMenuOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-50 bg-modal border border-border rounded-md shadow-lg overflow-hidden min-w-[220px]">
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-surface transition-colors cursor-pointer"
-                  onClick={() => {
-                    setLoaderMode(effectiveSummary.atlasPath === null ? 'auto' : 'atlas-less');
-                    setLoaderMenuOpen(false);
-                  }}
-                >
-                  {effectiveSummary.atlasPath === null ? 'Use Atlas as Source' : 'Use Images Folder as Source'}
-                </button>
-              </div>
-            </>
-          )}
+          {loaderMenuOpen && (() => {
+            // Phase 31 LOAD-05/LOAD-06/LOAD-07 — disable + native title tooltip
+            // when the alternate source is absent on disk. Decision branches
+            // mirror the existing button's onClick (effectiveSummary.atlasPath
+            // === null → currently atlas-less, target = atlas; else currently
+            // atlas-source, target = atlas-less). We read the raw IPC booleans
+            // (summary.hasAtlasFile / summary.hasImagesDir) rather than the
+            // override-aware effectiveSummary because filesystem state on disk
+            // is not changed by per-project overrides.
+            const altIsAtlas = effectiveSummary.atlasPath === null;
+            const altSourceMissing = altIsAtlas
+              ? !summary.hasAtlasFile
+              : !summary.hasImagesDir;
+            const altMissingTitle = altIsAtlas
+              ? "No .atlas file found in this project's folder"
+              : "No images/ folder found in this project's folder";
+            return (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setLoaderMenuOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-50 bg-modal border border-border rounded-md shadow-lg overflow-hidden min-w-[220px]">
+                  <button
+                    type="button"
+                    disabled={altSourceMissing}
+                    aria-disabled={altSourceMissing}
+                    title={altSourceMissing ? altMissingTitle : undefined}
+                    className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-surface transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:text-fg-muted"
+                    onClick={() => {
+                      setLoaderMode(effectiveSummary.atlasPath === null ? 'auto' : 'atlas-less');
+                      setLoaderMenuOpen(false);
+                    }}
+                  >
+                    {effectiveSummary.atlasPath === null ? 'Use Atlas as Source' : 'Use Images Folder as Source'}
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
         {/* Phase 6 Plan 06 D-117: persistent toolbar button right-aligned
             via ml-auto. Disabled when no peaks (Pitfall 11 empty-rig) or
