@@ -108,6 +108,14 @@ export interface OptimizeDialogProps {
    */
   sharpenOnExport: boolean;
   onSharpenChange: (v: boolean) => void;
+  /**
+   * Phase 30 BUFFER-01 — multiplicative safety buffer (integer 0-25).
+   * Hydrated from the project's .stmproj per D-14; AppShell threads
+   * safetyBufferPercentLocal into this prop. Clamping happens in this
+   * component's onChange handler (UI-SPEC validation locus).
+   */
+  safetyBufferPercent: number;
+  onSafetyBufferChange: (n: number) => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -414,24 +422,60 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
           </div>
         </div>
 
-        {/* Phase 28 SHARP-01 — opt-in sharpen toggle. Hydrated from the project's
-            .stmproj on dialog mount (D-06). Disabled in-progress (mirrors Atlas
-            Preview button disabled-predicate at line 417). Tailwind v4 literal-class
-            discipline (Pitfall 8) — every className is a string literal. */}
-        <label
-          htmlFor="sharpen-on-export-toggle"
-          className="flex items-center gap-2 mb-4 text-xs text-fg cursor-pointer"
-        >
-          <input
-            id="sharpen-on-export-toggle"
-            type="checkbox"
-            checked={props.sharpenOnExport}
-            onChange={(e) => props.onSharpenChange(e.target.checked)}
-            disabled={state === 'in-progress'}
-            className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          Sharpen output on downscale
-        </label>
+        {/* Phase 30 BUFFER-01 — Quality group containing safety buffer input
+            and the (relocated) sharpen toggle. UI-SPEC locks DOM structure;
+            Tailwind v4 literal-class discipline (Pitfall 8) — every className
+            is a single string literal. */}
+        <div className="border border-border rounded-md bg-surface p-3 mb-4">
+          <span className="text-xs text-fg-muted mb-2 block">Quality</span>
+          <label
+            htmlFor="safety-buffer-input"
+            className="flex items-center gap-2 mb-2 text-xs text-fg cursor-pointer"
+          >
+            Safety buffer:
+            <input
+              id="safety-buffer-input"
+              type="number"
+              min={0}
+              max={25}
+              step={1}
+              value={props.safetyBufferPercent}
+              onChange={(e) => {
+                const parsed = parseInt(e.target.value, 10);
+                if (!Number.isFinite(parsed)) {
+                  props.onSafetyBufferChange(0);
+                  return;
+                }
+                const clamped = Math.max(0, Math.min(25, Math.floor(parsed)));
+                props.onSafetyBufferChange(clamped);
+              }}
+              disabled={state === 'in-progress'}
+              title="Multiplicatively grows every row's effective scale. Capped at source dimensions — textures never extrapolate."
+              className="w-16 bg-surface border border-border text-fg px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-fg-muted">%</span>
+          </label>
+          {/* Phase 28 SHARP-01 — opt-in sharpen toggle. Hydrated from the project's
+              .stmproj on dialog mount (D-06). Disabled in-progress (mirrors Atlas
+              Preview button disabled-predicate at line 417). MOVED — sharpen toggle
+              relocated INTO Quality group; visual treatment unchanged (was at
+              OptimizeDialog.tsx:421-434 standalone). Tailwind v4 literal-class
+              discipline (Pitfall 8) — every className is a string literal. */}
+          <label
+            htmlFor="sharpen-on-export-toggle"
+            className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+          >
+            <input
+              id="sharpen-on-export-toggle"
+              type="checkbox"
+              checked={props.sharpenOnExport}
+              onChange={(e) => props.onSharpenChange(e.target.checked)}
+              disabled={state === 'in-progress'}
+              className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            Sharpen output on downscale
+          </label>
+        </div>
 
         {state === 'pre-flight' && <PreFlightBody plan={props.plan} />}
         {state !== 'pre-flight' && (
