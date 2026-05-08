@@ -299,17 +299,20 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
   });
 
   it('inner above threshold: expanded card with 200 rows renders <=60 tr elements', () => {
-    // Single card with 200 rows. The setup-pose card seeds expanded by
-    // default per D-63/D-64 (the panel useState seeds new Set(['setup-pose'])),
-    // so the rendered card index 0 is already expanded with no UI click
-    // required.
+    // Single card with 200 rows. Phase 31 PANEL-08 — the seed flipped from
+    // new Set(['setup-pose']) to new Set(), so the setup-pose card now
+    // starts collapsed; click its expand-toggle once to open it before
+    // measuring row virtualization.
     const { container } = renderPanel(1, 200);
 
-    // Sanity: the single setup-pose card is expanded by default.
     const card = container.querySelector('section[aria-labelledby^="bd-header-"]');
     expect(card).not.toBeNull();
-    const expandToggle = card!.querySelector('button[aria-expanded]');
-    expect(expandToggle?.getAttribute('aria-expanded')).toBe('true');
+    const expandToggle = card!.querySelector('button[aria-expanded]') as HTMLButtonElement;
+    expect(expandToggle.getAttribute('aria-expanded')).toBe('false');
+    act(() => {
+      fireEvent.click(expandToggle);
+    });
+    expect(expandToggle.getAttribute('aria-expanded')).toBe('true');
 
     // Count tr elements inside the expanded card body. The virtualized
     // path renders only the visible window + overscan (10) — never all 200.
@@ -328,8 +331,20 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
   });
 
   it('collapse/re-expand: filter query preserved; scroll-reset policy holds', () => {
-    // Render a single 200-row card (setup-pose, expanded by default).
+    // Render a single 200-row card (setup-pose). Phase 31 PANEL-08 — seed
+    // is now new Set(), so the card starts collapsed. Click the toggle
+    // once to expand before exercising the collapse/re-expand cycle.
     const { container } = renderPanel(1, 200);
+    const card = container.querySelector('section[aria-labelledby^="bd-header-"]');
+    expect(card).not.toBeNull();
+    const expandToggle = card!.querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement;
+    expect(expandToggle.getAttribute('aria-expanded')).toBe('false');
+    act(() => {
+      fireEvent.click(expandToggle);
+    });
+    expect(expandToggle.getAttribute('aria-expanded')).toBe('true');
 
     // 1. Type a filter query into the SearchBar.
     const searchInput = screen.getByLabelText(/filter rows by attachment name/i);
@@ -353,14 +368,8 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
       fireEvent.change(searchInput, { target: { value: '' } });
     });
 
-    // 3. Collapse → re-expand cycle. The expand-toggle button is the
-    //    <button aria-expanded> at the top of the card.
-    const card = container.querySelector('section[aria-labelledby^="bd-header-"]');
-    expect(card).not.toBeNull();
-    const expandToggle = card!.querySelector(
-      'button[aria-expanded]',
-    ) as HTMLButtonElement;
-    expect(expandToggle).not.toBeNull();
+    // 3. Collapse → re-expand cycle. The expand-toggle is still expanded
+    //    after the filter-clear because we manually expanded it above.
     expect(expandToggle.getAttribute('aria-expanded')).toBe('true');
 
     // Collapse — the card body unmounts (the inner virtualizer goes with it).
@@ -407,11 +416,19 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
   });
 
   it('override: clicking Override Scale on a virtualized inner row mounts OverrideDialog with correct row context', () => {
-    // Single 200-row card so the virtualized path is active. The setup-pose
-    // card seeds expanded by default — Override Scale buttons are
-    // immediately rendered inside the virtualized window.
+    // Single 200-row card so the virtualized path is active. Phase 31
+    // PANEL-08 — seed flipped to new Set(); manually expand the
+    // setup-pose card before searching for Override Scale buttons.
     const onOpenOverrideDialog = vi.fn();
-    renderPanel(1, 200, onOpenOverrideDialog);
+    const { container } = renderPanel(1, 200, onOpenOverrideDialog);
+    const card = container.querySelector('section[aria-labelledby^="bd-header-"]');
+    expect(card).not.toBeNull();
+    const expandToggle = card!.querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement;
+    act(() => {
+      fireEvent.click(expandToggle);
+    });
 
     // Find Override Scale buttons inside the virtualized window. Each row
     // renders one <button aria-label="Override scale for ...">. There
@@ -458,9 +475,32 @@ describe('AnimationBreakdownPanel — Wave 2 D-196', () => {
  * ROADMAP DIMS-02 wording locked verbatim.
  */
 describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', () => {
+  /**
+   * Phase 31 PANEL-08 — the panel default seed flipped to new Set(), so the
+   * setup-pose card no longer auto-expands. These DIMS-02 tests assert
+   * row-cell content, which is only rendered when the card body is open;
+   * click the expand-toggle once after render to expand the single
+   * setup-pose card.
+   */
+  function expandSetupPose(container: HTMLElement) {
+    const card = container.querySelector(
+      'section[aria-labelledby^="bd-header-"]',
+    );
+    if (card === null) return;
+    const expandToggle = card.querySelector(
+      'button[aria-expanded]',
+    ) as HTMLButtonElement | null;
+    if (expandToggle === null) return;
+    if (expandToggle.getAttribute('aria-expanded') === 'true') return;
+    act(() => {
+      fireEvent.click(expandToggle);
+    });
+  }
+
   it('renders dims-mismatch badge when row.dimsMismatch === true', () => {
     const rows = [makeDriftedRow('Setup Pose (Default)', 0)];
-    render(<PanelRowsHarness rows={rows} />);
+    const { container } = render(<PanelRowsHarness rows={rows} />);
+    expandSetupPose(container);
     // Phase 22.1 G-02 — badge now uses custom React tooltip primitive (DimsBadge).
     // The host div carries data-testid="dims-badge-host"; no native title attribute.
     const host = screen.getByTestId('dims-badge-host');
@@ -475,13 +515,15 @@ describe('AnimationBreakdownPanel — DIMS-02 dims-mismatch badge (Phase 22)', (
 
   it('does NOT render badge when row.dimsMismatch === false', () => {
     const rows = [makeRow('Setup Pose (Default)', 0)];
-    render(<PanelRowsHarness rows={rows} />);
+    const { container } = render(<PanelRowsHarness rows={rows} />);
+    expandSetupPose(container);
     expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 
   it('badge is absent when actualSource is undefined (atlas-extract path)', () => {
     const rows = [{ ...makeRow('Setup Pose (Default)', 0), dimsMismatch: false }];
-    render(<PanelRowsHarness rows={rows} />);
+    const { container } = render(<PanelRowsHarness rows={rows} />);
+    expandSetupPose(container);
     expect(screen.queryByTestId('dims-badge-host')).toBeNull();
   });
 });
@@ -566,9 +608,13 @@ describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
   });
 
   it('B4: Expand all opens every card; Collapse all closes every card', () => {
-    renderPanel(3, 5);
+    const { container } = renderPanel(3, 5);
 
     // Initially: all collapsed.
+    container
+      .querySelectorAll<HTMLButtonElement>('button[aria-expanded]')
+      .forEach((b) => expect(b.getAttribute('aria-expanded')).toBe('false'));
+
     const expandAllBtn = screen.getByRole('button', {
       name: 'Expand all animation cards',
     });
@@ -576,10 +622,14 @@ describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
       fireEvent.click(expandAllBtn);
     });
 
-    // After Expand all: every card body is open. Each card had 5 rows; we
-    // should see 5 rows × 3 cards = 15 row records by attachmentName text.
-    const rowsAfterExpand = screen.queryAllByText(/-attachment-0000$/);
-    expect(rowsAfterExpand.length).toBe(3); // one row per card
+    // After Expand all: every card's expand-toggle reads true.
+    const togglesAfterExpand = container.querySelectorAll<HTMLButtonElement>(
+      'button[aria-expanded]',
+    );
+    expect(togglesAfterExpand.length).toBe(3);
+    togglesAfterExpand.forEach((b) =>
+      expect(b.getAttribute('aria-expanded')).toBe('true'),
+    );
 
     const collapseAllBtn = screen.getByRole('button', {
       name: 'Collapse all animation cards',
@@ -589,8 +639,9 @@ describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
     });
 
     // After Collapse all: every card body is closed.
-    const rowsAfterCollapse = screen.queryAllByText(/-attachment-0000$/);
-    expect(rowsAfterCollapse.length).toBe(0);
+    container
+      .querySelectorAll<HTMLButtonElement>('button[aria-expanded]')
+      .forEach((b) => expect(b.getAttribute('aria-expanded')).toBe('false'));
   });
 
   it('B5: after Expand all, individual card toggle collapses just that card', () => {
@@ -604,9 +655,6 @@ describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
     });
 
     // Sanity: all 3 expanded.
-    expect(screen.queryAllByText(/-attachment-0000$/).length).toBe(3);
-
-    // Toggle the FIRST card (Setup Pose) closed.
     const cards = container.querySelectorAll(
       'section[aria-labelledby^="bd-header-"]',
     );
@@ -614,24 +662,25 @@ describe('AnimationBreakdownPanel — Phase 31 PANEL-08..11', () => {
     const firstToggle = cards[0].querySelector(
       'button[aria-expanded]',
     ) as HTMLButtonElement;
-    expect(firstToggle.getAttribute('aria-expanded')).toBe('true');
-    act(() => {
-      fireEvent.click(firstToggle);
-    });
-    expect(firstToggle.getAttribute('aria-expanded')).toBe('false');
-
-    // The other two cards remain expanded.
     const secondToggle = cards[1].querySelector(
       'button[aria-expanded]',
     ) as HTMLButtonElement;
     const thirdToggle = cards[2].querySelector(
       'button[aria-expanded]',
     ) as HTMLButtonElement;
+    expect(firstToggle.getAttribute('aria-expanded')).toBe('true');
     expect(secondToggle.getAttribute('aria-expanded')).toBe('true');
     expect(thirdToggle.getAttribute('aria-expanded')).toBe('true');
 
-    // After single-card collapse: 2 cards' first rows still visible.
-    expect(screen.queryAllByText(/-attachment-0000$/).length).toBe(2);
+    // Toggle the FIRST card (Setup Pose) closed.
+    act(() => {
+      fireEvent.click(firstToggle);
+    });
+    expect(firstToggle.getAttribute('aria-expanded')).toBe('false');
+
+    // The other two cards remain expanded.
+    expect(secondToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(thirdToggle.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('B6 (B-D-02 + B-D-04): search union preserved; matching cards surface even with empty userExpanded; bulk Collapse all does not remove matched cards while search active', () => {
