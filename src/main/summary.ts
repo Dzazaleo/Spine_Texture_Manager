@@ -426,11 +426,30 @@ export function buildSummary(
     // Non-textured filter proxy: load.sourceDims.get(name) !== undefined
     // (same proxy as old findUnusedAttachments:117 — BoundingBox/Path/Clipping/Point
     // have no sourceDims entry and are excluded; D-02 step 2 spec).
+    //
+    // Sequence-aware (debug-fix spine-sequence-undercount-orphan-bleed, 2026-05-08):
+    // a sequence attachment's per-frame region names live on attachment.sequence
+    // .regions[i].name (spine-ts RegionAttachment/MeshAttachment.sequence: Sequence | null).
+    // synthetic-atlas registers those per-frame names in load.sourceDims; the basePath
+    // (which is the JSON-key here) is NOT in sourceDims after our fix. Without this
+    // fan-out, all N on-disk PNG frames would be flagged as orphans.
     const inUseNames = new Set<string>();
     for (const skin of load.skeletonData.skins) {
       for (const perSlot of skin.attachments) {
         if (perSlot === undefined || perSlot === null) continue;
         for (const attachmentName of Object.keys(perSlot)) {
+          const attachment = perSlot[attachmentName] as {
+            sequence?: { regions?: { name?: string }[] } | null;
+          };
+          const seq = attachment?.sequence;
+          if (seq && Array.isArray(seq.regions) && seq.regions.length > 0) {
+            for (const region of seq.regions) {
+              if (region.name && load.sourceDims.get(region.name) !== undefined) {
+                inUseNames.add(region.name);
+              }
+            }
+            continue;
+          }
           if (load.sourceDims.get(attachmentName) !== undefined) {
             inUseNames.add(attachmentName);
           }

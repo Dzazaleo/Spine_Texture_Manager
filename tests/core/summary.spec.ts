@@ -256,6 +256,55 @@ describe('Phase 24 PANEL-01 — orphanedFiles I/O (Plan 02 implementation gate)'
   });
 });
 
+// Regression — debug-fix spine-sequence-undercount-orphan-bleed (2026-05-08).
+//
+// After the spine-sequence-undercount fix landed, atlas-less mode correctly
+// loaded sequence attachments and fanned out per-frame ExportRows. But the
+// orphan detector in summary.ts:429-439 still walked skin.attachments using
+// the JSON-key (basePath like "PARTICLES_1/") to populate inUseNames. Since
+// synthetic-atlas registers per-frame region names (PARTICLES_1/00..29) in
+// sourceDims and NOT the basePath, the basePath check missed every sequence
+// attachment — so all N on-disk PNG frames were flagged orphaned.
+//
+// Fix: when an attachment has `.sequence.regions[]`, fan out and check each
+// region.name against sourceDims instead of the basePath.
+describe('Sequence-aware orphan detection (debug-fix spine-sequence-undercount-orphan-bleed 2026-05-08)', () => {
+  const TEST_03_JSON = path.resolve(
+    'fixtures/MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json',
+  );
+  const TEST_03_IMAGES_DIR = path.resolve(
+    'fixtures/MON_FILES/EXPORT/TEST_03/4.2/images_unpacked',
+  );
+  // Same skip-when-fixture-absent pattern used by sequence-attachment-fanout.spec.ts
+  // (TEST_03 lives under fixtures/MON_FILES/ which is gitignored).
+  const FIXTURE_PRESENT =
+    fs.existsSync(TEST_03_JSON) && fs.existsSync(TEST_03_IMAGES_DIR);
+  const itOrSkip = FIXTURE_PRESENT ? it : it.skip;
+
+  itOrSkip('atlas-less mode: PARTICLES sequence frames are NOT flagged as orphaned', () => {
+    // The loader hardcodes "images/" as the dir name; the fixture has a
+    // local symlink images -> images_unpacked. Skip cleanly if the symlink
+    // hasn't been created (would surface as atlasPath !== null assertion failure).
+    const FIXTURE_DIR = path.dirname(TEST_03_JSON);
+    if (!fs.existsSync(path.join(FIXTURE_DIR, 'images'))) {
+      return;
+    }
+
+    const load = loadSkeleton(TEST_03_JSON, { loaderMode: 'atlas-less' });
+    expect(load.atlasPath).toBeNull(); // atlas-less mode forced via loaderMode
+    const sampled = sampleSkeleton(load);
+    const s = buildSummary(load, sampled, 0);
+
+    // None of the PARTICLES_1/00..29 or PARTICLES_2/00..29 frames should be
+    // marked orphaned — they're all referenced by sequence attachments in
+    // slot PARTICLES_1-3.
+    const sequenceFrameOrphans = (s.orphanedFiles ?? []).filter((f) =>
+      /^PARTICLES_[12]\/\d{2}$/.test(f.filename),
+    );
+    expect(sequenceFrameOrphans).toEqual([]);
+  });
+});
+
 describe('Phase 21 G-02 — skippedAttachments cascade', () => {
   // Plan 21-10 — Surface skipped-PNG attachments (Plan 21-09 LoadResult.skippedAttachments)
   // through buildSummary so MissingAttachmentsPanel can render them above the regular
