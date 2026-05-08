@@ -966,6 +966,344 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
 });
 
 /**
+ * Phase 30 Plan 30-02 — safety-buffer math (BUFFER-01..03).
+ *
+ * Locks the locked-by-CONTEXT D-09 step order:
+ *   1. raw effScale  := overridePct ? applyOverride(...) : peakScale
+ *   2. bufferedScale := buffer === 0 ? raw : raw × (1 + buffer/100)   [D-07 short-circuit]
+ *   3. clampedScale  := Math.min(safeScale(bufferedScale), 1.0)
+ *   4. cappedScale   := Math.min(clampedScale, sourceRatio)
+ *   5. isCapped      := clampedScale > sourceRatio                    [unchanged]
+ *   6. bufferCapped  := bufferPct > 0 && buffered > sourceRatio && safeScale(raw) <= sourceRatio  [NARROW per D-06]
+ *
+ * Coverage:
+ *   T1 — D-07 no-op: buffer=0 byte-identical to omitted opts.
+ *   T2 — Linear growth: buffer=5 produces safeScale(rawEff × 1.05).
+ *   T3 — Canonical-1.0 clamp: bufferCapped does NOT fire on clean atlases (NARROW per D-06).
+ *   T4 — Cap-binding: buffer pushes drifted row past sourceRatio → bufferCapped: true.
+ *   T5 — Passthrough preserved: peakScale=1.0 + buffer=5 → still in passthroughCopies[].
+ *   T6 — Per-region dedup × buffer order: buffer applies BEFORE dedup keep-max (Pitfall 4).
+ *   T7 — Aspect-ratio invariant: buffer-induced cap stays uniform on both axes (D-91 + D-110).
+ *   T8 — Chicken-Min path-indirection regression (Phase 29 × Phase 30).
+ */
+describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
+  // Helper: synthesize a clean-atlas SkeletonSummary (no dimsMismatch → sourceRatio = Infinity).
+  // canonicalW === sourceW by Phase 21 contract on canonical-atlas + atlas-less paths.
+  function makeCleanSummary(
+    canonicalDim: number,
+    peakScale: number,
+    name = 'CLEAN_ATTACH',
+    sourcePath = `/fake/${name}.png`,
+  ): SkeletonSummary {
+    return {
+      peaks: [
+        {
+          attachmentKey: `default/SLOT/${name}`,
+          attachmentName: name,
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalDim * peakScale,
+          worldH: canonicalDim * peakScale,
+          sourceW: canonicalDim,
+          sourceH: canonicalDim,
+          sourcePath,
+          canonicalW: canonicalDim,
+          canonicalH: canonicalDim,
+          dimsMismatch: false,
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+  }
+
+  // Helper: drifted-row SkeletonSummary. dimsMismatch=true → sourceRatio binds.
+  function makeDriftedSummary(
+    canonicalW: number,
+    canonicalH: number,
+    actualW: number,
+    actualH: number,
+    peakScale: number,
+    name = 'DRIFTED_ATTACH',
+    sourcePath = `/fake/${name}.png`,
+  ): SkeletonSummary {
+    return {
+      peaks: [
+        {
+          attachmentKey: `default/SLOT/${name}`,
+          attachmentName: name,
+          skinName: 'default',
+          slotName: 'SLOT',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale,
+          peakScaleX: peakScale,
+          peakScaleY: peakScale,
+          worldW: canonicalW * peakScale,
+          worldH: canonicalH * peakScale,
+          sourceW: canonicalW,
+          sourceH: canonicalH,
+          sourcePath,
+          canonicalW,
+          canonicalH,
+          actualSourceW: actualW,
+          actualSourceH: actualH,
+          dimsMismatch: true,
+        },
+      ],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+  }
+
+  it('T1 D-07 no-op: safetyBufferPercent: 0 produces byte-identical output to undefined opts (SIMPLE_TEST)', () => {
+    const load = loadSkeleton(FIXTURE_BASELINE);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const summary = {
+      peaks: peaks.map((r) => ({
+        ...r,
+        sourcePath: '/fake/' + r.attachmentName + '.png',
+      })),
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    const planUndef = buildExportPlan(summary, new Map());
+    const planZero = buildExportPlan(summary, new Map(), { safetyBufferPercent: 0 });
+    // Deep-equal AND byte-equal serialization — locks the no-op contract per D-07.
+    expect(planZero).toEqual(planUndef);
+    expect(JSON.stringify(planZero)).toBe(JSON.stringify(planUndef));
+  });
+
+  it('T2 linear growth: 5% buffer on peakScale=0.5 yields safeScale(0.525) on a clean atlas (cap not bound)', () => {
+    // Clean atlas (no dimsMismatch) → sourceRatio = Infinity → cap inert.
+    // rawEff = 0.5; bufferedScale = 0.5 × 1.05 = 0.525 (already at thousandth boundary).
+    // safeScale(0.525) = 0.525; downscaleClampedScale = min(0.525, 1) = 0.525.
+    // outW = ceil(canonicalW × 0.525) = ceil(1000 × 0.525) = 525.
+    const summary = makeCleanSummary(1000, 0.5, 'GROW');
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    // Row goes to rows[] (outW=525 ≠ sourceW=1000).
+    expect(plan.rows.length).toBe(1);
+    expect(plan.passthroughCopies.length).toBe(0);
+    const r = plan.rows[0];
+    expect(r.effectiveScale).toBeCloseTo(0.525, 6);
+    expect(r.outW).toBe(525);
+    expect(r.outH).toBe(525);
+    // Narrow predicate: bufferCapped MUST be undefined (cap not bound on clean atlas).
+    expect(r.bufferCapped).toBeUndefined();
+    expect(r.isCapped).toBeUndefined();
+  });
+
+  it('T3 canonical-1.0 clamp: bufferCapped does NOT fire on clean atlas (NARROW predicate per D-06)', () => {
+    // Clean atlas, peakScale=0.99 → buffered=0.99×1.05=1.0395 → clamped to 1.0 (canonical).
+    // sourceRatio = Infinity (no dimsMismatch). NARROW predicate's
+    // (bufferedScale > sourceRatio) condition is FALSE since Infinity beats anything.
+    // → bufferCapped MUST be undefined; flag does NOT fire on canonical-only clamp.
+    const summary = makeCleanSummary(1000, 0.99, 'NEAR_TOP');
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    // Both rows[] and passthroughCopies[] together must hold exactly 1 row.
+    const all = [...plan.rows, ...plan.passthroughCopies];
+    expect(all.length).toBe(1);
+    const r = all[0];
+    // effectiveScale clamps to 1.0 (canonical ceiling).
+    expect(r.effectiveScale).toBe(1);
+    expect(r.outW).toBe(1000);
+    expect(r.outH).toBe(1000);
+    // NARROW predicate: bufferCapped is silent on canonical-1.0 clamp.
+    expect(r.bufferCapped).toBeUndefined();
+  });
+
+  it('T4 cap-binding: bufferCapped FIRES when buffer pushes a cap-eligible row past sourceRatio (NARROW predicate)', () => {
+    // canonical 1000×1000, actual 700×700 → sourceRatio = 0.7.
+    // peakScale = 0.6 (below sourceRatio). safeScale(0.6) = 0.6 ≤ 0.7 (raw not capped).
+    // buffer = 25 → bufferedScale = 0.6 × 1.25 = 0.75 > sourceRatio = 0.7.
+    // → bufferCapped fires (NARROW predicate satisfied). isCapped also fires
+    //   because downscaleClampedScale = safeScale(0.75) = 0.75 > 0.7.
+    // effScale = min(0.75, 0.7) = 0.7; outW = ceil(1000 × 0.7) = 700 = actualSourceW.
+    // Phase 22.1 partition runs on FINAL outW vs effectiveSourceW (= actualSourceW
+    // when actualSourceW < canonicalW): outW=700 === effectiveSourceW=700 →
+    // passthroughCopies[]. The buffer cap silently lands at the source-dim edge
+    // and the partition correctly classifies the byte-copy. The bufferCapped
+    // flag still rides through (it's set on the Acc before the emit-loop partition).
+    const summary = makeDriftedSummary(1000, 1000, 700, 700, 0.6, 'CAP_BIND');
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 25 });
+    const all = [...plan.rows, ...plan.passthroughCopies];
+    expect(all.length).toBe(1);
+    const r = all[0];
+    expect(r.bufferCapped).toBe(true);
+    expect(r.isCapped).toBe(true);
+    expect(r.outW).toBe(700);
+    expect(r.outH).toBe(700);
+  });
+
+  it('T5 passthrough preserved: peakScale=1.0 + buffer=5 → still in passthroughCopies[] (Pitfall 3)', () => {
+    // Clean atlas TRIANGLE-style row at peak. rawEff=1.0; buffered=1.05; safeScale=1.05; clamp to 1.0.
+    // No dimsMismatch → sourceRatio = Infinity. Cap inert. Final effScale = 1.0.
+    // outW = ceil(1000 × 1.0) = 1000 = sourceW → row stays in passthroughCopies[]
+    // (canonical clamp handles the buffer-induced overshoot; partition runs on
+    // FINAL outW/outH at emit loop). bufferCapped is silent (NARROW; canonical only).
+    const summary = makeCleanSummary(1000, 1.0, 'TRIANGLE_LIKE');
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    expect(plan.rows.length).toBe(0);
+    expect(plan.passthroughCopies.length).toBe(1);
+    const r = plan.passthroughCopies[0];
+    expect(r.outW).toBe(1000);
+    expect(r.outH).toBe(1000);
+    expect(r.effectiveScale).toBe(1);
+    expect(r.bufferCapped).toBeUndefined();
+  });
+
+  it('T6 per-region dedup × buffer ordering: buffer applies BEFORE keep-max compare (Pitfall 4)', () => {
+    // Two attachments share /fake/SHARED.png. Raw effScales 0.6 and 0.8.
+    // Buffer = 5 → buffered = 0.6 × 1.05 = 0.6300000000000001 (IEEE-754) and
+    // 0.8 × 1.05 = 0.8400000000000001 (IEEE-754). After safeScale (ceil-thousandth):
+    //   safeScale(0.6300000000000001) = ceil(630.0000000000001) / 1000 = 0.631
+    //   safeScale(0.8400000000000001) = ceil(840.0000000000001) / 1000 = 0.841
+    // Both ≤ 1. The ceil-thousandth lower-bound contract (Pitfall 1: D-07
+    // is the no-op gate, NOT this code path — buffer > 0 here) intentionally
+    // adds a sub-thousandth bump for IEEE-754 non-representable products.
+    // Dedup keep-max picks 0.841 (the one with the larger raw, buffered).
+    // Determinism: order of contributing attachments doesn't matter (max wins).
+    const summary: SkeletonSummary = {
+      peaks: [
+        {
+          attachmentKey: 'default/A/SMALL',
+          attachmentName: 'SMALL',
+          regionName: 'SHARED',
+          skinName: 'default',
+          slotName: 'A',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.6,
+          peakScaleX: 0.6,
+          peakScaleY: 0.6,
+          worldW: 600,
+          worldH: 600,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/SHARED.png',
+          canonicalW: 1000,
+          canonicalH: 1000,
+          dimsMismatch: false,
+        },
+        {
+          attachmentKey: 'default/B/BIG',
+          attachmentName: 'BIG',
+          regionName: 'SHARED',
+          skinName: 'default',
+          slotName: 'B',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.8,
+          peakScaleX: 0.8,
+          peakScaleY: 0.8,
+          worldW: 800,
+          worldH: 800,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/SHARED.png',
+          canonicalW: 1000,
+          canonicalH: 1000,
+          dimsMismatch: false,
+        },
+      ] as unknown as SkeletonSummary['peaks'],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    // One deduped row from /fake/SHARED.png; winner = buffered max = 0.841 (post-safeScale).
+    expect(plan.rows.length + plan.passthroughCopies.length).toBe(1);
+    const r = (plan.rows[0] ?? plan.passthroughCopies[0]) as typeof plan.rows[number];
+    expect(r.effectiveScale).toBe(0.841);
+    // attachmentNames union both contributors.
+    expect(r.attachmentNames.sort()).toEqual(['BIG', 'SMALL']);
+    expect(r.outW).toBe(841);
+    expect(r.outH).toBe(841);
+  });
+
+  it('T7 aspect-ratio invariant: buffer-induced cap is uniform on both axes (D-91 + Phase 6 D-110)', () => {
+    // Non-square actualSource: canonical 1000×1000, actual 700×800.
+    // sourceRatio = min(700/1000, 800/1000) = 0.7. peakScale=0.6, buffer=25.
+    // bufferedScale = 0.75 > sourceRatio (0.7) → cap binds at 0.7.
+    // Output dims: outW = ceil(1000 × 0.7) = 700; outH = ceil(1000 × 0.7) = 700.
+    // BOTH axes use the SAME effScale (0.7); aspect of OUTPUT is 1:1 (canonical),
+    // NOT 7:8 (per-axis would distort). This locks uniform-only under buffer.
+    const summary = makeDriftedSummary(1000, 1000, 700, 800, 0.6, 'NONSQUARE');
+    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 25 });
+    expect(plan.rows.length).toBe(1);
+    const r = plan.rows[0];
+    expect(r.outW).toBe(700);
+    expect(r.outH).toBe(700);
+    expect(r.effectiveScale).toBeCloseTo(0.7, 6);
+    expect(r.bufferCapped).toBe(true);
+  });
+
+  it('T8 lockstep parity: core and renderer mirror produce IDENTICAL ExportPlan under non-zero buffer', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+    // Mix of clean + drifted; verify cross-file parity holds at buffer 5 and 25.
+    const summary: SkeletonSummary = {
+      peaks: [
+        {
+          attachmentKey: 'default/A/CLEAN',
+          attachmentName: 'CLEAN',
+          skinName: 'default',
+          slotName: 'A',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.5,
+          peakScaleX: 0.5,
+          peakScaleY: 0.5,
+          worldW: 500,
+          worldH: 500,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/CLEAN.png',
+          canonicalW: 1000,
+          canonicalH: 1000,
+          dimsMismatch: false,
+        },
+        {
+          attachmentKey: 'default/B/DRIFT',
+          attachmentName: 'DRIFT',
+          skinName: 'default',
+          slotName: 'B',
+          animationName: 'idle',
+          time: 0,
+          frame: 0,
+          peakScale: 0.6,
+          peakScaleX: 0.6,
+          peakScaleY: 0.6,
+          worldW: 600,
+          worldH: 600,
+          sourceW: 1000,
+          sourceH: 1000,
+          sourcePath: '/fake/DRIFT.png',
+          canonicalW: 1000,
+          canonicalH: 1000,
+          actualSourceW: 700,
+          actualSourceH: 700,
+          dimsMismatch: true,
+        },
+      ] as unknown as SkeletonSummary['peaks'],
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+    for (const buf of [5, 25]) {
+      const corePlan = buildExportPlan(summary, new Map(), { safetyBufferPercent: buf });
+      const viewPlan = buildExportPlanView(summary, new Map(), { safetyBufferPercent: buf });
+      expect(viewPlan, `buffer=${buf}`).toEqual(corePlan);
+    }
+  });
+});
+
+/**
  * Phase 22 Plan 22-03 — DIMS-03 cap formula + DIMS-04 passthrough partition.
  *
  * The cap step inserts between the existing safeScale + ≤1 clamp and the
