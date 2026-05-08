@@ -111,6 +111,18 @@ export function App() {
   // AppShell.tsx:181.
   const manualCheckPendingRef = useRef<boolean>(false);
 
+  // Phase 31 PLATFORM-01 — Windows-admin DnD fallback. One-shot IPC read at
+  // mount; cached in main, never re-polled (Windows cannot change a process's
+  // token mid-life — see CONTEXT.md `<deferred>` line 192). Off-Windows always
+  // resolves false (the main-side handler short-circuits per CONTEXT.md C-D-05).
+  // The flag drives the idle-state DropZone body swap below: when true, the
+  // empty-state prompt is replaced with the verbatim two-sentence advisory
+  // routing the user to File → Open or relaunch unprivileged.
+  const [isElevated, setIsElevated] = useState(false);
+  useEffect(() => {
+    void window.api.isElevated().then(setIsElevated);
+  }, []);
+
   const handleLoadStart = useCallback((fileName: string) => {
     setState({ status: 'loading', fileName });
   }, []);
@@ -585,12 +597,31 @@ export function App() {
       onProjectDrop={handleProjectLoad}
       onProjectDropStart={handleLoadStart}
       onBeforeDrop={handleBeforeDrop}
+      isElevated={isElevated}
     >
-      {state.status === 'idle' && (
-        <p className="text-fg-muted font-mono text-sm">
-          Drop a <code>.spine</code> JSON file anywhere in this window
-        </p>
-      )}
+      {state.status === 'idle' &&
+        (isElevated ? (
+          /* Phase 31 PLATFORM-01 — Windows-admin advisory. role="status" so
+             screen readers announce it on idle entry (matches the
+             loaderModeHealedNotice ARIA pattern in AppShell.tsx). max-w-md
+             keeps the line length readable on wide monitors. The advisory
+             uses informational tone (text-fg-muted, NOT text-danger) — DnD
+             being unavailable is not an error, it's an OS-level IPC block.
+
+             Copy is verbatim from CONTEXT.md C-D-03 / UI-SPEC § Sub-feature
+             C: a single coherent advisory, both sentences in one <p>
+             separated by a single space. The "→" is U+2192 RIGHT-ARROW —
+             do NOT replace with ASCII "->". */
+          <div role="status" className="max-w-md text-center text-sm text-fg-muted">
+            <p>
+              Drag-and-drop is unavailable while running as administrator. Use File → Open instead, or relaunch the app without administrator privileges.
+            </p>
+          </div>
+        ) : (
+          <p className="text-fg-muted font-mono text-sm">
+            Drop a <code>.spine</code> JSON file anywhere in this window
+          </p>
+        ))}
       {state.status === 'loading' && (
         <p className="text-fg-muted font-mono text-sm">
           Loading {state.fileName}…

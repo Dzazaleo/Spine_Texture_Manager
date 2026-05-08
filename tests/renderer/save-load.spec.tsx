@@ -137,6 +137,11 @@ beforeEach(() => {
     // mount; tests must stub it so the Promise resolves (null = no
     // pending update, the common case for these specs).
     requestPendingUpdate: vi.fn().mockResolvedValue(null),
+    // Phase 31 PLATFORM-01 — App.tsx now reads the cached Windows-elevation
+    // flag once at mount via window.api.isElevated(). Default false in this
+    // suite so the existing idle-state empty-message renders unchanged for
+    // every spec that drops a .json / .stmproj into the idle DropZone.
+    isElevated: vi.fn().mockResolvedValue(false),
   });
 });
 

@@ -156,6 +156,10 @@ describe('Phase 18 — App.tsx before-quit dirty-guard lift', () => {
           return () => undefined;
         }),
         confirmQuitProceed: confirmQuitProceedMock,
+        // Phase 31 PLATFORM-01 — App.tsx now reads the cached Windows-elevation
+        // flag once at mount via window.api.isElevated(). Default false in this
+        // suite so the existing idle-state empty-message renders unchanged.
+        isElevated: vi.fn().mockResolvedValue(false),
       },
     });
   });

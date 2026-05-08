@@ -35,6 +35,10 @@ import { loadRecent, clearRecent } from './recent.js';
 // 3.5s startup check from inside the function body. Called after applyMenu
 // so the menu is up by the time the first 'update:available' could fire.
 import { initAutoUpdater } from './auto-update.js';
+// Phase 31 PLATFORM-01 — one-shot Windows elevation probe at app boot.
+// The probe lives in a Layer 3 carve-out file (tests/arch.spec.ts
+// PLATFORM_CARVE_OUTS) so this main entry stays portability-clean.
+import { probeElevation } from './elevation.js';
 
 // Phase 8 — Pitfall 1 re-entry guard for the before-quit dirty-guard flow.
 // Set to true once the renderer has confirmed quit is OK; the before-quit
@@ -516,7 +520,7 @@ export function appImageUrlToPath(appImageUrl: string): string {
   return fileURLToPath(fileUrl);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Phase 13 — Windows About-panel SemVer fix (carry-forward from 12.1
   // Anti-Pattern #4). Without this, the Windows About dialog reads the
   // win32 FileVersion 4-component padded form (`1.1.1.0`) instead of the
@@ -567,6 +571,15 @@ app.whenReady().then(() => {
       return new Response(null, { status: 404 });
     }
   });
+
+  // Phase 31 PLATFORM-01 — one-shot Windows elevation probe. ~50-100ms
+  // worst case (5s timeout cap). Non-Windows short-circuits to false
+  // without exec'ing. Cached for the renderer's 'platform:isElevated' IPC
+  // handler (registered next). Safe to await before window creation per
+  // CONTEXT.md C-D-01 — the small startup tax buys a deterministic value
+  // for the IPC handler registered immediately below (no race between
+  // App.tsx mount and probe completion).
+  await probeElevation();
 
   registerIpcHandlers();
   createWindow();

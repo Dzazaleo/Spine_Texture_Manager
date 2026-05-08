@@ -118,6 +118,10 @@ describe('Phase 14 — App.tsx update-subscription lift', () => {
         // any update-subscription assertion can run.
         onCheckDirtyBeforeQuit: vi.fn(() => () => undefined),
         confirmQuitProceed: vi.fn(),
+        // Phase 31 PLATFORM-01 — App.tsx now reads the cached Windows-elevation
+        // flag once at mount via window.api.isElevated(). Default false in this
+        // suite so the existing idle-state empty-message renders unchanged.
+        isElevated: vi.fn().mockResolvedValue(false),
       },
     });
   });

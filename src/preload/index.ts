@@ -625,6 +625,17 @@ const api: Api = {
     ipcRenderer.invoke('atlas:resolve-image-url', absolutePath),
 
   // -------------------------------------------------------------------------
+  // Phase 31 PLATFORM-01 — read the cached Windows-elevation flag from main.
+  //
+  // Resolved once at App.tsx mount; never re-polled (Windows cannot change
+  // a process's token mid-life — see CONTEXT.md `<deferred>` line 192). The
+  // renderer uses this to swap the DropZone empty-state body for an advisory
+  // routing the user to File → Open. Off-Windows always resolves false (the
+  // main-side handler short-circuits per CONTEXT.md C-D-05).
+  // -------------------------------------------------------------------------
+  isElevated: (): Promise<boolean> => ipcRenderer.invoke('platform:isElevated'),
+
+  // -------------------------------------------------------------------------
   // Phase 20 D-21 — Documentation HTML export.
   //
   // The renderer (DocumentationBuilderDialog ExportPane) builds the

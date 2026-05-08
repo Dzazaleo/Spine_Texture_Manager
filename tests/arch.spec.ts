@@ -51,6 +51,11 @@ describe('Portability: no platform-specific code in src/ (D-23)', () => {
     // derives the variant from process.platform.
     const PLATFORM_CARVE_OUTS = new Set<string>([
       'src/main/auto-update.ts',
+      // Phase 31 PLATFORM-01 — Windows admin DnD fallback probe (D-23 carve-out).
+      // The probe wraps `child_process.exec('net session')` behind a
+      // `process.platform === 'win32'` short-circuit so the renderer never
+      // sees platform branching; only the cached boolean traverses IPC.
+      'src/main/elevation.ts',
     ]);
     const offenders: string[] = [];
     for (const file of files) {
