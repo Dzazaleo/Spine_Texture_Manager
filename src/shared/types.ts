@@ -396,6 +396,24 @@ export interface ExportRow {
    * capped at the on-disk source dims.
    */
   isCapped?: boolean;
+  /**
+   * Phase 30 BUFFER-02 D-06 — true when the buffer-induced effective scale
+   * exceeds source dims and is silently clamped. Parallel to existing
+   * isCapped from Phase 22.1; the two flags are independent — a row can be
+   * bufferCapped without being isCapped (clean atlas with no dims drift,
+   * just buffer pushing past 1.0 → canonical clamp binds). Threaded through
+   * IPC payload but NOT rendered in v1.3.1 UI per D-05 silent-cap contract.
+   *
+   * Populated in src/core/export.ts buildExportPlan emit loop (Plan 30-02);
+   * mirrored byte-identically in src/renderer/src/lib/export-view.ts.
+   *
+   * Predicate (locked NARROW per CONTEXT D-06): bufferCapped fires when
+   * `bufferedScale > sourceRatio AND rawEffScale <= sourceRatio` — i.e.
+   * the buffer is what pushed the row past the actualSource cap. Does NOT
+   * fire on the canonical-1.0 clamp; that case is captured by existing
+   * isCapped semantics. (Open Question A1 resolved narrow per D-06 verbatim.)
+   */
+  bufferCapped?: boolean;
 }
 
 /**
@@ -916,6 +934,14 @@ export interface ProjectFileV1 {
    * src/core/project-file.ts:174-186). D-04 default-OFF, D-06 persists per project.
    */
   sharpenOnExport: boolean;
+  /**
+   * Phase 30 BUFFER-03 — multiplicative safety buffer (integer percent,
+   * range [0, 25]). v1.2/v1.3-era .stmproj files have no `safetyBufferPercent`
+   * field; the validator pre-massages missing → 0 (mirrors sharpenOnExport
+   * pre-massage in src/core/project-file.ts:189-199). D-03 default 0%,
+   * D-04 strictly integer, D-14 same name across all surfaces.
+   */
+  safetyBufferPercent: number;
 }
 
 export type ProjectFile = ProjectFileV1;
@@ -941,6 +967,8 @@ export interface AppSessionState {
   loaderMode: 'auto' | 'atlas-less';
   /** Phase 28 SHARP-01 — round-trips through .stmproj per D-06. */
   sharpenOnExport: boolean;
+  /** Phase 30 BUFFER-03 — round-trips through .stmproj per D-14. Integer 0-25. */
+  safetyBufferPercent: number;
 }
 
 /**
@@ -994,6 +1022,12 @@ export interface MaterializedProject {
    * seeds its sharpenOnExportLocal slot on Open / locate-skeleton recovery.
    */
   sharpenOnExport: boolean;
+  /**
+   * Phase 30 BUFFER-03 — threaded through main/project-io.ts so AppShell
+   * seeds its safetyBufferPercentLocal slot on Open / locate-skeleton
+   * recovery / resample. Mirrors sharpenOnExport above.
+   */
+  safetyBufferPercent: number;
 }
 
 export type SaveResponse =
@@ -1054,6 +1088,14 @@ export interface ResampleArgs {
    * (undefined → false).
    */
   sharpenOnExport?: boolean;
+  /**
+   * Phase 30 D-14 — per-project safety buffer (integer 0-25). The resample
+   * round-trip re-materialises the project; threading the renderer's
+   * current `safetyBufferPercentLocal` keeps `MaterializedProject.safetyBufferPercent`
+   * truthful at the resample seam. Optional for backward-compat
+   * (undefined → 0).
+   */
+  safetyBufferPercent?: number;
 }
 
 export type LocateSkeletonResponse =
