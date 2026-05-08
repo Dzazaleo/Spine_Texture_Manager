@@ -72,6 +72,21 @@ import { applyOverride } from './overrides.js';
 export interface BuildExportPlanOptions {
   /** Default false (D-109). Future Settings toggle path. */
   includeUnused?: boolean;
+  /**
+   * Phase 30 BUFFER-01 — multiplicative safety buffer (integer percent,
+   * range [0, 25]). When 0 or undefined: literal no-op per D-07 (byte-
+   * identical pre-Phase-30 behavior). When > 0: each row's rawEffScale is
+   * multiplied by (1 + safetyBufferPercent/100) BEFORE the canonical 1.0
+   * clamp and the Phase 22.1 sourceRatio cap. The cap pipeline preserves
+   * D-91 (no texture surpasses source dims) regardless of buffer value.
+   *
+   * Validation: caller is responsible for clamping to [0, 25] and ensuring
+   * integer values; OptimizeDialog onChange handler does this (UI-SPEC).
+   * Out-of-range values are NOT defensively coerced here — the math
+   * accepts any non-negative number, but ergonomically the caller's
+   * contract is integer 0-25.
+   */
+  safetyBufferPercent?: number;
 }
 
 /**
@@ -137,14 +152,17 @@ export function safeScale(s: number): number {
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  _opts?: BuildExportPlanOptions,
+  opts?: BuildExportPlanOptions,
 ): ExportPlan {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // The excluded set is now always empty — D-109 exclusion semantics are
   // superseded by Phase 24's orphanedFiles concept (images/ folder vs rig,
-  // not attachment-visibility vs sampler). _opts (renamed from opts to
-  // satisfy noUnusedParameters) is kept for API backward-compat;
-  // Plan 02 will wire the new exclusion surface.
+  // not attachment-visibility vs sampler). Plan 02 will wire the new
+  // exclusion surface.
+  //
+  // Phase 30 BUFFER-01 — opts is now consumed (parameter was previously
+  // prefix-underscored to satisfy noUnusedParameters; renamed at Phase 30).
+  // safetyBufferPercent is the first consumer.
   const excluded = new Set<string>();
 
   // 2. Group by sourcePath; per group keep highest-effective-scale row +
@@ -158,6 +176,7 @@ export function buildExportPlan(
     row: DisplayRow;
     effScale: number;
     isCapped: boolean;  // true when downscaleClampedScale > sourceRatio
+    bufferCapped: boolean;  // Phase 30 BUFFER-02 — true when buffer pushed past sourceRatio (NARROW predicate per D-06)
     attachmentNames: string[];
   }
   const bySourcePath = new Map<string, Acc>();
@@ -190,6 +209,15 @@ export function buildExportPlan(
       overridePct !== undefined
         ? applyOverride(overridePct, row.peakScale).effectiveScale
         : row.peakScale;
+
+    // Phase 30 BUFFER-01 — multiplicative safety buffer applied AFTER override
+    // resolution + BEFORE the canonical ≤ 1.0 clamp. D-07 literal no-op when
+    // bufferPct === 0 guarantees byte-identical pre-Phase-30 behavior.
+    // Math order locked by CONTEXT D-09: raw → bufferedScale → clamp → cap.
+    const bufferPct = opts?.safetyBufferPercent ?? 0;
+    const bufferedScale =
+      bufferPct === 0 ? rawEffScale : rawEffScale * (1 + bufferPct / 100);
+
     // Gap-Fix Round 5 (2026-04-25): round UP to nearest thousandth FIRST so
     // the displayed `0.361×` is a guaranteed lower bound the export math
     // also uses. THEN apply the Gap-Fix #1 (2026-04-25) clamp to ≤ 1.0
@@ -199,7 +227,10 @@ export function buildExportPlan(
     // ceiling and leaving the other reading the unclamped 5.0 value.
     // User-locked Phase 6 export sizing memory: source dims are the
     // ceiling, never extrapolate.
-    const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1);
+    //
+    // Phase 30 BUFFER-01 — safeScale applied to the POST-buffer value per
+    // D-09 step 3 (single safeScale call; never double-applied — Pitfall 5).
+    const downscaleClampedScale = Math.min(safeScale(bufferedScale), 1);
 
     // Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
     // on both axes when dimsMismatch && actualSource defined. Locked memory
@@ -227,6 +258,19 @@ export function buildExportPlan(
     const cappedEffScale = Math.min(downscaleClampedScale, sourceRatio);
     const isCapped = downscaleClampedScale > sourceRatio;
 
+    // Phase 30 BUFFER-02 D-06 — NARROW predicate (locked verbatim from CONTEXT D-06):
+    // bufferCapped fires only when the buffer is what pushed an
+    // actualSource-cap-eligible row past sourceRatio. Does NOT fire on
+    // canonical-1.0 clamp (sourceRatio === Infinity for clean atlases);
+    // that case is captured by isCapped semantics. Future PATCH may
+    // broaden to cover canonical clamp; current design is conservative.
+    // Compute against the SAFE-rounded raw to match comparison shape with
+    // downscaleClampedScale (which uses safeScale).
+    const bufferCapped =
+      bufferPct > 0
+      && bufferedScale > sourceRatio
+      && safeScale(rawEffScale) <= sourceRatio;
+
     const effScale = cappedEffScale;
     const prev = bySourcePath.get(row.sourcePath);
     if (prev === undefined) {
@@ -234,6 +278,7 @@ export function buildExportPlan(
         row,
         effScale,
         isCapped,
+        bufferCapped,  // Phase 30 BUFFER-02 — symmetric with isCapped above (R2)
         attachmentNames: [row.attachmentName],
       });
     } else {
@@ -241,6 +286,7 @@ export function buildExportPlan(
         prev.row = row;
         prev.effScale = effScale;
         prev.isCapped = isCapped;
+        prev.bufferCapped = bufferCapped;  // Phase 30 BUFFER-02 — keep-max symmetric replace (R2)
       }
       if (!prev.attachmentNames.includes(row.attachmentName)) {
         prev.attachmentNames.push(row.attachmentName);
@@ -319,6 +365,10 @@ export function buildExportPlan(
         : {}),
       // Phase 22.1 G-07 D-07 — cap-binding signal for OptimizeDialog row label.
       ...(acc.isCapped ? { isCapped: true } : {}),
+      // Phase 30 BUFFER-02 D-06 — buffer-induced cap signal. Independent of
+      // isCapped (a row can be bufferCapped without being isCapped). Carried
+      // in IPC payload; not surfaced in v1.3.1 UI per silent-cap contract D-05.
+      ...(acc.bufferCapped ? { bufferCapped: true } : {}),
     };
     if (isPassthrough) {
       passthroughCopies.push(exportRow);
