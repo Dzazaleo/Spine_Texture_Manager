@@ -124,6 +124,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -141,6 +142,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -175,6 +177,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       documentation: doc,
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const json = JSON.stringify(file);
@@ -202,6 +205,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       documentation: {} as unknown as Documentation,
       loaderMode: 'auto' as const,
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
     expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -271,6 +275,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -308,6 +313,7 @@ describe('migrate (D-151)', () => {
       sortColumn: null, sortDir: null, documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
   });
@@ -370,6 +376,7 @@ describe('Phase 21 — loaderMode (D-08)', () => {
       documentation: { ...DEFAULT_DOCUMENTATION },
       loaderMode: 'atlas-less',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.loaderMode).toBe('atlas-less');
@@ -437,6 +444,7 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       documentation: { ...DEFAULT_DOCUMENTATION },
       loaderMode: 'auto',
       sharpenOnExport: true,
+      safetyBufferPercent: 0,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(true);
@@ -457,11 +465,152 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       documentation: { ...DEFAULT_DOCUMENTATION },
       loaderMode: 'auto',
       sharpenOnExport: false,
+      safetyBufferPercent: 0,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(false);
     const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
     expect(materialized.sharpenOnExport).toBe(false);
+  });
+});
+
+describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
+  it('validateProjectFile pre-massages missing safetyBufferPercent to 0 (forward-compat for v1.2/v1.3-era files)', () => {
+    const v12EraFile: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: DEFAULT_DOCUMENTATION,
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      // safetyBufferPercent INTENTIONALLY ABSENT (v1.2/v1.3-era shape)
+    };
+    const result = validateProjectFile(v12EraFile);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).safetyBufferPercent).toBe(0);
+    }
+  });
+
+  it('validateProjectFile rejects non-integer / out-of-range / non-numeric safetyBufferPercent', () => {
+    const cases: Array<[string, unknown]> = [
+      ['negative integer (-1)', -1],
+      ['out of range (26)', 26],
+      ['non-integer (5.5)', 5.5],
+      ['string ("5")', '5'],
+      ['NaN', NaN],
+    ];
+    for (const [label, badValue] of cases) {
+      const file: Record<string, unknown> = {
+        version: 1,
+        skeletonPath: '/abs/rig.json',
+        atlasPath: null,
+        imagesDir: null,
+        overrides: {},
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+        documentation: DEFAULT_DOCUMENTATION,
+        loaderMode: 'auto',
+        sharpenOnExport: false,
+        safetyBufferPercent: badValue,
+      };
+      const result = validateProjectFile(file);
+      expect(result.ok, label).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind, label).toBe('invalid-shape');
+        expect(result.error.message, label).toMatch(/safetyBufferPercent/);
+      }
+    }
+  });
+
+  it('serialize → materialize round-trips safetyBufferPercent: 5 identically', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 5,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.safetyBufferPercent).toBe(5);
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.safetyBufferPercent).toBe(5);
+  });
+
+  it('serialize → materialize round-trips safetyBufferPercent: 0 identically', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.safetyBufferPercent).toBe(0);
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.safetyBufferPercent).toBe(0);
+  });
+
+  it('serializing with safetyBufferPercent: 5 keeps schema version === 1 (no schema bump)', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 5,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.version).toBe(1);
+  });
+
+  it('double serialize with safetyBufferPercent: 7 produces byte-identical JSON', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 7,
+    };
+    const a = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
+    const b = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
+    expect(a).toBe(b);
+    expect(a).toMatch(/"safetyBufferPercent":7/);
   });
 });
 

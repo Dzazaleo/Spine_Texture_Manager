@@ -199,6 +199,28 @@ export function validateProjectFile(input: unknown): ValidateResult {
     };
   }
 
+  // Phase 30 BUFFER-03 forward-compat — v1.2/v1.3-era .stmproj files have no
+  // `safetyBufferPercent` field; default to 0 so legacy projects load with
+  // the buffer disabled (D-03 default 0%). Mirrors sharpenOnExport pre-massage
+  // immediately above (Phase 28 SHARP-01).
+  if (obj.safetyBufferPercent === undefined) {
+    obj.safetyBufferPercent = 0;
+  }
+  if (
+    typeof obj.safetyBufferPercent !== 'number'
+    || !Number.isInteger(obj.safetyBufferPercent)
+    || obj.safetyBufferPercent < 0
+    || obj.safetyBufferPercent > 25
+  ) {
+    return {
+      ok: false,
+      error: {
+        kind: 'invalid-shape',
+        message: 'safetyBufferPercent is not an integer in [0, 25]',
+      },
+    };
+  }
+
   // Optional/nullable fields — null OR matching type both permitted.
   if (obj.atlasPath !== null && typeof obj.atlasPath !== 'string') {
     return {
@@ -314,6 +336,9 @@ export function serializeProjectFile(
     loaderMode: state.loaderMode,
     // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
     sharpenOnExport: state.sharpenOnExport,
+    // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14. Always
+    // written (verbose-but-explicit; mirrors Phase 28 sharpenOnExport).
+    safetyBufferPercent: state.safetyBufferPercent,
   };
 }
 
@@ -378,6 +403,12 @@ export interface PartialMaterialized {
    * code path bypasses the validator). Mirrors loaderMode field above.
    */
   sharpenOnExport: boolean;
+  /**
+   * Phase 30 BUFFER-03 — defence-in-depth fallback (validator pre-massage
+   * already substitutes 0, but defaults here too in case any future code
+   * path bypasses the validator). Mirrors sharpenOnExport field above.
+   */
+  safetyBufferPercent: number;
   /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
@@ -447,6 +478,9 @@ export function materializeProjectFile(
     // Phase 28 SHARP-01 — defence-in-depth nullish-coalesce; validator
     // pre-massage already substitutes false. Mirrors loaderMode line above.
     sharpenOnExport: file.sharpenOnExport ?? false,
+    // Phase 30 BUFFER-03 — defence-in-depth nullish-coalesce; validator
+    // pre-massage already substitutes 0. Mirrors sharpenOnExport line above.
+    safetyBufferPercent: file.safetyBufferPercent ?? 0,
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };

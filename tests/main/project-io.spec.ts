@@ -114,6 +114,9 @@ const baseState: AppSessionState = {
   // Phase 28 D-06 — sharpenOnExport default false (off); Task 28-02 wires the
   // toggle into the export pipeline.
   sharpenOnExport: false,
+  // Phase 30 BUFFER-03 — safetyBufferPercent default 0 (off); Plan 30-02
+  // wires the integer into the export pipeline.
+  safetyBufferPercent: 0,
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
