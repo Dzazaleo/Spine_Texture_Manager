@@ -634,9 +634,13 @@ export function AppShell({
   // Phase 23 OPT-01 — no picker before dialog; pre-flight is immediately
   // accessible. The picker moves to onConfirmStart (triggered by Start).
   const onClickOptimize = useCallback(async () => {
-    const plan = buildExportPlan(summary, overrides);
+    // Phase 30 BUFFER-01 — thread the buffer into the initial plan so the
+    // dialog's summary tiles reflect the user's current setting on open.
+    const plan = buildExportPlan(summary, overrides, {
+      safetyBufferPercent: safetyBufferPercentLocal,
+    });
     setExportDialogState({ plan, outDir: lastOutDir });
-  }, [summary, overrides, lastOutDir]);
+  }, [summary, overrides, lastOutDir, safetyBufferPercentLocal]);
 
   // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
   //
@@ -752,10 +756,14 @@ export function AppShell({
       setExportDialogState(null);
       return;
     }
-    const plan = buildExportPlan(summary, overrides);
+    // Phase 30 BUFFER-01 — thread the buffer so the rebuilt plan after a
+    // pick-different reflects the user's current setting.
+    const plan = buildExportPlan(summary, overrides, {
+      safetyBufferPercent: safetyBufferPercentLocal,
+    });
     setExportDialogState({ plan, outDir: newOutDir });
     setLastOutDir(newOutDir);
-  }, [pickOutputDir, summary, overrides, lastOutDir]);
+  }, [pickOutputDir, summary, overrides, lastOutDir, safetyBufferPercentLocal]);
   // closeBothDialogs is referenced in JSDoc above; keep the symbol live
   // for the typechecker even though it's no longer wired to any handler
   // (ConflictDialog Cancel routes through onConflictCancel which is more
@@ -835,8 +843,9 @@ export function AppShell({
       buildAtlasPreview(effectiveSummary, overrides, {
         mode: 'optimized',
         maxPageDim: 2048,
+        safetyBufferPercent: safetyBufferPercentLocal, // Phase 30 BUFFER-01
       }),
-    [effectiveSummary, overrides],
+    [effectiveSummary, overrides, safetyBufferPercentLocal],
   );
 
   // Phase 20 D-21 — savings-percentage snapshot for the HTML export's
@@ -847,7 +856,11 @@ export function AppShell({
   // divide-by-zero AND signals "no data" to the HTML export's '—' placeholder
   // per renderOptimizationConfigCard in src/main/doc-export.ts).
   const savingsPctMemo = useMemo<number | null>(() => {
-    const plan = buildExportPlan(effectiveSummary, overrides);
+    // Phase 30 BUFFER-01 — thread safety buffer so the savings snapshot
+    // reflects the user's current buffer setting reactively.
+    const plan = buildExportPlan(effectiveSummary, overrides, {
+      safetyBufferPercent: safetyBufferPercentLocal,
+    });
     if (plan.rows.length === 0) return null;
     const sumSourcePixels = plan.rows.reduce(
       (acc, r) => acc + r.sourceW * r.sourceH,
@@ -856,7 +869,7 @@ export function AppShell({
     const sumOutPixels = plan.rows.reduce((acc, r) => acc + r.outW * r.outH, 0);
     if (sumSourcePixels <= 0) return null;
     return (1 - sumOutPixels / sumSourcePixels) * 100;
-  }, [effectiveSummary, overrides]);
+  }, [effectiveSummary, overrides, safetyBufferPercentLocal]);
 
   /**
    * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.
@@ -1996,6 +2009,8 @@ export function AppShell({
           onOpenAtlasPreview={() => setAtlasPreviewOpen(true)}
           sharpenOnExport={sharpenOnExportLocal}
           onSharpenChange={setSharpenOnExportLocal}
+          safetyBufferPercent={safetyBufferPercentLocal}
+          onSafetyBufferChange={setSafetyBufferPercentLocal}
         />
       )}
       {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
