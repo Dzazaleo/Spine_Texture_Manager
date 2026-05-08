@@ -564,6 +564,10 @@ export async function handleProjectOpenFromPath(
     // sharpenOnExportLocal slot on Open. Mirrors loaderMode site immediately
     // above (Phase 21 D-08 Site 2).
     sharpenOnExport: materialized.sharpenOnExport,
+    // Phase 30 BUFFER-03 — thread safetyBufferPercent so AppShell can seed
+    // its safetyBufferPercentLocal slot on Open. Mirrors sharpenOnExport
+    // site immediately above (Phase 28 SHARP-01).
+    safetyBufferPercent: materialized.safetyBufferPercent,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -699,6 +703,17 @@ export async function handleProjectReloadWithSkeleton(
   // typed at this boundary).
   const sharpenOnExport: boolean =
     typeof a.sharpenOnExport === 'boolean' ? a.sharpenOnExport : false;
+  // Phase 30 BUFFER-03 — recovery path threads safetyBufferPercent from the
+  // renderer's last-known session payload. Defensive integer-and-range
+  // coerce at the loosely-typed boundary (mirrors OptimizeDialog onChange
+  // clamp); out-of-range / non-integer / non-numeric falls back to 0.
+  const safetyBufferPercent: number =
+    typeof a.safetyBufferPercent === 'number'
+    && Number.isInteger(a.safetyBufferPercent)
+    && a.safetyBufferPercent >= 0
+    && a.safetyBufferPercent <= 25
+      ? a.safetyBufferPercent
+      : 0;
 
   // Reuse the loader+sampler+buildSummary chain from handleProjectOpenFromPath
   // steps 6-9. atlasPath is intentionally undefined → loader's F1.2 sibling
@@ -830,6 +845,10 @@ export async function handleProjectReloadWithSkeleton(
     // Phase 28 SHARP-01 — recovery path uses the sharpenOnExport the renderer
     // cached before the failed Open (computed above from `a.sharpenOnExport`).
     sharpenOnExport,
+    // Phase 30 BUFFER-03 — recovery path uses the safetyBufferPercent the
+    // renderer cached before the failed Open (computed above from
+    // `a.safetyBufferPercent` with defensive coerce).
+    safetyBufferPercent,
     // Phase 20 D-01 — locate-skeleton recovery does not re-read the .stmproj
     // file (it reuses the renderer's cached overrides/settings from the
     // failed Open). `documentation` is not part of the cached args today;
@@ -1043,6 +1062,17 @@ export async function handleProjectResample(
     // already coerces it defensively.
     sharpenOnExport:
       typeof a.sharpenOnExport === 'boolean' ? a.sharpenOnExport : false,
+    // Phase 30 BUFFER-03 — resample seam preserves safetyBufferPercent
+    // across re-materialise. AppShell threads safetyBufferPercentLocal
+    // into ResampleArgs.safetyBufferPercent; defensive integer-and-range
+    // coerce at the IPC boundary (mirrors sharpenOnExport line above).
+    safetyBufferPercent:
+      typeof a.safetyBufferPercent === 'number'
+      && Number.isInteger(a.safetyBufferPercent)
+      && a.safetyBufferPercent >= 0
+      && a.safetyBufferPercent <= 25
+        ? a.safetyBufferPercent
+        : 0,
   };
   return { ok: true, project };
 }
