@@ -729,7 +729,10 @@ Plans:
   4. Layer 3 invariant preserved — `grep -rn "from 'sharp'" src/core/` returns zero hits; buffer math is in `src/core/export.ts` (or equivalent) using only pure-TS.
   5. Existing Phase 22.1 override-aware passthrough partition continues to work correctly when buffer is non-zero — a row that was passthrough at 1.0× moves into the resize bucket at 1.05× as expected.
 
-**Plans**: TBD (run `/gsd-plan-phase 30` after Phase 29 completes)
+**Plans:** 3 plans
+- [ ] 30-01-PLAN.md — Persistence + plumbing (types + validator/serializer/materializer + IPC envelope + AppShell lifecycle) (BUFFER-03) (Wave 1)
+- [ ] 30-02-PLAN.md — Buffer math + parity (lockstep core/renderer-view; bufferCapped flag; parity regex extension) (BUFFER-01, BUFFER-02) (Wave 2)
+- [ ] 30-03-PLAN.md — OptimizeDialog UI + reactive recompute + tests (Quality group + clamp + tooltip + four call sites threaded) (BUFFER-01) (Wave 3)
 
 **UI hint**: yes
 
