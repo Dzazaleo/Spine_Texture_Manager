@@ -47,6 +47,10 @@ Close v1.3 post-ship correctness gaps (per-region dedup + override-region semant
 - [ ] **PANEL-10**: The Animation Breakdown panel header exposes two bulk-action buttons — "Expand all" and "Collapse all" — styled consistently with the v1.3 unified `h-8` toolbar button style. Activating them sets all cards to the corresponding state in one click.
 - [ ] **PANEL-11**: Setup Pose remains the first card in the Animation Breakdown panel sort order (the canonical reference, sort-pinned to top) — only its default-expanded behavior changes.
 
+### TOOLTIP — Icon Tooltip Reliability
+
+- [ ] **TOOLTIP-01**: On the Peak W×H cell, when the row's `peakScale > 1`, the `ExtrapolationIcon`'s tooltip ("Spine rig peak: X.XX× source — export capped at canonical") surfaces on hover, taking precedence over any parent cell tooltip. Holds across both the Global Max Render Source panel and the Animation Breakdown panel. (Folded into Phase 31 mid-discussion 2026-05-08; second known regression of this surface — see `ExtrapolationIcon.tsx` doc-comment claim that SVG `<title>` reliably wins.)
+
 ---
 
 ## Future Requirements
@@ -101,3 +105,4 @@ Close v1.3 post-ship correctness gaps (per-region dedup + override-region semant
 | PANEL-10 | Phase 31 | Pending |
 | PANEL-11 | Phase 31 | Pending |
 | PLATFORM-01 | Phase 31 | Pending |
+| TOOLTIP-01 | Phase 31 | Pending (folded mid-discussion 2026-05-08; second known regression of this surface) |
