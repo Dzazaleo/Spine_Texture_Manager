@@ -164,6 +164,50 @@
 
 ---
 
+## Milestone: v1.3.1 — Correctness & Refinements
+
+**Shipped:** 2026-05-09
+**Phases:** 3 (29, 30, 31) | **Plans:** 16 (7 + 5 + 4) | **REQs:** 20
+**Timeline:** 2026-05-07 → 2026-05-09 (3 days)
+
+### What Was Built
+
+- **Per-region dedup + override-region semantics** (Phase 29) — Root cause of "path-indirected duplicate rows" closed: `analyzer.ts` was looking up `atlasSources` / `sourcePaths` / canonical+actual dim maps by `attachmentName` while loader populated them by atlas region name. For Chicken's `SYMBOLS.json`, 249 of 531 attachment bindings hit the miss-path. Fix: new `RegionRow` interface + `analyzeRegions()` sibling fold (region-keyed dedup with REGION-05 lex tiebreak) + AtlasPreview re-key onto regionName + attachmentNames[]. Override storage flipped to bind to region (D-150 stale-key drop pattern at .stmproj load).
+- **Safety buffer in Optimize dialog** (Phase 30) — User-configurable safety-buffer % (default 0%, integer step). Multiplicatively increases each row's effective scale and overrides BEFORE the export plan is computed. NARROW `bufferCapped` predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport` (Phase 28) precedent — no schema-version bump.
+- **Loader & UX small-fixes batch** (Phase 31) — Source-toggle disabling + tooltip on missing artifacts (LOAD-05/06/07); Animation Breakdown collapse defaults + bulk Expand-all / Collapse-all (PANEL-08..11; in-memory only — no schema persistence by user decision); Windows admin DnD fallback advisory (PLATFORM-01); ExtrapolationIcon tooltip primitive ported from DimsBadge (TOOLTIP-01; second known regression of this surface).
+- **Late tester-regression fixes pre-tag:** 1b5414c (Strip-Whitespace export pipeline), 834c975 (auto-expand failed Optimize rows), d86e7b3 (per-frame canonical dims for sequence attachments).
+
+### What Worked
+
+- **Sibling-fold extension over rip-out.** Phase 29 added `analyzeRegions()` alongside the existing `analyze()` rather than replacing it — same parameter shape, region-keyed dedup with the same one tiebreak rule. The expected `tsc` breakage surface was bounded to the few atlas-preview consumer files. Pattern: when the bug is a key-flip, extend the schema additively rather than mutating the existing fold.
+- **Memory `project_strict_loadermode_separation` held during the panel-vs-export key-flip.** Region-keyed dedup happened strictly downstream in analyzer + atlas-preview + UI; the sampler still measured all skin-declared attachments verbatim per `project_sampler_visibility_invariant`. No cross-mode leak across the three v1.3.1 phases.
+- **Cheap diagnostic + falsification fired again.** Post-v1-3 tester-regression debug session (`.planning/debug/post-v1-3-tester-regressions.md`) identified the analyzer.ts atlas-region-name vs entry-name mismatch in CYCLE 2 — root cause writeup before scoping a fix. Same lesson as v1.3 Phase 28 PMA pivot.
+- **Late tester-regression triage stayed surgical.** Three distinct regressions surfaced post-Phase-31 execution. Each got a dedicated atomic commit with a `fix(scope):` prefix. None blocked the milestone close — they shipped as part of the v1.3.1 tag.
+
+### What Was Inefficient
+
+- **SDK miscount fired again at milestone close.** `gsd-sdk milestone.complete` scraped accomplishments from every leftover phase dir in `.planning/phases/` (10 phases counted instead of 3; 115 tasks; 50+ accomplishments mixing v1.1.2/v1.2/v1.3.1 noise). Required full manual rewrite of the MILESTONES.md entry. **Lesson: same as v1.3 retrospective — the SDK extractor doesn't filter by milestone-tagged phases. Workaround: archive prior-milestone phase dirs FIRST (move to `milestones/v[X.Y]-phases/`) before running `milestone.complete`. Or hand-write the entry directly.**
+- **v1.1.2 / v1.2 phase artifacts were never properly archived.** Cleanup at v1.3.1 ship time required removing 127 stale plan/context/discussion files from those phase dirs (kept the per-plan SUMMARYs as the durable artifact). **Lesson: `/gsd-complete-milestone` skipped the phase-archive substep at v1.1.2 + v1.2 close. Future closes should always confirm `archived.phases: true` in the SDK output before commit, or run `/gsd-cleanup` retroactively.**
+
+### Patterns Established
+
+- **Region-keyed dedup with attachmentName lex tiebreak** (REGION-05) — Sibling fold to attachmentName dedup; same template, different key, same one tiebreak rule. Reused at three sites (analyzer + atlas-preview + Global panel).
+- **Buffer applied BEFORE caps** — `bufferedScale := raw × (1 + buffer/100)` THEN `clampedScale := Math.min(safeScale(bufferedScale), 1.0)`. NARROW `bufferCapped` predicate fires only when buffer pushes past `sourceRatio`. Single source of truth between core and renderer.
+- **Schema additive field via `sharpenOnExport` precedent** — Mirrors Phase 28's pattern: optional field, defaults to 0% / off, missing field is backward-compatible with prior-version project files. No schema-version bump.
+
+### Key Lessons
+
+1. **Tester-found bugs are correctness bugs, not polish.** The path-indirected duplicate rows bug was a user-reported correctness gap that snuck through v1.3 testing because no rig in the existing fixtures exercised path-indirection at the volume Chicken does. **Action item:** v1.4 should commit a stripped Chicken-derived path-indirection regression fixture (REGION-07; partially in scope at Phase 29 but the broader audit is open).
+2. **Diagnose before scoping a phase.** Phase 29 had two debug sessions feeding it (`path-indirected-duplicate-rows` + `post-v1-3-tester-regressions`). Both writeups identified the analyzer.ts root cause before phase-discuss began. The phase scope was tight as a result.
+3. **The audit-open count split is now load-bearing.** v1.3.1 closed with the same observation as v1.3: most "deferred" items are structural jsdom-blocked verifications or release-time UAT, not real implementation gaps. **v1.4 must split the category** (host-required UAT vs real deferred).
+
+### Cost Observations
+
+- 3 phases / 16 plans / 3 days — fastest milestone close to date. Phase 30 had the most discuss-phase iteration (NARROW vs broad bufferCapped predicate; canonical 1.0 vs sourceRatio clamp). Phases 29 + 31 were tight scope-to-implementation.
+- Late tester-regression cycle added 3 commits post-Phase-31 SUMMARY but pre-tag. None required reopening the milestone — clean atomic commits on main.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -173,6 +217,7 @@
 | v1.0 | (untracked) | 12 | Initial GSD workflow adoption — Wave-0 RED-spec pattern, decimal-phase insertions, Layer 3 arch invariants. |
 | v1.2 | ~5 | 8 executed | SEED promotion via backlog review, Phase 17 skip via discuss-phase, POST-override partition pattern locked. |
 | v1.3 | ~6 | 7 | Empirical falsification before scope (Phase 28 same-day pivot), strict loaderMode separation lock-in, screenshots-first for layout bugs, Linux dropped from release CI as untested target. |
+| v1.3.1 | ~3 | 3 | Sibling-fold extension over rip-out (region-keyed dedup), tester-found correctness bugs handled via dedicated debug-session phases, late tester-regression triage stayed surgical (3 atomic pre-tag commits). |
 
 ### Cumulative Quality
 
@@ -181,6 +226,7 @@
 | v1.0 | 333 (331 pass + 1 skip + 1 todo) | (untracked) | spine-core, sharp, maxrects-packer, @tanstack/react-virtual |
 | v1.2 | ~700+ (vitest) | (untracked) | No new deps. PNG IHDR byte-parser in pure TS; synthetic atlas builder in pure TS. |
 | v1.3 | ~720+ (vitest) | (untracked) | No new deps. `WarningTriangleIcon` shared SVG component; `pma-probe.mjs` regression sentinel. |
+| v1.3.1 | ~720+ (vitest) | (untracked) | No new deps. `RegionRow` interface + `analyzeRegions()` sibling fold; `ExtrapolationIcon` tooltip primitive port. |
 
 ### Top Lessons (Verified Across Milestones)
 

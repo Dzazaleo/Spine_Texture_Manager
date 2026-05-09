@@ -2,27 +2,17 @@
 
 ## What This Is
 
-A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. The animator exports a per-attachment-optimized `images/` folder via sharp Lanczos3. v1.2 added atlas-less mode (json + images folder, no .atlas), dims-badge round-trip safety (cap export at actual source PNG dims), per-skeleton Documentation Builder with HTML export, a full UI redesign, and two macOS UX regressions closed. v1.3 closes correctness/semantic gaps, refines the Optimize workflow UX, polishes the UI, and adds optional output sharpening on downscale.
+A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSON and computes the **peak world-space render scale for every individual attachment** across every animation and skin. The animator exports a per-attachment-optimized `images/` folder via sharp Lanczos3. v1.2 added atlas-less mode (json + images folder, no .atlas), dims-badge round-trip safety (cap export at actual source PNG dims), per-skeleton Documentation Builder with HTML export, a full UI redesign, and two macOS UX regressions closed. v1.3 closed correctness/semantic gaps, refined the Optimize workflow UX, polished the UI, and added optional output sharpening on downscale. v1.3.1 closes the per-region dedup correctness gap surfaced post-v1.3 ship, adds a user-configurable safety-buffer % in Optimize, and refines small UX surfaces (source-toggle disabling, Animation Breakdown collapse defaults, Windows admin DnD fallback).
 
 ## Core Value
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-## Current Milestone: v1.3.1 Correctness & Refinements
+## Current State (post v1.3.1)
 
-**Goal:** Close v1.3 post-ship correctness gaps (per-region dedup + override-region semantics; atlas-preview pack-page accuracy) and refine the Optimize/load workflow with a user-configurable safety buffer + Animation Breakdown UX polish + platform-specific drag-drop fallback.
+**Shipped:** v1.3.1 Correctness & Refinements — 2026-05-09 (3 phases, 16 plans, 20 REQs). Tag: `v1.3.1`. Full record in `.planning/MILESTONES.md`. Prior: v1.3.0 (2026-05-07), v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
 
-**Target features:**
-- ✓ Per-region dedup + override-region semantics — shipped Phase 29 (2026-05-07): one row per unique source PNG across Global / Atlas Preview / Optimize / exported folder; override binds to region (regionName-keyed end-to-end across panel READ, AppShell WRITE, and export-math read); Chicken-Min path-indirection regression fixture committed.
-- ✓ Atlas-preview pack-page accuracy fix — shipped Phase 29: page count matches actual atlas page count for path-indirected projects.
-- User-configurable safety buffer in Optimize dialog (multiplicative on calculated peak AND overrides; capped at source dims preserving D-91; persisted in `.stmproj` mirroring `sharpenOnExport` precedent)
-- Windows admin drag-drop fallback (detect elevation; disable drop targets + clear message routing user to File → Open or unprivileged relaunch)
-- Source-toggle disabling (greyed-out + tooltip when atlas absent or images-folder absent)
-- Animation Breakdown default-collapsed + bulk Expand all / Collapse all (Setup Pose remains first card, just collapsed; per-session in-memory state; `h-8` toolbar buttons mirror v1.3 style)
-
-## Current State (post v1.3)
-
-**Shipped:** v1.3.0 Polish & UX — 2026-05-07 (7 phases, ~22 plans, ~21,000+ LOC TS/TSX in `src/`). Tag: `v1.3.0`. Full record in `.planning/MILESTONES.md`. Prior: v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
+**v1.3.1 highlights:** Per-region dedup + override-region semantics (Phase 29 — analyzer.ts attachmentName→regionName key flip + new RegionRow IPC type + AtlasPreview re-key onto regionName + attachmentNames[]; Chicken path-indirection 13-vs-14 page-count drift fixed) + safety-buffer % in Optimize dialog (Phase 30 — multiplicative on effective scale + overrides; NARROW bufferCapped predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport` precedent — no schema-version bump) + small-fixes batch (Phase 31 — source-toggle disabling on missing artifacts; Animation Breakdown collapse defaults + bulk Expand/Collapse all; Windows admin DnD fallback advisory; ExtrapolationIcon tooltip primitive). Late tester-regression fixes pre-tag: 1b5414c Strip-Whitespace export pipeline + 834c975 auto-expand failed Optimize rows + d86e7b3 per-frame canonical dims for sequence attachments.
 
 **v1.3 highlights:** Optimize workflow UX (defer folder picker; OptimizeDialog opens immediately) + Unused Assets semantics fixed (images-folder-vs-JSON orphaned PNGs; collapsible sibling panel) + missing-attachment in-context display (red left-border + danger triangle in Global + Animation Breakdown) + UI polish pass (`#232732` surface tokens, full-width panels, zebra rows, unified `h-8` toolbar buttons, danger-themed problem-zone headers, `WarningTriangleIcon` SVG component, 2-tab strip in dedicated sub-toolbar) + Phase 4 code-quality carry-forwards closed (functional `setSelected`, OverrideDialog input guard, dead prop removed) + optional output sharpening on downscale (`sharpen({ sigma: 0.5 })`, persisted in `.stmproj`). Linux AppImage build dropped from CI (untested target; re-enable when UAT lands).
 
@@ -42,9 +32,14 @@ Animators ship atlases that are as small as they mathematically can be without v
 - Apple Developer ID code-signing + notarization ($99/yr; revisit at v1.4)
 - Crash + error reporting (Sentry / equivalent; revisit at v1.4)
 - SEED-003: Spine 4.3+ versioned loader adapters (planted 2026-05-07; primary v1.4 candidate)
+- SEED-004: Rotated atlas regions (planted 2026-05-08; A=error UX or B=full support)
+- SEED-005: RGBA2 + InheritTimeline coverage gap (planted 2026-05-08; audit-only or full feature surface)
 - `.skel` binary loader (still deferred)
 - Phase-0 scale-overshoot debug session (`investigating`; long-lived tech debt)
-- 21 audit-acknowledged carry-forwards from v1.0–v1.3 (see STATE.md → Deferred Items)
+- Path-indirected duplicate rows (`pending_phase_plan`; root cause closed by Phase 29 region-keyed dedup, doc retained as v1.4 reference for related Atlas Preview optimized-mode tile expansion surfaces)
+- post-v1-3 tester regressions (`diagnosed` analyzer.ts atlas-region-name vs entry-name key bug; root-fixed by Phase 29; doc retained for v1.4 follow-up surface audits)
+- v1.3.1 release-time UAT (Phase 30 visual UAT + Phase 31 Windows admin DnD live observation; recipe in `.planning/todos/pending/2026-05-08-phase-31-windows-admin-dnd-release-uat.md`)
+- Audit-acknowledged carry-forwards from v1.0–v1.3 — see STATE.md → Deferred Items for the full table
 
 ## Primary user
 

@@ -1,6 +1,9 @@
 ---
 phase: 260505-lk0
 plan: 01
+status: shipped
+shipped_commit: 0832660
+shipped_date: 2026-05-05
 type: tdd
 subsystem: src/core/sampler.ts
 tags: [sampler, skin-manifest, regression-fix]

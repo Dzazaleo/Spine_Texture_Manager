@@ -1,5 +1,38 @@
 # Milestones
 
+## v1.3.1 Correctness & Refinements (Shipped: 2026-05-09)
+
+**Phases completed:** 3 (Phase 29, 30, 31)
+**Plans:** 16 (7 + 5 + 4)
+**Requirements:** 20 (REGION-01..07 + PREVIEW-01 + BUFFER-01..03 + LOAD-05..07 + PANEL-08..11 + PLATFORM-01 + TOOLTIP-01)
+**Timeline:** 2026-05-07 → 2026-05-09 (3 days)
+**Git range:** `v1.3.0` tag → `d86e7b3` (per-frame canonical dims fix)
+**Tag:** `v1.3.1`
+
+**Delivered:** Closed the per-region dedup correctness gap surfaced post-v1.3 ship (path-indirected duplicate rows), added a user-configurable safety-buffer percentage in the Optimize dialog with cap-aware predicate, and landed targeted UX refinements (source-toggle disabling, Animation Breakdown collapse defaults, Windows admin DnD fallback, ExtrapolationIcon tooltip primitive). No new math, no schema-version bump, no auto-update changes.
+
+**Key accomplishments:**
+
+1. **Per-region dedup + override-region semantics + atlas-preview pack-page accuracy** (Phase 29, REGION-01..07 + PREVIEW-01) — Root cause of "duplicate rows for path-indirected attachments" was `analyzer.ts` looking up `atlasSources` / `sourcePaths` / canonical+actual dim maps by `attachmentName` while loader populated them by atlas region name (e.g. `6/9_FRAME_0`). For Chicken's `SYMBOLS.json`, 249 of 531 attachment bindings hit the miss-path. Fix: new `RegionRow` interface in `src/shared/types.ts`, `analyzeRegions()` sibling fold in `src/core/analyzer.ts` (region-keyed dedup with REGION-05 lex tiebreak on attachmentName), `SkeletonSummary.regions` non-optional field, AtlasPreview re-keyed onto regionName + attachmentNames[]. Override storage flipped to bind to region (D-150 stale-key drop pattern for legacy attachmentName overrides at .stmproj load). Atlas Preview projected page count now matches actual atlas page count for path-indirection rigs (Chicken: 13 not 14).
+2. **Safety buffer in Optimize dialog** (Phase 30, BUFFER-01..03) — User-configurable safety-buffer % control in OptimizeDialog (default 0%, integer step). Buffer multiplicatively increases each row's effective scale (and any user-set overrides) BEFORE the export plan is computed; D-91 source-fraction cap still hard-clamps any extrapolation. NARROW `bufferCapped` predicate per CONTEXT D-06 (`bufferPct > 0 && bufferedScale > sourceRatio && safeScale(rawEffScale) <= sourceRatio`); flag is silent-only in v1.3.1, may broaden to canonical-1.0 clamp later. Persisted per-project as additive optional field in `.stmproj` v1 schema mirroring `sharpenOnExport` (Phase 28) precedent — missing field defaults to 0% for backward-compat with v1.2/v1.3 project files; no schema-version bump.
+3. **Loader & UX small-fixes batch** (Phase 31, LOAD-05..07 + PANEL-08..11 + PLATFORM-01 + TOOLTIP-01) — Source toggles ("Use Atlas as Source" / "Use Images Folder as Source") now grey-out + tooltip when the corresponding artifact is absent in the project folder (LOAD-05/06/07). Animation Breakdown panel cards (including Setup Pose) collapsed by default on mount + tab-switch with bulk Expand-all / Collapse-all buttons styled to v1.3 unified `h-8` toolbar (PANEL-08..11; in-memory React state only — no schema persistence by user decision). Windows admin DnD fallback: when running elevated, drop zones disable + a clear advisory routes the user to File → Open or unprivileged relaunch (PLATFORM-01; UIPI message-filter workaround deliberately not pursued — Microsoft-discouraged). ExtrapolationIcon tooltip primitive ported from DimsBadge (TOOLTIP-01; second known regression of this surface — locked via fix-shape (c) tests).
+
+**Late tester-regression fixes (post-Phase-31 commits before tag):**
+
+- `1b5414c fix(export)`: handle Strip-Whitespace atlas regions in extract pipeline (atlas-pack option preserved per memory `project_atlas_pack_options_atlas_source_only`).
+- `834c975 feat(optimize-dialog)`: auto-expand failed rows so error message is visible.
+- `d86e7b3 fix(sequence)`: per-frame canonical dims + suppress atlas-source badge for Spine sequence attachments.
+
+**Known deferred at close:** Pre-release HUMAN-UAT items for Phase 30 (4 scenarios) + Phase 31 (Windows admin DnD live observation) explicitly meant to be done at release time, captured in `.planning/todos/pending/2026-05-08-phase-31-windows-admin-dnd-release-uat.md`. Three v1.4-bound seeds planted: `path-indirected-duplicate-rows.md` (pending_phase_plan), `post-v1-3-tester-regressions.md` (diagnosed), SEED-004 (rotated atlas regions) + SEED-005 (RGBA2 + InheritTimeline coverage).
+
+**Archived artifacts:**
+
+- `.planning/milestones/v1.3.1-ROADMAP.md` (full phase details preserved)
+- `.planning/milestones/v1.3.1-REQUIREMENTS.md` (all 20 v1.3.1 requirements with `[x]` outcomes)
+- `.planning/milestones/v1.3.1-phases/` (Phase 29/30/31 directories)
+
+---
+
 ## v1.3 Polish & UX (Shipped: 2026-05-07)
 
 **Phases completed:** 7 (Phase 23, 24, 25, 26.1, 26.2, 27, 28)

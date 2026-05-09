@@ -3,159 +3,83 @@ gsd_state_version: 1.0
 milestone: v1.3.1
 milestone_name: Correctness & Refinements
 status: milestone_complete
-last_updated: "2026-05-08T15:54:10.307Z"
-last_activity: 2026-05-08 -- Phase 31 execution started
+last_updated: "2026-05-09"
+last_activity: 2026-05-09 -- v1.3.1 milestone closed; ready to tag and ship
 progress:
-  total_phases: 16
-  completed_phases: 1
-  total_plans: 0
-  completed_plans: 54
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # State
 
 ## Current Position
 
-Phase: 31
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-08
+Phase: 31 (last v1.3.1 phase) — Milestone complete
+Status: Milestone complete; awaiting `npm version 1.3.1` + tag push to trigger CI release build.
+Last activity: 2026-05-09
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-07 — v1.3.1 milestone block at top reflects Correctness & Refinements scope)
+See: .planning/PROJECT.md (updated 2026-05-09 — v1.3.1 shipped)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 31 — loader-ux-small-fixes-batch
+**Current focus:** Tag v1.3.1 → CI release build → publish draft Release. Plan v1.4 milestone after.
 
 ## Last Roadmap Update
 
-2026-05-07 — v1.3.1 roadmap created. Three phases authored (29 / 30 / 31) covering 19 REQ-IDs across 6 categories (REGION-01..07 + PREVIEW-01 → Phase 29; BUFFER-01..03 → Phase 30; LOAD-05..07 + PANEL-08..11 + PLATFORM-01 → Phase 31). Phase numbering continues from v1.3 (last phase 28). PREVIEW-01 folded into Phase 29 per debug session § Surface Audit — Atlas Preview's optimized-mode tile expansion is the same dedup-key bug surface as REGION-02 (Chicken 13-vs-14 page-count drift). ROADMAP.md updated: v1.3.1 milestone bullet appended (after v1.3 shipped bullet); v1.3.1 phase summary checklist block inserted after v1.3 details block; Phase 29/30/31 detail sections inserted before Progress; Progress table extended with rows for 29/30/31; Out-of-scope for v1.3.1 section added (8 items: no Spine math/sampler changes, no schema-version bump, no auto-update changes, Linux still host-blocked, no signing posture change, no Sentry, no Spine 4.3+ adapters, no .stmproj persistence for collapse state, no UIPI workaround). REQUIREMENTS.md traceability table updated — all 19 REQ-IDs mapped to a phase (no orphans). STATE.md total_phases set to 3.
+2026-05-09 — v1.3.1 milestone complete. ROADMAP.md: v1.3.1 milestone bullet flipped to ✅ shipped; Phases 29/30/31 collapsed into `<details>` block; Progress table closed for v1.3.1. Phases 29/30/31 directories archived to `.planning/milestones/v1.3.1-phases/`. REQUIREMENTS.md → archived as `milestones/v1.3.1-REQUIREMENTS.md` (20 REQ-IDs all marked complete) + removed from `.planning/`. MILESTONES.md gained a v1.3.1 entry (3 phases / 16 plans / 20 REQs / Phase 29/30/31 accomplishments + late tester-regression fixes 1b5414c/834c975/d86e7b3). PROJECT.md current-state updated; v1.3.1 decisions appended.
 
-2026-05-03 — v1.3 roadmap created. Phases 23–27 appended to ROADMAP.md (section "v1.3 Polish & UX"); v1.3 milestone bullet added; Progress table extended; Out-of-scope for v1.3 section added. REQUIREMENTS.md traceability table updated with phase assignments. STATE.md total_phases set to 5.
+## Last completed milestone
 
-2026-05-03 — v1.2 milestone complete. ROADMAP.md: v1.2 milestone bullet updated to ✅ shipped; phases 16–22.1 collapsed into `<details>` block; Progress table Phase 22.1 marked Complete. v1.0 / v1.1 / v1.1.1 / v1.1.2 historical sections preserved verbatim (append-only). v1.2 milestone bullet expanded from "Phases 16–18 promoted from backlog" → full 8-phase scope summary. v1.2 section header updated to "Phases 13.1, 16–22 (8 phases; promoted from backlog + tester feedback + dormant seeds 2026-04-30)". Phases 16 / 17 / 18 (already-existing rich Phase Details from /gsd-review-backlog commit cc0bc6a) gained `**Requirements:**` lines + `**Success Criteria**` blocks; existing Background / User decision / Scope / Severity / Cross-references sub-blocks preserved verbatim. Phases 13.1, 19, 20, 21, 22 authored from scratch (Phase 13.1 details lifted from 13-VERIFICATION.md gaps; Phase 19 from tester-feedback REQs; Phase 20 from D-148 + DOC-01..05; Phases 21 + 22 narrative lifted from `.planning/seeds/SEED-001-atlas-less-mode.md` + `.planning/seeds/SEED-002-dims-badge-override-cap.md`). Progress table extended with rows for 13.1, 19, 20, 21, 22 (16/17/18 rows preserved). Deferred section updated to strikethrough the 4 items now promoted (SEED-001, SEED-002, UI improvements, Documentation Builder, Phase 13.1 carry-forwards) + new "Out-of-scope for v1.2 specifically" section listing Apple Developer ID + Sentry as declined for v1.2 with v1.3 revisit posture. Backlog section unchanged (still empty post-/gsd-review-backlog 2026-04-29). Commit hash: [committed in next step].
-
-## Current milestone
-
-v1.2 — expansion. Closes three macOS regressions + one host-blocked carry-forward from v1.1.x; refines the UI based on tester feedback (Phase 19 UI-01..05); adds the Documentation Builder feature (Phase 20 fills the .stmproj v1 reserved `documentation: object` slot from D-148); lands the two long-dormant SEEDs (Phase 21 SEED-001 atlas-less mode → Phase 22 SEED-002 dims-badge override-cap).
-
-Phases (continues numbering from v1.1.2; no `--reset-phase-numbers`):
-
-- **13.1** — Live UAT carry-forwards (Linux runbook + libfuse2 PNG capture; macOS/Windows v1.1.0 → v1.1.1 lifecycle observation; host-availability gated; UAT-01..03)
-- **16** — macOS auto-update → manual-download UX (closes D-15-LIVE-2; promoted from backlog 999.2 on 2026-04-29; UPDFIX-05) ✅ COMPLETE 2026-04-30
-- **17** — Help → Check for Updates not gated on project state — SKIPPED 2026-04-30 (UPDFIX-06 closed-by-test 14-l in `tests/renderer/app-update-subscriptions.spec.tsx`; Phase 14 lift commit 802a76e already fixed the wiring; D-15-LIVE-3 was observed on the pre-lift v1.1.1 binary)
-- **18** — Cmd+Q + AppleScript quit broken on macOS (promoted from backlog 999.1; QUIT-01, QUIT-02)
-- **19** — UI improvements UI-01..05 (sticky header + cards + modal redesign + quantified callouts + button hierarchy; tester feedback)
-- **20** — Documentation Builder feature (.stmproj v1 documentation slot; D-148; DOC-01..05)
-- **21** — SEED-001 atlas-less mode (json + images, no .atlas; PNG header reader + synthetic atlas; LOAD-01..04)
-- **22** — SEED-002 dims-badge + override-cap (depends on 21; round-trip safety; DIMS-01..05) ✅ COMPLETE 2026-05-02 (HUMAN-UAT 2026-05-03 surfaced 7 gaps → Phase 22.1)
-- **22.1** — Close Phase 22 HUMAN-UAT gaps (INSERTED 2026-05-03; 1 BLOCKER + 5 major + 1 minor; depends on 22)
-
-Recommended execution order: 18 → 19 → 20 → 21 → 22 → 22.1, with Phase 13.1 inserted opportunistically when a host becomes available. Final order is the user's call.
-
-Out of scope for v1.2: Apple Developer ID signing + notarization (declined; manual-download UX is the v1.2 answer); Crash reporting / Sentry (revisit at v1.3); Spine 4.3+ versioned loader; `.skel` binary loader.
-
-REQUIREMENTS.md and ROADMAP.md are authored; phase numbering continues; Phase 22 depends on Phase 21.
-
-## Current phase
-
-Phase 22 (SEED-002 dims-badge + override-cap) — context gathered 2026-05-02. 22-CONTEXT.md authored; 4 implementation decisions locked (D-01 JSON canonical dims unified across both modes; D-02 override % stays % of canonical; D-03 already-optimized rows become passthrough byte-copies with "COPY" indicator — new `passthroughCopies[]` array on ExportPlan; D-04 strict ceil-equality on both axes for passthrough qualification). Resolves Phase 21 open research item (Spine 4.2 JSON skin attachment width/height is the canonical source — NOT nonessential data). Ready for `/gsd-plan-phase 22`.
-
-## Phase 17 skip rationale
-
-`/gsd-discuss-phase 17` (2026-04-30) found that UPDFIX-06 — "Help → Check for Updates fires regardless of project state" — was already closed by Phase 14's renderer-lift work (commit `802a76e`, shipped in v1.1.2 / v1.1.3). The lift moved the `onMenuCheckForUpdates` subscription from `AppShell.tsx` (mounts only on `loaded` / `projectLoaded`) to `App.tsx`'s top-level `useEffect` (always mounted, runs on every AppState branch including idle). The Help menu item itself at `src/main/index.ts:290-293` has no `enabled:` field — it was never gated in main; the bug was on the renderer-subscription side. Existing regression test `tests/renderer/app-update-subscriptions.spec.tsx` test (14-l) "Help → Check for Updates from idle calls window.api.checkForUpdates()" already locks idle-state coverage. D-15-LIVE-3 was observed during Phase 15 Test 7-Retry round 4 on the v1.1.1 INSTALLED binary (pre-lift); v1.1.3+ already has the fix. Phase 17 was thus deemed redundant and skipped — no source change committed, no plans authored, phase number preserved as a SKIPPED entry for audit traceability (no renumbering of 18..22). UPDFIX-06 marked closed-by-test in REQUIREMENTS.md and ROADMAP.md.
-
-## Current plan
-
-Phase 21 is complete (12 of 12 plans shipped — 8 originals + 4 gap closures G-01 / G-02 / G-03 / G-04). Ready for full HUMAN-UAT (Test 4b Path 1+2 + Test 4c) followed by `/gsd-verify-work 21`. Plan 21-12 SUMMARY at `.planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md`.
-
-## Phase 21 progress
-
-- **21-01..21-08** ✅ COMPLETE (Wave 0..4) — see prior session history; PNG header parser + MissingImagesDirError plumbing + SIMPLE_PROJECT_NO_ATLAS golden fixture + synthetic-atlas + SilentSkipAttachmentLoader + type cascade (LoadResult/SkeletonSummary atlasPath nullable + SourceDims +'png-header' + LoaderOptions.loaderMode) + loader integration with 4-way branch order (D-05/D-06/D-07/D-08; criterion #5 preserved) + .stmproj v1 schema gains loaderMode + sampler-worker + project-io threading + AppShell loaderMode toggle + round-trip integration spec + HUMAN-UAT.
-- **21-09 stub-region-for-missing-pngs** ✅ COMPLETE 2026-05-02 (G-01 fix) — synth.missingPngs threading + LoadResult.skippedAttachments?: optional field + 1x1 stub-region for missing PNGs + fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH/ falsifying-repro fixture; D-10 narrowed to imagesDir-absent only.
-- **21-10 missing-attachments-panel** ✅ COMPLETE 2026-05-02 (G-02 fix) — MissingAttachmentsPanel + skippedAttachments IPC cascade through SkeletonSummary → renderer; user-facing surface for skipped PNGs above the Global Max Render Source panel.
-- **21-11 toolbar-layout-regression** ✅ COMPLETE 2026-05-02 (G-03 fix) — flex-shrink-0 hardening + min-h-screen anchor + scrollbar-gutter:stable on main; toolbar no longer shifts when filters/panels collapse (UAT-2 + UAT-3 root causes resolved).
-- **21-12 toggle-resample-atlas-less-precedence** ✅ COMPLETE 2026-05-02 (G-04 fix) — caller-side LoaderOptions precedence fix at project-io.ts Sites 1+4 + sampler-worker.ts Site 5; Site 3 audit-only (already shape-correct). src/core/loader.ts UNTOUCHED — criterion #5 verbatim AtlasNotFoundError preserved. 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 2 falsifying gates proven via scratch revert. 630/630 vitest passing. Path-symmetric atlas-less behavior restored (cold-load + toggle-resample now produce same skippedAttachments shape). Commits: 179b1dd → de99e84 → 0a31aee → fee0070 → 9b70056. SUMMARY at `.planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md`.
-
-## Phase 20 progress
-
-- **20-01 core-types-validator-summary** ✅ COMPLETE 2026-05-01 — Documentation interface + DEFAULT_DOCUMENTATION + validateDocumentation + intersectDocumentationWithSummary; validator pre-massage + materializer back-fill (Phase 8-era forward-compat); serializeProjectFile writes state.documentation; SkeletonSummary.events from skeletonData.events; AppSessionState.documentation field; renderer-legal Layer 3 re-export route through shared/types.ts (tsconfig.web.json carve-out for src/core/documentation.ts). 21 new tests in tests/core/documentation.spec.ts + 5 new tests in tests/core/project-file.spec.ts; 562 vitest passing. DOC-03 + DOC-05 marked complete.
-- **20-02 modal-shell-sections-pane** ✅ COMPLETE 2026-05-01 — DocumentationBuilderDialog 10th hand-rolled modal with the 5-modal ARIA scaffold (D-15 width swap min-w-[960px] max-w-[1100px] max-h-[85vh]); three-pane tab strip with verbatim TabButton class string; Sections pane FULL implementation per DOC-03 (events auto-list per D-09, control bones with debounced 100ms filter and opt-in persistence per D-10, skins per D-11, general notes textarea per D-12, safety buffer number input per D-22). AppShell wiring threads documentation end-to-end: lazy-init drift intersection on mount, mountOpenResponse drift on Open + locate-skeleton, resample-success drift; Documentation top-bar button enabled with onClick (placeholder attributes removed); modalOpen audit list updated. MaterializedProject.documentation threaded through main/project-io.ts at all 3 construction sites. 562 vitest passing; DOC-01 marked complete. Commits: 6302563 → a73b3db.
-- **20-03 animation-tracks-pane-dnd** ✅ COMPLETE 2026-05-01 — TracksPanePlaceholder replaced with full TracksPane + TrackContainer. First DnD surface in repo: HTML5 native DnD with namespaced MIME `'application/x-stm-anim'` (avoids OS file-drop pathway collision per D-06), `effectAllowed='copy'` on dragstart (Electron Chromium quirk), `preventDefault` mandatory on dragover, defensive name validation against `summary.animations.names` on drop (T-20-13 mitigation). Per-entry edit row: mix time + Loop checkbox + Notes input + ↑/↓ reorder + ✕ remove. Track-remove with entries triggers `window.confirm` with plural-aware copy. Empty-state surfaces (No tracks yet / Drop an animation here) verbatim from UI-SPEC. Add Track disabled when `summary.animations.count === 0`. 11 new RTL+jsdom integration tests in tests/renderer/documentation-builder-dialog.spec.tsx (modal smoke + tab switch + footer actions + DnD via fireEvent.dragStart/dragOver/drop + spoofed-name rejection + remove confirm + ↑/↓ reorder). 573 vitest passing; DOC-02 marked complete. Commits: 3dda71c (test RED) → 95f7975 (feat GREEN).
-- **20-04 html-export-ipc-roundtrip** ✅ COMPLETE 2026-05-01 — `src/main/doc-export.ts` (NEW): pure-TS `renderDocumentationHtml` (HTML escape on every user-supplied string per T-20-19; inline `<style>` block + inline SVG glyphs + system font stack — zero external assets per T-20-20; locked palette + layout from D-17/D-18 — hero / 5-chip strip / Optimization Config + General Notes / Animation Tracks table / Control Bones + Skins / conditional Events card) + `handleExportDocumentationHtml` (dialog.showSaveDialog → atomic write Pattern-B writeFile .tmp + rename, mirroring src/main/project-io.ts). 3-tier IPC channel `'documentation:exportHtml'` registered through src/main/ipc.ts → src/preload/index.ts → src/shared/types.ts (Api method + type-only payload/response re-export). Renderer ExportPane (replaces ExportPanePlaceholder) builds the structured-clone-safe payload at click time + renders success/error inline per UI-SPEC copy contract. AppShell threads atlasPreviewState (buildAtlasPreview memo) + savingsPctMemo (byte-identical to OptimizeDialog.tsx:280-291) into the modal. tests/main/doc-export.spec.ts: 11 tests + frozen golden-file snapshot proving valid HTML, self-containment, XSS escape, conditional Events card, hero / chip / tracks / config layout. tests/core/documentation-roundtrip.spec.ts: 3 tests for DOC-05 — DEFAULT + non-empty + Phase 8-era empty {}. 587 vitest passing (was 573; +14). DOC-04 marked complete (DOC-05 already complete from Plan 20-01). Commits: ecab501 (test RED) → 65b0f1c (feat GREEN) → 4dc8985 (feat wiring).
-
-## Last completed
-
-**Milestone v1.1.2 — Auto-update fixes — SHIPPED 2026-04-29.** Phase 14 closed 5/5 plans (renderer + state machine fixes; UPDFIX-02 / UPDFIX-03 / UPDFIX-04). Phase 15 closed 6/6 plans (build/feed-shape fix + v1.1.2 release + v1.1.3 same-day hotfix; UPDFIX-01 / D-15-LIVE-1 empirically closed via Test 7-Retry PARTIAL-PASS — v1.1.1 → v1.1.3 .zip download succeeded byte-exact 121,848,102 bytes at canonical dotted URL). 520 vitest passing. Three downstream defects (D-15-LIVE-2 ad-hoc code-sig swap; D-15-LIVE-3 menu gating; 999.1 macOS quit) routed to backlog and now promoted to v1.2 phases 16 / 17 / 18 via /gsd-review-backlog (commit cc0bc6a, 2026-04-29).
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 260505-lk0 | Fix sampler silent-discard of skin-declared unbound attachments | 2026-05-05 | 0832660 | [260505-lk0-fix-sampler-silent-discard-of-alpha-0-at](./quick/260505-lk0-fix-sampler-silent-discard-of-alpha-0-at/) |
+**Milestone v1.3.1 — Correctness & Refinements — SHIPPED 2026-05-09.** 3 phases, 16 plans, 20 REQs. Phase 29 closed the per-region dedup correctness gap (path-indirected duplicate rows surfaced post-v1.3 ship — analyzer.ts attachmentName→regionName key flip + RegionRow IPC type + override-region semantics + atlas-preview pack-page accuracy). Phase 30 added the user-configurable safety-buffer % control to the Optimize dialog with NARROW `bufferCapped` predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport`. Phase 31 small-fixes batch: source-toggle disabling on missing artifacts (LOAD-05/06/07), Animation Breakdown collapse defaults + bulk Expand/Collapse all (PANEL-08..11; in-memory only), Windows admin DnD fallback advisory (PLATFORM-01), ExtrapolationIcon tooltip primitive (TOOLTIP-01). Late tester-regression fixes 1b5414c (Strip-Whitespace export pipeline) + 834c975 (auto-expand failed Optimize rows) + d86e7b3 (per-frame canonical dims for sequence attachments).
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-05-07 (v1.3). 21 items total — most are pre-v1.3 carry-forwards or jsdom-blocked structural gaps.
+Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combines pre-v1.3.1 carry-forwards (still open from v1.0–v1.3 — most are host-blocked or jsdom-blocked structural gaps) with v1.3.1-era release-time UAT items.
 
-**Pre-v1.3 carry-forwards (still open from v1.0–v1.2):**
+**Pre-v1.3.1 carry-forwards (still open from v1.0–v1.3):**
 
 | Category | Item | Status |
 |----------|------|--------|
-| debug | phase-0-scale-overshoot | investigating — v1.0-era AABB/rotation tech debt; no regression observed across 5 milestones |
+| debug | phase-0-scale-overshoot | investigating — v1.0-era AABB/rotation tech debt; no regression observed across 6 milestones |
 | uat_gaps | Phase 14 14-HUMAN-UAT.md | signed-off — 6 pending auto-update live-observation scenarios; v1.1.x carry-forward |
 | uat_gaps | Phase 15 15-HUMAN-UAT.md | signed-off — 12 pending scenarios; v1.1.x carry-forward |
-| uat_gaps | Phase 16 16-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
-| uat_gaps | Phase 20 20-HUMAN-UAT.md | partial — Doc Builder Windows DnD UAT; host-blocked. Linux dropped from v1.3 — see below. |
-| uat_gaps | Phase 21 21-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
-| uat_gaps | Phase 24 24-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
+| uat_gaps | Phase 20 20-HUMAN-UAT.md | partial — Doc Builder Windows DnD UAT; host-blocked |
 | verification_gaps | Phase 14 14-VERIFICATION.md | human_needed — auto-update live verification; v1.1.x carry-forward |
-| verification_gaps | Phase 20 20-VERIFICATION.md | human_needed — Doc Builder Windows/Linux DnD; host-deferred (Linux now out of scope) |
+| verification_gaps | Phase 20 20-VERIFICATION.md | human_needed — Doc Builder Windows DnD; host-deferred |
 | verification_gaps | Phase 21 21-VERIFICATION.md | human_needed — atlas-less mode HUMAN-UAT; explicitly deferred per user during Phase 21 execute |
 | quick_task | 2026-04-24-phase-4-code-review-follow-up.md | v1.0-era Phase 4 code review todo; long-lived tech debt |
-| quick_task | 2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md | Phase 20 Windows DnD UAT; host-blocked. Linux clause now obsolete (Linux build dropped in v1.3). |
+| quick_task | 2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md | Phase 20 Windows DnD UAT; host-blocked. Linux clause obsolete (Linux build dropped in v1.3) |
+| uat_gaps | Phase 23 23-HUMAN-UAT.md | partial — 4 pending scenarios; require Electron native folder picker (not jsdom-testable) |
+| uat_gaps | Phase 26.1 26.1-HUMAN-UAT.md | partial — 7 pending visual scenarios; require running dev server |
+| verification_gaps | Phase 23 23-VERIFICATION.md | human_needed — 7/7 must-haves verified at code level; "human_needed" only because Electron native dialogs cannot run in jsdom. No real implementation gap. |
+| verification_gaps | Phase 25 25-VERIFICATION.md | human_needed — 10/13 verified; 3 visual UAT items require running Electron dev server (no implementation gap) |
 
-**v1.3-era acknowledgments:**
+**v1.3.1-era acknowledgments (release-time UAT — explicitly meant to be done at tag time):**
 
 | Category | Item | Status |
 |----------|------|--------|
-| uat_gaps | Phase 23 23-HUMAN-UAT.md | partial — 4 pending scenarios; require Electron native folder picker (not jsdom-testable) |
-| uat_gaps | Phase 25 25-HUMAN-UAT.md | resolved — 0 pending; status field cosmetic |
-| uat_gaps | Phase 26.1 26.1-HUMAN-UAT.md | partial — 7 pending visual scenarios; require running dev server |
-| uat_gaps | Phase 26.2 26.2-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
-| uat_gaps | Phase 28 28-HUMAN-UAT.md | passed — 0 pending; status field cosmetic |
-| verification_gaps | Phase 23 23-VERIFICATION.md | human_needed — 7/7 must-haves verified at code level; "human_needed" status only because Electron native dialogs cannot run in jsdom. No real implementation gap. |
-| verification_gaps | Phase 25 25-VERIFICATION.md | human_needed — 10/13 verified; 3 visual UAT items require running Electron dev server (no implementation gap) |
-| quick_task | 260505-lk0-fix-sampler-silent-discard-of-alpha-0-at | shipped — fix landed in commit `0832660` (see `## Quick Tasks Completed` table); SUMMARY.md missing top-level `status:` field — cosmetic only |
-| pending_todo | 2026-05-04-phase-26-tab-system-global-unused-animation.md | superseded — became Phase 26.1 + 26.2; both shipped 2026-05-04. File should be moved to `.planning/todos/resolved/` post-ship. |
+| uat_gaps | Phase 30 30-HUMAN-UAT.md | partial — 4 pending scenarios; pre-release human verification |
+| verification_gaps | Phase 30 30-VERIFICATION.md | human_needed — pre-release verification (visual + integration) |
+| verification_gaps | Phase 31 31-VERIFICATION.md | human_needed — Windows admin DnD live observation explicitly deferred to release per commit 623c0a3 |
+| pending_todo | 2026-05-08-phase-31-windows-admin-dnd-release-uat.md | release-time UAT recipe for Windows admin DnD fallback — captured in pending todos |
+| debug | path-indirected-duplicate-rows | pending_phase_plan — root cause closed by Phase 29 region-dedup fix; debug doc kept as a v1.4 reference for related surfaces (Atlas Preview optimized-mode tile expansion) |
+| debug | post-v1-3-tester-regressions | diagnosed — analyzer.ts atlas-region-name vs entry-name key bug; root-fixed by Phase 29 region-keyed dedup; doc retained for v1.4 follow-up surface audits |
 
-Seeds SEED-001 and SEED-002 are shipped as Phases 21 and 22. SEED-003 (Spine 4.3 compatibility) planted 2026-05-07 (commit `823f490`) for v1.4 pickup.
+**Seeds for v1.4:**
+
+- SEED-003 (Spine 4.3 compatibility) — planted 2026-05-07 (commit `823f490`); primary v1.4 candidate.
+- SEED-004 (Rotated atlas regions) — planted 2026-05-08; A=error UX or B=full rotated-region support.
+- SEED-005 (RGBA2 + InheritTimeline coverage) — planted 2026-05-08; audit-only or full feature surface.
 
 ## Accumulated Context (carries across milestones)
 
-(Preserved from prior milestones — sampler lifecycle, override semantics, export uniform-only, .stmproj schema, Layer 3 invariant, 5-modal ARIA pattern, distribution + CI surface, all locked. See PROJECT.md `## Key Decisions (v1.0 outcomes)` and `## Constraints (still valid)` for the full list.)
+(Preserved from prior milestones — sampler lifecycle, override semantics, export uniform-only, .stmproj schema, Layer 3 invariant, 5-modal ARIA pattern, distribution + CI surface, region-keyed dedup contract added in v1.3.1, all locked. See PROJECT.md `## Key Decisions` and `## Constraints` for the full list.)
 
 ---
 
-*This file is authored fresh at milestone start. Phase 14 + Phase 15 detailed execution history is preserved in their respective phase directories under `.planning/phases/14-…/` and `.planning/phases/15-…/` (VERIFICATION.md, HUMAN-UAT.md, SUMMARY files). v1.1.2 phases will be archived to `.planning/milestones/v1.1.2-phases/` when /gsd-complete-milestone v1.1.2 is run.*
+*This file is authored fresh at milestone start. v1.3.1 phases are archived under `.planning/milestones/v1.3.1-phases/` (29, 30, 31).*
 
-**Last Phase Action:** 22.1 (close-7-gaps-from-phase-22-human-uat-dims-02-badge-mode-awar) — INSERTED — 2026-05-03 (after Phase 22; 7 HUMAN-UAT gaps: 1 BLOCKER + 5 major + 1 minor; ROADMAP.md updated with milestone bullet + Phase Details + Progress row; needs `/gsd-discuss-phase 22.1` before planning)
-
-**Prior Phase Action:** 17 (help-check-for-updates-not-gated-on-project) — SKIPPED — 2026-04-30T12:30:00Z
-
-**Planned Phase:** 21 (seed-001-atlas-less-mode-json-images-folder-no-atlas) — 12 plans (8 originals + 4 gap closures) — 2026-05-02T16:53:49.465Z
-
-**Last Phase Discussion:** 22 (seed-002-dims-badge-override-cap-depends-on-phase-21) — CONTEXT GATHERED — 2026-05-02T22:00:00Z (commit 435c462; 4 areas discussed → D-01 JSON canonical unified across modes; D-02 override % stays % of canonical; D-03 passthrough byte-copies with "COPY" indicator on muted rows; D-04 strict ceil-equality on both axes; resolves Phase 21 open research item; Phase 22 ready for /gsd-plan-phase 22).
-
-**Last Plan Action:** 21-12 (toggle-resample-atlas-less-precedence) — COMPLETE — 2026-05-02T20:55:00Z (commits 179b1dd test + de99e84 fix + 0a31aee test + fee0070 fix-recovery + 9b70056 test; SUMMARY at .planning/phases/21-seed-001-atlas-less-mode-json-images-folder-no-atlas/21-12-toggle-resample-atlas-less-precedence-SUMMARY.md). G-04 closed via caller-side LoaderOptions precedence fix at IPC + worker boundaries (project-io.ts Sites 1+4 + sampler-worker.ts Site 5; src/core/loader.ts UNTOUCHED — criterion #5 verbatim AtlasNotFoundError preserved). 630/630 vitest passing. 4 G-04 regression tests added (2 loader-contract + 1 IPC integration + 1 worker-boundary); 2 falsifying gates proven via scratch revert. HUMAN-UAT Test 4b Path 2 + 4c re-runnable post-fix.
-
-**Last Phase Verification:** 22 (SEED-002 dims-badge + override-cap) — VERIFIED human_needed → 5/5 PASSED at code level, 9 visual UAT items deferred — 2026-05-03T08:05:00Z. gsd-verifier scored 5/5 DIMS-NN must-haves PASS (DIMS-01 canonical+actual maps populated; DIMS-02 badge in both panels; DIMS-03 cap formula uniform-only + Phase 6 D-110 byte-identical parity; DIMS-04 generous passthrough partition with `passthroughCopies[]` + COPY chip + fs.copyFile byte-copy + actualSource label propagation; DIMS-05 round-trip byte-identical via Buffer.compare === 0). 1 override applied for the user-approved D-04 REVISED wording (passthroughCopies+COPY vs original ROADMAP excludedAlreadyOptimized — mathematically more correct per 22-CONTEXT.md). 687/690 vitest passing (1 skipped + 2 todo; 0 failures). Layer 3 invariant verified — `grep -rn copyFile src/core/` returns 0 hits; loader.ts + export.ts have 0 sharp/electron imports. Locked memory `project_phase6_default_scaling.md` (uniform-only export scaling) preserved at `src/core/export.ts:262-263` + aspect-ratio invariant test. HUMAN-UAT (9 items: badge rendering at 100%/dark-mode/zoom; tooltip wording; OptimizeDialog COPY chip placement + actualSource label; round-trip byte-fidelity; AppShell layout sanity) DEFERRED per user instruction during /gsd-execute-phase — captured in `.planning/todos/pending/2026-05-03-phase-22-dims-badge-override-cap-human-uat.md` with full recipe.
-
-**Prior Phase Verification:** 20 (Documentation Builder feature) — VERIFIED human_needed → 3/4 PASSED on macOS, 1 deferred — 2026-05-01T22:00:00Z. gsd-verifier scored 5/5 must-haves verified; gsd-code-reviewer found 0 critical / 4 warning / 6 info (non-blocking). HUMAN-UAT outcome on macOS arm64 (Electron dev build): test 1 (live DnD) PASS, test 2 (offline HTML fidelity) PASS with 1 visual gap regression FIXED in commit 10d40e6 (renderTracksCard wrapped in .row div for bottom-margin contract; golden snapshot regenerated; 587/587 vitest passing), test 4 (full save→close→reopen) PASS, test 3 (cross-platform DnD on Win/Linux) DEFERRED — Windows hardware unavailable; NSIS installer ready at release/Spine Texture Manager-1.1.3-x64.exe; pending todo at .planning/todos/pending/2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md captures the test recipe + risk analysis (effectAllowed='copy' is structurally set per RESEARCH §Pattern 4, so failure mode is unlikely). REQUIREMENTS.md DOC-04 stale "Pending" table row corrected to "Complete" (line 125; line 52 canonical bullet was already [x]).
-
-## Accumulated Context
-
-### Roadmap Evolution
-
-- Phase 22.1 inserted after Phase 22: Close 7 gaps from Phase 22 HUMAN-UAT (1 blocker + 5 major + 1 minor) (URGENT)
+**Last Milestone:** v1.3.1 (Correctness & Refinements) — COMPLETE — 2026-05-09 (3 phases, 16 plans, 20 REQs; tag pending).
