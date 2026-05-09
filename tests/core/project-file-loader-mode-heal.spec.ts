@@ -9,6 +9,7 @@
  * MissingImagesDirError because handleProjectOpenFromPath drops atlasPath
  * when loaderMode is atlas-less, forcing synth.
  */
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   materializeProjectFile,
@@ -46,11 +47,11 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
       atlasPath: 'SYMBOLS.atlas',
       loaderMode: 'atlas-less',
     };
-    const m = materializeProjectFile(file, '/proj/SYMBOLS.stmproj');
+    const m = materializeProjectFile(file, path.resolve('/proj/SYMBOLS.stmproj'));
     expect(m.loaderMode).toBe('auto');
     expect(m.loaderModeHealed).toBe(true);
     // atlasPath preserved (resolved against project basedir) so loader can use it.
-    expect(m.atlasPath).toBe('/proj/SYMBOLS.atlas');
+    expect(m.atlasPath).toBe(path.resolve('/proj/SYMBOLS.atlas'));
   });
 
   it('does not heal genuine atlas-less projects (atlasPath null)', () => {
@@ -103,9 +104,9 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
     const v = validateProjectFile(raw);
     expect(v.ok).toBe(true);
     if (!v.ok) return;
-    const m = materializeProjectFile(v.project, '/x/Chicken/SYMBOLS.stmproj');
+    const m = materializeProjectFile(v.project, path.resolve('/x/Chicken/SYMBOLS.stmproj'));
     expect(m.loaderMode).toBe('auto');
     expect(m.loaderModeHealed).toBe(true);
-    expect(m.atlasPath).toBe('/x/Chicken/SYMBOLS.atlas');
+    expect(m.atlasPath).toBe(path.resolve('/x/Chicken/SYMBOLS.atlas'));
   });
 });

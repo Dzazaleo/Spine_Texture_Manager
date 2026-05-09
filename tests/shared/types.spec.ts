@@ -28,12 +28,12 @@ const TYPES_SRC = path.resolve('src/shared/types.ts');
 
 describe('Phase 29 D-01 — RegionRow interface + SkeletonSummary.regions field', () => {
   it('exports RegionRow interface from src/shared/types.ts (compile-time + grep)', () => {
-    const src = readFileSync(TYPES_SRC, 'utf8');
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
     expect(src).toMatch(/export interface RegionRow\b/);
   });
 
   it('SkeletonSummary.regions: RegionRow[] is declared non-optional (compile-time + grep)', () => {
-    const src = readFileSync(TYPES_SRC, 'utf8');
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
     // Match the Summary field in the SkeletonSummary literal — non-optional
     // (no `?`) and typed as RegionRow[]. The line lives between
     // `peaks: DisplayRow[]` and `animationBreakdown: AnimationBreakdown[]`.
@@ -43,7 +43,7 @@ describe('Phase 29 D-01 — RegionRow interface + SkeletonSummary.regions field'
 
 describe('Phase 29 D-03 — AtlasPreviewInput re-key', () => {
   it('AtlasPreviewInput exposes regionName: string (not attachmentName)', () => {
-    const src = readFileSync(TYPES_SRC, 'utf8');
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
     // Slice out the AtlasPreviewInput block. awk-like: lines from the
     // `export interface AtlasPreviewInput` declaration to the matching `}`.
     const startIdx = src.indexOf('export interface AtlasPreviewInput');
@@ -61,7 +61,7 @@ describe('Phase 29 D-03 — AtlasPreviewInput re-key', () => {
 
 describe('Phase 29 D-03 — PackedRegion re-key', () => {
   it('PackedRegion exposes regionName: string (not attachmentName)', () => {
-    const src = readFileSync(TYPES_SRC, 'utf8');
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
     const startIdx = src.indexOf('export interface PackedRegion');
     expect(startIdx).toBeGreaterThanOrEqual(0);
     const endIdx = src.indexOf('\n}\n', startIdx);
@@ -208,7 +208,7 @@ describe('Phase 29 D-21 — RegionRow + contributingAttachments[] structuredClon
 
 describe('Phase 29 — Layer 3 invariant on src/shared/', () => {
   it('src/shared/types.ts has no sharp / electron / react imports', () => {
-    const src = readFileSync(TYPES_SRC, 'utf8');
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
     expect(src).not.toMatch(/from ['"]sharp['"]/);
     expect(src).not.toMatch(/from ['"]react['"]/);
     // Note: src/shared/types.ts re-exports types from src/main/doc-export.ts
