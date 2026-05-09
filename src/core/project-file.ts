@@ -42,6 +42,8 @@ import type {
   AppSessionState,
   SkeletonSummary,
 } from '../shared/types.js';
+
+export type { ProjectFileV1 } from '../shared/types.js';
 import {
   validateDocumentation,
   DEFAULT_DOCUMENTATION,

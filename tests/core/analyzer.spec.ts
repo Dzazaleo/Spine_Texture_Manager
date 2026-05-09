@@ -636,7 +636,7 @@ describe('analyzer: path-indirection lookup (regionName key)', () => {
     };
     const sourcePaths = new Map([['6/9_FRAME_0', '/abs/path/6/9_FRAME_0.png']]);
     const atlasSources = new Map([
-      ['6/9_FRAME_0', { pageName: 'SYMBOLS_2.png', pagePath: '/abs/SYMBOLS_2.png', x: 0, y: 0, w: 1084, h: 1056 }],
+      ['6/9_FRAME_0', { pagePath: '/abs/SYMBOLS_2.png', x: 0, y: 0, packW: 1084, packH: 1056, offsetX: 0, offsetY: 0, w: 1084, h: 1056, rotated: false }],
     ]);
     const canonicalDims = new Map([['6/9_FRAME_0', { canonicalW: 1084, canonicalH: 1056 }]]);
     const actualDims = new Map([['6/9_FRAME_0', { actualSourceW: 1084, actualSourceH: 1056 }]]);
@@ -651,7 +651,7 @@ describe('analyzer: path-indirection lookup (regionName key)', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].sourcePath).toBe('/abs/path/6/9_FRAME_0.png');
-    expect(rows[0].atlasSource?.pageName).toBe('SYMBOLS_2.png');
+    expect(rows[0].atlasSource?.pagePath).toBe('/abs/SYMBOLS_2.png');
     expect(rows[0].canonicalW).toBe(1084);
     expect(rows[0].actualSourceW).toBe(1084);
   });

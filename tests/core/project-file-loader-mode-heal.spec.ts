@@ -37,6 +37,7 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
     },
     loaderMode: 'auto',
     sharpenOnExport: false,
+    safetyBufferPercent: 0,
   };
 
   it('heals (atlas-less + atlasPath set) → auto, flags loaderModeHealed=true', () => {
