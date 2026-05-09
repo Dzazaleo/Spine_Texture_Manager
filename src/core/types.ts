@@ -219,4 +219,20 @@ export interface SampleRecord {
   worldH: number;
   sourceW: number;
   sourceH: number;
+  /**
+   * debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 — true when
+   * this record was emitted by the sampler's sequence fan-out
+   * (sampler.ts:fanOutSequencePeaks). Spine 4.2 sequence attachments declare
+   * one mesh/region with `sequence: { count, start, digits }` that maps to
+   * N atlas regions; each frame is independently trimmed by Spine's atlas
+   * packer, so per-frame `region.originalWidth/Height` differ from the
+   * shared JSON-canonical `att.width/height`.
+   *
+   * The dims-mismatch badge (DimsBadge.tsx) suppresses on sequence frames
+   * in atlas-source mode because per-frame trim is expected behavior, not
+   * a project-state warning. Optional/undefined defaults to false —
+   * preserves backward-compat with synthetic test fixtures and non-fanned
+   * (non-sequence) PeakRecords.
+   */
+  isSequenceFrame?: boolean;
 }

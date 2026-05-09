@@ -171,6 +171,22 @@ export interface DisplayRow {
    * `attachmentName` per the same analyzer.ts:220 idiom.
    */
   regionName?: string;
+  /**
+   * debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 — true when
+   * this row was emitted by the sampler's sequence fan-out
+   * (`sampler.ts:fanOutSequencePeaks`). Spine 4.2 sequence attachments are
+   * declared once with `sequence: { count }` and resolve at runtime to N
+   * atlas regions; Spine's atlas packer trims each frame independently to
+   * its own content bounds, so per-frame `region.originalWidth/Height`
+   * differ from the shared JSON-canonical `att.width/height`.
+   *
+   * The dims-mismatch badge (DimsBadge.tsx) suppresses on sequence frames
+   * in atlas-source mode because per-frame trim is expected behavior, not
+   * a project-state warning. Optional/undefined defaults to false —
+   * preserves backward-compat with synthetic test fixtures and non-fanned
+   * (non-sequence) DisplayRows.
+   */
+  isSequenceFrame?: boolean;
 }
 
 /**
@@ -267,6 +283,12 @@ export interface RegionRow {
     frame: number;
     isSetupPosePeak: boolean;
   }>;
+  // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 — propagated
+  // from the winning DisplayRow.isSequenceFrame so the DimsBadge can suppress
+  // on per-frame trimmed sequence frames in atlas-source mode (per-frame trim
+  // is expected behavior of Spine's atlas packer for sequences). Optional;
+  // undefined ≡ false, matching DisplayRow.isSequenceFrame.
+  isSequenceFrame?: boolean;
 }
 
 /**

@@ -42,6 +42,18 @@ export function DimsBadge({
   const hostRef = useRef<HTMLDivElement>(null);
   const [tooltipPos, setTooltipPos] = useState<{ top: number; right: number } | null>(null);
   if (!row.dimsMismatch) return null;
+  // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 — suppress
+  // the badge in atlas-source mode for sequence frames. Spine's atlas
+  // packer trims each sequence frame independently to its own content
+  // bounds, so per-frame `region.originalWidth/Height` legitimately
+  // differ from the JSON-canonical `att.width/height`. The mismatch is
+  // technically true but does not warrant a per-row warning — it's
+  // expected behavior, not a project-state issue. We keep the badge in
+  // atlas-less mode (where the user IS reading post-export shrunk PNGs
+  // and the cap-binding tooltip is informative) and on non-sequence
+  // attachments in atlas-source mode (where a real atlas-pack issue
+  // would be worth surfacing).
+  if (loaderMode === 'auto' && row.isSequenceFrame === true) return null;
   const isCapped = deriveIsCapped(row, effectiveScale);
   const tooltipText = buildDimsTooltipText(row, loaderMode, isCapped);
   // tooltipId must be unique per rendered DimsBadge instance to support

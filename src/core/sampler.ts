@@ -403,6 +403,12 @@ export function sampleSkeleton(
  *
  * Pure post-pass — no skeleton mutation; reuses the already-materialized
  * Skeleton object only to walk skin manifests and read attachment.sequence.
+ *
+ * isSequenceFrame stamping (debug-fix sequence-peak-atlas-vs-less REOPENED
+ * 2026-05-09): every fanned record gets `isSequenceFrame: true` so the
+ * dims-mismatch badge can suppress on per-frame trimmed sequence frames in
+ * atlas-source mode. Per-frame trimming is expected behavior of Spine's atlas
+ * packer for sequences and does not warrant the warning iconography.
  */
 function fanOutSequencePeaks(
   skeleton: Skeleton,
@@ -499,6 +505,11 @@ function fanOutSequencePeaks(
           sourceW,
           sourceH,
           isSetupPosePeak: baseRecord.isSetupPosePeak,
+          // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09:
+          // marks fanned per-frame records so DimsBadge can suppress the
+          // atlas-source dims-mismatch badge for sequences (per-frame trim
+          // is expected, not a warning condition).
+          isSequenceFrame: true,
         };
         // Latch on the higher peak — if another sequence-bearing attachment
         // (e.g. a different slot binding the same basePath) already fanned
@@ -527,6 +538,7 @@ function fanOutSequencePeaks(
             frame: setupBase.frame,
             animationName: setupBase.animationName,
             isSetupPosePeak: true,
+            isSequenceFrame: true,
           };
           const existingSetup = setupPosePeaks.get(fannedKey);
           if (existingSetup === undefined || setupBase.peakScale > existingSetup.peakScale) {
@@ -544,6 +556,7 @@ function fanOutSequencePeaks(
             regionName: frameName,
             sourceW,
             sourceH,
+            isSequenceFrame: true,
           };
           const existingPa = perAnimation.get(fannedPaKey);
           if (existingPa === undefined || rec.peakScale > existingPa.peakScale) {

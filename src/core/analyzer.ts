@@ -153,6 +153,11 @@ function toDisplayRow(
     // change for non-indirected fixtures (regionName === attachmentName).
     // CLI byte-lock D-102 preserved: scripts/cli.ts does not iterate this field.
     regionName: p.regionName ?? p.attachmentName,
+    // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 —
+    // propagate sampler's per-frame fan-out marker so DimsBadge can
+    // suppress in atlas-source mode (per-frame atlas trim is expected
+    // for Spine sequences, not a project-state warning).
+    ...(p.isSequenceFrame === true ? { isSequenceFrame: true as const } : {}),
   };
 }
 
@@ -337,6 +342,10 @@ function toRegionRow(
     sourceLabel: winner.sourceLabel,
     frameLabel: winner.frameLabel,
     contributingAttachments,
+    // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 —
+    // propagate winner's sequence-frame flag (path indirection collapses
+    // contributors but the winner's fan-out marker speaks for the row).
+    ...(winner.isSequenceFrame === true ? { isSequenceFrame: true as const } : {}),
   };
 }
 
@@ -493,6 +502,10 @@ function toBreakdownRow(
     // Phase 3 additions (D-67, F4.3):
     bonePath,
     bonePathLabel: bonePath.join(BONE_PATH_SEPARATOR),
+    // debug-fix sequence-peak-atlas-vs-less REOPENED 2026-05-09 —
+    // mirror toDisplayRow's sequence-frame propagation so AnimationBreakdown
+    // rows also suppress the dims-mismatch badge for per-frame fan-out rows.
+    ...(p.isSequenceFrame === true ? { isSequenceFrame: true as const } : {}),
   };
 }
 

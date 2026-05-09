@@ -48,6 +48,7 @@ import {
 import {
   synthesizeAtlasText,
   SilentSkipAttachmentLoader,
+  composeSequenceFramePath,
 } from './synthetic-atlas.js';
 import { readPngDims } from './png-header.js';
 
@@ -207,7 +208,18 @@ export function loadSkeleton(
           string,
           Record<
             string,
-            { type?: string; path?: string; width?: number; height?: number }
+            {
+              type?: string;
+              path?: string;
+              width?: number;
+              height?: number;
+              // debug-fix sequence-peak-atlas-vs-less (2026-05-08): sequence-
+              // bearing attachments collapse N frames under one basePath in JSON;
+              // canonicalDimsByRegion must be fanned to per-frame keys to match
+              // the sampler/analyzer lookup shape (regionName = per-frame path
+              // after the sequence fan-out at sampler.ts:407-564).
+              sequence?: { count?: number; start?: number; digits?: number };
+            }
           >
         >;
       }>;
@@ -220,7 +232,7 @@ export function loadSkeleton(
           const type = att.type ?? 'region'; //                  SkeletonJson.js:366 default
           if (type !== 'region' && type !== 'mesh' && type !== 'linkedmesh')
             continue;
-          const regionName = att.path ?? entryName; //           SkeletonJson.js:368, 401
+          const basePath = att.path ?? entryName; //             SkeletonJson.js:368, 401
           const w = att.width ?? 0;
           const h = att.height ?? 0;
           if (w === 0 || h === 0) {
@@ -229,12 +241,40 @@ export function loadSkeleton(
             // (canonicalW = p.sourceW) covers downstream.
             if (process.env.NODE_ENV !== 'production') {
               console.warn(
-                `Phase 22 DIMS-01: attachment '${regionName}' (type=${type}) has no explicit width/height in JSON; canonical-dims fallback to peakRecord.sourceW.`,
+                `Phase 22 DIMS-01: attachment '${basePath}' (type=${type}) has no explicit width/height in JSON; canonical-dims fallback to peakRecord.sourceW.`,
               );
             }
             continue;
           }
-          canonicalDimsByRegion.set(regionName, {
+          // Sequence-aware expansion (debug-fix sequence-peak-atlas-vs-less,
+          // 2026-05-08): mirror walkSyntheticRegionPaths and the sampler's
+          // sequence fan-out — a single mesh attachment whose JSON declares
+          // `sequence: { count, start, digits }` represents N atlas regions
+          // named `<basePath><start+i, zero-padded>`, all sharing the same
+          // canonical width/height from the JSON. Without this fan-out the
+          // analyzer's `canonicalDims.get(perFrameRegion)` returns undefined,
+          // toDisplayRow falls back to canonicalW = p.sourceW (the on-disk
+          // PNG dim), and the post-export round-trip displays as 0.978× green
+          // instead of 1.000× yellow because dimsMismatch evaluates false.
+          // Non-sequence attachments fall through unchanged.
+          if (att.sequence !== undefined && att.sequence !== null) {
+            const count = att.sequence.count ?? 0;
+            const start = att.sequence.start ?? 1; // SkeletonJson.js:478
+            const digits = att.sequence.digits ?? 0; // SkeletonJson.js:479
+            if (count > 0) {
+              for (let i = 0; i < count; i++) {
+                const perFramePath = composeSequenceFramePath(basePath, i, start, digits);
+                canonicalDimsByRegion.set(perFramePath, {
+                  canonicalW: w,
+                  canonicalH: h,
+                });
+              }
+              continue;
+            }
+            // Defensive: count=0 — fall through to single-key registration
+            // below (matches walkSyntheticRegionPaths).
+          }
+          canonicalDimsByRegion.set(basePath, {
             canonicalW: w,
             canonicalH: h,
           });
