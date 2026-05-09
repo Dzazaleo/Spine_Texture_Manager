@@ -349,3 +349,77 @@ describe('SilentSkipAttachmentLoader (Pitfall 1; D-09)', () => {
     expect(result).toBeNull();
   });
 });
+
+// Regression — debug-fix atlas-less-export-missing-pngs (2026-05-09).
+//
+// `walkSyntheticRegionPaths` previously resolved a region path with
+// `att.path ?? entryName`, missing the middle `att.name` step that
+// spine-core's SkeletonJson applies (4.2 SkeletonJson.js:365 + 368 →
+// `path = map.path ?? map.name ?? entryName`).
+//
+// Visible failure mode on the CHJ/CHJWC_SYMBOLS fixture: non-default skins
+// declared `{ LABEL: { LABEL: { name: "GRAND" } } }` (no `path`). The walker
+// registered region "LABEL" (no PNG on disk) instead of "GRAND". GRAND.png on
+// disk was then flagged as an orphan downstream by summary.ts, even though
+// it was actively used by the GRAND skin.
+describe('walkSyntheticRegionPaths name-fallback (debug-fix atlas-less-export-missing-pngs 2026-05-09)', () => {
+  it('non-default-skin rename `{ name: "X" }` (no path): synthesizer registers region "X", not entry-key', () => {
+    // Mirrors the CHJ fixture's per-skin rename pattern. The default skin's
+    // entry-key gives the LABEL slot a stub binding; a non-default skin
+    // renames it via `name: "CIRCLE"`. Pre-fix the synthesizer would key the
+    // non-default-skin entry as "LABEL" (no PNG on disk → stub region) and
+    // CIRCLE.png on disk would be unreachable from skin enumeration.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-skin-rename-'));
+    fs.mkdirSync(path.join(tmpDir, 'images'), { recursive: true });
+    fs.copyFileSync(
+      path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS/images/CIRCLE.png'),
+      path.join(tmpDir, 'images', 'CIRCLE.png'),
+    );
+    const fakeJson = {
+      skeleton: { spine: '4.2.0' },
+      skins: [
+        {
+          name: 'default',
+          attachments: {
+            slot1: {
+              LABEL: { type: 'region' }, // entry-key "LABEL" (no PNG → stub)
+            },
+          },
+        },
+        {
+          name: 'BRANDED',
+          attachments: {
+            slot1: {
+              // Rename: entry-key "LABEL" but `name: "CIRCLE"`. Resolved
+              // region is "CIRCLE" per SkeletonJson.js:365 + 368.
+              LABEL: { type: 'region', name: 'CIRCLE' },
+            },
+          },
+        },
+      ],
+    };
+    const skelPath = path.join(tmpDir, 'rig.json');
+    fs.writeFileSync(skelPath, JSON.stringify(fakeJson));
+    try {
+      const synth = synthesizeAtlasText(
+        fakeJson,
+        path.join(tmpDir, 'images'),
+        skelPath,
+      );
+      // Resolved region "CIRCLE" backs the rename — real PNG dims, not a stub.
+      expect(synth.pngPathsByRegionName.has('CIRCLE')).toBe(true);
+      expect(synth.dimsByRegionName.get('CIRCLE')!.w).toBeGreaterThan(1);
+      // Atlas resolves both the resolved region and the default-skin stub.
+      const atlas = new TextureAtlas(synth.atlasText);
+      expect(atlas.findRegion('CIRCLE')).not.toBeNull();
+      // Pre-fix the walker would have keyed the non-default skin entry as
+      // "LABEL" too (collapsing onto the default-skin stub). Post-fix, the
+      // non-default-skin entry expands a separate region keyed "CIRCLE".
+      // Default skin's "LABEL" entry stays a stub (no LABEL.png on disk).
+      // missingPngs is string[] of filenames (e.g. "LABEL.png").
+      expect(synth.missingPngs.sort()).toEqual(['LABEL.png']);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});

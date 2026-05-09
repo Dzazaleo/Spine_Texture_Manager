@@ -210,6 +210,7 @@ export function loadSkeleton(
             string,
             {
               type?: string;
+              name?: string;
               path?: string;
               width?: number;
               height?: number;
@@ -232,7 +233,8 @@ export function loadSkeleton(
           const type = att.type ?? 'region'; //                  SkeletonJson.js:366 default
           if (type !== 'region' && type !== 'mesh' && type !== 'linkedmesh')
             continue;
-          const basePath = att.path ?? entryName; //             SkeletonJson.js:368, 401
+          // SkeletonJson.js:365 + 368: resolvedPath = att.path ?? att.name ?? entryName.
+          const basePath = att.path ?? att.name ?? entryName;
           const w = att.width ?? 0;
           const h = att.height ?? 0;
           if (w === 0 || h === 0) {

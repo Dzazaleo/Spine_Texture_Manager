@@ -438,12 +438,25 @@ export function buildSummary(
     // synthetic-atlas registers those per-frame names in load.sourceDims; the basePath
     // (which is the JSON-key here) is NOT in sourceDims after our fix. Without this
     // fan-out, all N on-disk PNG frames would be flagged as orphans.
+    // debug-fix atlas-less-export-missing-pngs (2026-05-09): inUseNames must be
+    // keyed by the resolved region path, not the JSON entry-key. spine-core's
+    // SkeletonJson resolves `path = map.path ?? map.name ?? entryName` (lines 365 +
+    // 368) and stores the resolved value on `attachment.path`. sourceDims is
+    // keyed by that same resolved path (synthetic-atlas.ts:walkSyntheticRegionPaths).
+    // Using the entry-key directly mismatched on:
+    //   (a) non-default-skin renames `{ LABEL: { LABEL: { name: "GRAND" } } }`
+    //       — entry-key was "LABEL", resolved path is "GRAND";
+    //   (b) default-skin path-prefixed entries `{ REVEAL_01: { path: "REVEAL/REVEAL_01" } }`
+    //       — entry-key was "REVEAL_01", resolved path is "REVEAL/REVEAL_01".
+    // (b) was latent only because no `REVEAL/` subdir existed in the source folder.
     const inUseNames = new Set<string>();
     for (const skin of load.skeletonData.skins) {
       for (const perSlot of skin.attachments) {
         if (perSlot === undefined || perSlot === null) continue;
         for (const attachmentName of Object.keys(perSlot)) {
           const attachment = perSlot[attachmentName] as {
+            name?: string;
+            path?: string;
             sequence?: { regions?: { name?: string }[] } | null;
           };
           const seq = attachment?.sequence;
@@ -455,8 +468,9 @@ export function buildSummary(
             }
             continue;
           }
-          if (load.sourceDims.get(attachmentName) !== undefined) {
-            inUseNames.add(attachmentName);
+          const resolvedPath = attachment?.path ?? attachment?.name ?? attachmentName;
+          if (load.sourceDims.get(resolvedPath) !== undefined) {
+            inUseNames.add(resolvedPath);
           }
         }
       }

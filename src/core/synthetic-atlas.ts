@@ -278,6 +278,7 @@ function walkSyntheticRegionPaths(parsedJson: unknown): Set<string> {
           string,
           {
             type?: string;
+            name?: string;
             path?: string;
             sequence?: { count?: number; start?: number; digits?: number };
           }
@@ -292,7 +293,10 @@ function walkSyntheticRegionPaths(parsedJson: unknown): Set<string> {
         const att = slot[entryName];
         const type = att.type ?? 'region'; //                     SkeletonJson.js:366 default
         if (type !== 'region' && type !== 'mesh' && type !== 'linkedmesh') continue;
-        const lookupPath = att.path ?? entryName; //              SkeletonJson.js:368, 401
+        // SkeletonJson.js:365 (`name = map.name ?? entryName`) + 368 (`path = map.path ?? name`).
+        // Net: resolvedPath = att.path ?? att.name ?? entryName. The middle `att.name` step
+        // covers non-default-skin renames shaped `{ entryKey: { name: "X" } }` (no `path`).
+        const lookupPath = att.path ?? att.name ?? entryName;
         // Sequence-aware expansion — see function docblock + Sequence.js:61-68.
         if (att.sequence !== undefined && att.sequence !== null) {
           const count = att.sequence.count ?? 0;

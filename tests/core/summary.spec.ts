@@ -546,3 +546,124 @@ describe('Phase 29 D-01 — summary.regions field populated by buildSummary', ()
     }
   });
 });
+
+// Regression — debug-fix atlas-less-export-missing-pngs (2026-05-09).
+//
+// summary.ts orphan-detector built `inUseNames` from the JSON entry-key
+// (`Object.keys(perSlot)`) instead of the spine-core-resolved region path
+// (`attachment.path ?? attachment.name ?? entryKey`). Two failure modes:
+//
+//   (a) Non-default-skin renames `{ entryKey: { name: "X" } }` (no `path`).
+//       inUseNames gained the entry-key; X.png on disk was flagged orphan.
+//       Visible on CHJ fixture's GRAND/MAJOR/MINI/MINOR skins.
+//
+//   (b) Default-skin path-prefixed entries `{ entryKey: { path: "SUB/X" } }`.
+//       inUseNames gained the entry-key; SUB/X.png on disk would have been
+//       flagged orphan. Latent on CHJ (no REVEAL/ subdir in source images/),
+//       exercised here so it can never regress.
+//
+// The fix mirrors spine-core SkeletonJson.js:365 + 368 — `path = map.path ??
+// map.name ?? entryName` — and is shared by synthetic-atlas.ts and loader.ts.
+describe('orphan detector resolves region paths via spine-core rule (debug-fix atlas-less-export-missing-pngs 2026-05-09)', () => {
+  const SRC_FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS');
+  const SRC_JSON = path.join(SRC_FIXTURE, 'SIMPLE_TEST.json');
+  const SRC_IMAGES = path.join(SRC_FIXTURE, 'images');
+
+  it('non-default-skin rename `{ name: "X" }`: X.png on disk is in-use, not orphaned', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-rename-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    fs.mkdirSync(tmpImages, { recursive: true });
+    // Copy the fixture's source images including a fresh CIRCLE_VARIANT.png
+    // (clone of CIRCLE.png) which the BRANDED skin will reference via rename.
+    for (const f of fs.readdirSync(SRC_IMAGES)) {
+      fs.copyFileSync(path.join(SRC_IMAGES, f), path.join(tmpImages, f));
+    }
+    fs.copyFileSync(
+      path.join(SRC_IMAGES, 'CIRCLE.png'),
+      path.join(tmpImages, 'CIRCLE_VARIANT.png'),
+    );
+    // Augment the fixture JSON with a non-default skin that renames the
+    // CIRCLE attachment's region via `name: "CIRCLE_VARIANT"` (no `path`).
+    const json = JSON.parse(fs.readFileSync(SRC_JSON, 'utf8'));
+    const defaultSkin = json.skins.find(
+      (s: { name: string }) => s.name === 'default',
+    );
+    const circleEntry = defaultSkin.attachments.CIRCLE.CIRCLE;
+    json.skins.push({
+      name: 'BRANDED',
+      attachments: {
+        CIRCLE: {
+          // Same entry-key + structure as default, only `name` is added.
+          CIRCLE: { ...circleEntry, name: 'CIRCLE_VARIANT' },
+        },
+      },
+    });
+    const tmpJson = path.join(tmpDir, 'SIMPLE_TEST.json');
+    fs.writeFileSync(tmpJson, JSON.stringify(json));
+    try {
+      const load = loadSkeleton(tmpJson);
+      expect(load.atlasPath).toBeNull();
+      // Both the original CIRCLE region and the renamed CIRCLE_VARIANT are
+      // registered in sourceDims — proof the spine-core rule was applied.
+      expect(load.sourceDims.has('CIRCLE')).toBe(true);
+      expect(load.sourceDims.has('CIRCLE_VARIANT')).toBe(true);
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
+      // CIRCLE_VARIANT.png is referenced by the BRANDED skin → not orphaned.
+      const variantOrphan = s.orphanedFiles?.find(
+        (f) => f.filename === 'CIRCLE_VARIANT',
+      );
+      expect(variantOrphan).toBeUndefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('default-skin path-prefix `{ path: "SUB/X" }`: SUB/X.png on disk is in-use, not orphaned', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-orphan-prefix-'));
+    const tmpImages = path.join(tmpDir, 'images');
+    const tmpSub = path.join(tmpImages, 'SUB');
+    fs.mkdirSync(tmpSub, { recursive: true });
+    // Copy the original images and place a SUB/CIRCLE_NESTED.png (clone of
+    // CIRCLE.png) that a default-skin entry will reference via path prefix.
+    for (const f of fs.readdirSync(SRC_IMAGES)) {
+      fs.copyFileSync(path.join(SRC_IMAGES, f), path.join(tmpImages, f));
+    }
+    fs.copyFileSync(
+      path.join(SRC_IMAGES, 'CIRCLE.png'),
+      path.join(tmpSub, 'CIRCLE_NESTED.png'),
+    );
+    // Augment the fixture: default skin gets a TRIANGLE entry with a
+    // path-prefix override so its on-disk PNG lives under images/SUB/.
+    // Entry-key "TRIANGLE" stays — but resolved region path is "SUB/CIRCLE_NESTED".
+    const json = JSON.parse(fs.readFileSync(SRC_JSON, 'utf8'));
+    const defaultSkin = json.skins.find(
+      (s: { name: string }) => s.name === 'default',
+    );
+    const triangleEntry = defaultSkin.attachments.TRIANGLE.TRIANGLE;
+    defaultSkin.attachments.TRIANGLE.TRIANGLE = {
+      ...triangleEntry,
+      path: 'SUB/CIRCLE_NESTED',
+    };
+    const tmpJson = path.join(tmpDir, 'SIMPLE_TEST.json');
+    fs.writeFileSync(tmpJson, JSON.stringify(json));
+    try {
+      const load = loadSkeleton(tmpJson);
+      expect(load.atlasPath).toBeNull();
+      // Resolved region keys sourceDims, NOT the entry-key.
+      expect(load.sourceDims.has('SUB/CIRCLE_NESTED')).toBe(true);
+      expect(load.sourceDims.has('TRIANGLE')).toBe(false);
+      const sampled = sampleSkeleton(load);
+      const s = buildSummary(load, sampled, 0);
+      // SUB/CIRCLE_NESTED is the on-disk filename of the TRIANGLE attachment
+      // → not orphaned. Pre-fix it would have appeared in orphanedFiles
+      // because inUseNames carried "TRIANGLE" (the entry-key) instead.
+      const nestedOrphan = s.orphanedFiles?.find(
+        (f) => f.filename === 'SUB/CIRCLE_NESTED',
+      );
+      expect(nestedOrphan).toBeUndefined();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
