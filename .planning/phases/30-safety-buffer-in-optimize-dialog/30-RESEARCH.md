@@ -791,17 +791,19 @@ No state-of-the-art technology shifts apply. This phase reuses 6 established pro
 | A3 | `Option B` (OptimizeDialog owns the `useMemo`) is cleaner than `Option A` (AppShell owns) for reactive recompute | Pattern 6 | If WRONG: minor architectural difference. Both options satisfy CONTEXT D-08 reactive-on-every-change contract. Planner picks based on existing OptimizeDialog state-flow precedents. Option A may be safer because `exportDialogState.plan` is consumed in multiple places (onConfirmStart re-builds it at line 745); centralizing the memo avoids a divergence. |
 | A4 | `safeScale` must be applied to the POST-buffer value, not before. | Pitfall 5 | If WRONG: math drifts between core and renderer-view; existing display-vs-export lower-bound contract may break. CONTEXT D-09 step order is unambiguous: `bufferedScale := raw × (1 + buffer/100)` THEN `clampedScale := Math.min(safeScale(bufferedScale), 1.0)`. Single source of truth. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `bufferCapped` fire on the canonical 1.0 clamp?** (See A1 above.)
    - What we know: D-06 says "fires when `bufferedScale > sourceRatio` and `raw <= sourceRatio`". For clean rows (no dims drift), `sourceRatio === Infinity` so the strict reading never fires.
    - What's unclear: is the user's mental model "buffer pushed me past source dims" (narrow) or "buffer was silently clamped" (broad)?
    - Recommendation: planner adopts the broad reading (fires on either canonical-1.0 clamp or sourceRatio clamp). The flag is silent-only in v1.3.1, so the over-reporting is harmless; conversely under-reporting now would force a future migration when the flag becomes user-visible. **However:** since the flag is silent and CONTEXT D-06 is explicit, narrow reading is also acceptable — the planner should pick AND document the choice.
+   - **RESOLVED:** NARROW predicate per CONTEXT D-06 verbatim — `bufferPct > 0 && bufferedScale > sourceRatio && safeScale(rawEffScale) <= sourceRatio`. Documented in Plan 30-01 must_haves (ExportRow.bufferCapped comment block) and locked into Plan 30-02 Task 2 Step 5 (predicate compute) + Plan 30-02 Task 4 Test 3 (canonical-1.0 clamp does NOT fire bufferCapped) + Test 4 (cap-binding fires bufferCapped). Future PATCH may broaden to canonical-1.0 clamp; not v1.3.1 scope.
 
 2. **Should the buffer apply to `passthroughCopies[]` rows (effScale = 1.0× → buffer × 1.0 = 1.05× → cap at 1.0× → still passthrough)?**
    - What we know: D-09 step order applies buffer BEFORE all clamps. A passthrough-1.0 row gets buffer-multiplied to 1.05, clamped back to 1.0, partition still passthrough.
    - What's unclear: nothing — CONTEXT D-09 + Phase 22.1 partition-on-output flow correctly covers it.
    - Recommendation: add an explicit regression test for this case (TRIANGLE peakScale=1.0 + buffer=5 + zero override → still in passthroughCopies[]).
+   - **RESOLVED:** Buffer applies to passthrough rows; the canonical 1.0 clamp keeps them in `passthroughCopies` when buffered scale stays at 1.0 (partition runs on FINAL outW/outH at the emit loop, so buffer effects flow through naturally — Pitfall 3 + ROADMAP §Constraints to preserve). Explicit regression test added in Plan 30-02 Task 4 Test 5 ("Phase 22.1 partition: passthrough preserved at buffer=0; row at canonical 1.0 with buffer 5 stays in passthroughCopies via canonical clamp"). Plan 30-01 must_haves also covers this in the Phase 22.1 invariant truth.
 
 ## Environment Availability
 

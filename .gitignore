@@ -23,6 +23,9 @@ fixtures/Girl/
 fixtures/images/
 fixtures/Chicken/
 fixtures/3Queens/
+fixtures/CHJ/
+fixtures/MON_FILES/
+fixtures/spine_stripWS/
 # Joker assets (TOPSCREEN_ANIMATION_JOKER.*) — proprietary, kept local only.
 # Note: a handful of test specs read from this fixture (loader, analyzer,
 # sampler-skin-defined-unbound-attachment, atlas-preview) and will fail on
@@ -61,7 +64,7 @@ scripts/diagnose-*.ts
 tests/_trace_tmp/
 
 # GSD ephemeral checkpoint state (regenerated each discuss-phase session)
-.planning/phases/**/*-DISCUSS-CHECKPOINT.json
+.planning/**/*-DISCUSS-CHECKPOINT.json
 
 # Playwright MCP scratch dir
 .playwright-mcp/
