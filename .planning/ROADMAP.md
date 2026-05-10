@@ -84,7 +84,7 @@
 
 ### 🚧 v1.4 Spine 4.3 Forward-Compat + Rotated Atlases (Phases 32–33) — IN PROGRESS
 
-- [ ] **Phase 32: Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant)** — Add a 4.3-detection branch in `src/core/loader.ts` BEFORE `SkeletonJson.readSkeletonData` runs (sniff `root.constraints` array OR `skeleton.spine` semver `≥ 4.3`); throw the existing `SpineVersionUnsupportedError` from `src/core/errors.ts` with an actionable "re-export as Version 4.2" message — replaces today's misleading `IK Constraint not found: <name>` (or `Transform constraint not found:`) thrown by spine-core 4.2's reader when it walks `animations.*.ik[name]` against an empty `IkConstraintData[]` (4.3 stores constraints under unified `root.constraints[]`). Restyle the initial drop-zone advisory at `src/renderer/src/App.tsx:622` to call out the supported version explicitly with the `v4.2` token rendered as `font-bold text-danger` so users on a 4.3 editor see the constraint *before* they drop a file. Plant SEED-006 (Full Spine 4.3 runtime port) at phase close, carrying the costed inventory from this milestone's investigation: 5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy. (COMPAT-01, COMPAT-02)
+- [x] **Phase 32: Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant)** — Add a 4.3-detection branch in `src/core/loader.ts` BEFORE `SkeletonJson.readSkeletonData` runs (sniff `root.constraints` array OR `skeleton.spine` semver `≥ 4.3`); throw the existing `SpineVersionUnsupportedError` from `src/core/errors.ts` with an actionable "re-export as Version 4.2" message — replaces today's misleading `IK Constraint not found: <name>` (or `Transform constraint not found:`) thrown by spine-core 4.2's reader when it walks `animations.*.ik[name]` against an empty `IkConstraintData[]` (4.3 stores constraints under unified `root.constraints[]`). Restyle the initial drop-zone advisory at `src/renderer/src/App.tsx:622` to call out the supported version explicitly with the `v4.2` token rendered as `font-bold text-danger` so users on a 4.3 editor see the constraint *before* they drop a file. Plant SEED-006 (Full Spine 4.3 runtime port) at phase close, carrying the costed inventory from this milestone's investigation: 5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy. (COMPAT-01, COMPAT-02) (completed 2026-05-10)
 - [ ] **Phase 33: Rotated atlas region support (loader + bounds + export + fixture)** — Remove the hard-throw `RotatedRegionUnsupportedError` from `src/core/errors.ts:154`; rotated regions now propagate through `analyzer.ts` like any other region. In `src/core/bounds.ts` `attachmentWorldAABB`, swap source W↔H for rotated regions before computing the world-space AABB so bounds match what the runtime would render at identity scale. ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims. Atlas-less mode is unaffected (synthetic atlas never packs with rotation). Commit a rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — NOT one of the gitignored proprietary rigs like Chicken/Girl/Jokerman) under `fixtures/` and exercise it via core unit tests covering ATLAS-01..03. (ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04)
 
 
@@ -809,7 +809,7 @@ Plans:
   4. The error message visually pairs with the drop-zone v4.2 disclosure (same `text-danger` token; same "v4.2" wording) so a user reading the error sees the same supported-version contract they read before dropping the file. (COMPAT-01 + COMPAT-02 integration)
   5. SEED-006 (`Full Spine 4.3 runtime port`) is planted under `.planning/seeds/` at phase close, carrying the costed inventory: 5 sampler renames + 2 bounds signature changes + `slot.pose` access pattern + slider-constraint validation strategy + vendoring strategy (git submodule + tsc, npm fork, or wait-for-publish). The `trigger_when:` clause references `npm view @esotericsoftware/spine-core@latest` returning 4.3.x AND/OR a paying user reporting they cannot re-export their rig as Version 4.2.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -818,7 +818,7 @@ Plans:
 - [x] 32-04-PLAN.md — SEED-006 plant under `.planning/seeds/` + SEED-003 close-out addendum (Wave 1, no REQ — phase deliverable)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
+- [x] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
 
 **UI hint**: yes
 
@@ -889,7 +889,7 @@ The packer-options interaction is locked by memory `project_atlas_pack_options_a
 | 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 7/7 | Complete    | 2026-05-07 |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
-| 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 3/4 | In Progress|  |
+| 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete   | 2026-05-10 |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 0/TBD | Not started | — |
 
 ## Deferred (post-v1.1)
