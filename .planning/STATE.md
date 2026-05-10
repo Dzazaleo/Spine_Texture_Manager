@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
 status: executing
-last_updated: "2026-05-10T15:11:09.520Z"
-last_activity: 2026-05-10 -- Phase 32 planning complete
+last_updated: "2026-05-10T15:16:37.731Z"
+last_activity: 2026-05-10 -- Phase 32 execution started
 progress:
   total_phases: 16
   completed_phases: 0
@@ -16,17 +16,17 @@ progress:
 
 ## Current Position
 
-Phase: 32 of 33 (Spine 4.3-beta detect-and-warn + drop-zone version disclosure) — Context gathered
-Plan: — (CONTEXT.md landed; ready for `/gsd-plan-phase 32`)
-Status: Ready to execute
-Last activity: 2026-05-10 -- Phase 32 planning complete
+Phase: 32 (spine-4-3-beta-detect-and-warn-drop-zone-version-disclosure) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 32
+Last activity: 2026-05-10 -- Phase 32 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** v1.4 Phase 32 — Spine 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (COMPAT-01/02). Phase 33 follows for rotated-atlas region support (ATLAS-01..04). SEED-006 (full 4.3 runtime port) planted at P32 close.
+**Current focus:** Phase 32 — spine-4-3-beta-detect-and-warn-drop-zone-version-disclosure
 
 ## v1.4 Roadmap At-a-Glance
 
