@@ -812,10 +812,13 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
+**Wave 1**
 - [ ] 32-01-PLAN.md — Loader-side `checkSpine43Schema` predicate + sequential call site + tighten `checkSpineVersion` strict-cut at 4.3+ + branched `SpineVersionUnsupportedError` constructor message + predicate unit tests + invert lenient-on-4.3+ assertions (Wave 1, COMPAT-01)
 - [ ] 32-02-PLAN.md — Drop-zone idle copy edit at App.tsx:621-623 with `v4.2` inline `<span className="font-bold text-danger">` (Wave 1, COMPAT-02; parallel-safe with 32-01)
-- [ ] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
 - [ ] 32-04-PLAN.md — SEED-006 plant under `.planning/seeds/` + SEED-003 close-out addendum (Wave 1, no REQ — phase deliverable)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
 
 **UI hint**: yes
 
