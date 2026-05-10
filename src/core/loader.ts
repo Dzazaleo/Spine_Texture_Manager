@@ -41,7 +41,6 @@ import type { LoadResult, LoaderOptions, SourceDims } from './types.js';
 import {
   AtlasNotFoundError,
   AtlasParseError,
-  RotatedRegionUnsupportedError,
   SkeletonJsonNotFoundError,
   SpineVersionUnsupportedError,
 } from './errors.js';
@@ -504,23 +503,6 @@ export function loadSkeleton(
     }
   }
 
-  // G-01b D-03 (Phase 22.1) — atlas-source mode, load-time rejection of
-  // rotated regions. User-locked invariant: rotated atlas regions are
-  // non-negotiable for this app's contract. The existing Optimize-time
-  // check at image-worker.ts:327-338 becomes defense-in-depth (load never
-  // produces a skeleton with rotated regions, so Optimize never sees them).
-  // Skipped in atlas-less mode (synthesizeAtlasText emits rotated:false always).
-  if (!isAtlasLess) {
-    for (const region of atlas!.regions) {
-      if (region.degrees !== 0) {
-        throw new RotatedRegionUnsupportedError(
-          region.name,
-          resolvedAtlasPath ?? skeletonPath,
-        );
-      }
-    }
-  }
-
   // 5. Parse skeleton via spine-core's own JSON reader.
   //    `SkeletonJson.readSkeletonData` accepts either a string or a pre-parsed
   //    object; we parse once with V8's JSON.parse (hoisted above for the
@@ -686,9 +668,9 @@ export function loadSkeleton(
   // For rotated regions (region.degrees !== 0): the packed bounds W/H are
   // swapped vs the orig dims (libgdx packer convention). We store packW/H as
   // the actual page-PNG rect (which is what sharp.extract needs) and w/h as
-  // orig — but since Gap-Fix #2 emits 'rotated-region-unsupported' rather
-  // than attempting the rotated-extract, the precise dims don't matter for
-  // rotated rows; we still record them for diagnostic clarity.
+  // orig. Phase 33 removed the load-time rotation refusal; downstream
+  // consumers (bounds.ts AABB + image-worker sharp.rotate) handle the
+  // swap explicitly using the `rotated` flag.
   //
   // 2026-05-08 fix (debug session export-extract-area-bad-area): added
   // packW/packH/offsetX/offsetY so consumers can extract the trimmed rect

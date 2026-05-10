@@ -22,7 +22,9 @@
  *   SQUARE   atlas 1000×1000 (images/SQUARE.png is 890×890 — IGNORED in atlas-source mode)
  *   TRIANGLE atlas 833×759   (images/TRIANGLE.png matches)
  *
- * The rotation-rejection tests and G-08 tests live in loader-rotation-rejection.spec.ts.
+ * The rotation-acceptance tests live in loader-rotation-accept.spec.ts.
+ * (The Phase 22.1 rotation-rejection + G-08 specs were removed in Phase 33-03
+ * when load-time rotation rejection was lifted in favor of full handling.)
  */
 import { describe, expect, it } from 'vitest';
 import * as path from 'node:path';

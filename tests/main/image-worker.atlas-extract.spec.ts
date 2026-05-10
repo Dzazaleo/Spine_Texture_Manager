@@ -112,61 +112,6 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
     expect(fs.existsSync(outPath + '.tmp')).toBe(false);
   });
 
-  it('rotated atlas region → emits "rotated-region-unsupported" rather than silent corruption', async () => {
-    // Synthesize a rotated atlasSource (no real rotated region exists in
-    // the in-repo fixtures; the loader unconditionally sets rotated:false
-    // for them — see tests/core/loader.spec.ts no-rotated-regions invariant).
-    // We construct the row by hand to exercise the runExport refusal path.
-    if (!fs.existsSync(JOKERMAN_PAGE_1)) {
-      console.warn(`Skipping: atlas page missing at ${JOKERMAN_PAGE_1}`);
-      return;
-    }
-    const syntheticPerRegionPath = path.join(JOKERMAN_DIR, 'images', 'SYNTHETIC_ROTATED.png');
-
-    const plan: ExportPlan = {
-      rows: [{
-        sourcePath: syntheticPerRegionPath,
-        outPath: 'images/SYNTHETIC_ROTATED.png',
-        sourceW: 100,
-        sourceH: 100,
-        outW: 50,
-        outH: 50,
-        effectiveScale: 0.5,
-        attachmentNames: ['SYNTHETIC_ROTATED'],
-        atlasSource: {
-          pagePath: JOKERMAN_PAGE_1,
-          x: 0,
-          y: 0,
-          packW: 100,
-          packH: 100,
-          offsetX: 0,
-          offsetY: 0,
-          w: 100,
-          h: 100,
-          rotated: true,
-        },
-      }],
-      excludedUnused: [],
-      passthroughCopies: [],
-      totals: { count: 1 },
-    };
-
-    const events: ExportProgressEvent[] = [];
-    const summary = await runExport(plan, tmpDir, (e) => events.push(e), () => false);
-
-    expect(summary.successes).toBe(0);
-    expect(summary.errors.length).toBe(1);
-    expect(summary.errors[0].kind).toBe('rotated-region-unsupported');
-    expect(events.length).toBe(1);
-    expect(events[0].status).toBe('error');
-    expect(events[0].error?.kind).toBe('rotated-region-unsupported');
-
-    // No partial output file should have been written.
-    const outPath = path.join(tmpDir, 'images', 'SYNTHETIC_ROTATED.png');
-    expect(fs.existsSync(outPath)).toBe(false);
-    expect(fs.existsSync(outPath + '.tmp')).toBe(false);
-  });
-
   it('atlas page missing AND per-region PNG missing → "missing-source" against the page path', async () => {
     // Both the per-region path and the atlas page path point to non-existent
     // files. The pre-flight should surface 'missing-source' against the

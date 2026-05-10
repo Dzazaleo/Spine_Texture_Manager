@@ -103,9 +103,10 @@ export interface DisplayRow {
    *     Whitespace is off. For rotated regions packed-bounds are swapped
    *     vs orig so we keep w/h as orig dims and consumers branch on
    *     `rotated`.
-   *   - rotated: true when region.degrees !== 0 (typically 90°). The
-   *     image-worker emits `'rotated-region-unsupported'` for rotated
-   *     regions rather than silently producing 90°-wrong output.
+   *   - rotated: true when region.degrees !== 0 (typically 90°). Rotated
+   *     regions are un-rotated by the image-worker (sharp.rotate(-90))
+   *     during atlas-extract; output PNGs are emitted in canonical
+   *     orientation matching the unrotated source W×H.
    *
    * Optional — undefined when the analyzer is invoked without an
    * atlasSources map (CLI path, D-102 lock). The image-worker prefers
@@ -391,8 +392,9 @@ export interface ExportRow {
    *
    * The image-worker prefers sourcePath if it exists on disk; only
    * falls back to atlasSource when the per-region PNG is missing
-   * (atlas-only projects). Rotated regions emit
-   * 'rotated-region-unsupported' rather than silent corruption.
+   * (atlas-only projects). Rotated regions are un-rotated via
+   * sharp.rotate(-90) during atlas-extract so the output PNG is in
+   * canonical orientation matching the unrotated source W×H.
    *
    * All fields primitive — structuredClone-safe per file-top D-21 lock.
    */
@@ -495,11 +497,6 @@ export interface ExportPlan {
  *     fallback was available (D-112).
  *   - 'sharp-error':    sharp/libvips threw during resize/encode.
  *   - 'write-error':    fs.rename failed OR path-traversal defense rejected.
- *   - 'rotated-region-unsupported': Gap-Fix #2 (2026-04-25) — atlas-only
- *     fallback was triggered but the region is rotated (region.degrees
- *     !== 0). First-pass refuses to attempt the rotated extract; user
- *     must re-export from Spine with rotation disabled or wait for a
- *     follow-up phase to add rotation handling.
  *   - 'overwrite-source': Gap-Fix Round 2 (2026-04-25) — refusing to
  *     overwrite a source PNG or atlas page. Surfaced both at the IPC
  *     pre-flight layer (fail-fast before claiming the in-flight slot) AND
@@ -520,7 +517,7 @@ export interface ExportPlan {
  *     caller that bypasses the renderer flow).
  */
 export interface ExportError {
-  kind: 'missing-source' | 'sharp-error' | 'write-error' | 'rotated-region-unsupported' | 'overwrite-source';
+  kind: 'missing-source' | 'sharp-error' | 'write-error' | 'overwrite-source';
   path: string;
   message: string;
 }
@@ -891,7 +888,6 @@ export type SerializableError =
         | 'AtlasNotFoundError'
         | 'AtlasParseError'
         | 'MissingImagesDirError'          // Phase 21 (LOAD-01): atlas-less catastrophic case
-        | 'RotatedRegionUnsupportedError'  // Phase 22.1 (G-01b D-03): load-time rotation rejection
         | 'ProjectFileNotFoundError'      // Phase 8 D-149: file missing on disk
         | 'ProjectFileParseError'          // Phase 8 Pitfall 9: JSON.parse SyntaxError
         | 'ProjectFileVersionTooNewError'  // Phase 8 D-151: version > 1

@@ -22,9 +22,10 @@
  *      - atlas-extract path: sharp(atlasSource.pagePath)
  *        .extract({left,top,width,height}).resize(W, H, lanczos3, fill)
  *        .png(level 9).toFile(<resolvedOut>.tmp)
- *      Rotated regions (atlasSource.rotated === true) emit
- *      'rotated-region-unsupported' BEFORE invoking sharp — first-pass
- *      Gap-Fix #2 refuses to attempt the rotated extract.
+ *      Rotated regions (atlasSource.rotated === true) are un-rotated
+ *      via sharp.rotate(-90) during atlas-extract so the output PNG is
+ *      emitted in canonical orientation matching the unrotated source
+ *      W×H (Phase 33).
  *   6. fs.rename(<resolvedOut>.tmp, resolvedOut) per D-121 atomic write.
  *   7. Emit ExportProgressEvent with absolute outPath.
  *   8. Between files: if isCancelled() → break (D-115). In-flight cannot
@@ -32,7 +33,6 @@
  *
  * Per-file errors are classified by THROW SITE (RESEARCH §Pitfall 7):
  *   - pre-flight access throw + no atlasSource → 'missing-source'
- *   - rotated atlasSource refusal              → 'rotated-region-unsupported'
  *   - sharp chain throw                        → 'sharp-error'
  *   - mkdir / rename throw                     → 'write-error'
  *   - path-traversal reject                    → 'write-error'
@@ -417,24 +417,6 @@ export async function runExport(
         onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
         continue;
       }
-    }
-
-    // Gap-Fix #2: rotated regions are unsupported in this first pass.
-    // Surface as a clear typed error rather than silently producing
-    // 90°-wrong output. Jokerman has 0 rotated regions; if a real
-    // rotated asset arrives, a follow-up phase can add rotation
-    // handling (sharp.rotate(±90) before resize).
-    if (useAtlasExtract && row.atlasSource && row.atlasSource.rotated) {
-      const error: ExportError = {
-        kind: 'rotated-region-unsupported',
-        path: row.atlasSource.pagePath,
-        message:
-          `Atlas region for ${row.attachmentNames.join(', ')} is rotated; rotation handling not yet implemented. ` +
-          `Re-export from Spine with rotation disabled, or wait for a follow-up phase.`,
-      };
-      errors.push(error);
-      onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
-      continue;
     }
 
     // 2. Path-traversal defense. Resolves outPath against outDir and

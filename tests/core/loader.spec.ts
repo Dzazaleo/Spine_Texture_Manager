@@ -228,10 +228,13 @@ describe('loader: atlasSources map (Phase 6 Gap-Fix #2 — atlas-packed projects
     expect(body.rotated).toBe(false);
   });
 
-  it('atlasSources rotated flag — SIMPLE_TEST + EXPORT_PROJECT + Jokerman all have ZERO rotated regions (first-pass scope)', () => {
-    // Locks the no-rotation precondition for the Gap-Fix #2 first-pass.
-    // If a future fixture introduces a rotated region, this test FAILS to
-    // force the contributor to add explicit handling.
+  it('atlasSources rotated flag — SIMPLE_TEST + EXPORT_PROJECT + Jokerman are not rotated (regression guard against accidental re-pack)', () => {
+    // Pre-Phase 33 this asserted "first-pass Gap-Fix #2 cannot handle rotation".
+    // Post-Phase 33 the loader handles rotation correctly; this remains as a
+    // regression guard against an accidental re-export with rotation:true on
+    // any of these three legacy fixtures (their atlases were authored with
+    // rotation:false and that authoring choice is part of the fixture contract).
+    // Positive rotation-handling assertions live in tests/core/loader-rotation-accept.spec.ts.
     const fixtures = [
       FIXTURE,
       path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json'),
@@ -241,7 +244,7 @@ describe('loader: atlasSources map (Phase 6 Gap-Fix #2 — atlas-packed projects
     for (const f of fixtures) {
       const r = loadSkeleton(f);
       for (const [name, src] of r.atlasSources) {
-        expect(src.rotated, `${path.basename(f)} region ${name} is rotated — first-pass Gap-Fix #2 does not support this`).toBe(false);
+        expect(src.rotated, `${path.basename(f)} region ${name} is rotated — these fixtures must remain non-rotated for fixture-contract stability`).toBe(false);
       }
     }
   });
