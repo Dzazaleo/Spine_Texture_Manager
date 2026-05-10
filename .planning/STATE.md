@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-05-10T13:22:27.797Z"
 last_activity: 2026-05-10
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,25 +17,30 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-10 — Milestone v1.4 started
+Phase: 32 of 33 (Spine 4.3-beta detect-and-warn + drop-zone version disclosure) — Not started
+Plan: — (roadmap landed; ready for `/gsd-plan-phase 32`)
+Status: Roadmap complete; ready to plan Phase 32
+Last activity: 2026-05-10 — v1.4 ROADMAP.md authored: Phases 32–33 mapped to all 6 v1.4 REQs (COMPAT-01/02 → P32; ATLAS-01..04 → P33); SEED-006 plant scheduled at P32 close; REQUIREMENTS.md traceability filled.
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-09 — v1.3.1 shipped)
+See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Tag v1.3.1 → CI release build → publish draft Release. Plan v1.4 milestone after.
+**Current focus:** v1.4 Phase 32 — Spine 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (COMPAT-01/02). Phase 33 follows for rotated-atlas region support (ATLAS-01..04). SEED-006 (full 4.3 runtime port) planted at P32 close.
 
-## Last Roadmap Update
+## v1.4 Roadmap At-a-Glance
 
-2026-05-09 — v1.3.1 milestone complete. ROADMAP.md: v1.3.1 milestone bullet flipped to ✅ shipped; Phases 29/30/31 collapsed into `<details>` block; Progress table closed for v1.3.1. Phases 29/30/31 directories archived to `.planning/milestones/v1.3.1-phases/`. REQUIREMENTS.md → archived as `milestones/v1.3.1-REQUIREMENTS.md` (20 REQ-IDs all marked complete) + removed from `.planning/`. MILESTONES.md gained a v1.3.1 entry (3 phases / 16 plans / 20 REQs / Phase 29/30/31 accomplishments + late tester-regression fixes 1b5414c/834c975/d86e7b3). PROJECT.md current-state updated; v1.3.1 decisions appended.
+| Phase | Goal | REQs | Plans |
+|-------|------|------|-------|
+| 32 | 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (+ SEED-006 plant) | COMPAT-01, COMPAT-02 | TBD |
+| 33 | Rotated atlas region support (loader + bounds + export + fixture) | ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04 | TBD |
+
+Coverage: 6/6 v1.4 REQs mapped. No orphans. SEED-006 plant is a P32 phase deliverable, not a REQ.
 
 ## Last completed milestone
 
-**Milestone v1.3.1 — Correctness & Refinements — SHIPPED 2026-05-09.** 3 phases, 16 plans, 20 REQs. Phase 29 closed the per-region dedup correctness gap (path-indirected duplicate rows surfaced post-v1.3 ship — analyzer.ts attachmentName→regionName key flip + RegionRow IPC type + override-region semantics + atlas-preview pack-page accuracy). Phase 30 added the user-configurable safety-buffer % control to the Optimize dialog with NARROW `bufferCapped` predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport`. Phase 31 small-fixes batch: source-toggle disabling on missing artifacts (LOAD-05/06/07), Animation Breakdown collapse defaults + bulk Expand/Collapse all (PANEL-08..11; in-memory only), Windows admin DnD fallback advisory (PLATFORM-01), ExtrapolationIcon tooltip primitive (TOOLTIP-01). Late tester-regression fixes 1b5414c (Strip-Whitespace export pipeline) + 834c975 (auto-expand failed Optimize rows) + d86e7b3 (per-frame canonical dims for sequence attachments).
+**Milestone v1.3.1 — Correctness & Refinements — SHIPPED 2026-05-09.** 3 phases, 16 plans, 20 REQs. Phase 29 closed the per-region dedup correctness gap (path-indirected duplicate rows surfaced post-v1.3 ship — analyzer.ts attachmentName→regionName key flip + RegionRow IPC type + override-region semantics + atlas-preview pack-page accuracy). Phase 30 added the user-configurable safety-buffer % control to the Optimize dialog with NARROW `bufferCapped` predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport`. Phase 31 small-fixes batch: source-toggle disabling on missing artifacts (LOAD-05/06/07), Animation Breakdown collapse defaults + bulk Expand/Collapse all (PANEL-08..11; in-memory only), Windows admin DnD fallback advisory (PLATFORM-01), ExtrapolationIcon tooltip primitive (TOOLTIP-01). Late tester-regression fixes 1b5414c (Strip-Whitespace export pipeline) + 834c975 (auto-expand failed Optimize rows) + d86e7b3 (per-frame canonical dims for sequence attachments). Six patch tags through v1.3.6 (2026-05-10) per memory `project_v131_shipped`.
 
 ## Deferred Items
 
@@ -70,11 +75,12 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 | debug | path-indirected-duplicate-rows | pending_phase_plan — root cause closed by Phase 29 region-dedup fix; debug doc kept as a v1.4 reference for related surfaces (Atlas Preview optimized-mode tile expansion) |
 | debug | post-v1-3-tester-regressions | diagnosed — analyzer.ts atlas-region-name vs entry-name key bug; root-fixed by Phase 29 region-keyed dedup; doc retained for v1.4 follow-up surface audits |
 
-**Seeds for v1.4:**
+**Seeds for v1.4 / future:**
 
-- SEED-003 (Spine 4.3 compatibility) — planted 2026-05-07 (commit `823f490`); primary v1.4 candidate.
-- SEED-004 (Rotated atlas regions) — planted 2026-05-08; A=error UX or B=full rotated-region support.
-- SEED-005 (RGBA2 + InheritTimeline coverage) — planted 2026-05-08; audit-only or full feature surface.
+- SEED-003 (Spine 4.3 compatibility) — planted 2026-05-07 (commit `823f490`); **picked up by v1.4 Phase 32** (detect-and-warn path; full port deferred to SEED-006).
+- SEED-004 (Rotated atlas regions) — planted 2026-05-08; **picked up by v1.4 Phase 33** (Option B: full rotated-region support, not just error-message UX).
+- SEED-005 (RGBA2 + InheritTimeline coverage) — planted 2026-05-08; deferred again, audit-only or full feature surface; not in v1.4 scope.
+- SEED-006 (Full Spine 4.3 runtime port) — **planted at v1.4 Phase 32 close**; trigger: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x AND/OR a paying user reports they cannot re-export their rig as Version 4.2.
 
 ## Accumulated Context (carries across milestones)
 
@@ -84,4 +90,5 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 
 *This file is authored fresh at milestone start. v1.3.1 phases are archived under `.planning/milestones/v1.3.1-phases/` (29, 30, 31).*
 
-**Last Milestone:** v1.3.1 (Correctness & Refinements) — COMPLETE — 2026-05-09 (3 phases, 16 plans, 20 REQs; tag pending).
+**Last Milestone:** v1.3.1 (Correctness & Refinements) — COMPLETE — 2026-05-09 (3 phases, 16 plans, 20 REQs; tag `v1.3.1` shipped).
+**Current Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — Roadmap landed 2026-05-10; Phase 32 ready to plan.

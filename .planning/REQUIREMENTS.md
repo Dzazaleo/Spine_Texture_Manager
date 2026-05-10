@@ -22,7 +22,7 @@
 
 ### Future Planning (no user-facing requirement)
 
-- Plant `SEED-006: Full Spine 4.3 runtime port` carrying the costed inventory from this milestone's investigation (5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy). This is a phase deliverable, not a REQ.
+- Plant `SEED-006: Full Spine 4.3 runtime port` carrying the costed inventory from this milestone's investigation (5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy). This is a phase deliverable, not a REQ. **Mapped to Phase 32 (close-of-phase plant).**
 
 ## Future Requirements
 
@@ -54,22 +54,24 @@ Deferred to a future milestone. Tracked but not in current roadmap.
 
 ## Traceability
 
-Empty initially. Populated by gsd-roadmapper during phase mapping.
+Populated by gsd-roadmapper 2026-05-10.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| COMPAT-01 | TBD | Pending |
-| COMPAT-02 | TBD | Pending |
-| ATLAS-01 | TBD | Pending |
-| ATLAS-02 | TBD | Pending |
-| ATLAS-03 | TBD | Pending |
-| ATLAS-04 | TBD | Pending |
+| COMPAT-01 | Phase 32 | Pending |
+| COMPAT-02 | Phase 32 | Pending |
+| ATLAS-01 | Phase 33 | Pending |
+| ATLAS-02 | Phase 33 | Pending |
+| ATLAS-03 | Phase 33 | Pending |
+| ATLAS-04 | Phase 33 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 6 total
-- Mapped to phases: 0 (pre-roadmap)
-- Unmapped: 6 ⚠️ (will be resolved by gsd-roadmapper)
+- Mapped to phases: 6 ✓
+- Unmapped: 0
+- Phases: 2 (Phase 32 carries 2 REQs; Phase 33 carries 4 REQs)
+- SEED-006 plant: Phase 32 close-of-phase deliverable (not a REQ).
 
 ---
 *Requirements defined: 2026-05-10*
-*Last updated: 2026-05-10 — initial v1.4 definition*
+*Last updated: 2026-05-10 — gsd-roadmapper traceability fill: COMPAT-01/02 → Phase 32; ATLAS-01..04 → Phase 33.*
