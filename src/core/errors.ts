@@ -72,9 +72,12 @@ export class AtlasParseError extends SpineLoaderError {
  * CLAUDE.md documents 4.2+ as the hard requirement; this class makes the
  * runtime check enforce the doc with an actionable, structured message.
  *
- * Lenient on 4.3+ per CONTEXT.md Deferred ("4.3+ is not silently rejected,
- * but it's also not actively supported"); the predicate at
- * `src/core/loader.ts checkSpineVersion` only throws when major.minor < 4.2.
+ * Phase 32 (D-03, COMPAT-01) — strict-cut at 4.3+. Constructor branches the
+ * message by `detectedVersion`: when `'4.3-schema'` (sentinel from the new
+ * checkSpine43Schema predicate) OR semver parses to major.minor >= 4.3, the
+ * message routes the user to Spine's "Re-export as Version 4.2" downgrade
+ * workflow (supported by the 4.3 editor). Otherwise the existing pre-4.2
+ * message is preserved verbatim.
  *
  * Two-field constructor template mirrors AtlasNotFoundError above —
  * `.name = 'SpineVersionUnsupportedError'` is critical because the IPC
@@ -85,11 +88,35 @@ export class SpineVersionUnsupportedError extends SpineLoaderError {
     public readonly detectedVersion: string,
     public readonly skeletonPath: string,
   ) {
-    super(
-      `This file was exported from Spine ${detectedVersion}. ` +
+    // Phase 32 (D-03, COMPAT-01) — branch the message by detectedVersion.
+    // Two audiences: pre-4.2 users (re-export as 4.2 OR LATER) vs.
+    // 4.3+ users (re-export specifically as 4.2; downgrade is a supported
+    // editor workflow).
+    //
+    // The 4.3+ branch fires when:
+    //   (a) detectedVersion === '4.3-schema' (sentinel from checkSpine43Schema), OR
+    //   (b) detectedVersion semver parses to major.minor >= 4.3 (or major >= 5).
+    // Everything else (including 'unknown', malformed strings, and any
+    // < 4.2 semver) takes the pre-4.2 branch — Phase 12 F3 contract preserved.
+    let isSpine43OrLater = false;
+    if (detectedVersion === '4.3-schema') {
+      isSpine43OrLater = true;
+    } else {
+      const parts = detectedVersion.split('.');
+      const major = parseInt(parts[0] ?? '', 10);
+      const minor = parseInt(parts[1] ?? '', 10);
+      if (!Number.isNaN(major) && !Number.isNaN(minor)) {
+        if (major >= 5 || (major === 4 && minor >= 3)) {
+          isSpine43OrLater = true;
+        }
+      }
+    }
+    const message = isSpine43OrLater
+      ? `This app currently supports Spine v4.2. Re-export from your 4.3 editor as Version 4.2 (supported downgrade) and try again.`
+      : `This file was exported from Spine ${detectedVersion}. ` +
         `Spine Texture Manager requires Spine 4.2 or later. ` +
-        `Re-export from Spine 4.2 or later in the editor.`,
-    );
+        `Re-export from Spine 4.2 or later in the editor.`;
+    super(message);
     this.name = 'SpineVersionUnsupportedError';
   }
 }
