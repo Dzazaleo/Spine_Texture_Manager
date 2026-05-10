@@ -74,6 +74,7 @@ describe('checkSpine43Schema (Phase 32 / Plan 01 / COMPAT-01)', () => {
     });
 
     it("Rejection error carries detectedVersion === '4.3-schema' (sentinel)", () => {
+      expect(() => checkSpine43Schema({ constraints: [] }, SKEL)).toThrow(SpineVersionUnsupportedError);
       try {
         checkSpine43Schema({ constraints: [] }, SKEL);
       } catch (err) {
