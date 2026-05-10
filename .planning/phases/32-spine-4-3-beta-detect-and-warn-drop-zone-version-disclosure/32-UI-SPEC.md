@@ -1,10 +1,11 @@
 ---
 phase: 32
 slug: spine-4-3-beta-detect-and-warn-drop-zone-version-disclosure
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-10
+reviewed_at: 2026-05-10
 ---
 
 # Phase 32 — UI Design Contract
