@@ -7,7 +7,7 @@
  * adds the export) so the predicate's seven decision cases can be exercised
  * independently of fixture loading. Cases:
  *   1. accepts 4.2.x   (the contracted minimum)
- *   2. accepts 4.3+    (lenient pass per CONTEXT Deferred)
+ *   2. rejects 4.3+    (Phase 32 strict-cut, COMPAT-01)
  *   3. rejects 4.1.x   (just below the bar)
  *   4. rejects 3.8.x   (the F3 reproduction)
  *   5. rejects null    (pre-3.7 had no `skeleton.spine` field)
@@ -35,14 +35,6 @@ describe('checkSpineVersion (Phase 12 / Plan 05 / F3)', () => {
 
     it('accepts 4.2.0 (exact lower-bound)', () => {
       expect(() => checkSpineVersion('4.2.0', SKEL)).not.toThrow();
-    });
-
-    it('accepts 4.3.0 (lenient pass per CONTEXT Deferred — 4.3+ silent pass)', () => {
-      expect(() => checkSpineVersion('4.3.0', SKEL)).not.toThrow();
-    });
-
-    it('accepts 5.0.0 (lenient on any future major)', () => {
-      expect(() => checkSpineVersion('5.0.0', SKEL)).not.toThrow();
     });
   });
 
@@ -99,6 +91,29 @@ describe('checkSpineVersion (Phase 12 / Plan 05 / F3)', () => {
     it('rejects single-component input ("4")', () => {
       // parts[1] = undefined → parseInt('', 10) = NaN → reject branch fires.
       expect(() => checkSpineVersion('4', SKEL)).toThrow(SpineVersionUnsupportedError);
+    });
+
+    it('rejects 4.3.0 (Phase 32 strict-cut at 4.3+)', () => {
+      expect(() => checkSpineVersion('4.3.0', SKEL)).toThrow(SpineVersionUnsupportedError);
+      try {
+        checkSpineVersion('4.3.0', SKEL);
+      } catch (err) {
+        expect((err as SpineVersionUnsupportedError).detectedVersion).toBe('4.3.0');
+        expect((err as SpineVersionUnsupportedError).skeletonPath).toBe(SKEL);
+      }
+    });
+
+    it('rejects 4.3.91-beta (the typical 4.3-beta semver shape)', () => {
+      expect(() => checkSpineVersion('4.3.91-beta', SKEL)).toThrow(SpineVersionUnsupportedError);
+      try {
+        checkSpineVersion('4.3.91-beta', SKEL);
+      } catch (err) {
+        expect((err as SpineVersionUnsupportedError).detectedVersion).toBe('4.3.91-beta');
+      }
+    });
+
+    it('rejects 5.0.0 (no Spine 5 yet; reject pending future support phase)', () => {
+      expect(() => checkSpineVersion('5.0.0', SKEL)).toThrow(SpineVersionUnsupportedError);
     });
   });
 });

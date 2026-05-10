@@ -25,7 +25,7 @@ import {
   SpineVersionUnsupportedError,
 } from '../../src/core/errors.js';
 
-describe('SpineVersionUnsupportedError (Phase 12 / Plan 05 / F3)', () => {
+describe('SpineVersionUnsupportedError (Phase 12 F3 + Phase 32 COMPAT-01)', () => {
   it('exposes detectedVersion + skeletonPath as readonly fields', () => {
     const err = new SpineVersionUnsupportedError('3.8.99', '/foo/skel.json');
     expect(err.detectedVersion).toBe('3.8.99');
@@ -56,5 +56,35 @@ describe('SpineVersionUnsupportedError (Phase 12 / Plan 05 / F3)', () => {
     expect(err.detectedVersion).toBe('unknown');
     expect(err.message).toContain('unknown');
     expect(err.message).toContain('Spine 4.2 or later');
+  });
+
+  it("4.3+ branch: detectedVersion === '4.3-schema' sentinel produces COMPAT-01 wording", () => {
+    const err = new SpineVersionUnsupportedError('4.3-schema', '/foo/skel.json');
+    expect(err.message).toContain('This app currently supports Spine v4.2');
+    expect(err.message).toContain('Re-export from your 4.3 editor as Version 4.2');
+    expect(err.message).toContain('supported downgrade');
+    expect(err.message).toContain('try again');
+  });
+
+  it("4.3+ branch: detectedVersion === '4.3.91-beta' (semver) produces COMPAT-01 wording", () => {
+    const err = new SpineVersionUnsupportedError('4.3.91-beta', '/foo/skel.json');
+    expect(err.message).toContain('This app currently supports Spine v4.2');
+    expect(err.message).toContain('supported downgrade');
+  });
+
+  it("4.3+ branch: detectedVersion === '5.0.0' (any major >= 5) produces COMPAT-01 wording", () => {
+    const err = new SpineVersionUnsupportedError('5.0.0', '/foo/skel.json');
+    expect(err.message).toContain('This app currently supports Spine v4.2');
+    expect(err.message).toContain('supported downgrade');
+  });
+
+  it('Pre-4.2 branch: detectedVersion === \'4.1.99\' preserves the legacy F3 message verbatim', () => {
+    const err = new SpineVersionUnsupportedError('4.1.99', '/foo/skel.json');
+    expect(err.message).toContain('4.1.99');
+    expect(err.message).toContain('Spine 4.2 or later');
+    expect(err.message).toContain('Re-export from Spine 4.2 or later in the editor');
+    // The 4.3+ template MUST NOT leak into the pre-4.2 branch.
+    expect(err.message).not.toContain('supported downgrade');
+    expect(err.message).not.toContain('your 4.3 editor');
   });
 });

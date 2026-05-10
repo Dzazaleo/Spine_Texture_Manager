@@ -100,9 +100,12 @@ export function createStubTextureLoader(): (pageName: string) => Texture {
  * reports success while producing zero usable images — F3 makes that
  * runtime-detectable with an actionable typed error.
  *
- * Lenient on 4.3+ per CONTEXT.md Deferred ("4.3+ is not silently
- * rejected, but it's also not actively supported"); a future phase
- * can split this into a distinct "untested-version" warning surface.
+ * Phase 32 (D-01, COMPAT-01) — strict-cut at 4.3+. Reject `major.minor >= 4.3`
+ * (and any `major >= 5`) so honest 4.3-beta exports surface the COMPAT-01
+ * re-export-as-Version-4.2 message instead of falling through to spine-core's
+ * SkeletonJson (which throws a misleading `IK Constraint not found:` because
+ * 4.3 stores constraint definitions under `root.constraints[]`, not the four
+ * legacy `root.ik`/`root.transform`/`root.path`/`root.physics` arrays).
  *
  * Pure string parsing + integer comparison — zero new boundary
  * crossings (Layer-3 invariant: core/ stays pure TS, no DOM/Electron/
@@ -114,7 +117,7 @@ export function createStubTextureLoader(): (pageName: string) => Texture {
  *
  * @param version  the value of `skeleton.spine` from the parsed JSON, or null if absent.
  * @param skeletonPath  the absolute path to the skeleton JSON (for the error envelope).
- * @throws SpineVersionUnsupportedError if version is null, malformed, or major.minor < 4.2.
+ * @throws SpineVersionUnsupportedError if version is null, malformed, major.minor < 4.2, OR major.minor >= 4.3 (Phase 32 strict-cut).
  */
 export function checkSpineVersion(version: string | null, skeletonPath: string): void {
   if (version === null) {
@@ -128,9 +131,60 @@ export function checkSpineVersion(version: string | null, skeletonPath: string):
     throw new SpineVersionUnsupportedError(version, skeletonPath);
   }
   if (major < 4 || (major === 4 && minor < 2)) {
+    // Pre-4.2 branch — preserves Phase 12 F3 contract.
     throw new SpineVersionUnsupportedError(version, skeletonPath);
   }
-  // 4.2.x and 4.3+ pass.
+  if (major >= 5 || (major === 4 && minor >= 3)) {
+    // Phase 32 (D-01) — strict-cut at 4.3+. Pass the actual semver string as
+    // detectedVersion so the constructor's 4.3+ branch fires (semver parse).
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  // Only 4.2.x passes.
+}
+
+/**
+ * Phase 32 (D-02, COMPAT-01) — schema-based fallback to `checkSpineVersion`.
+ *
+ * Detects Spine 4.3 exports whose `skeleton.spine` field is missing or
+ * malformed (so the semver predicate above slipped through) but whose
+ * top-level `constraints` array is present — the actual breaking schema
+ * marker. SEED-003 documents that 4.3 unified the four legacy
+ * `root.ik`/`root.transform`/`root.path`/`root.physics` arrays into a
+ * single `root.constraints[]` carrying a `type` discriminator.
+ *
+ * Per CONTEXT D-05 ("Recommendation: REJECT empty arrays — the field's
+ * presence is the schema marker"), even an empty `constraints: []` array
+ * triggers rejection: presence of the field at all is the 4.3-shape
+ * signal we want to catch.
+ *
+ * Throws `SpineVersionUnsupportedError` with `detectedVersion = '4.3-schema'`
+ * (sentinel string — the constructor branches on it to produce the
+ * COMPAT-01 message).
+ *
+ * Pure object inspection — no DOM, no fs, no Electron imports
+ * (Layer-3 invariant; CLAUDE.md fact #5).
+ *
+ * Exported so the predicate's decision cases can be unit-tested
+ * independently of fixture loading
+ * (tests/core/loader-43-schema-guard-predicate.spec.ts).
+ *
+ * @param parsedJson  the result of `JSON.parse(jsonText)`, typed `unknown`.
+ * @param skeletonPath  the absolute path to the skeleton JSON (for the error envelope).
+ * @throws SpineVersionUnsupportedError if parsedJson has a top-level `constraints` array.
+ */
+export function checkSpine43Schema(parsedJson: unknown, skeletonPath: string): void {
+  if (parsedJson === null || typeof parsedJson !== 'object') {
+    return;
+  }
+  if (!('constraints' in parsedJson)) {
+    return;
+  }
+  const constraints = (parsedJson as Record<string, unknown>).constraints;
+  if (!Array.isArray(constraints)) {
+    return;
+  }
+  // Presence of the array (even empty) is the 4.3-shape signal — CONTEXT D-05.
+  throw new SpineVersionUnsupportedError('4.3-schema', skeletonPath);
 }
 
 /**
@@ -182,6 +236,13 @@ export function loadSkeleton(
     // No skeleton object at all — malformed JSON or wrong file type.
     checkSpineVersion(null, skeletonPath);
   }
+
+  // Phase 32 (D-02, COMPAT-01) — 4.3-schema fallback. Defense-in-depth for
+  // 4.3 exports whose `skeleton.spine` field slipped through the semver
+  // predicate above (missing field, malformed string, etc.). Catches the
+  // actual breaking schema marker: a top-level `constraints` array.
+  // Runs BEFORE atlas resolution and BEFORE `SkeletonJson.readSkeletonData`.
+  checkSpine43Schema(parsedJson, skeletonPath);
 
   // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
   // canonical width/height per region. Pattern verbatim from
