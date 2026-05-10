@@ -1,24 +1,26 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3.1
-milestone_name: Correctness & Refinements
-status: milestone_complete
-last_updated: "2026-05-09"
-last_activity: 2026-05-09 -- v1.3.1 milestone closed; ready to tag and ship
+milestone: v1.4
+milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
+status: planning
+last_updated: "2026-05-10T13:22:27.797Z"
+last_activity: 2026-05-10
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 31 (last v1.3.1 phase) — Milestone complete
-Status: Milestone complete; awaiting `npm version 1.3.1` + tag push to trigger CI release build.
-Last activity: 2026-05-09
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-10 — Milestone v1.4 started
 
 ## Project Reference
 

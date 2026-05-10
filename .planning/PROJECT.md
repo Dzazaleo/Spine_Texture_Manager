@@ -41,6 +41,22 @@ Animators ship atlases that are as small as they mathematically can be without v
 - v1.3.1 release-time UAT (Phase 30 visual UAT + Phase 31 Windows admin DnD live observation; recipe in `.planning/todos/pending/2026-05-08-phase-31-windows-admin-dnd-release-uat.md`)
 - Audit-acknowledged carry-forwards from v1.0–v1.3 — see STATE.md → Deferred Items for the full table
 
+## Current Milestone: v1.4 Spine 4.3 Forward-Compat + Rotated Atlases
+
+**Goal:** Honor Esoteric's "upgrade to 4.3" recommendation pragmatically — make 4.2-only support honest and visible in the UI, replace today's cryptic 4.3-beta load failures with an actionable re-export message, AND remove the rotated-atlas hard-throw with full rotation support. Defers the full 4.3 runtime port until npm publishes 4.3.0 stable.
+
+**Target features:**
+- **Drop-zone Spine version disclosure** — restyle the initial advisory at `src/renderer/src/App.tsx:622` so the supported version is called out before users drop a file. Rendered as bold `text-danger` to match the project's existing problem-zone styling tokens.
+- **4.3-beta detection + actionable error** — sniff `root.constraints` (or `skeleton.spine >= 4.3`) at parse time in `src/core/loader.ts`; throw `SpineVersionUnsupportedError` with a "this app currently supports Spine v4.2 — re-export from your 4.3 editor as Version 4.2 (supported downgrade)" message. Replaces today's misleading `IK Constraint not found: <name>` error from spine-core 4.2's reader. Pairs with the drop-zone copy.
+- **Rotated atlas region support** — remove the hard-throw at `src/core/errors.ts:154`; AABB W↔H swap in `src/core/bounds.ts` when `region.rotate === true`; ExportPlan output dim swap; regression fixture coverage. Atlas-less mode unaffected (synthetic atlas never packs with rotation).
+- **Plant SEED-006 (Full Spine 4.3 runtime port)** — queue the costed inventory (5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy) for the next milestone window after 4.3.0 stable hits npm.
+
+**Why this scope, why now:**
+- npm `@esotericsoftware/spine-core@latest` = `4.2.114` (2026-04-30) — no 4.3 publish; latest 4.3 is `4.3.91-beta` "Unreleased" as of today.
+- 4.3 schema is **not frozen** — the `uniform: bool` → `scaleY: number` rename at `4.3.73-beta` is precedent that mid-beta breaking changes still happen. Porting against a moving target wastes work.
+- User's team already has 4.3-beta exports failing today (`fixtures/test_4.3/jokerman`, `fixtures/test_4.3/girl` — gitignored, see SEED-003). The detect-and-warn path unblocks them via the supported re-export-as-4.2 workflow.
+- SEED-004 surfaced two similar Esoteric-side decisions (rotated regions) in close succession — bundling both keeps the "support what we can today, signal what we can't" theme coherent.
+
 ## Primary user
 
 Spine animators exporting rigs for performance-sensitive runtimes (mobile games, web games). Assumes fluency in Spine concepts (bones, slots, attachments, skins, constraints) but not in runtime math.
@@ -75,7 +91,7 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ## Constraints (still valid)
 
-- Spine 4.2 only (4.3+ deferred to next milestone via versioned adapters).
+- Spine 4.2 only (4.3-beta detected and rejected with re-export advisory in v1.4; full 4.3 port deferred until 4.3.0 stable hits npm — see SEED-006).
 - JSON skeletons only (`.skel` binary deferred to next milestone).
 - Per-individual-skin sampling (combined-skin compositing out of scope).
 - `core/` cannot import DOM, Electron, or `sharp` (Layer 3 invariant — locked by `tests/arch.spec.ts`).
@@ -113,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-08 — Phase 30 complete (safety buffer in Optimize dialog). 5 plans landed across 4 waves: persistence + plumbing (30-01), export math + parity mirror (30-02), OptimizeDialog UI + Atlas Preview threading (30-03), gap-closure batch A — reactive plan rebuild + 5 paired closures (30-04), gap-closure batch B — core/parity restoration + Documentation Builder field reconciliation via Option C (30-05). Closes BUFFER-01..03; 922 vitest tests passing; Layer-3 invariant preserved. v1.3.1 milestone progress: 1/2 phases remain — Phase 31 (loader & UX small-fixes batch). Prior: Phase 29 complete 2026-05-07 (per-region dedup + override-region semantics). Prior milestone: v1.3.0 (2026-05-07) — 7 phases closed v1.2 correctness/semantic gaps + Optimize-flow UX + UI polish + optional output sharpening on downscale.*
+*Last updated: 2026-05-10 — milestone v1.4 started (Spine 4.3 Forward-Compat + Rotated Atlases). Scope: drop-zone v4.2 disclosure + 4.3-beta detect-and-warn + full rotated-atlas-region support + plant SEED-006 (full 4.3 port queued for post-npm-publish). Phase numbering continues from v1.3.1's last phase (31). Investigation pre-locked: npm `@esotericsoftware/spine-core@latest`=4.2.114 (2026-04-30); latest 4.3 is `4.3.91-beta` "Unreleased"; mid-beta breaking changes precedent (`uniform`→`scaleY` at 4.3.73-beta) makes porting now premature. Prior milestone shipped: v1.3.1 (2026-05-09) — Phase 29/30/31 (per-region dedup + safety buffer + loader & UX small-fixes batch).*
