@@ -23,9 +23,10 @@
  *        .extract({left,top,width,height}).resize(W, H, lanczos3, fill)
  *        .png(level 9).toFile(<resolvedOut>.tmp)
  *      Rotated regions (atlasSource.rotated === true) are un-rotated
- *      via sharp.rotate(-90) during atlas-extract so the output PNG is
+ *      via sharp.rotate(+90) during atlas-extract so the output PNG is
  *      emitted in canonical orientation matching the unrotated source
- *      W×H (Phase 33).
+ *      W×H (Phase 33). Direction VERIFIED EMPIRICALLY — 33-RESEARCH.md
+ *      §"Sharp Rotation Direction (Empirical)" + Plan 05 probe.
  *   6. fs.rename(<resolvedOut>.tmp, resolvedOut) per D-121 atomic write.
  *   7. Emit ExportProgressEvent with absolute outPath.
  *   8. Between files: if isCancelled() → break (D-115). In-flight cannot
@@ -282,17 +283,33 @@ export async function runExport(
           width: a.packW,
           height: a.packH,
         });
+        if (a.rotated) {
+          // Phase 33 D-03 — un-rotate Spine-CCW-packed region back to
+          // canonical orientation. Direction VERIFIED EMPIRICALLY in
+          // 33-RESEARCH.md §"Sharp Rotation Direction (Empirical)" (CONTEXT
+          // D-03 hypothesis of -90 was falsified): sharp.rotate(+90) cancels
+          // CCW packing per libgdx atlas convention. Re-probed for Plan 05
+          // via scripts/probe-sharp-rotate.mjs before shipping.
+          pipeline = pipeline.rotate(90);
+        }
         // Reconstitute the orig canvas when Strip Whitespace was on. Output
         // becomes a w×h canvas with the trimmed pixels positioned at
         // offsetX/Y from the bottom-left — matches a plain Spine export of
         // the same PNG with Strip Whitespace OFF. Passthrough is 1:1 (no
         // resize), so chaining .extend() before .toFile() is correct here.
-        if (a.packW !== a.w || a.packH !== a.h) {
+        //
+        // For rotated regions the buffer is now packH × packW (swapped by
+        // the rotate above), so extend args MUST use post-rotation canonical
+        // orientation. Derived locals encode the swap; non-rotated rows are
+        // mathematically equivalent to the previous code.
+        const sourceCanvasW = a.rotated ? a.packH : a.packW;
+        const sourceCanvasH = a.rotated ? a.packW : a.packH;
+        if (sourceCanvasW !== a.w || sourceCanvasH !== a.h) {
           pipeline = pipeline.extend({
-            top: a.h - a.offsetY - a.packH,
+            top: a.h - a.offsetY - sourceCanvasH,
             bottom: a.offsetY,
             left: a.offsetX,
-            right: a.w - a.offsetX - a.packW,
+            right: a.w - a.offsetX - sourceCanvasW,
             background: { r: 0, g: 0, b: 0, alpha: 0 },
           });
         }
