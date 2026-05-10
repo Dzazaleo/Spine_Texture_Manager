@@ -809,13 +809,13 @@ Plans:
   4. The error message visually pairs with the drop-zone v4.2 disclosure (same `text-danger` token; same "v4.2" wording) so a user reading the error sees the same supported-version contract they read before dropping the file. (COMPAT-01 + COMPAT-02 integration)
   5. SEED-006 (`Full Spine 4.3 runtime port`) is planted under `.planning/seeds/` at phase close, carrying the costed inventory: 5 sampler renames + 2 bounds signature changes + `slot.pose` access pattern + slider-constraint validation strategy + vendoring strategy (git submodule + tsc, npm fork, or wait-for-publish). The `trigger_when:` clause references `npm view @esotericsoftware/spine-core@latest` returning 4.3.x AND/OR a paying user reporting they cannot re-export their rig as Version 4.2.
 
-**Plans:** 4 plans
+**Plans:** 3/4 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 32-01-PLAN.md — Loader-side `checkSpine43Schema` predicate + sequential call site + tighten `checkSpineVersion` strict-cut at 4.3+ + branched `SpineVersionUnsupportedError` constructor message + predicate unit tests + invert lenient-on-4.3+ assertions (Wave 1, COMPAT-01)
-- [ ] 32-02-PLAN.md — Drop-zone idle copy edit at App.tsx:621-623 with `v4.2` inline `<span className="font-bold text-danger">` (Wave 1, COMPAT-02; parallel-safe with 32-01)
-- [ ] 32-04-PLAN.md — SEED-006 plant under `.planning/seeds/` + SEED-003 close-out addendum (Wave 1, no REQ — phase deliverable)
+- [x] 32-01-PLAN.md — Loader-side `checkSpine43Schema` predicate + sequential call site + tighten `checkSpineVersion` strict-cut at 4.3+ + branched `SpineVersionUnsupportedError` constructor message + predicate unit tests + invert lenient-on-4.3+ assertions (Wave 1, COMPAT-01)
+- [x] 32-02-PLAN.md — Drop-zone idle copy edit at App.tsx:621-623 with `v4.2` inline `<span className="font-bold text-danger">` (Wave 1, COMPAT-02; parallel-safe with 32-01)
+- [x] 32-04-PLAN.md — SEED-006 plant under `.planning/seeds/` + SEED-003 close-out addendum (Wave 1, no REQ — phase deliverable)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
@@ -889,7 +889,7 @@ The packer-options interaction is locked by memory `project_atlas_pack_options_a
 | 29. Per-region dedup + override-region semantics + atlas-preview pack-page accuracy | v1.3.1 | 7/7 | Complete    | 2026-05-07 |
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
-| 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 0/TBD | Not started | — |
+| 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 3/4 | In Progress|  |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 0/TBD | Not started | — |
 
 ## Deferred (post-v1.1)
