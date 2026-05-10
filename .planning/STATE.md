@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
 status: planning
-last_updated: "2026-05-10T14:15:51.964Z"
-last_activity: "2026-05-10 — v1.4 ROADMAP.md authored: Phases 32–33 mapped to all 6 v1.4 REQs (COMPAT-01/02 → P32; ATLAS-01..04 → P33); SEED-006 plant scheduled at P32 close; REQUIREMENTS.md traceability filled."
+last_updated: "2026-05-10T14:34:24.018Z"
+last_activity: "2026-05-10 — Phase 32 CONTEXT.md captured: D-01 OR-of-both detection (`skeleton.spine ≥ 4.3` OR `root.constraints` array); D-02 two predicates called sequentially (preserve `checkSpineVersion` purity, add `checkSpine43Schema`); D-03..D-07 Claude's-discretion defaults (error message branch by detectedVersion; minimal in-line drop-zone copy with `font-bold text-danger` v4.2 token; both-layer test strategy + new `fixtures/SPINE_4_3_TEST/`; SEED-006 plant mirrors SEED-003 shape)."
 progress:
   total_phases: 16
   completed_phases: 0

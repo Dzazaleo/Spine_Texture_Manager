@@ -809,7 +809,13 @@ Plans:
   4. The error message visually pairs with the drop-zone v4.2 disclosure (same `text-danger` token; same "v4.2" wording) so a user reading the error sees the same supported-version contract they read before dropping the file. (COMPAT-01 + COMPAT-02 integration)
   5. SEED-006 (`Full Spine 4.3 runtime port`) is planted under `.planning/seeds/` at phase close, carrying the costed inventory: 5 sampler renames + 2 bounds signature changes + `slot.pose` access pattern + slider-constraint validation strategy + vendoring strategy (git submodule + tsc, npm fork, or wait-for-publish). The `trigger_when:` clause references `npm view @esotericsoftware/spine-core@latest` returning 4.3.x AND/OR a paying user reporting they cannot re-export their rig as Version 4.2.
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 32-01-PLAN.md — Loader-side `checkSpine43Schema` predicate + sequential call site + tighten `checkSpineVersion` strict-cut at 4.3+ + branched `SpineVersionUnsupportedError` constructor message + predicate unit tests + invert lenient-on-4.3+ assertions (Wave 1, COMPAT-01)
+- [ ] 32-02-PLAN.md — Drop-zone idle copy edit at App.tsx:621-623 with `v4.2` inline `<span className="font-bold text-danger">` (Wave 1, COMPAT-02; parallel-safe with 32-01)
+- [ ] 32-03-PLAN.md — `fixtures/SPINE_4_3_TEST/` synthetic fixture + fixture-driven loader-rejection regression test in `tests/core/loader-version-guard.spec.ts` (Wave 2, COMPAT-01; depends on 32-01)
+- [ ] 32-04-PLAN.md — SEED-006 plant under `.planning/seeds/` + SEED-003 close-out addendum (Wave 1, no REQ — phase deliverable)
 
 **UI hint**: yes
 
