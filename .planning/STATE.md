@@ -3,24 +3,23 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
 status: planning
-last_updated: "2026-05-10T13:22:27.797Z"
-last_activity: 2026-05-10
+last_updated: "2026-05-10T14:15:51.964Z"
+last_activity: "2026-05-10 — v1.4 ROADMAP.md authored: Phases 32–33 mapped to all 6 v1.4 REQs (COMPAT-01/02 → P32; ATLAS-01..04 → P33); SEED-006 plant scheduled at P32 close; REQUIREMENTS.md traceability filled."
 progress:
-  total_phases: 2
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 32 of 33 (Spine 4.3-beta detect-and-warn + drop-zone version disclosure) — Not started
-Plan: — (roadmap landed; ready for `/gsd-plan-phase 32`)
-Status: Roadmap complete; ready to plan Phase 32
-Last activity: 2026-05-10 — v1.4 ROADMAP.md authored: Phases 32–33 mapped to all 6 v1.4 REQs (COMPAT-01/02 → P32; ATLAS-01..04 → P33); SEED-006 plant scheduled at P32 close; REQUIREMENTS.md traceability filled.
+Phase: 32 of 33 (Spine 4.3-beta detect-and-warn + drop-zone version disclosure) — Context gathered
+Plan: — (CONTEXT.md landed; ready for `/gsd-plan-phase 32`)
+Status: Phase 32 context captured; ready to plan
+Last activity: 2026-05-10 — Phase 32 CONTEXT.md captured: D-01 OR-of-both detection (`skeleton.spine ≥ 4.3` OR `root.constraints` array); D-02 two predicates called sequentially (preserve `checkSpineVersion` purity, add `checkSpine43Schema`); D-03..D-07 Claude's-discretion defaults (error message branch by detectedVersion; minimal in-line drop-zone copy with `font-bold text-danger` v4.2 token; both-layer test strategy + new `fixtures/SPINE_4_3_TEST/`; SEED-006 plant mirrors SEED-003 shape).
 
 ## Project Reference
 
