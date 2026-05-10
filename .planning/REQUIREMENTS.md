@@ -15,8 +15,8 @@
 
 ### Rotated Atlas Region Support
 
-- [ ] **ATLAS-01**: Loader accepts atlas regions packed with `rotate: true`. The hard-throw `RotatedRegionUnsupportedError` at `src/core/errors.ts:154` is removed. Rotated regions propagate through `analyzer.ts` like any other region. Atlas-less mode is unaffected (synthetic atlas never packs with rotation).
-- [ ] **ATLAS-02**: `attachmentWorldAABB` in `src/core/bounds.ts` swaps source W↔H for rotated regions before computing the world-space AABB, so the computed bounds match what the runtime would render at identity scale.
+- [x] **ATLAS-01**: Loader accepts atlas regions packed with `rotate: true`. The hard-throw `RotatedRegionUnsupportedError` at `src/core/errors.ts:154` is removed. Rotated regions propagate through `analyzer.ts` like any other region. Atlas-less mode is unaffected (synthetic atlas never packs with rotation).
+- [x] **ATLAS-02**: `attachmentWorldAABB` in `src/core/bounds.ts` swaps source W↔H for rotated regions before computing the world-space AABB, so the computed bounds match what the runtime would render at identity scale.
 - [ ] **ATLAS-03**: ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims.
 - [ ] **ATLAS-04**: A rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle) is committed under `fixtures/` and exercised by core unit tests covering ATLAS-01..03.
 
@@ -60,8 +60,8 @@ Populated by gsd-roadmapper 2026-05-10.
 |-------------|-------|--------|
 | COMPAT-01 | Phase 32 | Pending |
 | COMPAT-02 | Phase 32 | Pending |
-| ATLAS-01 | Phase 33 | Pending |
-| ATLAS-02 | Phase 33 | Pending |
+| ATLAS-01 | Phase 33 | Complete |
+| ATLAS-02 | Phase 33 | Complete |
 | ATLAS-03 | Phase 33 | Pending |
 | ATLAS-04 | Phase 33 | Pending |
 
