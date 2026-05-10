@@ -150,7 +150,7 @@ describe('Phase 32 COMPAT-01: Spine version guard rejects 4.3 fixtures (semver +
   });
 
   it('REGRESSION: Spine 4.2.x fixture (SIMPLE_PROJECT) still loads successfully (Plan 01 strict-cut + schema predicate are inert for 4.2)', () => {
-    // Belt-and-braces: the 4.2 happy path is asserted at line 82-89 above for
+    // Belt-and-braces: the 4.2 happy path is asserted at line 91-98 above for
     // the 3.8 describe-block. Re-asserting here ensures Plan 01's strict-cut at
     // 4.3+ + new schema predicate did NOT break the 4.2 path. The 4.2 fixture
     // has NO top-level `constraints` array, so checkSpine43Schema is inert.
