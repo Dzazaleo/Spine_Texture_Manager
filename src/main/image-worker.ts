@@ -517,26 +517,51 @@ export async function runExport(
         // pixels, and feed that to applyResizeAndSharpen.
         const a = row.atlasSource;
         let pipeline: sharp.Sharp;
-        if (a.packW !== a.w || a.packH !== a.h) {
-          const orig = await sharp(a.pagePath)
-            .extract({ left: a.x, top: a.y, width: a.packW, height: a.packH })
+        // Phase 33 D-03 — post-rotation canonical orientation. For rotated
+        // rows the buffer becomes packH × packW (swapped) after .rotate(+90);
+        // SW extend args MUST use post-rotation dims. Non-rotated rows are
+        // mathematically equivalent to the prior code (sourceCanvasW=packW,
+        // sourceCanvasH=packH), so existing SW + atlas-extract tests stay green.
+        const sourceCanvasW = a.rotated ? a.packH : a.packW;
+        const sourceCanvasH = a.rotated ? a.packW : a.packH;
+        if (sourceCanvasW !== a.w || sourceCanvasH !== a.h) {
+          // Two-pipeline (SW path): materialize extend output, then re-open.
+          // Mirrors the original SW fix for libvips operation reordering
+          // (RESEARCH §"Pitfall 4: Sharp pipeline order"). Rotation slots
+          // into the pre-pipeline BEFORE .toBuffer() so the materialized
+          // canvas is in canonical orientation when applyResizeAndSharpen
+          // sees it.
+          let pre = sharp(a.pagePath).extract({
+            left: a.x, top: a.y, width: a.packW, height: a.packH,
+          });
+          if (a.rotated) {
+            // Phase 33 D-03 — direction VERIFIED EMPIRICALLY (see passthrough
+            // comment + scripts/probe-sharp-rotate.mjs).
+            pre = pre.rotate(90);
+          }
+          const orig = await pre
             .extend({
-              top: a.h - a.offsetY - a.packH,
+              top: a.h - a.offsetY - sourceCanvasH,
               bottom: a.offsetY,
               left: a.offsetX,
-              right: a.w - a.offsetX - a.packW,
+              right: a.w - a.offsetX - sourceCanvasW,
               background: { r: 0, g: 0, b: 0, alpha: 0 },
             })
             .png()
             .toBuffer();
           pipeline = sharp(orig);
         } else {
+          // No SW — single pipeline.
           pipeline = sharp(a.pagePath).extract({
             left: a.x,
             top: a.y,
             width: a.packW,
             height: a.packH,
           });
+          if (a.rotated) {
+            // Phase 33 D-03 — direction VERIFIED EMPIRICALLY.
+            pipeline = pipeline.rotate(90);
+          }
         }
         await applyResizeAndSharpen(
           pipeline,
