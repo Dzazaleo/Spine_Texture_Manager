@@ -855,7 +855,26 @@ The packer-options interaction is locked by memory `project_atlas_pack_options_a
   4. A new rotated-atlas regression fixture exists under `fixtures/` (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — not gitignored, committed in-repo) and is exercised by core unit tests covering ATLAS-01, ATLAS-02, and ATLAS-03 end-to-end. (ATLAS-04)
   5. Atlas-less mode (json + images folder, no `.atlas`) loads the same in-repo fixtures it loaded pre-Phase-33 with no behavioral change — synthetic atlas continues to emit `rotated:false` and the rotation code path is statically unreachable from the atlas-less branch. (Out-of-Scope guard)
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+Plans:
+**Wave 1**
+- [ ] 33-01-PLAN.md — Spine packer fixture creation (`fixtures/spine_rotated/` real-packer output with `rotate:true`); ATLAS-04
+- [ ] 33-02-PLAN.md — Wave 1 RED scaffolds: 5 new spec files (`describe.skip` placeholders) covering ATLAS-01/02/03 + arch-grep guard; ATLAS-04
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 33-03-PLAN.md — Lockstep removal of `RotatedRegionUnsupportedError` + `'rotated-region-unsupported'` ExportError kind across 9 source/test sites in ONE atomic commit (D-158/D-171 precedent); ATLAS-01
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 33-04-PLAN.md — D-01 loader walk (post-`readSkeletonData` SWAP form per RESEARCH §"D-01 Formula Derivation") + ATLAS-01 fixture-driven test + ATLAS-02 16-case bone-rotation AABB matrix; ATLAS-01, ATLAS-02
+- [ ] 33-05-PLAN.md — Image-worker `sharp.rotate(+90)` in passthrough + resize paths (direction VERIFIED EMPIRICALLY per `feedback_narrow_before_fixing`) + ATLAS-03 export-rotation-dims test + image-worker-rotation passthrough/resize spec; ATLAS-03
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 33-06-PLAN.md — Final verification: ExportPlan canonical-flow source-read confirmation (no math change) + HUMAN-UAT (drop fixture + Optimize round-trip on dev build); ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04
+
+**Cross-cutting constraints:**
+- npm test exits 0
+- npx tsc --noEmit exits 0
 
 **UI hint**: yes
 
@@ -890,7 +909,7 @@ The packer-options interaction is locked by memory `project_atlas_pack_options_a
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
-| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 0/TBD | Not started | — |
+| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 0/6 | Planned (6 plans, 4 waves) | — |
 
 ## Deferred (post-v1.1)
 
