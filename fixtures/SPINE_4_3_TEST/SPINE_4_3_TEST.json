@@ -1,0 +1,19 @@
+{
+  "skeleton": {
+    "spine": "4.3.91-beta",
+    "x": 0,
+    "y": 0,
+    "width": 1,
+    "height": 1
+  },
+  "bones": [
+    { "name": "root" }
+  ],
+  "slots": [],
+  "skins": [
+    { "name": "default", "attachments": {} }
+  ],
+  "constraints": [
+    { "name": "test_ik", "type": "ik", "bones": ["root"], "target": "root" }
+  ]
+}
