@@ -1,21 +1,41 @@
-// Phase 33 Wave 1 RED scaffold — skipped placeholders. Bodies filled in by:
-//   - Plan 03 (lockstep removal) for no-stale-rotation-error
-//   - Plan 04 (D-01 + ATLAS-01/02 tests) for loader-rotation-accept + bounds-rotation-aabb
-//   - Plan 05 (image-worker + ATLAS-03 tests) for export-rotation-dims + image-worker-rotation
+// Phase 33 Plan 04 — ATLAS-01: loader accepts rotated atlas regions.
+//
+// Wave 1 RED scaffold (Plan 02) → Wave 3 active body (this file).
 //
 // Fixture shape (per 33-01-SUMMARY.md, region `rect`):
 //   bounds.x=2, bounds.y=360, packedW=100, packedH=500,
 //   canonicalW=500, canonicalH=100, offsetX=0, offsetY=0, rotate=90.
+//
+// The fixture contains exactly ONE rotated region (`rect`); the other three
+// regions (CIRCLE, SQUARE, TRIANGLE) are unrotated. The count assertion
+// locks the fixture shape — if the user reshuffles the fixture and the count
+// changes, update both this literal AND 33-01-SUMMARY.md's Fixture Shape table.
 
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as path from 'node:path';
+import { loadSkeleton } from '../../src/core/loader.js';
 
 const ROTATED_FIXTURE = path.resolve('fixtures/spine_rotated/EXPORT/skeleton.json');
 
-describe.skip('loader — accepts rotated atlas regions (ATLAS-01)', () => {
-  // ROTATED_FIXTURE referenced once to keep the import non-dead-code.
-  void ROTATED_FIXTURE;
+describe('loader — accepts rotated atlas regions (ATLAS-01)', () => {
+  it('loadSkeleton resolves without throwing on rotate:true regions', () => {
+    const r = loadSkeleton(ROTATED_FIXTURE);
+    expect(r.skeletonData).toBeDefined();
+    expect(r.atlas).toBeDefined();
+    expect(r.atlasPath).not.toBeNull();
+  });
 
-  it.todo('loadSkeleton resolves without throwing on rotate:true regions');
-  it.todo('at least one atlasSources entry has rotated=true');
+  it('at least one atlasSources entry has rotated=true (fixture has a packer-rotated region)', () => {
+    const r = loadSkeleton(ROTATED_FIXTURE);
+    const rotatedRegions = [...r.atlasSources.entries()].filter(
+      ([, s]) => s.rotated,
+    );
+    expect(
+      rotatedRegions.length,
+      'fixture must contain at least one rotated region (packer threshold met)',
+    ).toBeGreaterThanOrEqual(1);
+    // Lock the exact count to the fixture shape (per CONTEXT §Claude's Discretion).
+    // Reference: 33-01-SUMMARY.md "Fixture Shape" table — single `rect` region.
+    expect(rotatedRegions.length).toBe(1);
+  });
 });
