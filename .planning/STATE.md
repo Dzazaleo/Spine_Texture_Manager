@@ -3,30 +3,30 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
 status: executing
-last_updated: "2026-05-10T20:02:00.355Z"
-last_activity: 2026-05-10 -- Phase 33 planning complete
+last_updated: "2026-05-10T23:55:00.000Z"
+last_activity: 2026-05-10 -- Phase 33 Plan 02 complete (Wave 1 RED scaffolds)
 progress:
   total_phases: 16
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 2
 ---
 
 # State
 
 ## Current Position
 
-Phase: 33
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-10 -- Phase 33 planning complete
+Phase: 33 (rotated-atlas-region-support-loader-bounds-export-fixture) — EXECUTING
+Plan: 3 of 6 (Plans 01 + 02 complete; Wave 2 lockstep removal up next)
+Status: Executing Phase 33
+Last activity: 2026-05-10 -- Phase 33 Plan 02 complete (Wave 1 RED scaffolds; 5 new spec files, 25 it.todo, 0 live assertions, npm test green)
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 32 — spine-4-3-beta-detect-and-warn-drop-zone-version-disclosure
+**Current focus:** Phase 33 — rotated-atlas-region-support-loader-bounds-export-fixture
 
 ## v1.4 Roadmap At-a-Glance
 
