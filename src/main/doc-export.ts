@@ -244,6 +244,7 @@ th { text-align: left; font-size: 11px; color: var(--muted); padding: 8px 12px; 
 td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
 .entry-name { font-family: monospace; color: var(--terracotta); }
 .entry-name.skin { color: var(--blue); }
+.entry-name.track { color: var(--fg); }
 .entry-desc { color: var(--muted); margin-top: 2px; font-size: 12px; }
 .notes-pre { white-space: pre-wrap; font-family: inherit; color: var(--muted); margin: 0; }
 .config-value { font-family: monospace; font-size: 28px; color: var(--fg); }
@@ -357,7 +358,7 @@ function renderTracksCard(tracks: AnimationTrackEntry[]): string {
     for (const entry of tracks.filter((t) => t.trackIndex === idx)) {
       const loopCell = entry.loop ? '<span class="loop-pill">LOOP</span>' : '—';
       body += `<tr>
-        <td><span class="entry-name">${escapeHtml(entry.animationName)}</span></td>
+        <td><span class="entry-name track">${escapeHtml(entry.animationName)}</span></td>
         <td>${escapeHtml(`${entry.mixTime}s`)}</td>
         <td>${loopCell}</td>
         <td class="entry-desc">${escapeHtml(entry.notes)}</td>
