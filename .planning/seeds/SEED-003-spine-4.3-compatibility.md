@@ -63,6 +63,12 @@ Because timeline keys did NOT rename, our 4.2 reader walks `animations.*.ik[name
 2. **When 4.3.0 stable lands AND `@esotericsoftware/spine-core@4.3.x` is on npm (Option C):** plan the port as its own milestone. Verify the runtime API surface against `core/sampler.ts` before scoping. Keep Option A's detector as a fallback message for 4.3-beta files (since beta != stable schema).
 3. **Skip Option B** unless a paying user explicitly requests "load 4.3 files now without re-exporting" — the maintenance burden against a moving beta target is a known trap.
 
+## Status (2026-05-10) — Option A landed; Option C queued via SEED-006
+
+- **Option A (detect-and-warn) landed in v1.4 Phase 32.** The loader now throws `SpineVersionUnsupportedError` with the actionable message *"This app currently supports Spine v4.2. Re-export from your 4.3 editor as Version 4.2 (supported downgrade) and try again."* on either of the two detection signals (`skeleton.spine` semver `>= 4.3` OR top-level `constraints` array present). The drop-zone advisory at `App.tsx:622` calls out the v4.2-only support before drop. Cryptic `IK Constraint not found:` is no longer reachable for 4.3-beta JSONs.
+- **Option C (full 4.3 runtime port) queued via SEED-006.** See `.planning/seeds/SEED-006-spine-4.3-runtime-port.md` for the costed inventory: 5 sampler renames + 2 bounds signature changes + `slot.pose` access pattern + slider-constraint validation strategy + vendoring strategy. Trigger: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x OR a paying user reports they cannot re-export as Version 4.2.
+- **Option B (schema-shim) remains skipped** — Out of Scope in v1.4 per REQUIREMENTS.md L50 (HIGH trap risk; doesn't model `slider`; brittle against beta drift).
+
 ## Open Question (parked for next conversation)
 
 Are these 4.3-beta fixtures (Joker, JOKERMAN) from your own asset pipeline, or files customers/users sent? That changes whether "tell the user to re-export as v4.2" is a one-time fix or a lifetime support burden — and whether Option A's UX message needs to address external users specifically.
