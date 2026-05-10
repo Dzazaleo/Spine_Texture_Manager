@@ -31,6 +31,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
   AtlasAttachmentLoader,
+  RegionAttachment,
   SkeletonJson,
   TextureAtlas,
   Texture,
@@ -526,6 +527,90 @@ export function loadSkeleton(
     : new AtlasAttachmentLoader(atlas);
   const skeletonJson = new SkeletonJson(attachmentLoader);
   const skeletonData = skeletonJson.readSkeletonData(parsedJson);
+
+  // Phase 33 — D-01: per-RegionAttachment offset override for rotated regions.
+  // Bypasses spine-core RegionAttachment.updateRegion()'s packed-dim layout
+  // (which produces wrong world-quad geometry for rotate:true regions —
+  // verified at node_modules/@esotericsoftware/spine-core/dist/attachments/RegionAttachment.js:82-87).
+  // Direct-write variant — touches no region state, so MeshAttachment.updateRegion
+  // downstream still sees PACKED dims as before (D-02 untouched).
+  //
+  // Walks ALL skins (memory: project_sampler_visibility_invariant — sampler
+  // measures all skin-declared attachments, not just default skin).
+  //
+  // ASSUMES region.degrees === 90 only. Spine editor never emits 180/270 in
+  // 4.2; if a future export surfaces non-90° rotation, this path silently
+  // misbehaves (deferred per CONTEXT Out-of-Scope).
+  //
+  // Direction VERIFIED EMPIRICALLY in 33-RESEARCH.md (CONTEXT D-03 hypothesis
+  // of -90 was falsified): the SWAP form (region.width <-> region.height substituted
+  // into spine-core's offset formula) preserves SW trim semantics, while the
+  // originalWidth/Height substitution variant breaks SW+rotation.
+  //
+  // Gated on !isAtlasLess: atlas-less mode never has rotated regions
+  // (memory: project_strict_loadermode_separation).
+  if (!isAtlasLess) {
+    for (const skin of skeletonData.skins) {
+      // skin.attachments: StringMap<Attachment>[] — array indexed by slot.
+      // Each entry (when present) is a plain object: { [attachmentName]: Attachment }.
+      for (const slotMap of skin.attachments) {
+        if (!slotMap) continue;
+        for (const attachmentName in slotMap) {
+          const attachment = slotMap[attachmentName];
+          if (!(attachment instanceof RegionAttachment)) continue;
+          const region = attachment.region;
+          if (!region || region.degrees === 0) continue;
+
+          const w = attachment.width;
+          const h = attachment.height;
+          const x = attachment.x;
+          const y = attachment.y;
+          const scaleX = attachment.scaleX;
+          const scaleY = attachment.scaleY;
+          const rotation = attachment.rotation;
+
+          const radians = (rotation * Math.PI) / 180;
+          const cos = Math.cos(radians);
+          const sin = Math.sin(radians);
+
+          // Canonical (post-swap) regionScaleX/Y. originalWidth/originalHeight
+          // are canonical per libgdx convention (verified: TextureAtlas.js:87-93).
+          const rsX = (w / region.originalWidth) * scaleX;
+          const rsY = (h / region.originalHeight) * scaleY;
+
+          const localX = (-w / 2) * scaleX + region.offsetX * rsX;
+          const localY = (-h / 2) * scaleY + region.offsetY * rsY;
+
+          // SWAP — verified at 33-RESEARCH.md §"D-01 Formula Derivation" probe:
+          //   localX2 uses region.height (PACKED H = post-rot canonical W);
+          //   localY2 uses region.width  (PACKED W = post-rot canonical H).
+          const localX2 = localX + region.height * rsX;
+          const localY2 = localY + region.width * rsY;
+
+          const lXc = localX * cos + x;
+          const lXs = localX * sin;
+          const lYc = localY * cos + y;
+          const lYs = localY * sin;
+          const lX2c = localX2 * cos + x;
+          const lX2s = localX2 * sin;
+          const lY2c = localY2 * cos + y;
+          const lY2s = localY2 * sin;
+
+          const off = attachment.offset;
+          off[0] = lXc - lYs;
+          off[1] = lYc + lXs;
+          off[2] = lXc - lY2s;
+          off[3] = lY2c + lXs;
+          off[4] = lX2c - lY2s;
+          off[5] = lY2c + lX2s;
+          off[6] = lX2c - lYs;
+          off[7] = lYc + lX2s;
+          // Note: do NOT touch attachment.uvs — spine-core wrote correct
+          // rotated-UVs at parse time (RegionAttachment.js:109-117).
+        }
+      }
+    }
+  }
 
   // 6. Build sourceDims map.
   //    Canonical mode: from atlas.regions (D-15 — source='atlas-orig' if
