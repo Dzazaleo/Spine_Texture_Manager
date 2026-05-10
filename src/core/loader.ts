@@ -237,11 +237,17 @@ export function loadSkeleton(
     checkSpineVersion(null, skeletonPath);
   }
 
-  // Phase 32 (D-02, COMPAT-01) — 4.3-schema fallback. Defense-in-depth for
-  // 4.3 exports whose `skeleton.spine` field slipped through the semver
-  // predicate above (missing field, malformed string, etc.). Catches the
-  // actual breaking schema marker: a top-level `constraints` array.
-  // Runs BEFORE atlas resolution and BEFORE `SkeletonJson.readSkeletonData`.
+  // Phase 32 (D-02, COMPAT-01) — 4.3-schema fallback. Reachable ONLY when
+  // `checkSpineVersion` above accepts (i.e. `skeleton.spine` parses as a
+  // valid 4.2.x semver — `null`, malformed strings, and 4.3+ semvers all
+  // throw at lines 230/233/237 and never get here). Coverage envelope is
+  // therefore narrower than the name suggests: this catches a 4.3 export
+  // that mis-stamps its `skeleton.spine` field as `"4.2.x"` while still
+  // carrying the breaking 4.3 schema marker — a top-level `constraints`
+  // array (SEED-003, "4.3-beta JSON shape" mid-beta drift). Missing or
+  // malformed `skeleton.spine` is already covered by `checkSpineVersion`,
+  // not here. Runs BEFORE atlas resolution and BEFORE
+  // `SkeletonJson.readSkeletonData`.
   checkSpine43Schema(parsedJson, skeletonPath);
 
   // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
