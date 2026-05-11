@@ -558,3 +558,99 @@ describe('handleOpenDialog (Phase 34 D-01..D-03)', () => {
     expect(opts.title).toBe('Open Spine Project or Skeleton');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 34 CR-01 — case-insensitive suffix checks at the downstream load
+// validators.
+//
+// Locks the picker contract end-to-end: handleOpenDialog routes uppercase
+// `.STMPROJ` / `.JSON` correctly to { kind:'project'|'skeleton' }, but until
+// CR-01 was fixed the downstream load handlers (handleProjectOpenFromPath /
+// handleSkeletonLoad) rejected those same paths with the generic
+// kind:'Unknown' envelope.
+//
+// macOS APFS / HFS+ case-insensitive volumes preserve the user's typed
+// filename case verbatim, so a file named `MyRig.STMPROJ` opens normally
+// from the OS picker. Windows file-name-field paste is the secondary
+// residual vector (D-03 documents this as the rationale for the picker's
+// defense-in-depth fallthrough). Both reach the validators.
+//
+// The fix is small: every `.endsWith('.stmproj')` / `.endsWith('.json')`
+// check in src/main/project-io.ts + src/main/ipc.ts now lowercases first.
+// ---------------------------------------------------------------------------
+
+describe("Phase 34 CR-01 — case-insensitive suffix checks", () => {
+  it("end-to-end: picker routes `MyRig.STMPROJ` to kind:'project' and handleProjectOpenFromPath does NOT reject at the validator", async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/MyRig.STMPROJ'],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+
+    // Step 1: picker arm routes uppercase suffix to kind:'project'.
+    const picker = await handleOpenDialog();
+    expect(picker).toEqual({ kind: 'project', path: '/abs/path/to/MyRig.STMPROJ' });
+
+    // Step 2: drive the picked path through handleProjectOpenFromPath. The
+    // case-sensitive validator (pre-CR-01) would have produced
+    // `{kind:'Unknown', message:'absolutePath must be a non-empty .stmproj path'}`.
+    // Post-CR-01: the validator passes; the load progresses to file read.
+    // The read fails (no fixture at that absolute path), surfacing a
+    // ProjectFileNotFoundError envelope — NOT the validator's kind:'Unknown'
+    // string.
+    if (picker.kind !== 'project') throw new Error('Expected picker kind:project');
+    const fs = await import('node:fs/promises');
+    vi.mocked(fs.readFile).mockRejectedValueOnce(
+      Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }),
+    );
+    const result = await handleProjectOpenFromPath(picker.path);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // The load-bearing assertion. Pre-CR-01 the kind would be 'Unknown'
+      // and the message would be the validator string; post-CR-01 the load
+      // progresses past the validator and the read failure surfaces as
+      // ProjectFileNotFoundError.
+      expect(result.error.kind).toBe('ProjectFileNotFoundError');
+      expect(result.error.message).not.toBe(
+        'absolutePath must be a non-empty .stmproj path',
+      );
+    }
+  });
+
+  it("handleProjectOpenFromPath accepts uppercase `.STMPROJ` suffix at the validator (does NOT return the validator's kind:'Unknown' envelope)", async () => {
+    // Direct unit assertion on the validator. Stub the file read to fail so
+    // we don't run the loader/sampler chain. The check is whether the
+    // validator path was bypassed.
+    const fs = await import('node:fs/promises');
+    vi.mocked(fs.readFile).mockRejectedValueOnce(
+      Object.assign(new Error('ENOENT'), { code: 'ENOENT' }),
+    );
+    const result = await handleProjectOpenFromPath('/abs/RIG.STMPROJ');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Pre-CR-01: kind:'Unknown', message:'absolutePath must be a non-empty .stmproj path'
+      // Post-CR-01: kind:'ProjectFileNotFoundError' (read failed).
+      expect(result.error.kind).not.toBe('Unknown');
+    }
+  });
+
+  it("handleProjectOpenFromPath rejects clearly bad input (empty string) — sanity check on the case-insensitive fix", async () => {
+    // Negative: empty-string path still rejected. Confirms the fix did not
+    // over-broaden the validator.
+    const result = await handleProjectOpenFromPath('');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toBe('absolutePath must be a non-empty .stmproj path');
+    }
+  });
+
+  it("handleProjectOpenFromPath rejects non-.stmproj suffix (`/abs/wrong.txt`) — sanity check", async () => {
+    const result = await handleProjectOpenFromPath('/abs/wrong.txt');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toBe('absolutePath must be a non-empty .stmproj path');
+    }
+  });
+});

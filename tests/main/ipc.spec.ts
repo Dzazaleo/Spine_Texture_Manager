@@ -501,3 +501,56 @@ describe('Phase 34 D-06 — \'project:open-dialog\' IPC channel registration', (
     expect(ipcMainHandleHandlers.has('skeleton:load')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 34 CR-01 — handleSkeletonLoad accepts uppercase `.JSON` suffix.
+//
+// The picker (handleOpenDialog) lowercases before routing, so a file named
+// `SKEL.JSON` arrives at handleSkeletonLoad as { kind:'skeleton', path:'/abs/SKEL.JSON' }.
+// Pre-CR-01 the case-sensitive endsWith('.json') check rejected this with
+// kind:'Unknown', message:'Invalid path argument: expected a non-empty
+// string ending in .json'. Post-CR-01 the validator lowercases first, the
+// load progresses to loadSkeleton, and the loader's typed error envelope
+// surfaces normally.
+// ---------------------------------------------------------------------------
+
+describe('Phase 34 CR-01 — handleSkeletonLoad accepts uppercase `.JSON` suffix', () => {
+  it("handleSkeletonLoad('/abs/SKEL.JSON') does NOT reject at the validator (post-CR-01)", async () => {
+    // Stub loadSkeleton to throw a vanilla Error (not a SpineLoaderError) so
+    // we can verify the load progressed PAST the validator. Pre-CR-01 the
+    // validator's message string `Invalid path argument: expected a non-empty
+    // string ending in .json` would surface; post-CR-01 the loader's catch
+    // arm surfaces a different message.
+    loadSkeletonMock.mockImplementationOnce(() => {
+      throw new Error('loader-reached-marker');
+    });
+    const resp = await handleSkeletonLoad('/abs/SKEL.JSON');
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      // Both pre-fix and post-fix produce kind:'Unknown' here (vanilla Error),
+      // but the MESSAGE is the falsifying signal:
+      //   pre-CR-01:  "Invalid path argument: expected a non-empty string ending in .json"
+      //   post-CR-01: "loader-reached-marker" (from the stubbed throw above)
+      expect(resp.error.message).toBe('loader-reached-marker');
+      expect(resp.error.message).not.toContain('Invalid path argument');
+    }
+  });
+
+  it("handleSkeletonLoad still rejects empty string with the validator envelope (sanity check)", async () => {
+    const resp = await handleSkeletonLoad('');
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      expect(resp.error.kind).toBe('Unknown');
+      expect(resp.error.message).toContain('Invalid path argument');
+    }
+  });
+
+  it("handleSkeletonLoad still rejects non-.json suffix (`/abs/wrong.txt`)", async () => {
+    const resp = await handleSkeletonLoad('/abs/wrong.txt');
+    expect(resp.ok).toBe(false);
+    if (!resp.ok) {
+      expect(resp.error.kind).toBe('Unknown');
+      expect(resp.error.message).toContain('Invalid path argument');
+    }
+  });
+});

@@ -361,10 +361,15 @@ export async function handleOpenDialog(): Promise<OpenDialogResponse> {
 export async function handleProjectOpenFromPath(
   absolutePath: unknown,
 ): Promise<OpenResponse> {
+  // Phase 34 CR-01 — suffix check is case-insensitive to match the picker
+  // contract at handleOpenDialog (which lowercases the picked path before
+  // routing). The case-sensitive endsWith was rejecting `MyRig.STMPROJ` on
+  // macOS APFS / HFS+ case-insensitive volumes (UAT regression) and Windows
+  // file-name-field paste paths with the kind:'Unknown' envelope.
   if (
     typeof absolutePath !== 'string' ||
     absolutePath.length === 0 ||
-    !absolutePath.endsWith('.stmproj')
+    !absolutePath.toLowerCase().endsWith('.stmproj')
   ) {
     return {
       ok: false,
@@ -697,13 +702,18 @@ export async function handleProjectReloadWithSkeleton(
     };
   }
   const a = args as Record<string, unknown>;
-  if (typeof a.projectPath !== 'string' || !a.projectPath.endsWith('.stmproj')) {
+  // Phase 34 CR-01 — case-insensitive suffix checks (symmetric mirror of
+  // handleProjectOpenFromPath above). The recovery flow re-passes paths that
+  // originated from handleLocateSkeleton's picker (case-insensitive in OS
+  // dialogs) and the projectPath echo from the failed Open envelope (which
+  // may carry uppercase suffix verbatim on case-insensitive volumes).
+  if (typeof a.projectPath !== 'string' || !a.projectPath.toLowerCase().endsWith('.stmproj')) {
     return {
       ok: false,
       error: { kind: 'Unknown', message: 'projectPath must be a .stmproj path' },
     };
   }
-  if (typeof a.newSkeletonPath !== 'string' || !a.newSkeletonPath.endsWith('.json')) {
+  if (typeof a.newSkeletonPath !== 'string' || !a.newSkeletonPath.toLowerCase().endsWith('.json')) {
     return {
       ok: false,
       error: { kind: 'Unknown', message: 'newSkeletonPath must be a .json path' },
@@ -930,7 +940,11 @@ export async function handleProjectResample(
     };
   }
   const a = args as Record<string, unknown>;
-  if (typeof a.skeletonPath !== 'string' || !a.skeletonPath.endsWith('.json')) {
+  // Phase 34 CR-01 — case-insensitive suffix check (symmetric mirror).
+  // Resample threads skeletonPath from the renderer's currentSession slot,
+  // which was seeded from a prior Open whose path may carry uppercase suffix
+  // on case-insensitive volumes.
+  if (typeof a.skeletonPath !== 'string' || !a.skeletonPath.toLowerCase().endsWith('.json')) {
     return {
       ok: false,
       error: { kind: 'Unknown', message: 'skeletonPath must be a .json path' },

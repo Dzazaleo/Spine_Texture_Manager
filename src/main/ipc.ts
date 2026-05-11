@@ -422,7 +422,16 @@ export async function handleProbeExportConflicts(
 
 export async function handleSkeletonLoad(jsonPath: unknown): Promise<LoadResponse> {
   // T-01-02-01: input validation at the trust boundary.
-  if (typeof jsonPath !== 'string' || jsonPath.length === 0 || !jsonPath.endsWith('.json')) {
+  // Phase 34 CR-01 — case-insensitive suffix check matches the picker
+  // contract at handleOpenDialog. Uppercase `.JSON` from macOS APFS/HFS+
+  // case-insensitive volumes (and Windows file-name-field paste) was
+  // previously rejected with the generic kind:'Unknown' envelope even
+  // though the picker had routed it correctly as kind:'skeleton'.
+  if (
+    typeof jsonPath !== 'string' ||
+    jsonPath.length === 0 ||
+    !jsonPath.toLowerCase().endsWith('.json')
+  ) {
     return {
       ok: false,
       error: {
