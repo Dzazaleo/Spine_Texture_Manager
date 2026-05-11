@@ -909,7 +909,7 @@ Plans:
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
-| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete   | 2026-05-11 |
+| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete    | 2026-05-11 |
 
 ## Deferred (post-v1.1)
 
