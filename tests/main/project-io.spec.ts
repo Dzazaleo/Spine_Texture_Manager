@@ -11,6 +11,7 @@ import {
   handleProjectSave,
   handleProjectSaveAs,
   handleProjectOpenFromPath,
+  handleOpenDialog,
 } from '../../src/main/project-io.js';
 import type { AppSessionState } from '../../src/shared/types.js';
 import { DEFAULT_DOCUMENTATION } from '../../src/core/documentation.js';
@@ -393,5 +394,111 @@ describe('Phase 21 G-04 — toggle-resample-into-atlas-less precedence (handlePr
     } finally {
       fsSync.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 34 Plan 01 Task 2 — handleOpenDialog (D-01 + D-02 + D-03).
+// The unified picker accepts both .stmproj and .json; returns a 3-arm
+// discriminated envelope. No load happens inside the handler.
+// ---------------------------------------------------------------------------
+
+describe('Phase 34 D-01/D-02/D-03 — handleOpenDialog (picker-only, three-arm envelope)', () => {
+  it("opens picker with unified 'Spine Project or Skeleton' filter (stmproj + json)", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: true,
+      filePaths: [],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    await handleOpenDialog();
+    const dialogArgs = vi.mocked(electronMock.dialog.showOpenDialog).mock.calls[0];
+    const opts = dialogArgs[dialogArgs.length - 1] as Electron.OpenDialogOptions;
+    expect(opts.title).toBe('Open Spine Project or Skeleton');
+    expect(opts.filters?.[0]?.name).toBe('Spine Project or Skeleton');
+    expect(opts.filters?.[0]?.extensions).toEqual(['stmproj', 'json']);
+    expect(opts.properties).toEqual(['openFile']);
+  });
+
+  it("cancel → { kind: 'cancelled' }", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: true,
+      filePaths: [],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'cancelled' });
+  });
+
+  it("empty filePaths → { kind: 'cancelled' } (defense-in-depth)", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: [],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'cancelled' });
+  });
+
+  it("picked .stmproj → { kind: 'project', path }", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/MyRig.stmproj'],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'project', path: '/abs/path/to/MyRig.stmproj' });
+  });
+
+  it("picked .json → { kind: 'skeleton', path }", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/SKELETON.json'],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'skeleton', path: '/abs/path/to/SKELETON.json' });
+  });
+
+  it("suffix match is case-insensitive (.STMPROJ → project; .JSON → skeleton)", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/RIG.STMPROJ'],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    let result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'project', path: '/abs/path/to/RIG.STMPROJ' });
+
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/SKEL.JSON'],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'skeleton', path: '/abs/path/to/SKEL.JSON' });
+  });
+
+  it("unexpected suffix → { kind: 'project', path } (defense-in-depth fallthrough)", async () => {
+    const electronMock = (await import('electron')) as unknown as {
+      dialog: { showOpenDialog: ReturnType<typeof vi.fn> };
+    };
+    electronMock.dialog.showOpenDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['/abs/path/to/weird.txt'],
+    } as Awaited<ReturnType<typeof electronMock.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    // Defense-in-depth: defaults to 'project' so handleProjectOpenFromPath's
+    // .stmproj validator surfaces the typed error envelope downstream.
+    expect(result).toEqual({ kind: 'project', path: '/abs/path/to/weird.txt' });
   });
 });
