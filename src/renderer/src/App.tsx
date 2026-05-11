@@ -316,10 +316,34 @@ export function App() {
    */
   useEffect(() => {
     const unsubOpen = window.api.onMenuOpen(async () => {
-      const proceed = await handleBeforeDrop('', 'stmproj');
+      // Phase 34 D-06 Step 1 — picker only. No guard yet (D-05 improvement
+      // over status-quo Phase 08.2 D-183 which fired the guard before the
+      // picker; cancelling a dirty session no longer triggers SaveQuitDialog).
+      const result = await window.api.openProjectPicker();
+
+      // D-05 cancel branch: true no-op. No toast, no state change, no guard.
+      if (result.kind === 'cancelled') return;
+
+      // Derive basename + kind. The dirty-guard's bodyCopyFor (SaveQuitDialog)
+      // already discriminates 'json' vs 'stmproj' via reason='new-project-drop'.
+      const fileName = result.path.split(/[\\/]/).pop() ?? result.path;
+      const dropKind: 'json' | 'stmproj' = result.kind === 'project' ? 'stmproj' : 'json';
+
+      // Phase 34 D-06 Step 2 — dirty-guard fires AFTER picker, BEFORE load,
+      // with the actual kind. Phase 8.1 D-163 ref-bridge; null ref ⇒ true.
+      const proceed = await handleBeforeDrop(fileName, dropKind);
       if (!proceed) return;
-      const resp = await window.api.openProject();
-      handleProjectLoad(resp, '(menu)');
+
+      // Phase 34 D-06 Step 3 — dispatch by kind. Both arms reuse existing
+      // handlers verbatim (no new state machine, no new useState slots).
+      if (result.kind === 'project') {
+        const resp = await window.api.openProjectFromPath(result.path);
+        handleProjectLoad(resp, fileName);
+      } else {
+        // result.kind === 'skeleton' (exhaustive — only three arms exist).
+        const resp = await window.api.loadSkeletonFromPath(result.path);
+        handleLoad(resp, fileName);
+      }
     });
 
     const unsubOpenRecent = window.api.onMenuOpenRecent(async (path: string) => {
