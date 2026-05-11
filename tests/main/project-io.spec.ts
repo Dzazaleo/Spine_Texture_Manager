@@ -167,7 +167,7 @@ describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
   });
 });
 
-describe('handleProjectOpen / handleProjectOpenFromPath (F9.2)', () => {
+describe('handleProjectOpenFromPath (F9.2)', () => {
   it('load restores overrides verbatim', async () => {
     const fs = await import('node:fs/promises');
     const json = JSON.stringify({
@@ -486,5 +486,75 @@ describe('Phase 34 D-01/D-02/D-03 — handleOpenDialog (picker-only, three-arm e
     // Defense-in-depth: defaults to 'project' so handleProjectOpenFromPath's
     // .stmproj validator surfaces the typed error envelope downstream.
     expect(result).toEqual({ kind: 'project', path: '/abs/path/to/weird.txt' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 34 Plan 03 Task 1 — handleOpenDialog OPEN-01..05 requirements coverage.
+// These cases lock the OPEN-0x requirement names against the picker filter
+// shape, dialog title, and three-arm envelope so the Phase 34 REQUIREMENTS
+// table has grep-anchored regression evidence. Complements the Plan 01
+// D-01/D-02/D-03 unit cases above (which assert the underlying implementation
+// details) with the requirement-named gates.
+// ---------------------------------------------------------------------------
+
+describe('handleOpenDialog (Phase 34 D-01..D-03)', () => {
+  it('34-OPEN-01: cancelled picker → { kind: "cancelled" }', async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValue({
+      canceled: true,
+      filePaths: [],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'cancelled' });
+  });
+
+  it('34-OPEN-02: picked .stmproj → { kind: "project", path }', async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: ['/a/b/MyRig.stmproj'],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'project', path: '/a/b/MyRig.stmproj' });
+  });
+
+  it('34-OPEN-03: picked .json → { kind: "skeleton", path }', async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: ['/a/b/SIMPLE_TEST.json'],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    expect(result).toEqual({ kind: 'skeleton', path: '/a/b/SIMPLE_TEST.json' });
+  });
+
+  it('34-OPEN-04: defense-in-depth — unknown suffix routes to { kind: "project" } (downstream validator surfaces error)', async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValue({
+      canceled: false,
+      filePaths: ['/a/b/random.txt'],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+    const result = await handleOpenDialog();
+    // D-03 defense-in-depth: handleProjectOpenFromPath's endsWith('.stmproj')
+    // validator surfaces the typed error envelope downstream. handleOpenDialog
+    // itself is non-judgmental about the unexpected suffix (filter normally
+    // prevents this; Windows file-name field paste is the residual vector).
+    expect(result).toEqual({ kind: 'project', path: '/a/b/random.txt' });
+  });
+
+  it('34-OPEN-05: dialog filter is the unified [stmproj, json] entry + title is "Open Spine Project or Skeleton"', async () => {
+    const electron = await import('electron');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValue({
+      canceled: true,
+      filePaths: [],
+    } as Awaited<ReturnType<typeof electron.dialog.showOpenDialog>>);
+    await handleOpenDialog();
+    const dialogArgs = vi.mocked(electron.dialog.showOpenDialog).mock.calls[0];
+    const opts = dialogArgs[dialogArgs.length - 1] as Electron.OpenDialogOptions;
+    expect(opts.filters).toEqual([
+      { name: 'Spine Project or Skeleton', extensions: ['stmproj', 'json'] },
+    ]);
+    expect(opts.title).toBe('Open Spine Project or Skeleton');
   });
 });

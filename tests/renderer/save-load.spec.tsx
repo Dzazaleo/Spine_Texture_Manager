@@ -13,7 +13,7 @@ import { cleanup, render, screen, fireEvent, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { AppShell } from '../../src/renderer/src/components/AppShell';
 import { App } from '../../src/renderer/src/App';
-import type { SkeletonSummary, OpenResponse, SaveResponse } from '../../src/shared/types';
+import type { SkeletonSummary, OpenResponse, SaveResponse, LoadResponse } from '../../src/shared/types';
 import { DEFAULT_DOCUMENTATION } from '../../src/shared/types';
 
 afterEach(cleanup);
@@ -60,7 +60,16 @@ beforeEach(() => {
   vi.stubGlobal('api', {
     saveProject: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
     saveProjectAs: vi.fn().mockResolvedValue({ ok: true, path: '/a/b/proj.stmproj' } as SaveResponse),
-    openProject: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj', documentation: DEFAULT_DOCUMENTATION } } as OpenResponse),
+    // Phase 34 Plan 03 — mock surface migration. Pre-Phase-34 `openProject`
+    // (single-shot picker+load) deleted in Plan 01; replaced by the two-IPC-
+    // step contract: `openProjectPicker` (picker only, three-arm envelope)
+    // and `loadSkeletonFromPath` (path-based skeleton load, symmetric
+    // companion to `openProjectFromPath`). Defaults: picker returns
+    // { kind: 'cancelled' } so tests that don't drive the picker don't
+    // accidentally trigger a load; loadSkeletonFromPath returns ok:true with
+    // the standard summary so skeleton-arm tests work without re-overriding.
+    openProjectPicker: vi.fn().mockResolvedValue({ kind: 'cancelled' }),
+    loadSkeletonFromPath: vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() } as LoadResponse),
     openProjectFromFile: vi.fn().mockResolvedValue({ ok: true, project: { summary: makeSummary(), restoredOverrides: {}, staleOverrideKeys: [], samplingHz: 120, lastOutDir: null, sortColumn: null, sortDir: null, projectFilePath: '/a/b/proj.stmproj', documentation: DEFAULT_DOCUMENTATION } } as OpenResponse),
     openProjectFromPath: vi.fn(),
     loadSkeletonFromFile: vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() }),
@@ -195,8 +204,9 @@ describe('AppShell Save/Open buttons (D-140, D-141)', () => {
 //     disables File menu items via menu rebuild).
 //
 // 8.2-MENU-06 below provides the inverse assertion: a Cmd+O keydown
-// dispatched into the window does NOT call window.api.openProject() directly
-// (the renderer keydown path is gone end-to-end).
+// dispatched into the window does NOT call window.api.openProjectPicker()
+// directly (the renderer keydown path is gone end-to-end; Phase 34 mock-
+// surface migration renamed the surface from openProject → openProjectPicker).
 
 describe('SaveQuitDialog three-button flow (D-143)', () => {
   // Phase 8.1 Plan 01 Task 3: the two prior placeholder shells are flipped
@@ -370,54 +380,6 @@ describe('8.1-VR-01: .stmproj drop SkeletonNotFoundOnLoadError → App.tsx recov
   });
 });
 
-describe('8.1-VR-02: AppShell toolbar Open threads projectPath into recovery banner (D-159, D-160)', () => {
-  // PHASE 19 LATENT — Open button lifted from toolbar to File menu in
-  // commit b14c25d (feat(menu): customize app menu). Same root cause as
-  // the skipped tests above. Rewrite to dispatch onMenuOpen IPC and
-  // assert the threaded projectPath flows into skeletonNotFoundError.
-  // Tracked for v1.4.
-  it.skip('Open → SkeletonNotFoundOnLoadError envelope → Locate skeleton uses threaded projectPath', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (globalThis as any).api.openProject = vi.fn().mockResolvedValue({
-      ok: false,
-      error: {
-        kind: 'SkeletonNotFoundOnLoadError',
-        message: 'Skeleton JSON not found: /a/b/RENAMED.json',
-        projectPath: '/a/b/proj.stmproj',
-        originalSkeletonPath: '/a/b/RENAMED.json',
-        mergedOverrides: { TRIANGLE: 50 },
-        samplingHz: 120,
-        lastOutDir: null,
-        sortColumn: null,
-        sortDir: null,
-      },
-    } as OpenResponse);
-
-    const summary = makeSummary();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    render(<AppShell summary={summary} samplingHz={120} {...({} as any)} />);
-
-    // Click toolbar Open. AppShell internal state sets skeletonNotFoundError
-    // with the THREADED projectPath (NOT empty string).
-    const openBtn = screen.getByRole('button', { name: /^Open$/i });
-    await userEvent.click(openBtn);
-
-    // Locate skeleton button surfaces in the inline banner.
-    const locateBtn = await screen.findByRole('button', { name: /Locate skeleton/i });
-    await userEvent.click(locateBtn);
-
-    // The reload IPC must have been called with the threaded projectPath
-    // (post-fix from Plan 08.1-03; pre-fix this is empty string and the
-    // call is made but with the wrong path — the assertion locks the
-    // post-fix contract).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const calls = (globalThis as any).api.reloadProjectWithSkeleton.mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls[0][0].projectPath).toBe('/a/b/proj.stmproj');
-    expect(calls[0][0].mergedOverrides).toEqual({ TRIANGLE: 50 });
-  });
-});
-
 /**
  * Phase 08.2 — File menu wiring renderer specs (8.2-MENU-01..06).
  *
@@ -428,13 +390,16 @@ describe('8.1-VR-02: AppShell toolbar Open threads projectPath into recovery ban
  *
  *   01: AppShell pushes notifyMenuState({canSave,canSaveAs:true,modalOpen:false}) on mount
  *   02: Opening OverrideDialog flips modalOpen:true (D-184)
- *   03: onMenuOpen → openProject() in the loaded state (the happy path)
- *   04: onMenuOpen → openProject() in projectLoadFailed state — THE CANONICAL
- *       08.1 UAT REGRESSION REPRODUCER (Cmd+O on the recovery banner now fires)
+ *   03: onMenuOpen → openProjectPicker() in the loaded state (the happy path —
+ *       Phase 34 mock-surface migration: openProject → openProjectPicker)
+ *   04: onMenuOpen → openProjectPicker() in projectLoadFailed state — THE
+ *       CANONICAL 08.1 UAT REGRESSION REPRODUCER (Cmd+O on the recovery
+ *       banner now fires — Phase 34 mock-surface migration)
  *   05: onMenuOpenRecent('/abs/path.stmproj') → openProjectFromPath('/abs/path.stmproj')
- *   06: AppShell keydown listener is gone — Cmd+O via window.dispatchEvent does
- *       NOT call openProject directly (replaces the retired Keyboard shortcuts
- *       describe block — the inverse assertion of D-176)
+ *   06: AppShell keydown listener is gone — Cmd+O via window.dispatchEvent
+ *       does NOT call openProjectPicker directly (replaces the retired
+ *       Keyboard shortcuts describe block — the inverse assertion of D-176;
+ *       Phase 34 mock-surface migration: openProject → openProjectPicker)
  */
 describe('Phase 08.2 menu wiring', () => {
   it('8.2-MENU-01: AppShell calls notifyMenuState on mount with summary loaded', async () => {
@@ -487,7 +452,7 @@ describe('Phase 08.2 menu wiring', () => {
     expect(api.onMenuOpen.mock.calls.length).toBeGreaterThan(0);
     const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
     await cb();
-    expect(api.openProject).toHaveBeenCalled();
+    expect(api.openProjectPicker).toHaveBeenCalled();
   });
 
   it('8.2-MENU-04: onMenuOpen in projectLoadFailed state still fires open flow (08.1 UAT fix)', async () => {
@@ -527,7 +492,7 @@ describe('Phase 08.2 menu wiring', () => {
     // THIS IS THE CANONICAL 08.1 UAT BUG ASSERTION.
     const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
     await cb();
-    expect(api.openProject).toHaveBeenCalled();
+    expect(api.openProjectPicker).toHaveBeenCalled();
   });
 
   it('8.2-MENU-05: onMenuOpenRecent fires openProjectFromPath after dirty-guard', async () => {
@@ -556,21 +521,183 @@ describe('Phase 08.2 menu wiring', () => {
   it('8.2-MENU-06: AppShell keydown listener is gone — Cmd+O dispatch does NOT call openProject directly', async () => {
     // Mount AppShell DIRECTLY (NOT App) so the App.tsx-level menu-event
     // useEffect that captures onMenuOpen never runs — that callback (when
-    // invoked) DOES call openProject, which would pollute this assertion.
+    // invoked) DOES call openProjectPicker, which would pollute this assertion.
     // We're asserting the OLD AppShell.tsx:626-643 keydown path is gone:
     // dispatching Cmd+O via window.dispatchEvent must NOT trigger
-    // openProject in any way.
+    // openProjectPicker in any way.
     const summary = makeSummary();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     render(<AppShell summary={summary} samplingHz={120} {...({} as any)} />);
-    // Defensive reset — even though App isn't mounted, the openProject mock
-    // is shared via vi.stubGlobal('api', ...). Clear before dispatching to
-    // make the assertion unambiguous.
+    // Defensive reset — even though App isn't mounted, the openProjectPicker
+    // mock is shared via vi.stubGlobal('api', ...). Clear before dispatching
+    // to make the assertion unambiguous.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (globalThis as any).api.openProject.mockClear();
+    (globalThis as any).api.openProjectPicker.mockClear();
     fireEvent.keyDown(window, { key: 'o', metaKey: true });
     await Promise.resolve();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((globalThis as any).api.openProject).not.toHaveBeenCalled();
+    expect((globalThis as any).api.openProjectPicker).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Phase 34 — File menu accepts .json + .stmproj (OPEN-01..05).
+ *
+ * Mirrors 8.2-MENU-03/04/05 idiom: render <App />, capture the registered
+ * onMenuOpen callback via api.onMenuOpen.mock.calls[0][0], drive scenarios
+ * by per-test overriding api.openProjectPicker's resolved value.
+ *
+ * 34-MENU-04 is the idle-state passthrough invariant (beforeDropRef.current
+ * is null → handleBeforeDrop returns true via ?? fallback → load proceeds).
+ * 34-MENU-04b is the dirty-cancel arm (project loaded + dirty + user clicks
+ * SaveQuitDialog Cancel → handleBeforeDrop resolves false → load skipped).
+ * Both sub-arms of OPEN-04 are now grep-verifiable.
+ */
+describe('Phase 34 onMenuOpen — File menu accepts .json + .stmproj (OPEN-01..05)', () => {
+  it('34-MENU-01: picker returns { kind: "cancelled" } → no guard, no load IPC, no state change (D-05)', async () => {
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'cancelled' });
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    expect(api.openProjectPicker).toHaveBeenCalled();
+    expect(api.openProjectFromPath).not.toHaveBeenCalled();
+    expect(api.loadSkeletonFromPath).not.toHaveBeenCalled();
+  });
+
+  it('34-MENU-02: picker returns { kind: "project", path } → openProjectFromPath called with path (D-06 .stmproj arm)', async () => {
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'project', path: '/abs/MyRig.stmproj' });
+    api.openProjectFromPath = vi.fn().mockResolvedValue({
+      ok: true,
+      project: {
+        summary: makeSummary(),
+        restoredOverrides: {},
+        staleOverrideKeys: [],
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+        projectFilePath: '/abs/MyRig.stmproj',
+        documentation: DEFAULT_DOCUMENTATION,
+      },
+    });
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    expect(api.openProjectFromPath).toHaveBeenCalledWith('/abs/MyRig.stmproj');
+    expect(api.loadSkeletonFromPath).not.toHaveBeenCalled();
+  });
+
+  it('34-MENU-03: picker returns { kind: "skeleton", path } → loadSkeletonFromPath called with path (D-06 .json arm)', async () => {
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'skeleton', path: '/abs/SIMPLE_TEST.json' });
+    api.loadSkeletonFromPath = vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() } as LoadResponse);
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    expect(api.loadSkeletonFromPath).toHaveBeenCalledWith('/abs/SIMPLE_TEST.json');
+    expect(api.openProjectFromPath).not.toHaveBeenCalled();
+  });
+
+  it('34-MENU-04: idle-state passthrough — null beforeDropRef returns true via ?? fallback → dispatch proceeds', async () => {
+    // Renamed per plan-checker Warning #1 Option B. The label honestly
+    // reflects what the body verifies: when App is in idle state (no
+    // AppShell mounted, beforeDropRef.current === null), handleBeforeDrop
+    // returns true via the ?? fallback at App.tsx:239 and the load
+    // dispatch proceeds. The dirty-cancel arm is 34-MENU-04b below.
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'skeleton', path: '/abs/x.json' });
+    api.loadSkeletonFromPath = vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() } as LoadResponse);
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    // Idle state → null ref → handleBeforeDrop returns true → dispatch proceeds.
+    expect(api.loadSkeletonFromPath).toHaveBeenCalledWith('/abs/x.json');
+  });
+
+  it('34-MENU-04b: dirty session + SaveQuitDialog Cancel → handleBeforeDrop returns false → no load IPC fires (D-05 dirty-cancel arm)', async () => {
+    // The actual D-05 dirty-cancel sub-arm of OPEN-04. Drives App into
+    // projectLoaded via a .stmproj drop, triggers an override-edit through
+    // the GlobalMaxRender panel double-click → OverrideDialog → Apply path
+    // to mark the session dirty (mirrors the established 8.1-VR-03a/03b
+    // dirty-flow choreography), then invokes the captured onMenuOpen
+    // callback with a .json picker result. Because the session is dirty,
+    // AppShell mounts SaveQuitDialog with reason='new-skeleton-drop'. The
+    // user clicks Cancel → SaveQuitDialog's onCancel resolves the pending
+    // Promise with false → handleBeforeDrop resolves false → App.tsx's
+    // onMenuOpen returns early without firing the load IPC.
+    const { container } = render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+
+    // Step 1: Reach projectLoaded via .stmproj drop.
+    const dropTarget = container.firstElementChild as HTMLElement;
+    const f = new File(['{}'], 'proj.stmproj', { type: 'application/json' });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [f] } as unknown as DataTransfer });
+
+    // Step 2: Mark session dirty via the established override-edit path
+    // (mirrors 8.1-VR-03a lines 229-236 verbatim). CIRCLE.png is in
+    // makeSummary().regions; double-click its 32×32 Peak cell → OverrideDialog
+    // → set 50 → Apply. The override Map gains CIRCLE → AppShell's isDirty
+    // memo flips true.
+    const circleNameCell = await screen.findByText(/^CIRCLE\.png$/i);
+    const circleRow = circleNameCell.closest('tr')!;
+    const peakCell = within(circleRow).getByText(/^32×32$/);
+    fireEvent.doubleClick(peakCell);
+    const input = await screen.findByRole('spinbutton');
+    fireEvent.change(input, { target: { value: '50' } });
+    const apply = await screen.findByRole('button', { name: /^Apply$/i });
+    await userEvent.click(apply);
+
+    // Step 3: Re-seed the picker + load mocks fresh so the assertion below
+    // isn't polluted by the Step 1 drop (which called openProjectFromFile,
+    // NOT openProjectFromPath / loadSkeletonFromPath — those two are the
+    // mocks the D-06 dispatch would call).
+    api.loadSkeletonFromPath = vi.fn().mockResolvedValue({ ok: true, summary: makeSummary() } as LoadResponse);
+    api.openProjectFromPath = vi.fn().mockResolvedValue({ ok: true });
+
+    // Step 4: Invoke onMenuOpen with a .json picker result. Because session
+    // is dirty, App.tsx's handler awaits handleBeforeDrop → AppShell mounts
+    // SaveQuitDialog and the Promise is pending until the user clicks a
+    // SaveQuitDialog button. Fire-and-don't-await: keep cb() pending while
+    // we click Cancel, then await it to flush.
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'skeleton', path: '/abs/other.json' });
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    const pending = cb();
+
+    // Step 5: Click SaveQuitDialog Cancel. SaveQuitDialog mounts as the
+    // third button (Save / Don't Save / Cancel); accessible name is the
+    // literal text 'Cancel'.
+    const cancelBtn = await screen.findByRole('button', { name: /^Cancel$/i });
+    await userEvent.click(cancelBtn);
+
+    // Step 6: Now await the deferred cb(). handleBeforeDrop resolved false
+    // → onMenuOpen returned early without dispatching to a load IPC.
+    await pending;
+
+    expect(api.loadSkeletonFromPath).not.toHaveBeenCalled();
+    expect(api.openProjectFromPath).not.toHaveBeenCalled();
+  });
+
+  it('34-MENU-05: picker resolves on first call → second click reuses the same captured callback (subscription stable)', async () => {
+    // Lock the contract that the menu:open-clicked subscription is
+    // registered ONCE per App mount. The useEffect's deps array is empty
+    // (the handler closes over useCallback-stable handlers); a re-render
+    // does not re-subscribe. Phase 08.2 D-181 invariant.
+    render(<App />);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const api = (globalThis as any).api;
+    // Exactly one registration call expected.
+    expect(api.onMenuOpen.mock.calls.length).toBe(1);
+    api.openProjectPicker = vi.fn().mockResolvedValue({ kind: 'cancelled' });
+    const cb = api.onMenuOpen.mock.calls[0][0] as () => Promise<void>;
+    await cb();
+    await cb();
+    expect(api.openProjectPicker).toHaveBeenCalledTimes(2);
   });
 });
