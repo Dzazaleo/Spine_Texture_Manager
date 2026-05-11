@@ -39,24 +39,32 @@ describe('loader — accepts rotated atlas regions (ATLAS-01)', () => {
     expect(rotatedRegions.length).toBe(1);
   });
 
-  // UAT regression — the spine-core fallback at TextureAtlas.js:152-155 sets
-  // originalWidth/Height to packed dims when the atlas has no `offsets:` line.
-  // For rotated regions this leaves canonical dims swapped (post-rotation).
-  // loader.ts must detect the fallback and produce canonical W/H. This test
-  // would have caught the original bug where the Global panel showed packed
-  // 100×500 instead of canonical 500×100 for the `rect` region.
-  it('rotated region surfaces canonical (unrotated) W/H, not packed dims', () => {
+  // UAT regression — libgdx atlas convention encodes `bounds:x,y,W,H` in
+  // CANONICAL (pre-rotation) orientation. For rotated regions, the actual
+  // page-pixel rectangle has (height × width) extent. spine-core uses this
+  // at TextureAtlas.js:164-167 for u2/v2 derivation when degrees==90.
+  // packW/packH MUST be the page-pixel dims (used as sharp.extract args);
+  // w/h MUST be canonical (used as JSON / orig-canvas dims).
+  //
+  // Caught by HUMAN-UAT: Global panel correctly showed canonical 100×500 for
+  // the `rect` region but Optimize Assets exported 500×100 (rotated) and
+  // atlas-preview pulled green pixels from SQUARE — both consequences of
+  // packW/packH being 100×500 (canonical) instead of 500×100 (page-pixel),
+  // so sharp.extract pulled from the wrong page slice.
+  it('rotated region: w/h carry canonical dims, packW/packH carry page-pixel dims', () => {
     const r = loadSkeleton(ROTATED_FIXTURE);
     const rect = r.atlasSources.get('rect');
     expect(rect, "'rect' region must be present").toBeDefined();
     expect(rect!.rotated).toBe(true);
-    // Fixture canonical source rectangle is 500w × 100h (per 33-01-SUMMARY).
-    // Atlas packed dims are 100×500 (post-rotation). w/h MUST be canonical.
-    expect(rect!.w, 'canonical W (unrotated)').toBe(500);
-    expect(rect!.h, 'canonical H (unrotated)').toBe(100);
-    // Packed dims (sharp.extract args) remain post-rotation.
-    expect(rect!.packW, 'packed W on page').toBe(100);
-    expect(rect!.packH, 'packed H on page').toBe(500);
+    // Canonical source rectangle is 100w × 500h (vertical, drawn in Spine editor).
+    expect(rect!.w, 'canonical W').toBe(100);
+    expect(rect!.h, 'canonical H').toBe(500);
+    // Page-pixel rect (post-pack rotation): 500w × 100h horizontal slice.
+    expect(rect!.packW, 'page-pixel W on page').toBe(500);
+    expect(rect!.packH, 'page-pixel H on page').toBe(100);
+    // Page-pixel rect MUST fit entirely inside the page (1839×1464 per fixture).
+    expect(rect!.x + rect!.packW).toBeLessThanOrEqual(1839);
+    expect(rect!.y + rect!.packH).toBeLessThanOrEqual(1464);
   });
 
   it('unrotated regions still report identical w/h as packW/packH', () => {

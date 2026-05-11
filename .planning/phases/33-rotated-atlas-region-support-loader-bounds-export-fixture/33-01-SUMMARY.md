@@ -64,17 +64,32 @@ rotate:90
 | Field | Value | Notes |
 |-------|-------|-------|
 | `region_name` | `rect` | The single rotated region |
-| `bounds.x` | 2 | packed-x on page |
-| `bounds.y` | 360 | packed-y on page |
-| `packedW` | 100 | bounds field 3; post-rotation packed width on page |
-| `packedH` | 500 | bounds field 4; post-rotation packed height on page |
-| `canonicalW` | 500 | = `packedH` (libgdx CCW90 inverts WH) |
-| `canonicalH` | 100 | = `packedW` |
+| `bounds.x` | 2 | left-x on page |
+| `bounds.y` | 360 | top-y on page |
+| `bounds W (field 3)` | 100 | libgdx convention: CANONICAL (pre-rotation) W |
+| `bounds H (field 4)` | 500 | libgdx convention: CANONICAL (pre-rotation) H |
+| `canonicalW` | 100 | source rectangle width (vertical strip drawn in Spine editor) |
+| `canonicalH` | 500 | source rectangle height |
+| `page-pixel W` | 500 | actual horizontal extent on the page (= `bounds H` for rotated) — used as `sharp.extract.width` |
+| `page-pixel H` | 100 | actual vertical extent on the page (= `bounds W` for rotated) — used as `sharp.extract.height` |
 | `offsetX` | 0 | no `offsets:` line — Strip Whitespace was OFF |
 | `offsetY` | 0 | |
-| `originalWidth` | 500 | same as canonicalW (no SW trim) |
-| `originalHeight` | 100 | same as canonicalH |
+| `originalWidth` | 100 | spine-core falls back to bounds W when no offsets line (= canonicalW here) |
+| `originalHeight` | 500 | spine-core falls back to bounds H when no offsets line (= canonicalH here) |
 | `rotate` | `90` | spine-core sets `region.degrees = 90` |
+
+**libgdx atlas convention (clarification — earlier draft of this table had
+canonical and page-pixel swapped):** For rotated regions, `bounds:x,y,W,H`
+stores W/H in CANONICAL (pre-rotation) orientation. The packer rotates the
+source 90° CCW to fit it on the page, so the actual page-pixel rectangle
+has dimensions (H × W) — height-of-canonical horizontally and
+width-of-canonical vertically. spine-core's `TextureAtlas.js:164-167`
+encodes this by computing `u2 = (x + region.height) / page.width` and
+`v2 = (y + region.width) / page.height` when `degrees==90`. The loader
+honors this by writing `atlasSources.{w, h}` as canonical and
+`atlasSources.{packW, packH}` as page-pixel (with the swap applied for
+rotated regions). The fix landed in commit `b96e6c8...` (next commit) after
+HUMAN-UAT surfaced the cascade.
 
 ### Unrotated regions (control set for ATLAS-02 reference comparison)
 
@@ -129,12 +144,22 @@ exits 1 (path is not ignored).
 
 The values in the "Rotated region" table above MUST appear verbatim in:
 
-- `tests/core/loader-rotation-accept.spec.ts` (Plan 33-04) —
-  asserts `atlasSources['rect'].rotated === true` and `degrees === 90`.
+- `tests/core/loader-rotation-accept.spec.ts` (Plan 33-04 + UAT fix) —
+  asserts `atlasSources['rect'].rotated === true`, `degrees === 90`,
+  `w === 100, h === 500` (canonical), and `packW === 500, packH === 100`
+  (page-pixel).
 - `tests/core/bounds-rotation-aabb.spec.ts` (Plan 33-04) —
-  uses `canonicalW=500, canonicalH=100` as the reference unrotated dims.
+  synthetic test data; uses canonical W/H to seed the AABB math.
 - `tests/core/export-rotation-dims.spec.ts` (Plan 33-05) —
-  expects ExportPlan output dims = canonicalW × canonicalH = 500×100.
+  expects ExportPlan output dims to match canonical source dims (the test
+  uses its own synthetic row; per the libgdx convention canonical = the
+  user-facing "Source W×H").
 - `tests/main/image-worker-rotation.spec.ts` (Plan 33-05) —
-  hand-built `atlasSource` row needs `packW=100, packH=500, w=500, h=100,
-  offsetX=0, offsetY=0`.
+  hand-built `atlasSource` row uses page-pixel `packW/packH` for the
+  sharp.extract call and canonical `w/h` for the canvas-extend math.
+
+**For the real fixture row (`rect`):**
+- canonical: `w=100, h=500`
+- page-pixel: `packW=500, packH=100`
+- offsets: `offsetX=0, offsetY=0`
+- rotated: `true`, `degrees=90`

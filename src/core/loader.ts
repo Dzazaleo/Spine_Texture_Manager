@@ -795,31 +795,26 @@ export function loadSkeleton(
     const atlasDir = path.dirname(resolvedAtlasPath!);
     for (const region of atlas!.regions) {
       const rotated = region.degrees !== 0;
-      // Phase 33 UAT fix — canonical W/H for rotated regions when `offsets:`
-      // line is absent. spine-core's TextureAtlas.js:152-155 fallback sets
-      // `originalWidth=width` and `originalHeight=height` when no offsets
-      // line is parsed. For rotated regions that fallback leaves canonical
-      // dims post-rotation (i.e. swapped). Detect the fallback via signature
-      // — offsetX/Y=0 AND originalW/H === width/height — and swap back.
-      // SW=on always emits an `offsets:` line, so the fallback signature is
-      // unambiguous in practice.
-      const usingOriginalsFallback =
-        region.offsetX === 0 &&
-        region.offsetY === 0 &&
-        region.originalWidth === region.width &&
-        region.originalHeight === region.height;
-      const canonicalW = (rotated && usingOriginalsFallback) ? region.height : region.originalWidth;
-      const canonicalH = (rotated && usingOriginalsFallback) ? region.width : region.originalHeight;
+      // Phase 33 UAT fix — packW/packH MUST be the actual page-pixel rect
+      // dims (sharp.extract args). libgdx atlas convention: `bounds:x,y,W,H`
+      // stores W/H in CANONICAL (pre-rotation) orientation; for rotated
+      // regions the page-pixel rect has (height × width) extent — confirmed
+      // by spine-core TextureAtlas.js:164-167 (u2/v2 derived from
+      // region.height for horizontal span and region.width for vertical span
+      // when degrees==90). Swap for rotated regions so image-worker /
+      // atlas-preview extract the right slice.
+      const packW = rotated ? region.height : region.width;
+      const packH = rotated ? region.width : region.height;
       atlasSources.set(region.name, {
         pagePath: path.resolve(path.join(atlasDir, region.page.name)),
         x: region.x,
         y: region.y,
-        packW: region.width,
-        packH: region.height,
+        packW,
+        packH,
         offsetX: region.offsetX,
         offsetY: region.offsetY,
-        w: canonicalW,
-        h: canonicalH,
+        w: region.originalWidth,
+        h: region.originalHeight,
         rotated,
       });
     }
