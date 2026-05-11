@@ -207,7 +207,28 @@ export async function runExport(
     //    atlas page at its native size (no resize). This covers atlas-packed
     //    projects (atlas-source mode) where sourcePath points to images/ but
     //    no individual PNGs exist on disk.
+    //
+    // Phase 33 WR-03: for ROTATED atlas-source regions, force atlas-extract
+    // even when a per-region PNG happens to exist on disk. Per-region PNGs
+    // in atlas-source mode are NOT guaranteed canonical-oriented (the atlas
+    // page is the authoritative source), so copyFile would silently emit
+    // unrotated content. Honors memory `project_strict_loadermode_separation`.
     let passthroughUseAtlasExtract = false;
+    if (row.atlasSource?.rotated === true) {
+      try {
+        await access(row.atlasSource.pagePath, fsConstants.R_OK);
+        passthroughUseAtlasExtract = true;
+      } catch {
+        const error: ExportError = {
+          kind: 'missing-source',
+          path: row.atlasSource.pagePath,
+          message: `Atlas page not readable: ${row.atlasSource.pagePath}`,
+        };
+        errors.push(error);
+        onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+        continue;
+      }
+    } else {
     try {
       await access(sourcePath, fsConstants.R_OK);
     } catch {
@@ -235,6 +256,7 @@ export async function runExport(
         onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
         continue;
       }
+    }
     }
 
     // 2. Path-traversal defense — same shape as resize loop step 2.
@@ -402,7 +424,26 @@ export async function runExport(
     //
     //    'useAtlasExtract' captures the chosen pipeline; the sharp call
     //    in step 5 branches on it.
+    //
+    // Phase 33 WR-03: for ROTATED atlas-source regions, force atlas-extract
+    // even when a per-region PNG happens to exist on disk (atlas page is
+    // authoritative; per-region PNGs not guaranteed canonical-oriented).
     let useAtlasExtract = false;
+    if (row.atlasSource?.rotated === true) {
+      try {
+        await access(row.atlasSource.pagePath, fsConstants.R_OK);
+        useAtlasExtract = true;
+      } catch {
+        const error: ExportError = {
+          kind: 'missing-source',
+          path: row.atlasSource.pagePath,
+          message: `Atlas page not readable: ${row.atlasSource.pagePath}`,
+        };
+        errors.push(error);
+        onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
+        continue;
+      }
+    } else {
     try {
       await access(sourcePath, fsConstants.R_OK);
     } catch {
@@ -434,6 +475,7 @@ export async function runExport(
         onProgress({ index: i, total, path: sourcePath, outPath: resolvedOut, status: 'error', error });
         continue;
       }
+    }
     }
 
     // 2. Path-traversal defense. Resolves outPath against outDir and
