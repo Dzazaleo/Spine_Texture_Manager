@@ -1,6 +1,8 @@
 # Spine Texture Manager
 
-Desktop app (Electron + TypeScript + React) that reads Spine 4.2+ skeleton JSON and computes the peak world-space render scale for every attachment, across every animation and skin. Used by Spine animators to right-size textures per-asset before atlas export.
+Desktop app (Electron + TypeScript + React) that reads Spine 4.2+ skeleton JSON and computes the peak world-space render scale for every attachment, across every animation and skin. Used by Spine animators to right-size source textures per-asset, then export an optimized `images/` folder ready to re-pack or ship as loose images (atlas-less).
+
+Latest release: [v1.3.6](https://github.com/Dzazaleo/Spine_Texture_Manager/releases/latest) — see [INSTALL.md](INSTALL.md) for download + first-launch instructions.
 
 ## Installing
 
@@ -10,15 +12,20 @@ For developers (build from source): clone the repo, `npm install`, `npm run dev`
 
 ## What it does
 
-- Reads a Spine 4.2+ skeleton JSON + companion `.atlas` + `images/` folder.
+- Reads a Spine 4.2+ skeleton JSON in either supported delivery shape:
+  - **Atlas-source mode** — `.json` + companion `.atlas` + atlas page PNGs. The atlas must be exported from Spine with **Rotation** unchecked; rotated regions are not yet supported (planned for v1.4) and load with a clear error.
+  - **Atlas-less mode** — `.json` + a loose `images/` folder (no `.atlas`). This is the workflow Esoteric officially recommends; the app synthesizes a virtual atlas from the loose images.
 - Samples every animation across every skin at 120 Hz (configurable in Settings) using the official Spine runtime math (`computeWorldVertices` after `updateWorldTransform(Physics.update)`).
 - Computes the peak world-space render scale for every attachment (regions and meshes), accounting for IK, transform constraints, path constraints, physics constraints, and deform timelines.
-- Surfaces the per-attachment peak so animators can resize source textures uniformly without losing render fidelity.
-- Optionally re-encodes the atlas's PNG sources at the computed peak dimensions via `sharp` (Lanczos3 filter), preserving the originals.
+- Surfaces the per-attachment peak in Global + Animation Breakdown views, with a dims-badge that warns when actual source-PNG dimensions drift from the canonical dims declared in the atlas.
+- Lets you set **per-attachment overrides** when you want to ship a region larger or smaller than the computed peak, and preview the resulting atlas pack before exporting.
+- Exports an optimized `images/` folder via `sharp` (Lanczos3 + optional sharpen-on-downscale + configurable safety-buffer %); originals are never overwritten. Already-optimized rows passthrough as byte copies.
+- Saves your project + overrides + export settings to a `.stmproj` file you can reopen later.
+- Builds an HTML **Documentation report** for a skeleton — per-attachment dims, peaks, overrides, animations, and skin coverage — ready to hand to the rest of the team.
 
 ## Requirements
 
-- macOS 13+, Windows 10/11 64-bit, or Linux x86_64 (Ubuntu 22.04+ tested).
+- macOS 13+ or Windows 10/11 64-bit. (Linux is build-capable from source but not shipped — no UAT yet.)
 - Spine editor 4.2 or later for the input skeleton JSON. (3.x and earlier are hard-rejected at load time with a typed error.)
 
 ## Commands (developer)
