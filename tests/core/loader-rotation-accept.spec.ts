@@ -38,4 +38,33 @@ describe('loader — accepts rotated atlas regions (ATLAS-01)', () => {
     // Reference: 33-01-SUMMARY.md "Fixture Shape" table — single `rect` region.
     expect(rotatedRegions.length).toBe(1);
   });
+
+  // UAT regression — the spine-core fallback at TextureAtlas.js:152-155 sets
+  // originalWidth/Height to packed dims when the atlas has no `offsets:` line.
+  // For rotated regions this leaves canonical dims swapped (post-rotation).
+  // loader.ts must detect the fallback and produce canonical W/H. This test
+  // would have caught the original bug where the Global panel showed packed
+  // 100×500 instead of canonical 500×100 for the `rect` region.
+  it('rotated region surfaces canonical (unrotated) W/H, not packed dims', () => {
+    const r = loadSkeleton(ROTATED_FIXTURE);
+    const rect = r.atlasSources.get('rect');
+    expect(rect, "'rect' region must be present").toBeDefined();
+    expect(rect!.rotated).toBe(true);
+    // Fixture canonical source rectangle is 500w × 100h (per 33-01-SUMMARY).
+    // Atlas packed dims are 100×500 (post-rotation). w/h MUST be canonical.
+    expect(rect!.w, 'canonical W (unrotated)').toBe(500);
+    expect(rect!.h, 'canonical H (unrotated)').toBe(100);
+    // Packed dims (sharp.extract args) remain post-rotation.
+    expect(rect!.packW, 'packed W on page').toBe(100);
+    expect(rect!.packH, 'packed H on page').toBe(500);
+  });
+
+  it('unrotated regions still report identical w/h as packW/packH', () => {
+    const r = loadSkeleton(ROTATED_FIXTURE);
+    for (const [name, s] of r.atlasSources) {
+      if (s.rotated) continue;
+      expect(s.w, `${name}: w == packW for unrotated`).toBe(s.packW);
+      expect(s.h, `${name}: h == packH for unrotated`).toBe(s.packH);
+    }
+  });
 });

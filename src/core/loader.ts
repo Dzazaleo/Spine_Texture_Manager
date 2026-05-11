@@ -795,6 +795,21 @@ export function loadSkeleton(
     const atlasDir = path.dirname(resolvedAtlasPath!);
     for (const region of atlas!.regions) {
       const rotated = region.degrees !== 0;
+      // Phase 33 UAT fix — canonical W/H for rotated regions when `offsets:`
+      // line is absent. spine-core's TextureAtlas.js:152-155 fallback sets
+      // `originalWidth=width` and `originalHeight=height` when no offsets
+      // line is parsed. For rotated regions that fallback leaves canonical
+      // dims post-rotation (i.e. swapped). Detect the fallback via signature
+      // — offsetX/Y=0 AND originalW/H === width/height — and swap back.
+      // SW=on always emits an `offsets:` line, so the fallback signature is
+      // unambiguous in practice.
+      const usingOriginalsFallback =
+        region.offsetX === 0 &&
+        region.offsetY === 0 &&
+        region.originalWidth === region.width &&
+        region.originalHeight === region.height;
+      const canonicalW = (rotated && usingOriginalsFallback) ? region.height : region.originalWidth;
+      const canonicalH = (rotated && usingOriginalsFallback) ? region.width : region.originalHeight;
       atlasSources.set(region.name, {
         pagePath: path.resolve(path.join(atlasDir, region.page.name)),
         x: region.x,
@@ -803,8 +818,8 @@ export function loadSkeleton(
         packH: region.height,
         offsetX: region.offsetX,
         offsetY: region.offsetY,
-        w: region.originalWidth,
-        h: region.originalHeight,
+        w: canonicalW,
+        h: canonicalH,
         rotated,
       });
     }
