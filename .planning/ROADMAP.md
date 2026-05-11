@@ -9,7 +9,7 @@
 - ✅ **v1.2 Expansion** — Phases 13.1 (deferred), 16, 18–22.1 (shipped 2026-05-03; v1.2.0 final; 40 plans across 8 executed phases; 23/26 REQs closed — UAT-01..03 host-blocked, carried to v1.3) — full archive at [.planning/milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 - ✅ **v1.3 Polish & UX** — Phases 23–28 (shipped 2026-05-07; v1.3.0 final; 7 phases / ~22 plans; correctness/semantic gaps closed + Optimize-flow UX + UI polish; Linux AppImage build dropped from CI as untested target) — full archive at [.planning/milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md)
 - ✅ **v1.3.1 Correctness & Refinements** — Phases 29–31 (shipped 2026-05-09; v1.3.1 final; 3 phases / 16 plans / 20 REQs — REGION-01..07, PREVIEW-01, BUFFER-01..03, LOAD-05..07, PANEL-08..11, PLATFORM-01, TOOLTIP-01; closes the per-region dedup correctness bug surfaced post-v1.3 ship via analyzer.ts attachmentName→regionName key flip, adds user-configurable safety-buffer % in Optimize, lands targeted UX refinements) — full archive at [.planning/milestones/v1.3.1-ROADMAP.md](milestones/v1.3.1-ROADMAP.md)
-- 🚧 **v1.4 Spine 4.3 Forward-Compat + Rotated Atlases** — Phases 32–33 (in progress; 6 REQs — COMPAT-01, COMPAT-02, ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04; replaces today's cryptic 4.3-beta `IK Constraint not found` error with an actionable re-export-as-4.2 advisory + bold `text-danger` v4.2 disclosure on the drop zone; removes the `RotatedRegionUnsupportedError` hard-throw with full rotated-atlas-region support including AABB W↔H swap and ExportPlan dim swap; plants SEED-006 for the full 4.3 runtime port queued for post-`spine-core@4.3` npm publish)
+- 🚧 **v1.4 Spine 4.3 Forward-Compat + Rotated Atlases** — Phases 32–34 (in progress; 6 REQs — COMPAT-01, COMPAT-02, ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04; replaces today's cryptic 4.3-beta `IK Constraint not found` error with an actionable re-export-as-4.2 advisory + bold `text-danger` v4.2 disclosure on the drop zone; removes the `RotatedRegionUnsupportedError` hard-throw with full rotated-atlas-region support including AABB W↔H swap and ExportPlan dim swap; plants SEED-006 for the full 4.3 runtime port queued for post-`spine-core@4.3` npm publish)
 - **v1.3 Polish & UX** — Phases 23–28 (in progress; 18 REQs — PANEL-01..04, OPT-01..03, UI-06..08, UI-10, QA-01..04, SHARP-01..03) — Phase 26 split into 26.1/26.2 (UI-09 dropped 2026-05-05; Phase 26.3 removed); Phase 28 added 2026-05-06 (originally PMA correctness fix promoted from backlog 999.9; PIVOTED to opt-in output sharpening 2026-05-06 after PMA premise empirically falsified during /gsd-discuss-phase 28 — see 28-CONTEXT.md D-01 + scripts/pma-probe.mjs)
 
 ## Phases
@@ -82,10 +82,11 @@
 - [x] **Phase 30: Safety buffer in Optimize dialog** — User-configurable safety-buffer percentage control in OptimizeDialog (integer-percent input with small step). Multiplicatively increases each row's calculated effective scale AND any user-set overrides BEFORE the export plan is computed. Hard-cap at source dimensions on both axes (preserves D-91 + uniform-only Phase 6 invariant). Persists per-project in `.stmproj` v1 as additive optional field (mirrors `sharpenOnExport` precedent from Phase 28; missing field defaults to 0% for v1.2/v1.3-era backward compat; no schema-version bump). Depends on Phase 29 — buffer applies to the *region-level* effective scale, so per-region dedup must land first. (BUFFER-01..03) (completed 2026-05-07)
 - [x] **Phase 31: Loader & UX small-fixes batch** — Four independent UX wirings on existing surfaces, batched per granularity calibration: (a) source-toggle disable+tooltip when atlas/images-folder absent (LOAD-05..07); (b) Animation Breakdown default-collapsed + bulk Expand all/Collapse all toolbar buttons + Setup Pose stays first (PANEL-08..11); (c) Windows admin drag-drop fallback — detect elevation, disable drop targets, route user to File → Open or unprivileged relaunch via clear message (PLATFORM-01); (d) ExtrapolationIcon tooltip regression — up-arrow icon on Peak W×H cells with `peakScale > 1` no longer surfaces its SVG `<title>` on hover; folded mid-discussion 2026-05-08 as second known regression of this surface (TOOLTIP-01). No cross-dependency with Phases 29/30. (LOAD-05..07, PANEL-08..11, PLATFORM-01, TOOLTIP-01) (completed 2026-05-08)
 
-### 🚧 v1.4 Spine 4.3 Forward-Compat + Rotated Atlases (Phases 32–33) — IN PROGRESS
+### 🚧 v1.4 Spine 4.3 Forward-Compat + Rotated Atlases (Phases 32–34) — IN PROGRESS
 
 - [x] **Phase 32: Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant)** — Add a 4.3-detection branch in `src/core/loader.ts` BEFORE `SkeletonJson.readSkeletonData` runs (sniff `root.constraints` array OR `skeleton.spine` semver `≥ 4.3`); throw the existing `SpineVersionUnsupportedError` from `src/core/errors.ts` with an actionable "re-export as Version 4.2" message — replaces today's misleading `IK Constraint not found: <name>` (or `Transform constraint not found:`) thrown by spine-core 4.2's reader when it walks `animations.*.ik[name]` against an empty `IkConstraintData[]` (4.3 stores constraints under unified `root.constraints[]`). Restyle the initial drop-zone advisory at `src/renderer/src/App.tsx:622` to call out the supported version explicitly with the `v4.2` token rendered as `font-bold text-danger` so users on a 4.3 editor see the constraint *before* they drop a file. Plant SEED-006 (Full Spine 4.3 runtime port) at phase close, carrying the costed inventory from this milestone's investigation: 5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy. (COMPAT-01, COMPAT-02) (completed 2026-05-10)
 - [x] **Phase 33: Rotated atlas region support (loader + bounds + export + fixture)** — Remove the hard-throw `RotatedRegionUnsupportedError` from `src/core/errors.ts:154`; rotated regions now propagate through `analyzer.ts` like any other region. In `src/core/bounds.ts` `attachmentWorldAABB`, swap source W↔H for rotated regions before computing the world-space AABB so bounds match what the runtime would render at identity scale. ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims. Atlas-less mode is unaffected (synthetic atlas never packs with rotation). Commit a rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — NOT one of the gitignored proprietary rigs like Chicken/Girl/Jokerman) under `fixtures/` and exercise it via core unit tests covering ATLAS-01..03. (ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04) (completed 2026-05-11)
+- [ ] **Phase 34: File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`)** — Extend the existing File → Open accelerator + menu item so it accepts both the `.stmproj` project archive AND a raw Spine skeleton `.json` file (atlas-source or atlas-less). On `.json` selection, route through the same loader entry that handles drag-drop (`src/core/loader.ts`), preserving strict loaderMode separation (memory `project_strict_loadermode_separation.md`) — atlas-source vs atlas-less is detected from sibling artifacts in the JSON's folder, identical to the drag-drop path. The existing dirty-guard wired in Phase 08.1 remains in force. Adds menu/dialog parity with the drag-drop surface so keyboard-driven workflows have full coverage. (REQs TBD during /gsd-discuss-phase 34)
 
 
 ## Phase Details
@@ -878,6 +879,36 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 34: File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`)
+
+**Goal**: After this phase, the File → Open menu item (and its `Cmd+O` / `Ctrl+O` accelerator) accepts both `.stmproj` project archives AND raw Spine skeleton `.json` files. Selecting a `.json` routes through the same loader entry as the drag-drop surface, preserving strict loaderMode separation (atlas-source vs atlas-less detected from sibling artifacts in the JSON's folder). Keyboard-driven workflows reach full parity with drag-drop.
+
+**Depends on**: Phase 08.1 (locate-skeleton recovery + dirty-guard wiring, already complete) and Phase 08.2 (File menu + `Cmd+O` accelerator gating fix, already complete). Reuses the existing drag-drop loader entry in `src/core/loader.ts`. No new IPC channels expected.
+
+**Requirements**: TBD (to be locked during `/gsd-discuss-phase 34`)
+
+**Background**: Phase 08.2 wired File → Open to `.stmproj` only. Drag-drop has always accepted both `.stmproj` and skeleton `.json` (with atlas-source vs atlas-less detected from sibling artifacts). This phase closes that asymmetry so keyboard-driven users — and users with admin-elevated Windows shells where drag-drop is disabled per PLATFORM-01 — can open skeleton JSON the same way.
+
+**Constraints to preserve**:
+- **Strict loaderMode separation** (memory `project_strict_loadermode_separation.md`) — `.json` selection must route through the same atlas-source vs atlas-less detection as drag-drop. No new code path that re-derives loaderMode from a different signal.
+- **Dirty-guard** (Phase 08.1) — opening a `.json` over an in-progress unsaved project must trigger the existing "Save changes?" confirmation flow.
+- **Windows admin DnD fallback** (PLATFORM-01) — this phase strengthens the documented "use File → Open instead" advisory by making it true for skeleton JSON, not only `.stmproj`.
+
+**Success Criteria** (what must be TRUE):
+  1. File → Open dialog filter accepts both `.stmproj` and `.json` extensions on macOS + Windows.
+  2. Selecting an atlas-source skeleton JSON loads the project end-to-end identically to drag-dropping the same file (Global panel, Animation Breakdown, atlas detection).
+  3. Selecting an atlas-less skeleton JSON (images folder, no `.atlas`) loads identically to its drag-drop equivalent.
+  4. Opening a JSON over an unsaved in-progress project triggers the Phase 08.1 dirty-guard confirmation.
+  5. `Cmd+O` / `Ctrl+O` accelerator behaves identically to the menu item.
+
+**Plans:** 4 plans
+- [ ] 34-01-PLAN.md — main + preload + shared types: handleOpenDialog + 'project:open-dialog' IPC + openProjectPicker/loadSkeletonFromPath preload methods (Wave 1)
+- [ ] 34-02-PLAN.md — renderer: rewire App.tsx onMenuOpen to D-05 + D-06 two-IPC-step flow (Wave 2)
+- [ ] 34-03-PLAN.md — tests: main handleOpenDialog 34-OPEN-01..05 + renderer onMenuOpen 34-MENU-01..05 (Wave 3)
+- [ ] 34-04-PLAN.md — docs: REQUIREMENTS.md OPEN-0x namespace + ROADMAP.md Phase 34 Requirements line (Wave 4)
+
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -910,6 +941,7 @@ Plans:
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete    | 2026-05-11 |
+| 34. File > Open menu accepts Spine skeleton JSON files (not only .stmproj) | v1.4 | 0/0 | Not planned | — |
 
 ## Deferred (post-v1.1)
 
