@@ -334,6 +334,14 @@ export function App() {
       const proceed = await handleBeforeDrop(fileName, dropKind);
       if (!proceed) return;
 
+      // Phase 34 WR-01 — transition AppState to `loading` BEFORE the load
+      // IPC fires so the existing `Loading {fileName}…` UI hint surfaces
+      // for picker-driven opens. Mirrors the drag-drop arms (onLoadStart /
+      // onProjectDropStart at the AppShell mount below). Without this the
+      // picker close → load complete window had no visible state change
+      // on sampler-bound rigs (multi-second sampling).
+      handleLoadStart(fileName);
+
       // Phase 34 D-06 Step 3 — dispatch by kind. Both arms reuse existing
       // handlers verbatim (no new state machine, no new useState slots).
       if (result.kind === 'project') {
@@ -349,8 +357,13 @@ export function App() {
     const unsubOpenRecent = window.api.onMenuOpenRecent(async (path: string) => {
       const proceed = await handleBeforeDrop(path, 'stmproj');
       if (!proceed) return;
+      const fileName = path.split(/[\\/]/).pop() ?? path;
+      // Phase 34 WR-01 — same loading-state transition as the picker arm
+      // above (parity with drag-drop UX; without this Cmd-clicking a
+      // recent .stmproj has no visible feedback while the load IPC runs).
+      handleLoadStart(fileName);
       const resp = await window.api.openProjectFromPath(path);
-      handleProjectLoad(resp, path.split(/[\\/]/).pop() ?? path);
+      handleProjectLoad(resp, fileName);
     });
 
     const unsubSave = window.api.onMenuSave(() => {
@@ -412,7 +425,13 @@ export function App() {
       unsubCopyPeak();
       unsubClose();
     };
-  }, [handleBeforeDrop, handleProjectLoad]);
+    // Phase 34 WR-02 — `handleLoad` and `handleLoadStart` are referenced
+    // inside the menu Open / Open Recent subscriptions above. Both are
+    // useCallback(..., []) and therefore stable, so the bug is dormant
+    // today, but the react-hooks/exhaustive-deps invariant requires them
+    // in the deps array to remain correct under future refactors that
+    // might give them state-dependent closures.
+  }, [handleBeforeDrop, handleProjectLoad, handleLoad, handleLoadStart]);
 
   /**
    * Phase 18 D-01..D-05, D-11 — before-quit dirty-guard subscription, LIFTED
