@@ -164,8 +164,12 @@ const api: Api = {
   saveProjectAs: (state, defaultDir, defaultBasename) =>
     ipcRenderer.invoke('project:save-as', state, defaultDir, defaultBasename),
 
-  /** F9.2 — open native file picker, then chain to handleProjectOpenFromPath. */
-  openProject: () => ipcRenderer.invoke('project:open'),
+  /** Phase 34 D-06 Step 1 — open native picker, returns OpenDialogResponse. No loading happens here. */
+  openProjectPicker: () => ipcRenderer.invoke('project:open-dialog'),
+
+  /** Phase 34 D-06 Step 3 (skeleton arm) — path-based skeleton load (symmetric to openProjectFromPath, mirrors loadSkeletonFromFile after path resolution). Validation lives in main (handleSkeletonLoad endsWith('.json')). */
+  loadSkeletonFromPath: (absolutePath: string) =>
+    ipcRenderer.invoke('skeleton:load', absolutePath),
 
   /**
    * Drop-handler entry point. Resolves the dropped File's filesystem path

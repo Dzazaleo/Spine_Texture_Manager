@@ -1183,6 +1183,18 @@ export type LocateSkeletonResponse =
   | { ok: false };
 
 /**
+ * Phase 34 D-03 — three-arm envelope returned by `handleOpenDialog` (main)
+ * via the `'project:open-dialog'` IPC channel. Discriminator is `kind`
+ * (NOT `ok`) because `cancelled` is a true no-op (no toast, no state
+ * change, no dirty-guard) — not an error. Mirrors Phase 8 D-158
+ * SerializableError's `kind:'X'` convention.
+ */
+export type OpenDialogResponse =
+  | { kind: 'project'; path: string }
+  | { kind: 'skeleton'; path: string }
+  | { kind: 'cancelled' };
+
+/**
  * The contextBridge-exposed `window.api` surface.
  *
  * `loadSkeletonFromFile` takes the raw drag-drop `File` object and resolves
@@ -1261,7 +1273,20 @@ export interface Api {
   // Phase 8 — project file IPC surface (D-140..D-156).
   saveProject: (state: AppSessionState, currentPath: string | null) => Promise<SaveResponse>;
   saveProjectAs: (state: AppSessionState, defaultDir: string, defaultBasename: string) => Promise<SaveResponse>;
-  openProject: () => Promise<OpenResponse>;
+  /**
+   * Phase 34 D-06 Step 1 — open native file picker for "Open Spine Project
+   * or Skeleton" and return a 3-arm discriminated envelope. No load happens
+   * inside this call; the renderer dispatches the appropriate load IPC
+   * based on the returned `kind`. Replaces the deleted `openProject`.
+   */
+  openProjectPicker: () => Promise<OpenDialogResponse>;
+  /**
+   * Phase 34 D-06 Step 3 (skeleton arm) — path-based skeleton load,
+   * symmetric companion to `openProjectFromPath`. Thin wrapper over the
+   * existing `'skeleton:load'` IPC channel (also used by drag-drop's
+   * `loadSkeletonFromFile` after path resolution).
+   */
+  loadSkeletonFromPath: (absolutePath: string) => Promise<LoadResponse>;
   openProjectFromFile: (file: File) => Promise<OpenResponse>;
   openProjectFromPath: (absolutePath: string) => Promise<OpenResponse>;
   locateSkeleton: (originalPath: string) => Promise<LocateSkeletonResponse>;

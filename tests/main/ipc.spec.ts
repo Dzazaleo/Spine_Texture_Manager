@@ -473,3 +473,31 @@ describe('Phase 21 Plan 02 (LOAD-01) — MissingImagesDirError IPC envelope rout
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 34 Plan 01 — File → Open accepts .stmproj OR .json (D-01 + D-02 + D-03 + D-06).
+// Verifies the picker-only IPC channel registration replaces the old single-shot
+// 'project:open' channel.
+// ---------------------------------------------------------------------------
+
+describe('Phase 34 D-06 — \'project:open-dialog\' IPC channel registration', () => {
+  it("registerIpcHandlers registers 'project:open-dialog' invoke channel", () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('project:open-dialog')).toBe(true);
+  });
+
+  it("old 'project:open' channel is no longer registered (physically removed)", () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('project:open')).toBe(false);
+  });
+
+  it("'project:open-from-path' channel is unchanged (sanity check on neighbor)", () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('project:open-from-path')).toBe(true);
+  });
+
+  it("'skeleton:load' channel is unchanged (D-06 Step 3 routes through it)", () => {
+    registerIpcHandlers();
+    expect(ipcMainHandleHandlers.has('skeleton:load')).toBe(true);
+  });
+});

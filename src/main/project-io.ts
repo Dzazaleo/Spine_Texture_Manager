@@ -75,6 +75,7 @@ import type {
   SaveResponse,
   OpenResponse,
   LocateSkeletonResponse,
+  OpenDialogResponse,
   SerializableError,
   MaterializedProject,
 } from '../shared/types.js';
@@ -280,29 +281,60 @@ async function writeProjectFileAtomic(
 }
 
 // ---------------------------------------------------------------------------
-// Open (F9.2)
+// Open (F9.2 → Phase 34 unified picker)
 // ---------------------------------------------------------------------------
 
 /**
- * F9.2 — open the OS file picker, then chain to `handleProjectOpenFromPath`.
- * Cancel returns a `kind:'Unknown'` envelope with message 'Open cancelled' so
- * the renderer can no-op.
+ * Phase 34 D-01 + D-02 + D-03 — picker-only handler for the unified
+ * File → Open dialog. Opens the OS file picker with a single filter
+ * accepting both `.stmproj` (project archives) and `.json` (skeleton
+ * files). Returns a 3-arm discriminated envelope so the renderer can
+ * dispatch the appropriate load IPC by `kind`. No load happens inside
+ * this function — load is split into a second IPC step per D-06.
+ *
+ * Cancel (or empty filePaths) returns `{ kind: 'cancelled' }`. The
+ * renderer treats `cancelled` as a true no-op: no toast, no state
+ * change, no dirty-guard fire (D-05 improvement over the status-quo
+ * pre-Phase-34 flow that fired the guard before the picker).
+ *
+ * Defense-in-depth: if the OS picker somehow yields a path with
+ * neither `.stmproj` nor `.json` suffix (filter normally prevents
+ * this; Windows file-name field can paste arbitrary paths), the
+ * handler returns `{ kind: 'project', path }` and lets the
+ * downstream `handleProjectOpenFromPath`'s extension validator
+ * surface the typed error envelope. The trust-boundary check stays
+ * at the load handler where it has always been — this handler does
+ * not duplicate or pre-empt it.
+ *
+ * Replaces the pre-Phase-34 `handleProjectOpen` (single-shot project
+ * loader; physically removed in Phase 34 Plan 01 Task 2). The two-IPC-
+ * step architecture (D-06) is what lets the renderer apply the
+ * dirty-guard between picker close and load start — a behavioral
+ * improvement over D-183.
  */
-export async function handleProjectOpen(): Promise<OpenResponse> {
+export async function handleOpenDialog(): Promise<OpenDialogResponse> {
   const win = BrowserWindow.getFocusedWindow();
   const options: Electron.OpenDialogOptions = {
-    title: 'Open Spine Texture Manager Project',
+    title: 'Open Spine Project or Skeleton',
     properties: ['openFile'],
-    filters: [{ name: 'Spine Texture Manager Project', extensions: ['stmproj'] }],
+    filters: [{ name: 'Spine Project or Skeleton', extensions: ['stmproj', 'json'] }],
   };
   const result = win
     ? await dialog.showOpenDialog(win, options)
     : await dialog.showOpenDialog(options);
 
   if (result.canceled || result.filePaths.length === 0) {
-    return { ok: false, error: { kind: 'Unknown', message: 'Open cancelled' } };
+    return { kind: 'cancelled' };
   }
-  return handleProjectOpenFromPath(result.filePaths[0]);
+  const picked = result.filePaths[0];
+  const lower = picked.toLowerCase();
+  if (lower.endsWith('.json')) {
+    return { kind: 'skeleton', path: picked };
+  }
+  // Default + .stmproj arm. Defense-in-depth: an unexpected suffix
+  // falls through here; handleProjectOpenFromPath's validator emits
+  // a typed error envelope downstream.
+  return { kind: 'project', path: picked };
 }
 
 /**
