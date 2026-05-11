@@ -48,7 +48,7 @@ import { runExport } from './image-worker.js';
 import {
   handleProjectSave,
   handleProjectSaveAs,
-  handleProjectOpen,
+  handleOpenDialog,
   handleProjectOpenFromPath,
   handleLocateSkeleton,
   handleProjectReloadWithSkeleton,
@@ -918,7 +918,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('project:save-as', async (_evt, state, defaultDir, defaultBasename) =>
     handleProjectSaveAs(state, defaultDir, defaultBasename),
   );
-  ipcMain.handle('project:open', async (_evt) => handleProjectOpen());
+  // Phase 34 D-06 Step 1 — picker-only handler. Returns OpenDialogResponse
+  // three-arm envelope; the renderer dispatches the appropriate load IPC
+  // ('project:open-from-path' for kind:'project'; 'skeleton:load' for
+  // kind:'skeleton') based on the returned `kind`.
+  ipcMain.handle('project:open-dialog', async (_evt) => handleOpenDialog());
   ipcMain.handle('project:open-from-path', async (_evt, absolutePath) =>
     handleProjectOpenFromPath(absolutePath),
   );
