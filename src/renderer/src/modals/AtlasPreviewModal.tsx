@@ -558,18 +558,48 @@ function AtlasCanvas({
           const a = region.atlasSource;
           const scaleX = region.w / a.w;
           const scaleY = region.h / a.h;
+          // Phase 33 UAT — for rotated regions packW/packH are page-pixel dims
+          // (horizontal slice) but the canonical destination tile is vertical
+          // (a.w × a.h). Pre-render into a temp canvas with a CW90 rotation so
+          // the downstream drawImage math (which assumes canonical orientation)
+          // works unchanged. sourceCanvasW/H are the post-rotation dims = canonical.
+          const sourceCanvasW = a.rotated ? a.packH : a.packW;
+          const sourceCanvasH = a.rotated ? a.packW : a.packH;
+          let srcImg: CanvasImageSource = img;
+          let srcX = a.x;
+          let srcY = a.y;
+          let srcW = a.packW;
+          let srcH = a.packH;
+          if (a.rotated) {
+            // CW90 un-rotates libgdx CCW90-packed regions to canonical orientation
+            // (same direction sharp.rotate(+90) uses in image-worker.ts).
+            const tmp = document.createElement('canvas');
+            tmp.width = sourceCanvasW;
+            tmp.height = sourceCanvasH;
+            const tctx = tmp.getContext('2d');
+            if (tctx) {
+              tctx.translate(sourceCanvasW, 0);
+              tctx.rotate(Math.PI / 2);
+              tctx.drawImage(img, a.x, a.y, a.packW, a.packH, 0, 0, a.packW, a.packH);
+            }
+            srcImg = tmp;
+            srcX = 0;
+            srcY = 0;
+            srcW = sourceCanvasW;
+            srcH = sourceCanvasH;
+          }
           const dstX = region.x + a.offsetX * scaleX;
-          const dstY = region.y + (a.h - a.offsetY - a.packH) * scaleY;
+          const dstY = region.y + (a.h - a.offsetY - sourceCanvasH) * scaleY;
           ctx.drawImage(
-            img,
-            a.x,
-            a.y,
-            a.packW,
-            a.packH,
+            srcImg,
+            srcX,
+            srcY,
+            srcW,
+            srcH,
             dstX,
             dstY,
-            a.packW * scaleX,
-            a.packH * scaleY,
+            srcW * scaleX,
+            srcH * scaleY,
           );
         } else {
           ctx.drawImage(
