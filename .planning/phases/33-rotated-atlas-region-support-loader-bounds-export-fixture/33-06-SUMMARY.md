@@ -66,11 +66,76 @@ end-to-end:
 
 ## Section 2 — HUMAN-UAT sign-off (Task 2)
 
-_Awaiting user UAT — see plan 33-06 §Task 2 §how-to-verify for the 6-step
-runbook. Resume signal: "UAT approved" (with observed dims) or
-"ISSUE: &lt;step-N&gt; &lt;description&gt;"._
+**Approved 2026-05-11 by user.**
 
-This section will be filled in once the user signs off on the live UAT.
+### UAT cycle and surfaced bugs
+
+The first UAT pass surfaced three symptoms with one root cause:
+
+| Symptom | Where | Root cause |
+|---------|-------|------------|
+| Atlas-preview tooltip showed canonical `100×500` but the tile content was a short horizontal strip + pixels from neighboring SQUARE region (green tint) | `src/renderer/src/modals/AtlasPreviewModal.tsx` drawImage call | Used `a.packW/a.packH` (carried CANONICAL dims for rotated regions in the original loader code) as `sharp/canvas` extract args. For rotated regions the actual page-pixel slice is `(region.height × region.width)`, not `(region.width × region.height)`. |
+| Optimize → `Expected positive integer for right but received -400` error | `src/main/image-worker.ts` passthrough extend math | Same root cause cascaded: `extend.right = a.w - sourceCanvasW = 100 - 500 = -400`. |
+| Optimize succeeded on second attempt but produced a 500×100 green PNG instead of 100×500 vertical white | image-worker passthrough output | Pre-fix extract pulled green pixels from below the actual region's page-pixel rect (overlapped SQUARE at y ≥ 462). |
+
+### Fixes applied during UAT (deviations from plan)
+
+1. **Commit `9bb078a`** `fix(33-04): packW/packH must be page-pixel dims for rotated regions` —
+   `src/core/loader.ts` swaps `region.width`/`region.height` when populating
+   `packW/packH` for rotated regions, restoring the libgdx convention that
+   `bounds:x,y,W,H` stores canonical (pre-rotation) dims while page-pixel
+   extent is `(H × W)`. spine-core `TextureAtlas.js:164-167` confirms via
+   `u2 = (x + region.height) / page.width` for `degrees==90`. `w/h` continue
+   to carry canonical dims via `region.originalWidth/Height`.
+2. **Commit `6a025c0`** `fix(33-04): atlas-preview pre-rotates rotated regions before draw` —
+   `src/renderer/src/modals/AtlasPreviewModal.tsx` pre-renders rotated
+   regions into a temp canvas with a `CW90` rotation before the main
+   `ctx.drawImage`. Mirrors the `sharp.rotate(+90)` direction used by
+   image-worker. SW + rotation path inherits canonical-orientation source
+   for offset reconstitution.
+3. **Commit `de35a85` reverted (within commit `9bb078a`)** — an earlier
+   misread of the libgdx convention swapped `w/h` instead of `packW/packH`.
+   Corrected to swap the correct fields.
+
+### Regression coverage added
+
+- `tests/core/loader-rotation-accept.spec.ts` now asserts canonical AND
+  page-pixel dims independently against the real fixture:
+  - `rect.w === 100, rect.h === 500` (canonical, vertical source)
+  - `rect.packW === 500, rect.packH === 100` (page-pixel, horizontal slice)
+  - `rect.x + rect.packW ≤ page.width` (slice fits in page)
+  - Unrotated regions still satisfy `w === packW, h === packH`.
+- The earlier ATLAS-01 / ATLAS-02 tests still pass (they checked
+  `rotated === true` and AABB correctness from synthetic data — neither
+  exercised the loader's canonical/page-pixel split).
+
+### UAT step results (post-fix re-run)
+
+| Step | Expected | Observed |
+|------|----------|----------|
+| 2 — drop rotated fixture | No banner; Global shows `rect` Source W×H = `100×500` | PASS |
+| 3 — Atlas Preview | `rect.png` 100×500 tile renders as vertical white rect, no green overlap | PASS |
+| 4 — Optimize Assets | `images/rect.png` writes without error | PASS |
+| 5 — output PNG dims | `100 × 500 png` | PASS |
+| 6 — regression on `SIMPLE_PROJECT/SIMPLE_TEST.json` | loads + exports correctly | PASS |
+
+### Why automated tests missed this pre-UAT
+
+- `loader-rotation-accept.spec.ts` only asserted `rotated === true` and a
+  count — never read `w/h/packW/packH` values from the loader output.
+- `bounds-rotation-aabb.spec.ts` (16-case matrix) seeded its own synthetic
+  `atlasSources` Map, so it never exercised the loader's canonical/page-
+  pixel split.
+- `export-rotation-dims.spec.ts` + `image-worker-rotation.spec.ts` (Plan
+  33-05) used hand-built `atlasSource` rows with the CORRECT canonical/
+  page-pixel split — so the image-worker math was test-locked, but the
+  loader's incorrect outputs were not.
+
+In other words: every Phase 33 test EXCEPT the loader spec was synthetic;
+the loader spec under-asserted. Memory `feedback_layout_bugs_request_screenshots_early`
+applies inversely here — even with screenshots, automated tests under
+synthetic data missed a real-fixture cascade. The new regression locks
+real-fixture canonical/page-pixel split for all future rotated fixtures.
 
 ## Section 3 — Phase 33 close-of-phase summary
 

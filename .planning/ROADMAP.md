@@ -85,7 +85,7 @@
 ### 🚧 v1.4 Spine 4.3 Forward-Compat + Rotated Atlases (Phases 32–33) — IN PROGRESS
 
 - [x] **Phase 32: Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant)** — Add a 4.3-detection branch in `src/core/loader.ts` BEFORE `SkeletonJson.readSkeletonData` runs (sniff `root.constraints` array OR `skeleton.spine` semver `≥ 4.3`); throw the existing `SpineVersionUnsupportedError` from `src/core/errors.ts` with an actionable "re-export as Version 4.2" message — replaces today's misleading `IK Constraint not found: <name>` (or `Transform constraint not found:`) thrown by spine-core 4.2's reader when it walks `animations.*.ik[name]` against an empty `IkConstraintData[]` (4.3 stores constraints under unified `root.constraints[]`). Restyle the initial drop-zone advisory at `src/renderer/src/App.tsx:622` to call out the supported version explicitly with the `v4.2` token rendered as `font-bold text-danger` so users on a 4.3 editor see the constraint *before* they drop a file. Plant SEED-006 (Full Spine 4.3 runtime port) at phase close, carrying the costed inventory from this milestone's investigation: 5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy. (COMPAT-01, COMPAT-02) (completed 2026-05-10)
-- [ ] **Phase 33: Rotated atlas region support (loader + bounds + export + fixture)** — Remove the hard-throw `RotatedRegionUnsupportedError` from `src/core/errors.ts:154`; rotated regions now propagate through `analyzer.ts` like any other region. In `src/core/bounds.ts` `attachmentWorldAABB`, swap source W↔H for rotated regions before computing the world-space AABB so bounds match what the runtime would render at identity scale. ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims. Atlas-less mode is unaffected (synthetic atlas never packs with rotation). Commit a rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — NOT one of the gitignored proprietary rigs like Chicken/Girl/Jokerman) under `fixtures/` and exercise it via core unit tests covering ATLAS-01..03. (ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04)
+- [x] **Phase 33: Rotated atlas region support (loader + bounds + export + fixture)** — Remove the hard-throw `RotatedRegionUnsupportedError` from `src/core/errors.ts:154`; rotated regions now propagate through `analyzer.ts` like any other region. In `src/core/bounds.ts` `attachmentWorldAABB`, swap source W↔H for rotated regions before computing the world-space AABB so bounds match what the runtime would render at identity scale. ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims. Atlas-less mode is unaffected (synthetic atlas never packs with rotation). Commit a rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — NOT one of the gitignored proprietary rigs like Chicken/Girl/Jokerman) under `fixtures/` and exercise it via core unit tests covering ATLAS-01..03. (ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04) (completed 2026-05-11)
 
 
 ## Phase Details
@@ -855,7 +855,7 @@ The packer-options interaction is locked by memory `project_atlas_pack_options_a
   4. A new rotated-atlas regression fixture exists under `fixtures/` (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle — not gitignored, committed in-repo) and is exercised by core unit tests covering ATLAS-01, ATLAS-02, and ATLAS-03 end-to-end. (ATLAS-04)
   5. Atlas-less mode (json + images folder, no `.atlas`) loads the same in-repo fixtures it loaded pre-Phase-33 with no behavioral change — synthetic atlas continues to emit `rotated:false` and the rotation code path is statically unreachable from the atlas-less branch. (Out-of-Scope guard)
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1**
@@ -870,7 +870,7 @@ Plans:
 - [x] 33-05-PLAN.md — Image-worker `sharp.rotate(+90)` in passthrough + resize paths (direction VERIFIED EMPIRICALLY per `feedback_narrow_before_fixing`) + ATLAS-03 export-rotation-dims test + image-worker-rotation passthrough/resize spec; ATLAS-03
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 33-06-PLAN.md — Final verification: ExportPlan canonical-flow source-read confirmation (no math change) + HUMAN-UAT (drop fixture + Optimize round-trip on dev build); ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04
+- [x] 33-06-PLAN.md — Final verification: ExportPlan canonical-flow source-read confirmation (no math change) + HUMAN-UAT (drop fixture + Optimize round-trip on dev build); ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04
 
 **Cross-cutting constraints:**
 - npm test exits 0
@@ -909,7 +909,7 @@ Plans:
 | 30. Safety buffer in Optimize dialog | v1.3.1 | 5/5 | Complete    | 2026-05-08 |
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
-| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 5/6 | In Progress|  |
+| 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete   | 2026-05-11 |
 
 ## Deferred (post-v1.1)
 
