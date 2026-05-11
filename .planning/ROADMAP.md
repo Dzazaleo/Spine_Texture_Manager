@@ -901,10 +901,10 @@ Plans:
   4. Opening a JSON over an unsaved in-progress project triggers the Phase 08.1 dirty-guard confirmation.
   5. `Cmd+O` / `Ctrl+O` accelerator behaves identically to the menu item.
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 - [x] 34-01-PLAN.md — main + preload + shared types: handleOpenDialog + 'project:open-dialog' IPC + openProjectPicker/loadSkeletonFromPath preload methods (Wave 1)
 - [x] 34-02-PLAN.md — renderer: rewire App.tsx onMenuOpen to D-05 + D-06 two-IPC-step flow (Wave 2)
-- [ ] 34-03-PLAN.md — tests: main handleOpenDialog 34-OPEN-01..05 + renderer onMenuOpen 34-MENU-01..05 (Wave 3)
+- [x] 34-03-PLAN.md — tests: main handleOpenDialog 34-OPEN-01..05 + renderer onMenuOpen 34-MENU-01..05 (Wave 3)
 - [ ] 34-04-PLAN.md — docs: REQUIREMENTS.md OPEN-0x namespace + ROADMAP.md Phase 34 Requirements line (Wave 4)
 
 **UI hint**: yes
@@ -941,7 +941,7 @@ Plans:
 | 31. Loader & UX small-fixes batch | v1.3.1 | 4/4 | Complete    | 2026-05-08 |
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete    | 2026-05-11 |
-| 34. File > Open menu accepts Spine skeleton JSON files (not only .stmproj) | v1.4 | 2/4 | In Progress|  |
+| 34. File > Open menu accepts Spine skeleton JSON files (not only .stmproj) | v1.4 | 3/4 | In Progress|  |
 
 ## Deferred (post-v1.1)
 
