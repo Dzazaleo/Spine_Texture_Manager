@@ -20,6 +20,16 @@
 - [x] **ATLAS-03**: ExportPlan output dimensions for rotated regions reflect the visually-correct (unrotated) W×H — animators get exported per-region PNGs whose dims match the unrotated source dimensions, not the packed-rotated dims.
 - [x] **ATLAS-04**: A rotated-atlas regression fixture (re-pack of an existing in-repo fixture using Spine packer's `rotation: true` toggle) is committed under `fixtures/` and exercised by core unit tests covering ATLAS-01..03. (`.spine` source file deferred per user — re-export convenience, not a functional gate.)
 
+### File → Open Menu Acceptance
+
+Added 2026-05-11 via `/gsd-plan-phase 34`. Closes the menu ↔ drag-drop asymmetry so keyboard-driven workflows reach full parity with the drag-drop surface (relevant to atlas-less users on Windows-admin where DnD is disabled per PLATFORM-01).
+
+- [ ] **OPEN-01**: File → Open dialog filter accepts both `.stmproj` and `.json` extensions in a single unified filter entry on macOS + Windows. Dialog title is "Open Spine Project or Skeleton". Single OS picker filter (no dropdown to operate); matches drag-drop's two-extension acceptance with no user toggle. Implements Phase 34 D-01.
+- [ ] **OPEN-02**: Picking a `.json` from the File → Open dialog routes through the same drag-drop loader cascade (`src/core/loader.ts` D-05/D-07/D-08 atlas-source vs atlas-less sibling detection). Strict loaderMode separation preserved per memory `project_strict_loadermode_separation.md` (locked 2026-05-06). No user-mode toggle pre-load, no main-side pre-flight probe. Implements Phase 34 D-04.
+- [ ] **OPEN-03**: Picking a `.stmproj` from the File → Open dialog routes through `handleProjectOpenFromPath` unchanged. End-to-end parity with drag-drop `.stmproj` (same loader + sampler + buildSummary chain; same recovery branch for `SkeletonNotFoundOnLoadError`). Verification-only — no implementation delta vs Phase 08.2 baseline; locks the regression-free contract.
+- [ ] **OPEN-04**: Opening a JSON or `.stmproj` from the File → Open dialog over an unsaved in-progress project triggers the Phase 08.1 dirty-guard SaveQuitDialog with the actual kind (`'json'` or `'stmproj'`) discriminator. Cancelling the picker (`{ kind: 'cancelled' }`) NEVER fires the guard (D-05 improvement over status-quo Phase 08.2 D-183 which fired the guard pre-picker). Implements Phase 34 D-05 (amends Phase 08.2 D-183 for the menu path).
+- [ ] **OPEN-05**: `Cmd+O` (macOS) / `Ctrl+O` (Windows) accelerator behaves identically to the menu item: same picker, same dispatch, same dirty-guard timing. Verification-only — accelerator-to-menu wiring inherited from Phase 08.2 D-173 native Electron menu surface; this REQ locks the regression-free contract after the D-06 two-IPC-step rewrite.
+
 ### Future Planning (no user-facing requirement)
 
 - Plant `SEED-006: Full Spine 4.3 runtime port` carrying the costed inventory from this milestone's investigation (5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy). This is a phase deliverable, not a REQ. **Mapped to Phase 32 (close-of-phase plant).**
@@ -64,14 +74,20 @@ Populated by gsd-roadmapper 2026-05-10.
 | ATLAS-02 | Phase 33 | Complete |
 | ATLAS-03 | Phase 33 | Complete |
 | ATLAS-04 | Phase 33 | Complete |
+| OPEN-01 | Phase 34 | Pending |
+| OPEN-02 | Phase 34 | Pending |
+| OPEN-03 | Phase 34 | Pending |
+| OPEN-04 | Phase 34 | Pending |
+| OPEN-05 | Phase 34 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 6 total
-- Mapped to phases: 6 ✓
+- v1.4 requirements: 11 total
+- Mapped to phases: 11 ✓
 - Unmapped: 0
-- Phases: 2 (Phase 32 carries 2 REQs; Phase 33 carries 4 REQs)
+- Phases: 3 (Phase 32 carries 2 REQs; Phase 33 carries 4 REQs; Phase 34 carries 5 REQs)
 - SEED-006 plant: Phase 32 close-of-phase deliverable (not a REQ).
 
 ---
 *Requirements defined: 2026-05-10*
 *Last updated: 2026-05-10 — gsd-roadmapper traceability fill: COMPAT-01/02 → Phase 32; ATLAS-01..04 → Phase 33.*
+*Last updated: 2026-05-11 — Phase 34 planning: OPEN-01..05 added (File → Open menu accepts .json).*
