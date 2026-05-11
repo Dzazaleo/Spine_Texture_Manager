@@ -22,6 +22,7 @@ import type {
   SkeletonSummary,
   AtlasPreviewInput,
   PackedRegion,
+  OpenDialogResponse,
 } from '../../src/shared/types.js';
 
 const TYPES_SRC = path.resolve('src/shared/types.ts');
@@ -246,5 +247,50 @@ describe('Phase 29 — Layer 3 invariant on src/shared/', () => {
     expect(_pr.regionName).toBe('5/7');
     expect(_api.attachmentNames.length).toBe(3);
     expect(_pr.attachmentNames.length).toBe(3);
+  });
+});
+
+describe('Phase 34 D-03 — OpenDialogResponse three-arm envelope + Api surface', () => {
+  it('exports OpenDialogResponse from src/shared/types.ts (grep)', () => {
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
+    expect(src).toMatch(/export type OpenDialogResponse\b/);
+  });
+
+  it('OpenDialogResponse declares exactly three arms: project / skeleton / cancelled', () => {
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
+    expect(src).toMatch(/\{\s*kind:\s*'project';\s*path:\s*string\s*\}/);
+    expect(src).toMatch(/\{\s*kind:\s*'skeleton';\s*path:\s*string\s*\}/);
+    expect(src).toMatch(/\{\s*kind:\s*'cancelled'\s*\}/);
+  });
+
+  it('Api interface exposes openProjectPicker + loadSkeletonFromPath (grep)', () => {
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
+    expect(src).toMatch(/openProjectPicker:\s*\(\)\s*=>\s*Promise<OpenDialogResponse>/);
+    expect(src).toMatch(/loadSkeletonFromPath:\s*\(absolutePath:\s*string\)\s*=>\s*Promise<LoadResponse>/);
+  });
+
+  it('old Api.openProject entry is physically removed (grep)', () => {
+    const src = readFileSync(TYPES_SRC, 'utf8').replace(/\r\n/g, '\n');
+    // The exact line that was deleted in Phase 34 Plan 01 Task 1.
+    expect(src).not.toMatch(/^\s+openProject:\s*\(\)\s*=>\s*Promise<OpenResponse>/m);
+  });
+
+  it('OpenDialogResponse is structurally usable — discriminator narrowing works (compile-time)', () => {
+    // Compile-time gate: the function body must typecheck against the three
+    // arms with `kind` narrowing. The function is never called at runtime;
+    // its purpose is to gate the type system.
+    const dispatch = (resp: OpenDialogResponse): string => {
+      switch (resp.kind) {
+        case 'project':
+          return resp.path; // narrowed to `{ kind: 'project'; path: string }`
+        case 'skeleton':
+          return resp.path; // narrowed to `{ kind: 'skeleton'; path: string }`
+        case 'cancelled':
+          return ''; // narrowed to `{ kind: 'cancelled' }` — no `path` field
+      }
+    };
+    expect(dispatch({ kind: 'project', path: '/a/b.stmproj' })).toBe('/a/b.stmproj');
+    expect(dispatch({ kind: 'skeleton', path: '/a/b.json' })).toBe('/a/b.json');
+    expect(dispatch({ kind: 'cancelled' })).toBe('');
   });
 });
