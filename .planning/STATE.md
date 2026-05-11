@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
-status: milestone_complete
-last_updated: "2026-05-10T23:20:22.803Z"
-last_activity: 2026-05-10
+status: completed
+last_updated: "2026-05-11T17:16:32.243Z"
+last_activity: 2026-05-11
 progress:
   total_phases: 16
   completed_phases: 1
@@ -16,17 +16,18 @@ progress:
 
 ## Current Position
 
-Phase: 33
-Plan: Not started
-Status: Milestone complete
+Phase: 34
+Plan: Not started (context gathered 2026-05-11)
+Status: Ready for `/gsd-plan-phase 34`
 Last activity: 2026-05-11
+Resume file: `.planning/phases/34-file-open-accepts-json-files/34-CONTEXT.md`
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 33 — rotated-atlas-region-support-loader-bounds-export-fixture
+**Current focus:** Phase 34 — file-open-accepts-json-files (close drag-drop ↔ menu File→Open asymmetry)
 
 ## v1.4 Roadmap At-a-Glance
 
@@ -84,6 +85,11 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 ## Accumulated Context (carries across milestones)
 
 (Preserved from prior milestones — sampler lifecycle, override semantics, export uniform-only, .stmproj schema, Layer 3 invariant, 5-modal ARIA pattern, distribution + CI surface, region-keyed dedup contract added in v1.3.1, all locked. See PROJECT.md `## Key Decisions` and `## Constraints` for the full list.)
+
+### Roadmap Evolution
+
+- 2026-05-11: Phase 34 added — File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`). Closes asymmetry vs drag-drop surface; reuses Phase 08.1/08.2 wiring. Added manually after `gsd-sdk query phase.add` miscounted (picked 23 instead of 34); per memory `project_gsd_phase_complete_state_miscount`, SDK progress counters will re-derive from ROADMAP.md on next phase op.
+- 2026-05-11: Phase 34 context gathered via `/gsd-discuss-phase 34`. 6 decisions locked (D-01..D-06): unified picker filter, main-side suffix-branch, three-arm discriminated envelope, drag-drop loader-cascade reuse, dirty-guard-after-picker (amends Phase 08.2 D-183 for menu path), two-IPC-step architecture (`openProjectPicker` + `loadSkeletonFromPath`). Introduces `OPEN-0x` REQ namespace (planner threads into REQUIREMENTS.md). Ready for `/gsd-plan-phase 34`.
 
 ---
 
