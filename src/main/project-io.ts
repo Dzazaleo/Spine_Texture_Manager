@@ -316,7 +316,11 @@ export async function handleOpenDialog(): Promise<OpenDialogResponse> {
   const win = BrowserWindow.getFocusedWindow();
   const options: Electron.OpenDialogOptions = {
     title: 'Open Spine Project or Skeleton',
-    properties: ['openFile'],
+    // Phase 34 WR-03 — `dontAddToRecent` matches handlePickOutputDirectory
+    // at src/main/ipc.ts:497. Prevents File → Open from polluting the
+    // Windows OS-level recent-docs list (separate from the app's own
+    // recent.json); macOS no-ops the property.
+    properties: ['openFile', 'dontAddToRecent'],
     filters: [{ name: 'Spine Project or Skeleton', extensions: ['stmproj', 'json'] }],
   };
   const result = win

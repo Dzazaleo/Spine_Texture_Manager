@@ -416,7 +416,9 @@ describe('Phase 34 D-01/D-02/D-03 — handleOpenDialog (picker-only, three-arm e
     expect(opts.title).toBe('Open Spine Project or Skeleton');
     expect(opts.filters?.[0]?.name).toBe('Spine Project or Skeleton');
     expect(opts.filters?.[0]?.extensions).toEqual(['stmproj', 'json']);
-    expect(opts.properties).toEqual(['openFile']);
+    // Phase 34 WR-03 — dontAddToRecent prevents Windows recent-docs pollution
+    // (mirrors handlePickOutputDirectory at src/main/ipc.ts:497). macOS no-ops.
+    expect(opts.properties).toEqual(['openFile', 'dontAddToRecent']);
   });
 
   it("cancel → { kind: 'cancelled' }", async () => {
