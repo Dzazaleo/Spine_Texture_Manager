@@ -3,12 +3,12 @@ status: partial
 phase: 34-file-open-accepts-json-files
 source: [34-VERIFICATION.md]
 started: 2026-05-11T21:25:00Z
-updated: 2026-05-11T22:00:00Z
+updated: 2026-05-11T22:30:00Z
 ---
 
 ## Current Test
 
-[item 2 (Windows picker) still pending]
+[only item 2 (Windows picker) remains pending — all macOS items passed including CR-01 re-test]
 
 ## Tests
 
@@ -35,14 +35,14 @@ result: passed (2026-05-11)
 ### 6. Uppercase-suffix file (e.g., MyRig.STMPROJ or Skel.JSON) opens successfully
 expected: Pick a file with uppercase extension. App loads it without error.
 note: REVIEW.md CR-01 originally documented this failed — picker was case-insensitive (project-io.ts:330) but downstream load validators (project-io.ts:367, ipc.ts:425) rejected case-sensitively. Fixed in commit `c1b32e4` (2026-05-11) — all load validators now lowercase suffix before `.endsWith()`. 7 new regression tests in `tests/main/project-io.spec.ts` + `tests/main/ipc.spec.ts` lock the contract. Needs human re-test on real uppercase file to confirm fix.
-result: programmatically_passing (2026-05-11 — CR-01 fix landed c1b32e4 + regression tests added; needs human re-test on real uppercase file)
+result: passed (2026-05-11 — human re-test confirms CR-01 fix; uppercase suffix file opens successfully on macOS)
 
 ## Summary
 
 total: 6
-passed: 4
+passed: 5
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
