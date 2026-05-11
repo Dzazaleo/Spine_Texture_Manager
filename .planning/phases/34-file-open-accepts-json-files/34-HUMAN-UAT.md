@@ -34,15 +34,15 @@ result: passed (2026-05-11)
 
 ### 6. Uppercase-suffix file (e.g., MyRig.STMPROJ or Skel.JSON) opens successfully
 expected: Pick a file with uppercase extension. App loads it without error.
-note: REVIEW.md CR-01 documents this currently fails — picker is case-insensitive (project-io.ts:330) but downstream load validators (project-io.ts:367, ipc.ts:425) reject case-sensitively. Not strictly required by any OPEN-0x requirement; flagged for triage decision (accept as bug-fix in Phase 34 or defer).
-result: failed (2026-05-11) — confirms REVIEW.md CR-01 on macOS; awaiting triage decision
+note: REVIEW.md CR-01 originally documented this failed — picker was case-insensitive (project-io.ts:330) but downstream load validators (project-io.ts:367, ipc.ts:425) rejected case-sensitively. Fixed in commit `c1b32e4` (2026-05-11) — all load validators now lowercase suffix before `.endsWith()`. 7 new regression tests in `tests/main/project-io.spec.ts` + `tests/main/ipc.spec.ts` lock the contract. Needs human re-test on real uppercase file to confirm fix.
+result: programmatically_passing (2026-05-11 — CR-01 fix landed c1b32e4 + regression tests added; needs human re-test on real uppercase file)
 
 ## Summary
 
 total: 6
 passed: 4
-issues: 1
-pending: 1
+issues: 0
+pending: 2
 skipped: 0
 blocked: 0
 
@@ -51,12 +51,9 @@ blocked: 0
 ### Gap 1 — Uppercase-suffix file rejected by downstream load IPC (CR-01)
 source_test: 6
 severity: bug (correctness)
-status: confirmed
-review_ref: 34-REVIEW.md CR-01
-locus:
-  - src/main/project-io.ts:367 (handleProjectOpenFromPath case-sensitive `endsWith('.stmproj')`)
-  - src/main/ipc.ts:425 (handleSkeletonLoad case-sensitive `endsWith('.json')`)
-  - mirror also at src/main/project-io.ts:700/706 (handleProjectReloadWithSkeleton) and :933 (handleProjectResample)
-trigger: macOS APFS case-insensitive volume holding a file named with uppercase suffix; picker routes correctly (case-insensitive at project-io.ts:330) but load IPC rejects with generic `kind: 'Unknown'`.
-fix_recommended: Lowercase the suffix before the load-side `.endsWith()` checks (mirror what the picker does). Single-line fix per call-site.
-open_0x_blocker: no — OPEN-01..05 mandate extension acceptance/routing, not case-insensitive load. Treating as separate correctness fix.
+status: resolved
+resolved_by: c1b32e4 fix(34): CR-01 case-insensitive suffix checks at load validators
+review_ref: 34-REVIEW.md CR-01 → 34-REVIEW-FIX.md
+fix_commits:
+  - c1b32e4 — case-insensitive suffix checks at all 4 load validators + 7 new test cases
+verification: 1056 tests pass post-fix (1049 → 1056); needs human re-test of original failing case on real uppercase file (Test 6 above)
