@@ -778,46 +778,60 @@ export function AppShell({
   // ---------------------------------------------------------------------------
 
   const buildSessionState = useCallback(
-    (): AppSessionState => ({
-      skeletonPath: summary.skeletonPath,
-      // L1 sanitize — atlas-less mode must NOT persist atlasPath. The locked
-      // invariant `project_strict_loadermode_separation` requires the two
-      // branches to be self-contained; persisting both produces an
-      // unsatisfiable file (loader takes the synth-atlas branch and fails
-      // when no images/ folder exists, even though the atlas is sitting
-      // right there). Drop atlasPath at save time when atlas-less is the
-      // active mode; materializeProjectFile's L3 heal recovers existing
-      // pre-sanitize files on Open.
-      atlasPath: loaderMode === 'atlas-less' ? null : (summary.atlasPath ?? null),
-      imagesDir: null,
-      overrides: Object.fromEntries(overrides),
-      // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
-      // change is reflected in the saved session state. The prop seeds the
-      // local on first mount; SettingsDialog.onApply mutates the local,
-      // which then drives the dirty derivation AND the next Save's payload.
-      samplingHz: samplingHzLocal,
-      // Phase 23 — lastOutDir now a real AppShell state slot (D-07).
-      // Closes the D-145 / D-147 documented deferral from Phase 9.
-      lastOutDir,
-      // D-91 default; Phase 9 hoists actual panel sort state.
-      sortColumn: 'attachmentName',
-      sortDir: 'asc',
-      // Phase 20 Plan 02 — documentation now flows from the AppShell-local
-      // state slot driven by DocumentationBuilderDialog (Plan 02 Step B).
-      // The slot is seeded by the lazy useState initializer above (with
-      // intersect-against-summary applied for D-09/D-10/D-11 drift) and
-      // updated by the modal's onChange / setDocumentation. Save/Save As
-      // now persist the user-authored content alongside overrides.
-      documentation,
-      // Phase 21 D-08 — round-trip loaderMode through .stmproj per Plan 07's
-      // serializeProjectFile / validateProjectFile / materializeProjectFile
-      // extensions. AppSessionState gains the field in Plan 21-07.
-      loaderMode,
-      // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
-      sharpenOnExport: sharpenOnExportLocal,
-      // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14.
-      safetyBufferPercent: safetyBufferPercentLocal,
-    }),
+    (): AppSessionState => {
+      // Effective loader mode reflects the loader's actual outcome, not just
+      // the React state slot. When the loader hit the D-05 atlas-less fallback
+      // (no sibling .atlas at load time) the user never explicitly toggled, so
+      // `loaderMode` is still 'auto' even though `summary.atlasPath === null`.
+      // Persisting 'auto' there is ambiguous on reload: if a sibling .atlas
+      // reappears, the loader picks D-07 (canonical) and silently overrides
+      // the user's saved atlas-less view. Promote the fallback to explicit
+      // 'atlas-less' at save time so reload honors saved mode unconditionally.
+      const effectiveLoaderMode: 'auto' | 'atlas-less' =
+        loaderMode === 'atlas-less' || summary.atlasPath === null
+          ? 'atlas-less'
+          : 'auto';
+      return {
+        skeletonPath: summary.skeletonPath,
+        // L1 sanitize — atlas-less mode must NOT persist atlasPath. The locked
+        // invariant `project_strict_loadermode_separation` requires the two
+        // branches to be self-contained; persisting both produces an
+        // unsatisfiable file (loader takes the synth-atlas branch and fails
+        // when no images/ folder exists, even though the atlas is sitting
+        // right there). Drop atlasPath at save time when atlas-less is the
+        // active mode; materializeProjectFile's L3 heal recovers existing
+        // pre-sanitize files on Open.
+        atlasPath: effectiveLoaderMode === 'atlas-less' ? null : (summary.atlasPath ?? null),
+        imagesDir: null,
+        overrides: Object.fromEntries(overrides),
+        // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
+        // change is reflected in the saved session state. The prop seeds the
+        // local on first mount; SettingsDialog.onApply mutates the local,
+        // which then drives the dirty derivation AND the next Save's payload.
+        samplingHz: samplingHzLocal,
+        // Phase 23 — lastOutDir now a real AppShell state slot (D-07).
+        // Closes the D-145 / D-147 documented deferral from Phase 9.
+        lastOutDir,
+        // D-91 default; Phase 9 hoists actual panel sort state.
+        sortColumn: 'attachmentName',
+        sortDir: 'asc',
+        // Phase 20 Plan 02 — documentation now flows from the AppShell-local
+        // state slot driven by DocumentationBuilderDialog (Plan 02 Step B).
+        // The slot is seeded by the lazy useState initializer above (with
+        // intersect-against-summary applied for D-09/D-10/D-11 drift) and
+        // updated by the modal's onChange / setDocumentation. Save/Save As
+        // now persist the user-authored content alongside overrides.
+        documentation,
+        // Phase 21 D-08 — round-trip loaderMode through .stmproj per Plan 07's
+        // serializeProjectFile / validateProjectFile / materializeProjectFile
+        // extensions. AppSessionState gains the field in Plan 21-07.
+        loaderMode: effectiveLoaderMode,
+        // Phase 28 SHARP-01 — round-trips through .stmproj per D-06.
+        sharpenOnExport: sharpenOnExportLocal,
+        // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14.
+        safetyBufferPercent: safetyBufferPercentLocal,
+      };
+    },
     [
       summary.skeletonPath,
       summary.atlasPath,
