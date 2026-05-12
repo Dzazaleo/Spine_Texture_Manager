@@ -2515,6 +2515,30 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
   // Test 1 — synthetic multi-skin: 4 regions, 2 unique attachment names → 4 rows
   // Test 2 — synthetic per-region override: WARNING 3 explicit effScale binding
   // Test 3 — synthetic single-skin backward-compat (regionName === attachmentName)
+  //
+  // WR-04 (2026-05-12) — TEST-CLASSIFICATION NOTE for future readers:
+  //
+  // Tests 1, 2, 3 are SHAPE LOCKS, not pre-/post-migration discriminators.
+  // They construct raw `peaks: [...]` literals and feed `synthRegionsFromPeaks`
+  // into `summary.regions` — bypassing `analyze()` entirely. Pre-Phase-35
+  // buildExportPlan iterated `summary.peaks`, and the multi-skin collapse to
+  // K < N rows only happened because `analyze()` had already deduped peaks by
+  // attachmentName. Since these tests skip `analyze()`, the raw 4-peak input
+  // also yields 4 rows under the pre-Phase-35 code path (sourcePaths are
+  // distinct). Tests 1-3 therefore CANNOT fail under pre-Phase-35; they
+  // assert the correct post-migration shape on path-distinct inputs.
+  //
+  // Test 4 IS the pre-/post-Phase-35 discriminator: it pipes
+  // `sampled.globalPeaks` through `analyze()` (producing the attachment-name-
+  // deduped peak stream that pre-Phase-35 collapsed) AND through
+  // `analyzeRegions()` (producing the 160-row region stream that post-Phase-35
+  // emits). It would PASS on post-Phase-35 (totalRows === 160) and FAIL on
+  // pre-Phase-35 (where iterating summary.peaks gave 23). Test 4 is gated on
+  // fixtures/SKINS/JOKERMAN_SPINE.json — see WR-05 for the explicit-skip fix
+  // that ensures vitest surfaces the skip when the fixture is absent.
+  //
+  // Test 5 is the atlas-less loaderMode-invariant lock (path-dependent on
+  // fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/).
 
   // Shared synthetic fixture for Tests 1 + 2 — 4 regions, 2 unique attachment
   // names (CARDS_L_HAND_1 and BODY), 4 skin-namespaced regionNames. Mirrors the
