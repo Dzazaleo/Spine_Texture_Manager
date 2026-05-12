@@ -81,22 +81,38 @@ export interface OverrideMigrationResult {
  *
  * @param savedOverrides The persisted Record from .stmproj (could be either
  *   v1.3-era attachmentName keys, v1.3.1+ regionName keys, or mixed).
- * @param summary A freshly-built SkeletonSummary; `summary.peaks` provides
- *   the (attachmentName → regionName) mapping (regionName is loader-populated
- *   per memory project_strict_loadermode_separation.md).
+ * @param summary A freshly-built SkeletonSummary. `summary.regions` is the
+ *   comprehensive skin-manifest pass (one row per unique regionName across
+ *   ALL skins); `summary.peaks` is the per-attachment view limited to the
+ *   active skin. Migration MUST source the regionName universe from
+ *   `summary.regions` — using `summary.peaks` silently drops overrides on
+ *   attachments in non-active skins (e.g. multi-skin rigs where the user
+ *   applied an override on a skin that isn't the current display skin).
  */
 export function migrateOverrides(
   savedOverrides: Record<string, unknown>,
   summary: SkeletonSummary,
 ): OverrideMigrationResult {
-  // Build attachmentName → regionName lookup from peaks (regionName is
-  // loader-populated per src/core/sampler.ts:262 + 435 + 459 + 492).
+  // Build attachmentName → regionName lookup from summary.regions. Each
+  // RegionRow exposes `regionName` plus `contributingAttachments[]` — one
+  // entry per spine attachment that resolves to this region (potentially
+  // multiple across skins). Sourcing from summary.regions covers all skins
+  // via the skin-manifest pass; summary.peaks is active-skin-only and
+  // therefore an under-set (root cause for stale-banner false positives on
+  // multi-skin rigs).
   const attachmentToRegion = new Map<string, string>();
-  for (const p of summary.peaks) {
-    attachmentToRegion.set(p.attachmentName, p.regionName ?? p.attachmentName);
+  const presentRegions = new Set<string>();
+  for (const r of summary.regions) {
+    presentRegions.add(r.regionName);
+    for (const c of r.contributingAttachments) {
+      // Last-write-wins matches the original semantics of the prior
+      // summary.peaks iteration (`Map.set` overwrites). When the same
+      // attachmentName contributes to multiple regions across skins, the
+      // mapping picks the last region; Pass 1 (regionName direct match) is
+      // the primary path and is unaffected by this ordering.
+      attachmentToRegion.set(c.attachmentName, r.regionName);
+    }
   }
-  // All present region names (for orphan detection in Pass 1):
-  const presentRegions = new Set<string>(attachmentToRegion.values());
 
   const restored: Record<string, number> = {};
   const stale: string[] = [];

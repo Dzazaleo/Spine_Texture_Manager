@@ -22,12 +22,15 @@
  */
 import { describe, expect, it } from 'vitest';
 import { migrateOverrides } from '../../src/main/override-migration.js';
-import type { DisplayRow, SkeletonSummary } from '../../src/shared/types.js';
+import type { DisplayRow, RegionRow, SkeletonSummary } from '../../src/shared/types.js';
 
 // ---------------------------------------------------------------------------
-// Test helpers — synthesize a minimal SkeletonSummary whose `peaks` carry the
-// (attachmentName → regionName) mapping the helper needs. Other SkeletonSummary
-// fields are filled with defensive defaults; the helper reads ONLY peaks.
+// Test helpers — synthesize a minimal SkeletonSummary whose `regions` carry
+// the (attachmentName → regionName) mapping the helper reads. `peaks` is
+// retained for legacy fixture readability but the helper no longer reads it
+// (the debug `multi-skin-override-stale-on-reload` fix moved sourcing to
+// summary.regions for comprehensive multi-skin coverage). Other
+// SkeletonSummary fields are filled with defensive defaults.
 // ---------------------------------------------------------------------------
 
 function makePeak(attachmentName: string, regionName?: string): DisplayRow {
@@ -62,7 +65,67 @@ function makePeak(attachmentName: string, regionName?: string): DisplayRow {
   };
 }
 
-function makeSummary(peaks: DisplayRow[]): SkeletonSummary {
+/**
+ * Derive a minimal `regions` array from `peaks`. One RegionRow per unique
+ * regionName, with every peak sharing that regionName folded into
+ * contributingAttachments[]. Mirrors src/main/summary.ts' skin-manifest pass
+ * shape closely enough for migrateOverrides' read path. Fields the helper
+ * doesn't read are stubbed with defaults.
+ */
+function deriveRegionsFromPeaks(peaks: DisplayRow[]): RegionRow[] {
+  const byRegion = new Map<string, DisplayRow[]>();
+  for (const p of peaks) {
+    const key = p.regionName ?? p.attachmentName;
+    const list = byRegion.get(key) ?? [];
+    list.push(p);
+    byRegion.set(key, list);
+  }
+  const regions: RegionRow[] = [];
+  for (const [regionName, contributors] of byRegion) {
+    const first = contributors[0];
+    regions.push({
+      regionName,
+      attachmentName: first.attachmentName,
+      skinName: first.skinName,
+      slotName: first.slotName,
+      animationName: first.animationName,
+      time: first.time,
+      frame: first.frame,
+      peakScale: first.peakScale,
+      peakScaleX: first.peakScaleX,
+      peakScaleY: first.peakScaleY,
+      worldW: first.worldW,
+      worldH: first.worldH,
+      sourceW: first.sourceW,
+      sourceH: first.sourceH,
+      isSetupPosePeak: first.isSetupPosePeak,
+      sourcePath: first.sourcePath,
+      canonicalW: first.canonicalW,
+      canonicalH: first.canonicalH,
+      actualSourceW: first.actualSourceW,
+      actualSourceH: first.actualSourceH,
+      dimsMismatch: first.dimsMismatch,
+      originalSizeLabel: first.originalSizeLabel,
+      peakSizeLabel: first.peakSizeLabel,
+      scaleLabel: first.scaleLabel,
+      sourceLabel: first.sourceLabel,
+      frameLabel: first.frameLabel,
+      contributingAttachments: contributors.map((c) => ({
+        attachmentName: c.attachmentName,
+        skinName: c.skinName,
+        slotName: c.slotName,
+        peakScale: c.peakScale,
+        animationName: c.animationName,
+        time: c.time,
+        frame: c.frame,
+        isSetupPosePeak: c.isSetupPosePeak,
+      })),
+    });
+  }
+  return regions;
+}
+
+function makeSummary(peaks: DisplayRow[], regions?: RegionRow[]): SkeletonSummary {
   return {
     skeletonPath: '/fake/skel.json',
     atlasPath: null,
@@ -73,7 +136,7 @@ function makeSummary(peaks: DisplayRow[]): SkeletonSummary {
     animations: { count: 1, names: ['PATH'] },
     events: { count: 0, names: [] },
     peaks,
-    regions: [], // unused by migrateOverrides; helper reads peaks only
+    regions: regions ?? deriveRegionsFromPeaks(peaks),
     animationBreakdown: [],
     skippedAttachments: [],
     elapsedMs: 0,
@@ -252,6 +315,85 @@ describe('migrateOverrides — Phase 29 D-06 (project-io.ts shared helper)', () 
     } as Record<string, number>;
     const result = migrateOverrides(saved, summary);
     expect(result.restored).toEqual({ CIRCLE: 75 });
+    expect(result.stale).toEqual([]);
+    expect(result.migratedKeyCount).toBe(0);
+  });
+
+  it('Test 9 (multi-skin regression — debug skins-override-stale-on-reload): overrides on non-active-skin regions survive when summary.regions is comprehensive but summary.peaks is active-skin-only', () => {
+    // The user's repro: a 7-skin rig where summary.peaks only contains the
+    // active skin's contributors (BEACHMAN/*), but summary.regions is the
+    // comprehensive skin-manifest pass and includes all skins' regions
+    // (BEACHMAN/* AND AVATAR/* AND others). Saved overrides keyed by AVATAR/*
+    // region names previously dropped to stale[] because migrateOverrides
+    // sourced presentRegions from summary.peaks. The fix sources from
+    // summary.regions; this test locks the contract.
+    //
+    // Concrete fixture: peaks = BEACHMAN-only; regions = BEACHMAN/CARDS_L_HAND_1
+    // (with BEACHMAN as a contributing attachment) AND AVATAR/CARDS_L_HAND_1
+    // (with NO peak — the skin isn't active so no peak ever fired, but the
+    // region is declared in the skin manifest).
+    const peaks: DisplayRow[] = [makePeak('CARDS_L_HAND_1', 'BEACHMAN/CARDS_L_HAND_1')];
+    const regions: RegionRow[] = [
+      ...deriveRegionsFromPeaks(peaks),
+      // The smoking-gun region: present in summary.regions but NOT in
+      // summary.peaks. Pre-fix, migrateOverrides has no knowledge of this
+      // region and classifies a saved 'AVATAR/CARDS_L_HAND_1' override as
+      // an orphan → stale[].
+      {
+        regionName: 'AVATAR/CARDS_L_HAND_1',
+        attachmentName: 'CARDS_L_HAND_1',
+        skinName: 'AVATAR',
+        slotName: 'SLOT',
+        animationName: 'setup-pose',
+        time: 0,
+        frame: 0,
+        peakScale: 0,
+        peakScaleX: 0,
+        peakScaleY: 0,
+        worldW: 0,
+        worldH: 0,
+        sourceW: 64,
+        sourceH: 64,
+        isSetupPosePeak: true,
+        sourcePath: '/fake/avatar.png',
+        canonicalW: 64,
+        canonicalH: 64,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        originalSizeLabel: '64×64',
+        peakSizeLabel: '0×0',
+        scaleLabel: '0.000×',
+        sourceLabel: 'AVATAR/CARDS_L_HAND_1',
+        frameLabel: '0',
+        contributingAttachments: [
+          {
+            attachmentName: 'CARDS_L_HAND_1',
+            skinName: 'AVATAR',
+            slotName: 'SLOT',
+            peakScale: 0,
+            animationName: 'setup-pose',
+            time: 0,
+            frame: 0,
+            isSetupPosePeak: true,
+          },
+        ],
+      },
+    ];
+    const summary = makeSummary(peaks, regions);
+
+    // User's saved overrides include both an active-skin entry and a
+    // non-active-skin entry. Pre-fix: the AVATAR/* entry drops to stale.
+    // Post-fix: both restore cleanly.
+    const saved = {
+      'BEACHMAN/CARDS_L_HAND_1': 67,
+      'AVATAR/CARDS_L_HAND_1': 67,
+    };
+    const result = migrateOverrides(saved, summary);
+    expect(result.restored).toEqual({
+      'BEACHMAN/CARDS_L_HAND_1': 67,
+      'AVATAR/CARDS_L_HAND_1': 67,
+    });
     expect(result.stale).toEqual([]);
     expect(result.migratedKeyCount).toBe(0);
   });
