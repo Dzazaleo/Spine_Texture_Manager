@@ -195,8 +195,17 @@ describeOrSkip('atlas-source mode — sequence fan-out via TEST_03.atlas', () =>
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: buildExportPlan iterates summary.regions (RegionRow[]).
+    const regions = analyzeRegions(
+      sampled.globalPeaks,
+      load.sourcePaths,
+      load.atlasSources,
+      load.canonicalDimsByRegion,
+      load.actualDimsByRegion,
+    );
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks,
+      regions,
       orphanedFiles: [],
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
@@ -239,8 +248,17 @@ describeOrSkip('atlas-less mode — sequence fan-out via fixture-local images sy
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: buildExportPlan iterates summary.regions (RegionRow[]).
+    const regions = analyzeRegions(
+      sampled.globalPeaks,
+      load.sourcePaths,
+      load.atlasSources,
+      load.canonicalDimsByRegion,
+      load.actualDimsByRegion,
+    );
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks,
+      regions,
       orphanedFiles: [],
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
