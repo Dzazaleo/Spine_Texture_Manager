@@ -206,3 +206,78 @@ describe('runExport — rotated atlas region extract (Phase 33 D-03)', () => {
     expect(gMean - rMean, 'no green-dominant tint (would indicate wrong page slice)').toBeLessThan(10);
   });
 });
+
+// Regression: rotated region whose page-pixel rect's right edge exceeds the
+// page HEIGHT (not width) tripped libvips `extract_area: bad extract area`
+// because sharp fuses `extract().rotate(90).resize()` and validates the
+// extract rect against POST-rotate canvas dims (axes swapped). The fix at
+// image-worker.ts:595-617 materializes the rotated buffer with .toBuffer()
+// before resize, breaking the fusion. See `.planning/debug/resolved/
+// extract-area-rot-regression.md` for the full trace.
+describe('runExport — rotated atlas extract bounds (extract_area regression)', () => {
+  it('rotated region with x + packW > pageHeight succeeds (libvips fusion break)', async () => {
+    // Synth a 200x50 wide-but-short page. Place rotated rect at (x=140, y=10)
+    // with packW=60, packH=30 — so x+packW=200 > pageH=50, which used to
+    // trigger `extract_area: bad extract area` before the materialize-then-
+    // resize fix. packW=60 means CANONICAL_H=60 (libgdx rotated convention).
+    const pageW = 200;
+    const pageH = 50;
+    const pagePath = path.join(tmpDir, 'rot-bounds-page.png');
+    await sharp({
+      create: {
+        width: pageW,
+        height: pageH,
+        channels: 4,
+        background: { r: 255, g: 128, b: 64, alpha: 1 },
+      },
+    }).png().toFile(pagePath);
+
+    const canonicalW = 30;
+    const canonicalH = 60;
+    const packW = 60;
+    const packH = 30;
+    const atlasX = 140;
+    const atlasY = 10;
+    // Sanity: this MUST trip the predicate for the regression to be meaningful.
+    expect(atlasX + packW, 'predicate: x + packW must exceed pageH').toBeGreaterThan(pageH);
+
+    const syntheticPerRegionPath = path.join(tmpDir, 'src', 'rect.png');
+    const plan: ExportPlan = {
+      rows: [{
+        sourcePath: syntheticPerRegionPath,
+        outPath: 'images/rect.png',
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        outW: Math.ceil(canonicalW * 0.5),
+        outH: Math.ceil(canonicalH * 0.5),
+        effectiveScale: 0.5,
+        attachmentNames: ['rect'],
+        atlasSource: {
+          pagePath,
+          x: atlasX,
+          y: atlasY,
+          packW,
+          packH,
+          offsetX: 0,
+          offsetY: 0,
+          w: canonicalW,
+          h: canonicalH,
+          rotated: true,
+        },
+      }],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    } as unknown as ExportPlan;
+
+    const summary = await runExport(plan, tmpDir, () => {}, () => false);
+    expect(summary.errors, 'no extract_area errors').toEqual([]);
+    expect(summary.successes).toBe(1);
+
+    const outPath = path.join(tmpDir, 'images', 'rect.png');
+    expect(fs.existsSync(outPath)).toBe(true);
+    const meta = await sharp(outPath).metadata();
+    expect(meta.width).toBe(Math.ceil(canonicalW * 0.5));
+    expect(meta.height).toBe(Math.ceil(canonicalH * 0.5));
+  });
+});

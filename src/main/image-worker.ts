@@ -592,18 +592,26 @@ export async function runExport(
             .png()
             .toBuffer();
           pipeline = sharp(orig);
+        } else if (a.rotated) {
+          // No SW + rotated — two-pipeline. Libvips fuses extract().rotate(90).resize()
+          // and validates the extract rect against the POST-rotate canvas dims
+          // (axes swapped), so any region where `a.x + a.packW > pageHeight` trips
+          // `extract_area: bad extract area`. Materializing the rotated buffer to PNG
+          // bytes breaks the fusion. Mirrors the SW path's materialize-then-resize.
+          const rotated = await sharp(a.pagePath)
+            .extract({ left: a.x, top: a.y, width: a.packW, height: a.packH })
+            .rotate(90)
+            .png()
+            .toBuffer();
+          pipeline = sharp(rotated);
         } else {
-          // No SW — single pipeline.
+          // No SW + non-rotated — single pipeline.
           pipeline = sharp(a.pagePath).extract({
             left: a.x,
             top: a.y,
             width: a.packW,
             height: a.packH,
           });
-          if (a.rotated) {
-            // Phase 33 D-03 — direction VERIFIED EMPIRICALLY.
-            pipeline = pipeline.rotate(90);
-          }
         }
         await applyResizeAndSharpen(
           pipeline,
