@@ -27,17 +27,122 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
-import { analyze } from '../../src/core/analyzer.js';
+import { analyze, analyzeRegions } from '../../src/core/analyzer.js';
 // Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 // RED import — Plan 06-03 introduces buildExportPlan in src/core/export.ts.
 import { buildExportPlan } from '../../src/core/export.js';
 // Plan 06-02 introduces these types in src/shared/types.ts.
-import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
+import type { ExportPlan, RegionRow, SkeletonSummary } from '../../src/shared/types.js';
 
 const FIXTURE_BASELINE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
 const FIXTURE_GHOST = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST_GHOST.json');
 const FIXTURE_EXPORT = path.resolve('fixtures/EXPORT_PROJECT/EXPORT.json');
 const EXPORT_SRC = path.resolve('src/core/export.ts');
+
+/**
+ * Phase 35 BLOCKER 1 backfill — synthesize a `regions: RegionRow[]` array from
+ * the same `peaks: [...]` literals the test cases construct. Groups peaks by
+ * `regionName ?? attachmentName` (matches the loader's lookup-key idiom);
+ * picks the winning contributor by max-peakScale with source-order tiebreak;
+ * carries every group member into `contributingAttachments[]`.
+ *
+ * This keeps the test-side backfill mechanical: each Category B literal in
+ * this file gains `regions: synthRegionsFromPeaks(peaks)` alongside its
+ * existing `peaks: [...]` field. For Category A (real-fixture) sites, prefer
+ * the canonical `analyzeRegions(sampled.globalPeaks, sourcePaths)` helper
+ * (mirrors atlas-preview.spec.ts:56-77).
+ *
+ * Phase 35 source-migration (Task 1) makes buildExportPlan iterate
+ * summary.regions; the pre-migration test suite still passes because the
+ * synthesized regions[] mirrors the peaks[] shape — single-skin synthetic
+ * fixtures have one RegionRow per unique regionName, and SIMPLE_PROJECT
+ * fixtures have regionName === attachmentName so cardinality is preserved.
+ *
+ * The helper is intentionally local to this file (not exported into core/) —
+ * tests-only synthesis idiom; the real producer is analyzer.ts:analyzeRegions.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function synthRegionsFromPeaks(peaks: ReadonlyArray<any>): RegionRow[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const groups = new Map<string, any[]>();
+  for (const p of peaks) {
+    const key = (p.regionName ?? p.attachmentName) as string;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(p);
+    else groups.set(key, [p]);
+  }
+  const out: RegionRow[] = [];
+  for (const [regionName, bucket] of groups) {
+    // Pick winner: max peakScale, source-order tiebreak.
+    let winner = bucket[0];
+    for (let i = 1; i < bucket.length; i++) {
+      if (bucket[i].peakScale > winner.peakScale) winner = bucket[i];
+    }
+    const canonicalW = winner.canonicalW ?? winner.sourceW;
+    const canonicalH = winner.canonicalH ?? winner.sourceH;
+    const region: RegionRow = {
+      regionName,
+      attachmentName: winner.attachmentName,
+      skinName: winner.skinName ?? 'default',
+      slotName: winner.slotName ?? 'TEST_SLOT',
+      animationName: winner.animationName ?? 'PATH',
+      time: winner.time ?? 0,
+      frame: winner.frame ?? 0,
+      peakScale: winner.peakScale,
+      peakScaleX: winner.peakScaleX ?? winner.peakScale,
+      peakScaleY: winner.peakScaleY ?? winner.peakScale,
+      worldW: winner.worldW ?? canonicalW * winner.peakScale,
+      worldH: winner.worldH ?? canonicalH * winner.peakScale,
+      sourceW: winner.sourceW,
+      sourceH: winner.sourceH,
+      isSetupPosePeak: winner.isSetupPosePeak ?? false,
+      sourcePath: winner.sourcePath,
+      canonicalW,
+      canonicalH,
+      actualSourceW: winner.actualSourceW,
+      actualSourceH: winner.actualSourceH,
+      dimsMismatch: winner.dimsMismatch ?? false,
+      ...(winner.atlasSource ? { atlasSource: winner.atlasSource } : {}),
+      originalSizeLabel: '',
+      peakSizeLabel: '',
+      scaleLabel: '',
+      sourceLabel: '',
+      frameLabel: '',
+      contributingAttachments: bucket.map((p) => ({
+        attachmentName: p.attachmentName,
+        skinName: p.skinName ?? 'default',
+        slotName: p.slotName ?? 'TEST_SLOT',
+        peakScale: p.peakScale,
+        animationName: p.animationName ?? 'PATH',
+        time: p.time ?? 0,
+        frame: p.frame ?? 0,
+        isSetupPosePeak: p.isSetupPosePeak ?? false,
+      })),
+    };
+    out.push(region);
+  }
+  return out;
+}
+
+/**
+ * Phase 35 BLOCKER 1 backfill — canonical analyzer-driven regions for Category A
+ * (real-fixture-driven) summaries. Mirrors atlas-preview.spec.ts:56-77 exactly.
+ * Sites that call `loadSkeleton(...) → sampleSkeleton(...) → analyze(...)` use
+ * this helper to populate summary.regions identically to how the renderer
+ * receives it on a real drop.
+ */
+function regionsFromSampled(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sampled: { globalPeaks: Map<string, any> },
+): RegionRow[] {
+  const sourcePaths = new Map<string, string>();
+  for (const p of sampled.globalPeaks.values()) {
+    const regionName = p.regionName ?? p.attachmentName;
+    sourcePaths.set(regionName, '/fake/' + regionName + '.png');
+  }
+  return analyzeRegions(sampled.globalPeaks, sourcePaths);
+}
+
 
 describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
   it('SIMPLE_TEST → 3 ExportRows (rows + passthroughCopies combined) with dims = Math.ceil(sourceW × effScale) (Round 5 ceil)', () => {
@@ -46,11 +151,15 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
     const peaks = analyze(sampled.globalPeaks);
     // Plan 06-02 will add `sourcePath: string` to DisplayRow; until then we
     // synthesize a stub path so the export builder has a dedup key.
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: also populate regions[] via analyzeRegions (mirrors
+    // atlas-preview.spec.ts:56-77) so buildExportPlan can iterate
+    // summary.regions post-migration without TypeError.
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks: peaks.map((r) => ({
         ...r,
-        sourcePath: '/fake/' + r.attachmentName + '.png',
+        sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
       })),
+      regions: regionsFromSampled(sampled),
       orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
@@ -82,11 +191,14 @@ describe('buildExportPlan — case (b) peak-anchored override on TRIANGLE (D-111
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: populate regions[] via analyzeRegions for the post-migration
+    // iteration source.
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks: peaks.map((r) => ({
         ...r,
-        sourcePath: '/fake/' + r.attachmentName + '.png',
+        sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
       })),
+      regions: regionsFromSampled(sampled),
       orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
     const overrides = new Map<string, number>([['TRIANGLE', 25]]);
@@ -112,26 +224,28 @@ describe('buildExportPlan — case (c) override 200% on SQUARE (peak-anchored, 2
     // synthetic SQUARE with peakScale=0.4, 200% override yields effScale =
     // 2.0 × 0.4 = 0.8 (still ≤ 1, no canonical clamp). outW = 800 ≠ sourceW
     // → resize routes to plan.rows[].
+    const peaks = [
+      {
+        attachmentKey: 'default/SQUARE/SQUARE',
+        attachmentName: 'SQUARE',
+        skinName: 'default',
+        slotName: 'SQUARE',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale: 0.4,
+        peakScaleX: 0.4,
+        peakScaleY: 0.4,
+        worldW: 400,
+        worldH: 400,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/SQUARE.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SQUARE/SQUARE',
-          attachmentName: 'SQUARE',
-          skinName: 'default',
-          slotName: 'SQUARE',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale: 0.4,
-          peakScaleX: 0.4,
-          peakScaleY: 0.4,
-          worldW: 400,
-          worldH: 400,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/SQUARE.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
@@ -147,26 +261,28 @@ describe('buildExportPlan — case (c) override 200% on SQUARE (peak-anchored, 2
   it('override 300% on the same SQUARE (peakScale 0.4) → effScale = 1.0 (canonical clamp fires); outW = sourceW → passthrough', () => {
     // 300% × 0.4 = 1.2 → safeScale = 1.2 → ≤ 1 clamp fires → effScale = 1.0
     //   → outW = ceil(1000 × 1.0) = 1000 = sourceW → passthrough (byte-copy).
+    const peaks = [
+      {
+        attachmentKey: 'default/SQUARE/SQUARE',
+        attachmentName: 'SQUARE',
+        skinName: 'default',
+        slotName: 'SQUARE',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale: 0.4,
+        peakScaleX: 0.4,
+        peakScaleY: 0.4,
+        worldW: 400,
+        worldH: 400,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/SQUARE.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SQUARE/SQUARE',
-          attachmentName: 'SQUARE',
-          skinName: 'default',
-          slotName: 'SQUARE',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale: 0.4,
-          peakScaleX: 0.4,
-          peakScaleY: 0.4,
-          worldW: 400,
-          worldH: 400,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/SQUARE.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map([['SQUARE', 300]]));
@@ -185,26 +301,28 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
     // is never larger than the source PNG.
     //
     // Phase 22.1 D-06: peakScale 1.5 clamps to 1.0 → outW = sourceW → passthroughCopies.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/ZOOMED',
+        attachmentName: 'ZOOMED',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'zoom_in',
+        time: 0.5,
+        frame: 30,
+        peakScale: 1.5,
+        peakScaleX: 1.5,
+        peakScaleY: 1.5,
+        worldW: 150,
+        worldH: 150,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/ZOOMED.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/ZOOMED',
-          attachmentName: 'ZOOMED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'zoom_in',
-          time: 0.5,
-          frame: 30,
-          peakScale: 1.5,
-          peakScaleX: 1.5,
-          peakScaleY: 1.5,
-          worldW: 150,
-          worldH: 150,
-          sourceW: 100,
-          sourceH: 100,
-          sourcePath: '/fake/ZOOMED.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -220,26 +338,28 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
   });
 
   it('peakScale 5.0 (extreme zoom) still clamps to 1.0 — never extrapolates', () => {
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/MEGAZOOM',
+        attachmentName: 'MEGAZOOM',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'closeup',
+        time: 1.0,
+        frame: 60,
+        peakScale: 5.0,
+        peakScaleX: 5.0,
+        peakScaleY: 5.0,
+        worldW: 1000,
+        worldH: 1000,
+        sourceW: 200,
+        sourceH: 200,
+        sourcePath: '/fake/MEGAZOOM.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/MEGAZOOM',
-          attachmentName: 'MEGAZOOM',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'closeup',
-          time: 1.0,
-          frame: 60,
-          peakScale: 5.0,
-          peakScaleX: 5.0,
-          peakScaleY: 5.0,
-          worldW: 1000,
-          worldH: 1000,
-          sourceW: 200,
-          sourceH: 200,
-          sourcePath: '/fake/MEGAZOOM.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -258,43 +378,45 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
     // = sourceW.
     //
     // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/SMALL',
+        attachmentName: 'SMALL',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.8,
+        peakScaleX: 0.8,
+        peakScaleY: 0.8,
+        worldW: 80,
+        worldH: 80,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/SHARED.png',
+      },
+      {
+        attachmentKey: 'default/SLOT/BIG',
+        attachmentName: 'BIG',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'zoom',
+        time: 1,
+        frame: 60,
+        peakScale: 5.0,
+        peakScaleX: 5.0,
+        peakScaleY: 5.0,
+        worldW: 500,
+        worldH: 500,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/SHARED.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/SMALL',
-          attachmentName: 'SMALL',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.8,
-          peakScaleX: 0.8,
-          peakScaleY: 0.8,
-          worldW: 80,
-          worldH: 80,
-          sourceW: 100,
-          sourceH: 100,
-          sourcePath: '/fake/SHARED.png',
-        },
-        {
-          attachmentKey: 'default/SLOT/BIG',
-          attachmentName: 'BIG',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'zoom',
-          time: 1,
-          frame: 60,
-          peakScale: 5.0,
-          peakScaleX: 5.0,
-          peakScaleY: 5.0,
-          worldW: 500,
-          worldH: 500,
-          sourceW: 100,
-          sourceH: 100,
-          sourcePath: '/fake/SHARED.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -310,43 +432,45 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
 describe('buildExportPlan — case (d) two attachments share atlas region with different peaks (D-108)', () => {
   it('dedup by sourcePath uses max(peakScale) so the most-zoomed user wins', () => {
     // Two attachments — different names, same sourcePath. Different peaks.
+    const peaks = [
+      {
+        attachmentKey: 'default/HEAD/FACE_A',
+        attachmentName: 'FACE_A',
+        skinName: 'default',
+        slotName: 'HEAD',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 64,
+        worldH: 64,
+        sourceW: 128,
+        sourceH: 128,
+        sourcePath: '/fake/FACE.png',
+      },
+      {
+        attachmentKey: 'default/HEAD/FACE_B',
+        attachmentName: 'FACE_B',
+        skinName: 'default',
+        slotName: 'HEAD',
+        animationName: 'zoom',
+        time: 1,
+        frame: 60,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 115.2,
+        worldH: 115.2,
+        sourceW: 128,
+        sourceH: 128,
+        sourcePath: '/fake/FACE.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/HEAD/FACE_A',
-          attachmentName: 'FACE_A',
-          skinName: 'default',
-          slotName: 'HEAD',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 64,
-          worldH: 64,
-          sourceW: 128,
-          sourceH: 128,
-          sourcePath: '/fake/FACE.png',
-        },
-        {
-          attachmentKey: 'default/HEAD/FACE_B',
-          attachmentName: 'FACE_B',
-          skinName: 'default',
-          slotName: 'HEAD',
-          animationName: 'zoom',
-          time: 1,
-          frame: 60,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 115.2,
-          worldH: 115.2,
-          sourceW: 128,
-          sourceH: 128,
-          sourcePath: '/fake/FACE.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -366,38 +490,40 @@ describe('buildExportPlan — case (d) two attachments share atlas region with d
 
 describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through', () => {
   it('ExportRow.atlasSource is populated when DisplayRow has atlasSource set', () => {
-    const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/AVATAR_FACE',
-          attachmentName: 'AVATAR/FACE',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 873,
-          worldH: 959,
-          sourceW: 1746,
-          sourceH: 1918,
-          sourcePath: '/fake/AVATAR/FACE.png',
-          atlasSource: {
-            pagePath: '/fake/JOKERMAN_SPINE.png',
-            x: 778,
-            y: 2,
-            packW: 1746,
-            packH: 1918,
-            offsetX: 0,
-            offsetY: 0,
-            w: 1746,
-            h: 1918,
-            rotated: false,
-          },
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/AVATAR_FACE',
+        attachmentName: 'AVATAR/FACE',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 873,
+        worldH: 959,
+        sourceW: 1746,
+        sourceH: 1918,
+        sourcePath: '/fake/AVATAR/FACE.png',
+        atlasSource: {
+          pagePath: '/fake/JOKERMAN_SPINE.png',
+          x: 778,
+          y: 2,
+          packW: 1746,
+          packH: 1918,
+          offsetX: 0,
+          offsetY: 0,
+          w: 1746,
+          h: 1918,
+          rotated: false,
         },
-      ],
+      },
+    ];
+    const summary = {
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -417,26 +543,28 @@ describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through',
   });
 
   it('ExportRow.atlasSource is undefined when DisplayRow has no atlasSource', () => {
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/PER_REGION_PNG',
+        attachmentName: 'PER_REGION_PNG',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 50,
+        worldH: 50,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/PER_REGION_PNG.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/PER_REGION_PNG',
-          attachmentName: 'PER_REGION_PNG',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 50,
-          worldH: 50,
-          sourceW: 100,
-          sourceH: 100,
-          sourcePath: '/fake/PER_REGION_PNG.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -454,11 +582,13 @@ describe('buildExportPlan — case (e) ghost fixture (Phase 24 Plan 01 update)',
     const load = loadSkeleton(FIXTURE_GHOST);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
+    // Phase 35: populate regions[] alongside peaks for post-migration iteration.
     const summary = {
       peaks: peaks.map((r) => ({
         ...r,
-        sourcePath: '/fake/' + r.attachmentName + '.png',
+        sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
       })),
+      regions: regionsFromSampled(sampled),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -482,26 +612,28 @@ describe('buildExportPlan — case (f) Math.ceil sizing semantics (D-110, Round 
   });
 
   it('synthetic peakScale yielding an exact .5 boundary ceils to 128 (255 × 0.5 = 127.5 → 128)', () => {
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/EVEN',
+        attachmentName: 'EVEN',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 127.5,
+        worldH: 127.5,
+        sourceW: 255,
+        sourceH: 255,
+        sourcePath: '/fake/EVEN.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/EVEN',
-          attachmentName: 'EVEN',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 127.5,
-          worldH: 127.5,
-          sourceW: 255,
-          sourceH: 255,
-          sourcePath: '/fake/EVEN.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -519,26 +651,28 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
     //   effScale = ceil(0.36071 × 1000) / 1000 = 361 / 1000 = 0.361
     //   outW = ceil(811 × 0.361) = ceil(292.771) = 293
     //   outH = ceil(962 × 0.361) = ceil(347.282) = 348
+    const peaks = [
+      {
+        attachmentKey: 'default/HEAD/FACE',
+        attachmentName: 'FACE',
+        skinName: 'default',
+        slotName: 'HEAD',
+        animationName: 'JOKER',
+        time: 1.0,
+        frame: 60,
+        peakScale: 0.36071,
+        peakScaleX: 0.36071,
+        peakScaleY: 0.36071,
+        worldW: 292.5,
+        worldH: 347.0,
+        sourceW: 811,
+        sourceH: 962,
+        sourcePath: '/fake/FACE.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/HEAD/FACE',
-          attachmentName: 'FACE',
-          skinName: 'default',
-          slotName: 'HEAD',
-          animationName: 'JOKER',
-          time: 1.0,
-          frame: 60,
-          peakScale: 0.36071,
-          peakScaleX: 0.36071,
-          peakScaleY: 0.36071,
-          worldW: 292.5,
-          worldH: 347.0,
-          sourceW: 811,
-          sourceH: 962,
-          sourcePath: '/fake/FACE.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -558,26 +692,28 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
     // Verifies the 0.36128 boundary case — ceil-thousandth promotes 0.36128
     // to 0.362 (since 361.28 ceils to 362), driving outW one pixel up.
     // Aspect ratio preserved within sub-pixel tolerance.
+    const peaks = [
+      {
+        attachmentKey: 'default/HEAD/FACE',
+        attachmentName: 'FACE',
+        skinName: 'default',
+        slotName: 'HEAD',
+        animationName: 'JOKER',
+        time: 1.0,
+        frame: 60,
+        peakScale: 0.36128,
+        peakScaleX: 0.36128,
+        peakScaleY: 0.36128,
+        worldW: 293.0,
+        worldH: 347.5,
+        sourceW: 811,
+        sourceH: 962,
+        sourcePath: '/fake/FACE.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/HEAD/FACE',
-          attachmentName: 'FACE',
-          skinName: 'default',
-          slotName: 'HEAD',
-          animationName: 'JOKER',
-          time: 1.0,
-          frame: 60,
-          peakScale: 0.36128,
-          peakScaleX: 0.36128,
-          peakScaleY: 0.36128,
-          worldW: 293.0,
-          worldH: 347.5,
-          sourceW: 811,
-          sourceH: 962,
-          sourcePath: '/fake/FACE.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan: ExportPlan = buildExportPlan(summary, new Map());
@@ -748,14 +884,16 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
 
     // Build a real summary from SIMPLE_TEST then synthesize sourcePath like
     // the case (a)-(e) tests above (Plan 06-02 D-101 path-only field).
+    // Phase 35: populate regions[] for post-migration iteration source parity.
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
     const summary = {
       peaks: peaks.map((r) => ({
         ...r,
-        sourcePath: '/fake/' + r.attachmentName + '.png',
+        sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
       })),
+      regions: regionsFromSampled(sampled),
       orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     } as unknown as SkeletonSummary;
 
@@ -776,26 +914,28 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     const viewModule = await import('../../src/renderer/src/lib/export-view.js');
     const buildExportPlanView = viewModule.buildExportPlan;
 
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/ZOOMED',
+        attachmentName: 'ZOOMED',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'zoom',
+        time: 0,
+        frame: 0,
+        peakScale: 1.5,
+        peakScaleX: 1.5,
+        peakScaleY: 1.5,
+        worldW: 150,
+        worldH: 150,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/ZOOMED.png',
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/ZOOMED',
-          attachmentName: 'ZOOMED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'zoom',
-          time: 0,
-          frame: 0,
-          peakScale: 1.5,
-          peakScaleX: 1.5,
-          peakScaleY: 1.5,
-          worldW: 150,
-          worldH: 150,
-          sourceW: 100,
-          sourceH: 100,
-          sourcePath: '/fake/ZOOMED.png',
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -862,31 +1002,33 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     // Phase 22.1 D-06: drifted row with cap firing (peakScale=0.7, sourceRatio≈0.498)
     // now produces a RESIZE row (rows[]) not passthrough — outW=811 ≠ sourceW=1628.
     // The parity test still holds: both core and renderer produce IDENTICAL output.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/DRIFTED',
+        attachmentName: 'DRIFTED',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.7,
+        peakScaleX: 0.7,
+        peakScaleY: 0.7,
+        worldW: 1140,
+        worldH: 1336,
+        sourceW: 1628,
+        sourceH: 1908,
+        sourcePath: '/fake/DRIFTED.png',
+        canonicalW: 1628,
+        canonicalH: 1908,
+        actualSourceW: 811,
+        actualSourceH: 962,
+        dimsMismatch: true,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/DRIFTED',
-          attachmentName: 'DRIFTED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.7,
-          peakScaleX: 0.7,
-          peakScaleY: 0.7,
-          worldW: 1140,
-          worldH: 1336,
-          sourceW: 1628,
-          sourceH: 1908,
-          sourcePath: '/fake/DRIFTED.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,
-          actualSourceH: 962,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const corePlan = buildExportPlan(summary, new Map());
@@ -902,31 +1044,33 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     const buildExportPlanView = viewModule.buildExportPlan;
     // Phase 22.1 D-06: peakScale=0.3 ≤ sourceRatio(0.498) — both core + renderer
     // now agree: outW=ceil(1628×0.3)=489 ≠ sourceW → rows[] (resize, not passthrough).
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/DRIFTED',
+        attachmentName: 'DRIFTED',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.3,
+        peakScaleX: 0.3,
+        peakScaleY: 0.3,
+        worldW: 488,
+        worldH: 572,
+        sourceW: 1628,
+        sourceH: 1908,
+        sourcePath: '/fake/DRIFTED.png',
+        canonicalW: 1628,
+        canonicalH: 1908,
+        actualSourceW: 811,
+        actualSourceH: 962,
+        dimsMismatch: true,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/DRIFTED',
-          attachmentName: 'DRIFTED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.3,
-          peakScaleX: 0.3,
-          peakScaleY: 0.3,
-          worldW: 488,
-          worldH: 572,
-          sourceW: 1628,
-          sourceH: 1908,
-          sourcePath: '/fake/DRIFTED.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,
-          actualSourceH: 962,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const corePlan = buildExportPlan(summary, new Map());
@@ -1003,29 +1147,31 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     name = 'CLEAN_ATTACH',
     sourcePath = `/fake/${name}.png`,
   ): SkeletonSummary {
+    const peaks = [
+      {
+        attachmentKey: `default/SLOT/${name}`,
+        attachmentName: name,
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalDim * peakScale,
+        worldH: canonicalDim * peakScale,
+        sourceW: canonicalDim,
+        sourceH: canonicalDim,
+        sourcePath,
+        canonicalW: canonicalDim,
+        canonicalH: canonicalDim,
+        dimsMismatch: false,
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: `default/SLOT/${name}`,
-          attachmentName: name,
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalDim * peakScale,
-          worldH: canonicalDim * peakScale,
-          sourceW: canonicalDim,
-          sourceH: canonicalDim,
-          sourcePath,
-          canonicalW: canonicalDim,
-          canonicalH: canonicalDim,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
@@ -1040,31 +1186,33 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     name = 'DRIFTED_ATTACH',
     sourcePath = `/fake/${name}.png`,
   ): SkeletonSummary {
+    const peaks = [
+      {
+        attachmentKey: `default/SLOT/${name}`,
+        attachmentName: name,
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW * peakScale,
+        worldH: canonicalH * peakScale,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath,
+        canonicalW,
+        canonicalH,
+        actualSourceW: actualW,
+        actualSourceH: actualH,
+        dimsMismatch: true,
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: `default/SLOT/${name}`,
-          attachmentName: name,
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW * peakScale,
-          worldH: canonicalH * peakScale,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath,
-          canonicalW,
-          canonicalH,
-          actualSourceW: actualW,
-          actualSourceH: actualH,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
@@ -1073,11 +1221,13 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     const load = loadSkeleton(FIXTURE_BASELINE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks);
+    // Phase 35: populate regions[] for post-migration iteration source.
     const summary = {
       peaks: peaks.map((r) => ({
         ...r,
-        sourcePath: '/fake/' + r.attachmentName + '.png',
+        sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
       })),
+      regions: regionsFromSampled(sampled),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -1177,51 +1327,53 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // adds a sub-thousandth bump for IEEE-754 non-representable products.
     // Dedup keep-max picks 0.841 (the one with the larger raw, buffered).
     // Determinism: order of contributing attachments doesn't matter (max wins).
+    const peaks = [
+      {
+        attachmentKey: 'default/A/SMALL',
+        attachmentName: 'SMALL',
+        regionName: 'SHARED',
+        skinName: 'default',
+        slotName: 'A',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.6,
+        peakScaleX: 0.6,
+        peakScaleY: 0.6,
+        worldW: 600,
+        worldH: 600,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/SHARED.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        dimsMismatch: false,
+      },
+      {
+        attachmentKey: 'default/B/BIG',
+        attachmentName: 'BIG',
+        regionName: 'SHARED',
+        skinName: 'default',
+        slotName: 'B',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.8,
+        peakScaleX: 0.8,
+        peakScaleY: 0.8,
+        worldW: 800,
+        worldH: 800,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/SHARED.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        dimsMismatch: false,
+      },
+    ];
     const summary: SkeletonSummary = {
-      peaks: [
-        {
-          attachmentKey: 'default/A/SMALL',
-          attachmentName: 'SMALL',
-          regionName: 'SHARED',
-          skinName: 'default',
-          slotName: 'A',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.6,
-          peakScaleX: 0.6,
-          peakScaleY: 0.6,
-          worldW: 600,
-          worldH: 600,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/SHARED.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          dimsMismatch: false,
-        },
-        {
-          attachmentKey: 'default/B/BIG',
-          attachmentName: 'BIG',
-          regionName: 'SHARED',
-          skinName: 'default',
-          slotName: 'B',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.8,
-          peakScaleX: 0.8,
-          peakScaleY: 0.8,
-          worldW: 800,
-          worldH: 800,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/SHARED.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          dimsMismatch: false,
-        },
-      ] as unknown as SkeletonSummary['peaks'],
+      peaks: peaks as unknown as SkeletonSummary['peaks'],
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
@@ -1256,51 +1408,53 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     const viewModule = await import('../../src/renderer/src/lib/export-view.js');
     const buildExportPlanView = viewModule.buildExportPlan;
     // Mix of clean + drifted; verify cross-file parity holds at buffer 5 and 25.
+    const peaks = [
+      {
+        attachmentKey: 'default/A/CLEAN',
+        attachmentName: 'CLEAN',
+        skinName: 'default',
+        slotName: 'A',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 500,
+        worldH: 500,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/CLEAN.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        dimsMismatch: false,
+      },
+      {
+        attachmentKey: 'default/B/DRIFT',
+        attachmentName: 'DRIFT',
+        skinName: 'default',
+        slotName: 'B',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.6,
+        peakScaleX: 0.6,
+        peakScaleY: 0.6,
+        worldW: 600,
+        worldH: 600,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/DRIFT.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: 700,
+        actualSourceH: 700,
+        dimsMismatch: true,
+      },
+    ];
     const summary: SkeletonSummary = {
-      peaks: [
-        {
-          attachmentKey: 'default/A/CLEAN',
-          attachmentName: 'CLEAN',
-          skinName: 'default',
-          slotName: 'A',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 500,
-          worldH: 500,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/CLEAN.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          dimsMismatch: false,
-        },
-        {
-          attachmentKey: 'default/B/DRIFT',
-          attachmentName: 'DRIFT',
-          skinName: 'default',
-          slotName: 'B',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.6,
-          peakScaleX: 0.6,
-          peakScaleY: 0.6,
-          worldW: 600,
-          worldH: 600,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/DRIFT.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: 700,
-          actualSourceH: 700,
-          dimsMismatch: true,
-        },
-      ] as unknown as SkeletonSummary['peaks'],
+      peaks: peaks as unknown as SkeletonSummary['peaks'],
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     for (const buf of [5, 25]) {
@@ -1352,62 +1506,66 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     peakScale: number,
     name = 'DRIFTED_ATTACH',
   ): SkeletonSummary {
+    const peaks = [
+      {
+        attachmentKey: `default/SLOT/${name}`,
+        attachmentName: name,
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW * peakScale,
+        worldH: canonicalH * peakScale,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: `/fake/${name}.png`,
+        canonicalW,
+        canonicalH,
+        actualSourceW: actualW,
+        actualSourceH: actualH,
+        dimsMismatch: true,
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: `default/SLOT/${name}`,
-          attachmentName: name,
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW * peakScale,
-          worldH: canonicalH * peakScale,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: `/fake/${name}.png`,
-          canonicalW,
-          canonicalH,
-          actualSourceW: actualW,
-          actualSourceH: actualH,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
 
   // Helper: synthesize a non-drifted summary (no actualSource → no cap).
   function makeNonDriftedSummary(canonicalW: number, canonicalH: number, peakScale: number): SkeletonSummary {
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/CLEAN',
+        attachmentName: 'CLEAN',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW * peakScale,
+        worldH: canonicalH * peakScale,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: '/fake/CLEAN.png',
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/CLEAN',
-          attachmentName: 'CLEAN',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW * peakScale,
-          worldH: canonicalH * peakScale,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: '/fake/CLEAN.png',
-          canonicalW,
-          canonicalH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
@@ -1533,78 +1691,80 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // Non-drifted row B (peakScale=0.5 → outW=500 ≠ sourceW=1000): rows[].
     // Non-drifted row C (peakScale=1.0 → outW=1000 === sourceW=1000): passthroughCopies[].
     // Total: rows=2 (A + B), passthrough=1 (C).
+    const peaks = [
+      // Drifted — Phase 22.1: now resize (outW=811 ≠ sourceW=1628)
+      {
+        attachmentKey: 'default/SLOT/A',
+        attachmentName: 'A',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.7,
+        peakScaleX: 0.7,
+        peakScaleY: 0.7,
+        worldW: 1140,
+        worldH: 1336,
+        sourceW: 1628,
+        sourceH: 1908,
+        sourcePath: '/fake/A.png',
+        canonicalW: 1628,
+        canonicalH: 1908,
+        actualSourceW: 811,
+        actualSourceH: 962,
+        dimsMismatch: true,
+      },
+      // Non-drifted (no actualSource), peakScale=0.5 → outW=500 ≠ 1000 → rows[]
+      {
+        attachmentKey: 'default/SLOT/B',
+        attachmentName: 'B',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 500,
+        worldH: 500,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/B.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+      // Non-drifted matching dims, peakScale=1.0 → outW=1000 === sourceW=1000 → passthroughCopies[]
+      {
+        attachmentKey: 'default/SLOT/C',
+        attachmentName: 'C',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 1.0,
+        peakScaleX: 1.0,
+        peakScaleY: 1.0,
+        worldW: 1000,
+        worldH: 1000,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/C.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: 1000,
+        actualSourceH: 1000,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        // Drifted — Phase 22.1: now resize (outW=811 ≠ sourceW=1628)
-        {
-          attachmentKey: 'default/SLOT/A',
-          attachmentName: 'A',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.7,
-          peakScaleX: 0.7,
-          peakScaleY: 0.7,
-          worldW: 1140,
-          worldH: 1336,
-          sourceW: 1628,
-          sourceH: 1908,
-          sourcePath: '/fake/A.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,
-          actualSourceH: 962,
-          dimsMismatch: true,
-        },
-        // Non-drifted (no actualSource), peakScale=0.5 → outW=500 ≠ 1000 → rows[]
-        {
-          attachmentKey: 'default/SLOT/B',
-          attachmentName: 'B',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 500,
-          worldH: 500,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/B.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-        // Non-drifted matching dims, peakScale=1.0 → outW=1000 === sourceW=1000 → passthroughCopies[]
-        {
-          attachmentKey: 'default/SLOT/C',
-          attachmentName: 'C',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 1.0,
-          peakScaleX: 1.0,
-          peakScaleY: 1.0,
-          worldW: 1000,
-          worldH: 1000,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/C.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: 1000,
-          actualSourceH: 1000,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
@@ -1620,75 +1780,77 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // debug-fix scale-display-optimized-source: actualSourceW must NOT be smaller than
     // canonicalW here, otherwise outW=500=effectiveSourceW=500 -> passthrough.
     // Sort invariant: rows[] are sorted by sourcePath.localeCompare().
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/Z',
+        attachmentName: 'Z',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 900,
+        worldH: 900,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/Z.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: 1000,
+        actualSourceH: 1000,
+        dimsMismatch: false,
+      },
+      {
+        attachmentKey: 'default/SLOT/A',
+        attachmentName: 'A',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 900,
+        worldH: 900,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/A.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: 1000,
+        actualSourceH: 1000,
+        dimsMismatch: false,
+      },
+      {
+        attachmentKey: 'default/SLOT/M',
+        attachmentName: 'M',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 900,
+        worldH: 900,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/M.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: 1000,
+        actualSourceH: 1000,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/Z',
-          attachmentName: 'Z',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 900,
-          worldH: 900,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/Z.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: 1000,
-          actualSourceH: 1000,
-          dimsMismatch: false,
-        },
-        {
-          attachmentKey: 'default/SLOT/A',
-          attachmentName: 'A',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 900,
-          worldH: 900,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/A.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: 1000,
-          actualSourceH: 1000,
-          dimsMismatch: false,
-        },
-        {
-          attachmentKey: 'default/SLOT/M',
-          attachmentName: 'M',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 900,
-          worldH: 900,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/M.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: 1000,
-          actualSourceH: 1000,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
@@ -1707,31 +1869,33 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // → Test the actualSource-threading invariant on a non-drifted row instead:
     // peakScale=1.0 + dimsMismatch=false → effScale=1.0 → outW=sourceW → passthrough,
     // and actualSource fields (when explicitly set) carry through to the passthrough row.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/FULLSIZE',
+        attachmentName: 'FULLSIZE',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 1.0,
+        peakScaleX: 1.0,
+        peakScaleY: 1.0,
+        worldW: 811,
+        worldH: 962,
+        sourceW: 811,
+        sourceH: 962,
+        sourcePath: '/fake/FULLSIZE.png',
+        canonicalW: 811,
+        canonicalH: 962,
+        actualSourceW: 811,  // same as sourceW and canonicalW (no drift)
+        actualSourceH: 962,
+        dimsMismatch: false,
+      },
+    ];
     const nonDriftedSummary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/FULLSIZE',
-          attachmentName: 'FULLSIZE',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 1.0,
-          peakScaleX: 1.0,
-          peakScaleY: 1.0,
-          worldW: 811,
-          worldH: 962,
-          sourceW: 811,
-          sourceH: 962,
-          sourcePath: '/fake/FULLSIZE.png',
-          canonicalW: 811,
-          canonicalH: 962,
-          actualSourceW: 811,  // same as sourceW and canonicalW (no drift)
-          actualSourceH: 962,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const planND = buildExportPlan(nonDriftedSummary, new Map());
@@ -1775,31 +1939,33 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
   // This row SHOULD be passthrough (outW === sourceW) but the Phase 22 D-04 REVISED
   // predicate misses it because dimsMismatch is false.
   function makeTriangleStyleSummary(sourceW: number, sourceH: number, peakScale: number): SkeletonSummary {
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/TRI',
+        attachmentName: 'TRI',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: sourceW * peakScale,
+        worldH: sourceH * peakScale,
+        sourceW,
+        sourceH,
+        sourcePath: '/fake/TRI.png',
+        canonicalW: sourceW,
+        canonicalH: sourceH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/TRI',
-          attachmentName: 'TRI',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: sourceW * peakScale,
-          worldH: sourceH * peakScale,
-          sourceW,
-          sourceH,
-          sourcePath: '/fake/TRI.png',
-          canonicalW: sourceW,
-          canonicalH: sourceH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
@@ -1818,31 +1984,33 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     // becomes sourceRatio = min(sourceW/canonicalW, sourceH/canonicalH) = 1.0
     // (since canonicalW === sourceW). So cappedEffScale === downscaleClampedScale.
     // The simple predicate `outW === sourceW` is the correct partition.
+    const peaks = [
+      {
+        attachmentKey: `default/SLOT/${name}`,
+        attachmentName: name,
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: sourceW * peakScale,
+        worldH: sourceH * peakScale,
+        sourceW,
+        sourceH,
+        sourcePath: `/fake/${name}.png`,
+        canonicalW: sourceW,
+        canonicalH: sourceH,
+        actualSourceW: sourceW,   // unified: actualSourceW === sourceW
+        actualSourceH: sourceH,   // unified: actualSourceH === sourceH
+        dimsMismatch: false,      // unified: no mismatch when actual === canonical
+      },
+    ];
     return {
-      peaks: [
-        {
-          attachmentKey: `default/SLOT/${name}`,
-          attachmentName: name,
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: sourceW * peakScale,
-          worldH: sourceH * peakScale,
-          sourceW,
-          sourceH,
-          sourcePath: `/fake/${name}.png`,
-          canonicalW: sourceW,
-          canonicalH: sourceH,
-          actualSourceW: sourceW,   // unified: actualSourceW === sourceW
-          actualSourceH: sourceH,   // unified: actualSourceH === sourceH
-          dimsMismatch: false,      // unified: no mismatch when actual === canonical
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
   }
@@ -1938,31 +2106,33 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     // sourceRatio = min(811/1628, 962/1908) ≈ 0.498. downscaleClampedScale=0.9 > 0.498 → isCapped=true.
     // Phase 22.1 D-06: outW=811 ≠ sourceW=1628 → row goes to rows[] (resize), not passthroughCopies.
     // G-07 D-07: isCapped field must be true on the row (whether it's resize or passthrough).
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/DRIFTED',
+        attachmentName: 'DRIFTED',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 1465,
+        worldH: 1717,
+        sourceW: 1628,
+        sourceH: 1908,
+        sourcePath: '/fake/DRIFTED.png',
+        canonicalW: 1628,
+        canonicalH: 1908,
+        actualSourceW: 811,
+        actualSourceH: 962,
+        dimsMismatch: true,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/DRIFTED',
-          attachmentName: 'DRIFTED',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 1465,
-          worldH: 1717,
-          sourceW: 1628,
-          sourceH: 1908,
-          sourcePath: '/fake/DRIFTED.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,
-          actualSourceH: 962,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
@@ -1975,31 +2145,33 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
 
   it('G-07: isCapped is absent/undefined when cap does NOT fire', () => {
     // Non-drifted row (dimsMismatch:false, no actualSource) → cap inert → isCapped undefined.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/NODRIFT',
+        attachmentName: 'NODRIFT',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 500,
+        worldH: 500,
+        sourceW: 1000,
+        sourceH: 1000,
+        sourcePath: '/fake/NODRIFT.png',
+        canonicalW: 1000,
+        canonicalH: 1000,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/NODRIFT',
-          attachmentName: 'NODRIFT',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.5,
-          peakScaleX: 0.5,
-          peakScaleY: 0.5,
-          worldW: 500,
-          worldH: 500,
-          sourceW: 1000,
-          sourceH: 1000,
-          sourcePath: '/fake/NODRIFT.png',
-          canonicalW: 1000,
-          canonicalH: 1000,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const plan = buildExportPlan(summary, new Map());
@@ -2011,31 +2183,33 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
   it('G-07: uniform-scale invariant: for every emitted row, outW/sourceW ratio ≈ outH/sourceH ratio', () => {
     // Locks the user-locked Phase 6 export sizing memory: uniform single-scale,
     // never per-axis. Both rows[] and passthroughCopies[] must honor this.
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/DRIFT_UNI',
+        attachmentName: 'DRIFT_UNI',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: 0.9,
+        peakScaleX: 0.9,
+        peakScaleY: 0.9,
+        worldW: 1465,
+        worldH: 1717,
+        sourceW: 1628,
+        sourceH: 1908,
+        sourcePath: '/fake/DRIFT_UNI.png',
+        canonicalW: 1628,
+        canonicalH: 1908,
+        actualSourceW: 811,
+        actualSourceH: 962,
+        dimsMismatch: true,
+      },
+    ];
     const summaryDrifted = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/DRIFT_UNI',
-          attachmentName: 'DRIFT_UNI',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'idle',
-          time: 0,
-          frame: 0,
-          peakScale: 0.9,
-          peakScaleX: 0.9,
-          peakScaleY: 0.9,
-          worldW: 1465,
-          worldH: 1717,
-          sourceW: 1628,
-          sourceH: 1908,
-          sourcePath: '/fake/DRIFT_UNI.png',
-          canonicalW: 1628,
-          canonicalH: 1908,
-          actualSourceW: 811,
-          actualSourceH: 962,
-          dimsMismatch: true,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -2104,81 +2278,83 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
     const overridePct = 1.0;
 
     const sharedSourcePath = '/fake/images/5/7.png';
+    const peaks = [
+      // Contributor 1 — non-overridden peakScale 1.0
+      {
+        attachmentKey: 'default/SLOT1/5/5/5/7/7',
+        attachmentName: '5/5/5/7/7',
+        regionName: '5/7',
+        skinName: 'default',
+        slotName: 'SLOT1',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW,
+        worldH: canonicalH,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: sharedSourcePath,
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+      // Contributor 2 — also non-overridden
+      {
+        attachmentKey: 'default/SLOT2/5/5/7/7',
+        attachmentName: '5/5/7/7',
+        regionName: '5/7',
+        skinName: 'default',
+        slotName: 'SLOT2',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW,
+        worldH: canonicalH,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: sharedSourcePath,
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+      // Contributor 3 — winning attachmentName 5/7 (matches regionName)
+      {
+        attachmentKey: 'default/SLOT3/5/7',
+        attachmentName: '5/7',
+        regionName: '5/7',
+        skinName: 'default',
+        slotName: 'SLOT3',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW,
+        worldH: canonicalH,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: sharedSourcePath,
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        // Contributor 1 — non-overridden peakScale 1.0
-        {
-          attachmentKey: 'default/SLOT1/5/5/5/7/7',
-          attachmentName: '5/5/5/7/7',
-          regionName: '5/7',
-          skinName: 'default',
-          slotName: 'SLOT1',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW,
-          worldH: canonicalH,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: sharedSourcePath,
-          canonicalW,
-          canonicalH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-        // Contributor 2 — also non-overridden
-        {
-          attachmentKey: 'default/SLOT2/5/5/7/7',
-          attachmentName: '5/5/7/7',
-          regionName: '5/7',
-          skinName: 'default',
-          slotName: 'SLOT2',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW,
-          worldH: canonicalH,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: sharedSourcePath,
-          canonicalW,
-          canonicalH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-        // Contributor 3 — winning attachmentName 5/7 (matches regionName)
-        {
-          attachmentKey: 'default/SLOT3/5/7',
-          attachmentName: '5/7',
-          regionName: '5/7',
-          skinName: 'default',
-          slotName: 'SLOT3',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW,
-          worldH: canonicalH,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: sharedSourcePath,
-          canonicalW,
-          canonicalH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -2206,32 +2382,34 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
     const peakScale = 1.0;
 
     const sharedSourcePath = '/fake/images/5/7.png';
+    const peaks = [
+      {
+        attachmentKey: 'default/SLOT/5/5/7/7',
+        attachmentName: '5/5/7/7',
+        regionName: '5/7',
+        skinName: 'default',
+        slotName: 'SLOT',
+        animationName: 'PATH',
+        time: 0,
+        frame: 0,
+        peakScale,
+        peakScaleX: peakScale,
+        peakScaleY: peakScale,
+        worldW: canonicalW,
+        worldH: canonicalH,
+        sourceW: canonicalW,
+        sourceH: canonicalH,
+        sourcePath: sharedSourcePath,
+        canonicalW,
+        canonicalH,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/SLOT/5/5/7/7',
-          attachmentName: '5/5/7/7',
-          regionName: '5/7',
-          skinName: 'default',
-          slotName: 'SLOT',
-          animationName: 'PATH',
-          time: 0,
-          frame: 0,
-          peakScale,
-          peakScaleX: peakScale,
-          peakScaleY: peakScale,
-          worldW: canonicalW,
-          worldH: canonicalH,
-          sourceW: canonicalW,
-          sourceH: canonicalH,
-          sourcePath: sharedSourcePath,
-          canonicalW,
-          canonicalH,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -2252,32 +2430,34 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
     // Pre-flip + post-flip produce the same result on non-indirected fixtures
     // because regionName === attachmentName. CIRCLE peakScale 0.8, override
     // 25% → effScale = 0.25 × 0.8 = 0.2 → outW = ceil(699 × 0.2) = 140.
+    const peaks = [
+      {
+        attachmentKey: 'default/CIRCLE/CIRCLE',
+        attachmentName: 'CIRCLE',
+        regionName: 'CIRCLE', // matches attachmentName — non-indirected
+        skinName: 'default',
+        slotName: 'CIRCLE',
+        animationName: 'PATH',
+        time: 0.5,
+        frame: 30,
+        peakScale: 0.8,
+        peakScaleX: 0.8,
+        peakScaleY: 0.8,
+        worldW: 559,
+        worldH: 559,
+        sourceW: 699,
+        sourceH: 699,
+        sourcePath: '/fake/CIRCLE.png',
+        canonicalW: 699,
+        canonicalH: 699,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+      },
+    ];
     const summary = {
-      peaks: [
-        {
-          attachmentKey: 'default/CIRCLE/CIRCLE',
-          attachmentName: 'CIRCLE',
-          regionName: 'CIRCLE', // matches attachmentName — non-indirected
-          skinName: 'default',
-          slotName: 'CIRCLE',
-          animationName: 'PATH',
-          time: 0.5,
-          frame: 30,
-          peakScale: 0.8,
-          peakScaleX: 0.8,
-          peakScaleY: 0.8,
-          worldW: 559,
-          worldH: 559,
-          sourceW: 699,
-          sourceH: 699,
-          sourcePath: '/fake/CIRCLE.png',
-          canonicalW: 699,
-          canonicalH: 699,
-          actualSourceW: undefined,
-          actualSourceH: undefined,
-          dimsMismatch: false,
-        },
-      ],
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['CIRCLE', 25]]);

@@ -1,18 +1,22 @@
 /**
  * Phase 6 Plan 03 — Pure-TS export-plan builder (D-108..D-111).
  *
- * Folds SkeletonSummary.peaks (DisplayRow[]) + Phase 4 overrides Map +
- * Phase 5 unusedAttachments list into a deduped ExportRow[] keyed by
- * source PNG path (D-108).
+ * Phase 35 Plan 35-01 — folds SkeletonSummary.regions (RegionRow[]; per-region
+ * dedup per Phase 29 D-01) + Phase 4 overrides Map (regionName-keyed per
+ * Phase 29 D-04) into a deduped ExportRow[] keyed by source PNG path (D-108).
+ * Pre-Phase-35 the iteration source was summary.peaks (attachment-name-deduped
+ * DisplayRow[]); the swap to summary.regions closes the multi-skin atlas-source
+ * undercount — 160 regions sharing 23 attachment names now emit 160 ExportRows.
  *
  * Algorithm:
- *   1. Build excluded set from summary.unusedAttachments (D-109; bypassable
- *      via opts.includeUnused for future Settings toggle).
- *   2. Walk summary.peaks: skip rows whose attachmentName is excluded.
- *      For each survivor compute effectiveScale (D-111: applyOverride or
- *      peakScale fallback) and clamp to ≤1.0 (Gap-Fix #1 — see below);
- *      group by sourcePath; per group keep the row with the highest
- *      effectiveScale and union all attachmentNames.
+ *   1. Build excluded set (currently always empty — Plan 24-01 removed
+ *      unusedAttachments; Plan 24-02 wires a new exclusion surface).
+ *   2. Walk summary.regions: skip regions whose winning attachmentName is
+ *      excluded. For each survivor compute effectiveScale (D-111: applyOverride
+ *      keyed by region.regionName per Phase 29 D-04, or peakScale fallback) and
+ *      clamp to ≤1.0 (Gap-Fix #1 — see below); group by sourcePath; per group
+ *      keep the region with the highest effectiveScale and union all
+ *      contributing attachmentNames (region.contributingAttachments[]).
  *   3. Emit ExportRow per group with outW/outH = Math.round(sourceW ×
  *      effectiveScale) (D-110 uniform — anisotropic export breaks Spine UV
  *      sampling; locked memory). outPath is RELATIVE — 'images/' +
@@ -62,9 +66,9 @@
  *     copy; AppShell.tsx calls it from the toolbar click handler (Plan 06-06).
  */
 import type {
-  DisplayRow,
   ExportPlan,
   ExportRow,
+  RegionRow,
   SkeletonSummary,
 } from '../shared/types.js';
 import { applyOverride } from './overrides.js';
@@ -115,7 +119,7 @@ export interface BuildExportPlanOptions {
  */
 
 /**
- * Derive the relative output path from a DisplayRow's sourcePath.
+ * Derive the relative output path from a RegionRow's sourcePath.
  *
  * sourcePath was constructed by `src/core/loader.ts` Plan 06-02 as
  * `path.resolve(<skeletonDir>/images/<regionName>.png)`. Splitting on
@@ -173,16 +177,19 @@ export function buildExportPlan(
   // (computed here from cap math; threaded to ExportRow.isCapped for
   // OptimizeDialog cap-binding signal per D-07).
   interface Acc {
-    row: DisplayRow;
+    row: RegionRow;
     effScale: number;
     isCapped: boolean;  // true when downscaleClampedScale > sourceRatio
     bufferCapped: boolean;  // Phase 30 BUFFER-02 — true when buffer pushed past sourceRatio (NARROW predicate per D-06)
     attachmentNames: string[];
   }
   const bySourcePath = new Map<string, Acc>();
-  for (const row of summary.peaks) {
-    if (excluded.has(row.attachmentName)) continue;
-    if (!row.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
+  // Phase 35 — iterate summary.regions (RegionRow[]) so per-region dedup is
+  // preserved end-to-end. summary.peaks is attachment-name-deduped and would
+  // collapse N skin-namespaced regions sharing one base name to one row.
+  for (const region of summary.regions) {
+    if (excluded.has(region.attachmentName)) continue;
+    if (!region.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
     // Peak-anchored override semantics (2026-05-05 redesign): override %
     // means "% of peak demand". applyOverride(pct, peakScale) returns a
     // canonical-relative effectiveScale = (pct/100) × peakScale, so the
@@ -193,22 +200,21 @@ export function buildExportPlan(
     // invariant world-space measurement, not source-PNG-relative.
     //
     // Phase 29 D-04 — overrides Map keyed by regionName (one source PNG /
-    // one atlas region). Read by `row.regionName ?? row.attachmentName`:
-    // path-indirected projects have multiple attachments sharing a region,
-    // so the per-region override binds at the dedup layer (bySourcePath),
-    // not per-attachment. Closes the falsified bug from
-    // .planning/debug/path-indirected-duplicate-rows.md (2026-05-07): a
-    // user override on `5/7 → 4×4` no longer gets ignored by non-overridden
-    // sibling attachments winning the per-sourcePath max. Fallback to
-    // attachmentName preserves the SIMPLE_PROJECT contract (regionName ===
-    // attachmentName for non-indirected fixtures) and synthetic test
-    // fixtures that build PeakRecords without regionName set.
-    const overrideKey = row.regionName ?? row.attachmentName;
+    // one atlas region). Read by `region.regionName ?? region.attachmentName`:
+    // the for-loop over summary.regions reads the region-keyed override and
+    // applies it to every per-region row (Phase 35 — iteration source swapped
+    // from summary.peaks to summary.regions; before Phase 35 path-indirected
+    // sibling attachments could win the per-sourcePath max with non-overridden
+    // peakScales, ignoring the user's intent. Closes the falsified bug from
+    // .planning/debug/path-indirected-duplicate-rows.md (2026-05-07).
+    // RegionRow.regionName is ALWAYS defined (primary key from analyzeRegions);
+    // the `??` fallback is defense-in-depth for synthetic test fixtures.
+    const overrideKey = region.regionName ?? region.attachmentName;
     const overridePct = overrides.get(overrideKey);
     const rawEffScale =
       overridePct !== undefined
-        ? applyOverride(overridePct, row.peakScale).effectiveScale
-        : row.peakScale;
+        ? applyOverride(overridePct, region.peakScale).effectiveScale
+        : region.peakScale;
 
     // Phase 30 BUFFER-01 — multiplicative safety buffer applied AFTER override
     // resolution + BEFORE the canonical ≤ 1.0 clamp. D-07 literal no-op when
@@ -250,9 +256,9 @@ export function buildExportPlan(
     // as defense-in-depth — preserves "outW ≤ sourceW always" regardless
     // of future loader edits. See CONTEXT D-06 + 22.1-01-SUMMARY.md §"Phase 22
     // Cap Math — Vestigiality Confirmation".
-    const { actualSourceW, actualSourceH, canonicalW, canonicalH } = row;
+    const { actualSourceW, actualSourceH, canonicalW, canonicalH } = region;
     const sourceRatio =
-      row.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
+      region.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
         ? Math.min(actualSourceW / canonicalW, actualSourceH / canonicalH)
         : Infinity;
     const cappedEffScale = Math.min(downscaleClampedScale, sourceRatio);
@@ -272,24 +278,38 @@ export function buildExportPlan(
       && safeScale(rawEffScale) <= sourceRatio;
 
     const effScale = cappedEffScale;
-    const prev = bySourcePath.get(row.sourcePath);
+    const prev = bySourcePath.get(region.sourcePath);
     if (prev === undefined) {
-      bySourcePath.set(row.sourcePath, {
-        row,
+      // Phase 35 — attachmentNames sourced from per-region contributor list
+      // (RegionRow.contributingAttachments[]) per Phase 29 D-02/D-03. For
+      // SIMPLE_PROJECT-style fixtures (regionName === attachmentName,
+      // contributingAttachments.length === 1) this produces an identical
+      // attachmentNames[] array to the pre-Phase-35 `[row.attachmentName]`
+      // shape — single-skin tests are observationally equivalent.
+      bySourcePath.set(region.sourcePath, {
+        row: region,
         effScale,
         isCapped,
         bufferCapped,  // Phase 30 BUFFER-02 — symmetric with isCapped above (R2)
-        attachmentNames: [row.attachmentName],
+        attachmentNames: region.contributingAttachments.map((c) => c.attachmentName),
       });
     } else {
       if (effScale > prev.effScale) {
-        prev.row = row;
+        prev.row = region;
         prev.effScale = effScale;
         prev.isCapped = isCapped;
         prev.bufferCapped = bufferCapped;  // Phase 30 BUFFER-02 — keep-max symmetric replace (R2)
       }
-      if (!prev.attachmentNames.includes(row.attachmentName)) {
-        prev.attachmentNames.push(row.attachmentName);
+      // Phase 35 — merge full per-region contributor set into the dedup row.
+      // Two RegionRows sharing one sourcePath (rare; defense-in-depth) union
+      // their contributor sets — matches the legacy attachmentName union
+      // semantics for the SIMPLE_PROJECT case while extending naturally to
+      // path-indirected projects where one region IS the source of N
+      // contributing attachments.
+      for (const c of region.contributingAttachments) {
+        if (!prev.attachmentNames.includes(c.attachmentName)) {
+          prev.attachmentNames.push(c.attachmentName);
+        }
       }
     }
   }
@@ -301,7 +321,7 @@ export function buildExportPlan(
   //    → round = 347, but the per-axis peak demanded ≥ 347.99). Aspect
   //    ratio is preserved within sub-pixel tolerance (uniform effScale
   //    across both axes; ceil applied per-axis).
-  // Gap-Fix #2: thread atlasSource through from the winning DisplayRow so
+  // Gap-Fix #2: thread atlasSource through from the winning RegionRow so
   //    the image-worker can fall back to atlas-page extraction when the
   //    per-region PNG doesn't exist on disk.
   //
