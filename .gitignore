@@ -36,6 +36,24 @@ fixtures/MON_FILES/
 fixtures/SAMPLER_ALPHA_ZERO/
 # Spine 4.3-beta exports of the same proprietary Joker rigs (SEED-003 reproduction fixtures).
 fixtures/test_4.3/
+# v1.4 Phase 35 multi-skin fixture (JOKERMAN proprietary, 358M). Phase 35 export.spec.ts
+# uses it.skipIf via TEST_4_FIXTURE_PRESENT so absence doesn't break tests/CI.
+fixtures/SKINS/
+# v1.4 Phase 35 CR-01 follow-up fixture (Spine 4.2 non-essential-disabled mesh
+# export). Used by tests/core/export.spec.ts Test 5 via it.skipIf via
+# TEST_5_FIXTURE_PRESENT — absent on fresh clones, present locally.
+fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/
+# v1.4 Phase 33 rotated-region exploration; not referenced by any test/src.
+fixtures/Rotated/
+# Root-level proprietary Spine project (Joker TOPSCREEN). Same convention as temp/
+# but checked-in directly by the editor; keep local-only.
+/Rotation_Complex/
+# Ad-hoc migration debug scripts — mirrors the scripts/probe-*.ts pattern.
+scripts/migrate-*.mjs
+# Scratch exploratory specs — `_exploratory-` prefix is the convention for
+# investigation/sketch tests that aren't meant to ship.
+tests/**/_exploratory-*.spec.tsx
+tests/**/_exploratory-*.spec.ts
 
 # OS cruft
 .DS_Store
