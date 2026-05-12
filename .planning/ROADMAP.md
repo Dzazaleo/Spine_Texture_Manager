@@ -938,12 +938,12 @@ Plans:
   7. Lockstep diff between `src/core/export.ts:buildExportPlan` and `src/renderer/src/lib/export-view.ts:buildExportPlan` remains structurally identical (the parity invariant is not regressed by this change).
   8. A regression test exercises the multi-skin path: feeding a `summary` with N regions that share K < N attachment names through `buildExportPlan` returns a plan with N rows (not K).
 
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 35-01-buildExportPlan-region-iteration-PLAN.md — Migrate `src/core/export.ts:buildExportPlan` to iterate `summary.regions` (RegionRow[]) instead of `summary.peaks`; preserve override-by-regionName + per-sourcePath dedup + math chain.
-- [ ] 35-02-export-view-parity-mirror-PLAN.md — Mirror plan 01's change byte-identically into `src/renderer/src/lib/export-view.ts`; update the parity-regex assertion in tests/core/export.spec.ts in lockstep.
+- [x] 35-01-buildExportPlan-region-iteration-PLAN.md — Migrate `src/core/export.ts:buildExportPlan` to iterate `summary.regions` (RegionRow[]) instead of `summary.peaks`; preserve override-by-regionName + per-sourcePath dedup + math chain.
+- [x] 35-02-export-view-parity-mirror-PLAN.md — Mirror plan 01's change byte-identically into `src/renderer/src/lib/export-view.ts`; update the parity-regex assertion in tests/core/export.spec.ts in lockstep.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 35-03-atlas-preview-consumer-audit-PLAN.md — Static audit of `atlas-preview-view.ts` + `atlas-preview.ts` optimized-mode tile expansion (expected no-op) + manual UAT loading fixtures/SKINS/JOKERMAN_SPINE.json to verify success criteria 1/2/3.
@@ -984,7 +984,7 @@ Plans:
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete    | 2026-05-11 |
 | 34. File > Open menu accepts Spine skeleton JSON files (not only .stmproj) | v1.4 | 4/4 | Complete    | 2026-05-11 |
-| 35. Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | v1.4 | 0/4 | Pending (plans broken out 2026-05-12; DEDUP-04/05/06 added to REQUIREMENTS.md; awaiting `/gsd-execute-phase 35`) | — |
+| 35. Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | v1.4 | 2/4 | In Progress|  |
 
 ## Deferred (post-v1.1)
 
