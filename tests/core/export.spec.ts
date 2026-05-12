@@ -60,6 +60,37 @@ const EXPORT_SRC = path.resolve('src/core/export.ts');
  *
  * The helper is intentionally local to this file (not exported into core/) —
  * tests-only synthesis idiom; the real producer is analyzer.ts:analyzeRegions.
+ *
+ * WR-03 (2026-05-12) — DOCUMENTED DIVERGENCES from production semantics.
+ * This helper is APPROXIMATE, not faithful, to `pickRegionWinner` +
+ * `toRegionRow` in src/core/analyzer.ts. The divergences below have not
+ * bitten any existing test (≈30 call sites), and replacing this helper with
+ * a thin wrapper around `analyzeRegions` would cascade input-shape changes
+ * across every call site — too invasive for a review-fix pass. If a future
+ * test needs faithful semantics, prefer Category A (`analyzeRegions`) over
+ * extending this helper. The three documented divergences:
+ *
+ *   1. WINNER TIEBREAK on equal peakScale (line 78-80). This helper uses
+ *      strict `>` so the FIRST source-order contributor wins on a tie.
+ *      Production `pickRegionWinner` (analyzer.ts:268-273) breaks ties by
+ *      LEX-ASC `attachmentName`. The two coincide in every current test
+ *      because each test's peak literal order also happens to be lex-ASC,
+ *      but a future test that reorders peaks could pass against this
+ *      helper while failing in production.
+ *
+ *   2. CONTRIBUTOR DEDUP (line 121-130 below). This helper does NOT dedupe
+ *      bucket entries by `attachmentName` — every peak emits its own
+ *      `contributingAttachments[]` row. Production `toRegionRow`
+ *      (analyzer.ts:295-302) dedupes via `seen.has(r.attachmentName)` to
+ *      handle one attachmentName bound to multiple slots. A synthetic peak
+ *      list with that shape would emit duplicates here but unique rows
+ *      from production.
+ *
+ *   3. FIELD-DEFAULT MASKING (line 87-89 below). `slotName ?? 'TEST_SLOT'`
+ *      and `animationName ?? 'PATH'` paper over missing fields with
+ *      literals that bear no relationship to production output. Downstream
+ *      consumers that depend on real slot/animation names will silently
+ *      pass against this helper.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function synthRegionsFromPeaks(peaks: ReadonlyArray<any>): RegionRow[] {
