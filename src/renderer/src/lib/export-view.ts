@@ -43,9 +43,9 @@
  *     window.api.startExport(plan, outDir).
  */
 import type {
-  DisplayRow,
   ExportPlan,
   ExportRow,
+  RegionRow,
   SkeletonSummary,
 } from '../../../shared/types.js';
 import { applyOverride, clampOverride } from './overrides-view.js';
@@ -272,16 +272,19 @@ export function buildExportPlan(
   // (computed here from cap math; threaded to ExportRow.isCapped for
   // OptimizeDialog cap-binding signal per D-07).
   interface Acc {
-    row: DisplayRow;
+    row: RegionRow;
     effScale: number;
     isCapped: boolean;  // true when downscaleClampedScale > sourceRatio
     bufferCapped: boolean;  // Phase 30 BUFFER-02 — true when buffer pushed past sourceRatio (NARROW predicate per D-06)
     attachmentNames: string[];
   }
   const bySourcePath = new Map<string, Acc>();
-  for (const row of summary.peaks) {
-    if (excluded.has(row.attachmentName)) continue;
-    if (!row.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
+  // Phase 35 — iterate summary.regions (RegionRow[]) so per-region dedup is
+  // preserved end-to-end. summary.peaks is attachment-name-deduped and would
+  // collapse N skin-namespaced regions sharing one base name to one row.
+  for (const region of summary.regions) {
+    if (excluded.has(region.attachmentName)) continue;
+    if (!region.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
     // Peak-anchored override semantics (2026-05-05 redesign): override %
     // means "% of peak demand". applyOverride(pct, peakScale) returns a
     // canonical-relative effectiveScale = (pct/100) × peakScale, so the
@@ -295,12 +298,12 @@ export function buildExportPlan(
     // Phase 29 D-04 — overrides Map keyed by regionName. See src/core/export.ts
     // for full rationale. Lockstep duplication invariant: the byte-identical
     // body is mirrored in src/core/export.ts's buildExportPlan.
-    const overrideKey = row.regionName ?? row.attachmentName;
+    const overrideKey = region.regionName ?? region.attachmentName;
     const overridePct = overrides.get(overrideKey);
     const rawEffScale =
       overridePct !== undefined
-        ? applyOverride(overridePct, row.peakScale).effectiveScale
-        : row.peakScale;
+        ? applyOverride(overridePct, region.peakScale).effectiveScale
+        : region.peakScale;
 
     // Phase 30 BUFFER-01 — multiplicative safety buffer applied AFTER override
     // resolution + BEFORE the canonical ≤ 1.0 clamp. D-07 literal no-op when
@@ -343,9 +346,9 @@ export function buildExportPlan(
     // as defense-in-depth — preserves "outW ≤ sourceW always" regardless
     // of future loader edits. See CONTEXT D-06 + 22.1-01-SUMMARY.md §"Phase 22
     // Cap Math — Vestigiality Confirmation".
-    const { actualSourceW, actualSourceH, canonicalW, canonicalH } = row;
+    const { actualSourceW, actualSourceH, canonicalW, canonicalH } = region;
     const sourceRatio =
-      row.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
+      region.dimsMismatch && actualSourceW !== undefined && actualSourceH !== undefined
         ? Math.min(actualSourceW / canonicalW, actualSourceH / canonicalH)
         : Infinity;
     const cappedEffScale = Math.min(downscaleClampedScale, sourceRatio);
@@ -365,24 +368,38 @@ export function buildExportPlan(
       && safeScale(rawEffScale) <= sourceRatio;
 
     const effScale = cappedEffScale;
-    const prev = bySourcePath.get(row.sourcePath);
+    const prev = bySourcePath.get(region.sourcePath);
     if (prev === undefined) {
-      bySourcePath.set(row.sourcePath, {
-        row,
+      // Phase 35 — attachmentNames sourced from per-region contributor list
+      // (RegionRow.contributingAttachments[]) per Phase 29 D-02/D-03. For
+      // SIMPLE_PROJECT-style fixtures (regionName === attachmentName,
+      // contributingAttachments.length === 1) this produces an identical
+      // attachmentNames[] array to the pre-Phase-35 `[row.attachmentName]`
+      // shape — single-skin tests are observationally equivalent.
+      bySourcePath.set(region.sourcePath, {
+        row: region,
         effScale,
         isCapped,
         bufferCapped,  // Phase 30 BUFFER-02 — symmetric with isCapped above (R2)
-        attachmentNames: [row.attachmentName],
+        attachmentNames: region.contributingAttachments.map((c) => c.attachmentName),
       });
     } else {
       if (effScale > prev.effScale) {
-        prev.row = row;
+        prev.row = region;
         prev.effScale = effScale;
         prev.isCapped = isCapped;
         prev.bufferCapped = bufferCapped;  // Phase 30 BUFFER-02 — keep-max symmetric replace (R2)
       }
-      if (!prev.attachmentNames.includes(row.attachmentName)) {
-        prev.attachmentNames.push(row.attachmentName);
+      // Phase 35 — merge full per-region contributor set into the dedup row.
+      // Two RegionRows sharing one sourcePath (rare; defense-in-depth) union
+      // their contributor sets — matches the legacy attachmentName union
+      // semantics for the SIMPLE_PROJECT case while extending naturally to
+      // path-indirected projects where one region IS the source of N
+      // contributing attachments.
+      for (const c of region.contributingAttachments) {
+        if (!prev.attachmentNames.includes(c.attachmentName)) {
+          prev.attachmentNames.push(c.attachmentName);
+        }
       }
     }
   }
