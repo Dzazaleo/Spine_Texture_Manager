@@ -23,7 +23,7 @@
  * ceil-thousandth lower-bound property (see in-file describe block).
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
@@ -2801,6 +2801,121 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
       expect(row.effectiveScale).toBeCloseTo(0.7, 6);
       expect(row.outW).toBe(140);
       expect(row.outH).toBe(140);
+    }
+  });
+
+  it('Test 4 — fixtures/SKINS/JOKERMAN_SPINE.json (7 skins, 160 regions) → buildExportPlan returns 160 total entries (success criterion #1 from ROADMAP)', () => {
+    // Defensive skip: this fixture lives in-tree at fixtures/SKINS/. If it's
+    // somehow missing (CI shallow-clone misconfiguration, future gitignore
+    // edit), skip with a clear message rather than failing opaquely.
+    const jsonPath = path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json');
+    if (!existsSync(jsonPath)) {
+      console.warn(`Skipping: fixture missing at ${jsonPath}`);
+      return;
+    }
+
+    // BLOCKER 2 fix — inline the EXACT helper from tests/core/atlas-preview.spec.ts:56-77.
+    // DO NOT import `buildSummary` from src/main/summary.ts — that function:
+    //   (a) imports node:fs and node:path (Layer 3 — main process only)
+    //   (b) has the wrong signature: buildSummary(load, sampled, elapsedMs) — takes
+    //       PRE-PROCESSED LoadResult + SamplerOutput, not a raw jsonPath.
+    //   (c) is forbidden in tests/core/ by the strict layering convention.
+    const load = loadSkeleton(jsonPath);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const peaksWithPath = peaks.map((r) => ({
+      ...r,
+      sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
+    }));
+    const sourcePaths = new Map<string, string>();
+    for (const p of sampled.globalPeaks.values()) {
+      const regionName = p.regionName ?? p.attachmentName;
+      sourcePaths.set(regionName, '/fake/' + regionName + '.png');
+    }
+    const regions = analyzeRegions(sampled.globalPeaks, sourcePaths);
+    const summary = {
+      peaks: peaksWithPath,
+      regions,
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // Lock the pre-Phase-35 baseline that's already covered by Phase 29:
+    // summary.regions.length === 160 (one row per unique regionName in the atlas).
+    expect(summary.regions.length).toBe(160);
+
+    // The Phase 35 contract: buildExportPlan produces ONE ExportRow per region.
+    // Locks ROADMAP success criterion #1 (modal header 160; downstream of
+    // plan.rows.length + plan.passthroughCopies.length).
+    const plan = buildExportPlan(summary, new Map(), undefined);
+    const totalRows = plan.rows.length + plan.passthroughCopies.length;
+    expect(totalRows).toBe(160);
+
+    // Spot-check: the skin-namespaced CARDS_L_HAND_1 regions all appear as
+    // distinct ExportRows. This is success criterion #2 from the ROADMAP at the
+    // ExportRow level (the OptimizeDialog body row list is downstream of this).
+    const allSourcePaths = [...plan.rows, ...plan.passthroughCopies].map(
+      (r) => r.sourcePath,
+    );
+    const cardsLHand1Paths = allSourcePaths.filter((p) =>
+      p.includes('CARDS_L_HAND_1'),
+    );
+    // At minimum one per skin that declares this region. JOKERMAN_SPINE.atlas
+    // has AVATAR/CARDS_L_HAND_1, BUSINESS/CARDS_L_HAND_1, IRONMAN/CARDS_L_HAND_1,
+    // JOKER/CARDS_L_HAND_1 (4 skins declare it). Assert at least 4 ExportRows
+    // mention CARDS_L_HAND_1 in their sourcePath.
+    expect(cardsLHand1Paths.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('Test 5 — atlas-less fixture (BLOCKER 3 fix: loaderMode separation invariant) → buildExportPlan is mode-agnostic; row count === summary.regions.length', () => {
+    // Atlas-less fixture per memory `project_strict_loadermode_separation.md`:
+    // each region's image lives at a per-region disk path under images/, no .atlas
+    // file. The buildExportPlan migration should be loaderMode-invariant — atlas-less
+    // summaries also produce region-keyed plans now. This test codifies that
+    // invariant in CI (previously only covered by manual UAT in Plan 03 Task 2 step 12).
+    const jsonPath = path.resolve(
+      'fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/MeshOnly_TEST.json',
+    );
+    if (!existsSync(jsonPath)) {
+      console.warn(`Skipping: fixture missing at ${jsonPath}`);
+      return;
+    }
+
+    // Inline loader helper (same as Test 4 — copy-paste, do NOT factor into a
+    // shared helper this round; that's a future refactor and would expand this
+    // plan's scope).
+    const load = loadSkeleton(jsonPath);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const peaksWithPath = peaks.map((r) => ({
+      ...r,
+      sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
+    }));
+    const sourcePaths = new Map<string, string>();
+    for (const p of sampled.globalPeaks.values()) {
+      const regionName = p.regionName ?? p.attachmentName;
+      sourcePaths.set(regionName, '/fake/' + regionName + '.png');
+    }
+    const regions = analyzeRegions(sampled.globalPeaks, sourcePaths);
+    const summary = {
+      peaks: peaksWithPath,
+      regions,
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // The contract: buildExportPlan emits one ExportRow per region regardless of
+    // loader mode. Atlas-less summaries have regions populated by analyzeRegions
+    // identically to atlas-source — the iteration source in buildExportPlan
+    // doesn't branch on mode.
+    const plan = buildExportPlan(summary, new Map(), undefined);
+    const totalRows = plan.rows.length + plan.passthroughCopies.length;
+    expect(totalRows).toBe(summary.regions.length);
+
+    // Atlas-less fixtures don't share regions across attachments (each attachment
+    // has its own per-region file path, no skin-namespacing collapsing happens
+    // because there's no .atlas region table to namespace from). Each ExportRow's
+    // attachmentNames array should be length 1.
+    for (const row of [...plan.rows, ...plan.passthroughCopies]) {
+      expect(row.attachmentNames.length).toBe(1);
     }
   });
 });
