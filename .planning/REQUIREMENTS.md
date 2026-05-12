@@ -30,6 +30,14 @@ Added 2026-05-11 via `/gsd-plan-phase 34`. Closes the menu ↔ drag-drop asymmet
 - [ ] **OPEN-04**: Opening a JSON or `.stmproj` from the File → Open dialog over an unsaved in-progress project triggers the Phase 08.1 dirty-guard SaveQuitDialog with the actual kind (`'json'` or `'stmproj'`) discriminator. Cancelling the picker (`{ kind: 'cancelled' }`) NEVER fires the guard (D-05 improvement over status-quo Phase 08.2 D-183 which fired the guard pre-picker). Implements Phase 34 D-05 (amends Phase 08.2 D-183 for the menu path).
 - [ ] **OPEN-05**: `Cmd+O` (macOS) / `Ctrl+O` (Windows) accelerator behaves identically to the menu item: same picker, same dispatch, same dirty-guard timing. Verification-only — accelerator-to-menu wiring inherited from Phase 08.2 D-173 native Electron menu surface; this REQ locks the regression-free contract after the D-06 two-IPC-step rewrite.
 
+### Region-Keyed Export Plan (Phase 29 dedup propagation)
+
+Added 2026-05-12 via `/gsd-plan-phase 35`. Extends Phase 29's per-region dedup contract to the two surfaces that still consume attachment-name-collapsed data (Optimize Assets modal + Atlas Preview optimized-mode tile expansion). Both surfaces feed transitively from `buildExportPlan`, which today iterates `summary.peaks` (attachment-name-deduped via `analyzer.ts:dedupByAttachmentName`). Migrating the iteration source to `summary.regions` (RegionRow[]) closes the multi-skin atlas-source undercount surfaced on `fixtures/SKINS/JOKERMAN_SPINE.json` (160 regions collapse to 23 export rows pre-fix). Root cause analysis: `.planning/debug/skins-optimize-undercount.md` (status: `root_cause_found`).
+
+- [ ] **DEDUP-04**: `buildExportPlan` in `src/core/export.ts` iterates `summary.regions` (RegionRow[]) instead of `summary.peaks` (DisplayRow[]). Override resolution per region remains keyed by `regionName` (Phase 29 D-04 preserved). The `Acc.attachmentNames` accumulator is populated from `region.contributingAttachments[].attachmentName` so ExportRow.attachmentNames carries the full per-region contributor set. Implements Phase 35 Plan 01.
+- [ ] **DEDUP-05**: `buildExportPlan` in `src/renderer/src/lib/export-view.ts` mirrors the `summary.regions` iteration byte-identically (Layer 3 inline-duplicate parity per Phase 6 D-108 / Phase 4 D-75). Renderer imports zero symbols from `src/core/*`; `applyOverride` is sourced from sibling `./overrides-view.js`. Parity describe block in `tests/core/export.spec.ts:665+` continues to pass. Implements Phase 35 Plan 02.
+- [ ] **DEDUP-06**: Atlas Preview optimized-mode tile expansion emits one `AtlasPreviewInput` per region (one tile per ExportRow). The Optimize Assets modal header reads `Optimize Assets — N images` where N === `summary.regions.length` (160 for the SKINS fixture; 3 for SIMPLE_PROJECT — backward-compat preserved). Lockstep parity between `src/core/atlas-preview.ts` and `src/renderer/src/lib/atlas-preview-view.ts` preserved. Implements Phase 35 Plan 03 (audit + manual UAT).
+
 ### Future Planning (no user-facing requirement)
 
 - Plant `SEED-006: Full Spine 4.3 runtime port` carrying the costed inventory from this milestone's investigation (5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy). This is a phase deliverable, not a REQ. **Mapped to Phase 32 (close-of-phase plant).**
@@ -79,15 +87,19 @@ Populated by gsd-roadmapper 2026-05-10.
 | OPEN-03 | Phase 34 | Pending |
 | OPEN-04 | Phase 34 | Pending |
 | OPEN-05 | Phase 34 | Pending |
+| DEDUP-04 | Phase 35 | Pending |
+| DEDUP-05 | Phase 35 | Pending |
+| DEDUP-06 | Phase 35 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 11 total
-- Mapped to phases: 11 ✓
+- v1.4 requirements: 14 total
+- Mapped to phases: 14 ✓
 - Unmapped: 0
-- Phases: 3 (Phase 32 carries 2 REQs; Phase 33 carries 4 REQs; Phase 34 carries 5 REQs)
+- Phases: 4 (Phase 32 carries 2 REQs; Phase 33 carries 4 REQs; Phase 34 carries 5 REQs; Phase 35 carries 3 REQs)
 - SEED-006 plant: Phase 32 close-of-phase deliverable (not a REQ).
 
 ---
 *Requirements defined: 2026-05-10*
 *Last updated: 2026-05-10 — gsd-roadmapper traceability fill: COMPAT-01/02 → Phase 32; ATLAS-01..04 → Phase 33.*
 *Last updated: 2026-05-11 — Phase 34 planning: OPEN-01..05 added (File → Open menu accepts .json).*
+*Last updated: 2026-05-12 — Phase 35 planning: DEDUP-04/05/06 added (region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode).*
