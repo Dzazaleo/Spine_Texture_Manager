@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
-status: milestone_complete
-last_updated: "2026-05-12T12:30:01.330Z"
-last_activity: 2026-05-12 -- Phase 35 execution started
+status: completed
+last_updated: "2026-05-12T22:35:05.415Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 4
   completed_phases: 4
@@ -16,33 +16,23 @@ progress:
 
 ## Current Position
 
-Phase: 35
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-12
-Resume file: `.planning/debug/skins-optimize-undercount.md` (root-cause closed; awaiting discuss-phase to lock REQs)
+Phase: — (between milestones)
+Plan: —
+Status: v1.4 archived; awaiting `/gsd-new-milestone` for v1.5+ scoping
+Last activity: 2026-05-12 — v1.4 milestone closed and archived
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
+See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pending push)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 35 — region-keyed-export-plan
-
-## v1.4 Roadmap At-a-Glance
-
-| Phase | Goal | REQs | Plans |
-|-------|------|------|-------|
-| 32 | 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (+ SEED-006 plant) | COMPAT-01, COMPAT-02 | 4/4 ✅ |
-| 33 | Rotated atlas region support (loader + bounds + export + fixture) | ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04 | 6/6 ✅ |
-| 34 | File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`) | OPEN-01..05 | 4/4 ✅ |
-| 35 | Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | TBD (locked by `/gsd-discuss-phase 35`) | 0/0 |
-
-Coverage: 11/11 v1.4 REQs mapped on completed phases (COMPAT-01..02, ATLAS-01..04, OPEN-01..05). SEED-006 plant is a P32 phase deliverable, not a REQ. Phase 35 REQ namespace TBD — will extend Phase 29's DEDUP-* family per `/gsd-discuss-phase 35` lock.
+**Current focus:** Between milestones — v1.4 archived 2026-05-12; v1.5 scoping pending.
 
 ## Last completed milestone
 
-**Milestone v1.3.1 — Correctness & Refinements — SHIPPED 2026-05-09.** 3 phases, 16 plans, 20 REQs. Phase 29 closed the per-region dedup correctness gap (path-indirected duplicate rows surfaced post-v1.3 ship — analyzer.ts attachmentName→regionName key flip + RegionRow IPC type + override-region semantics + atlas-preview pack-page accuracy). Phase 30 added the user-configurable safety-buffer % control to the Optimize dialog with NARROW `bufferCapped` predicate per CONTEXT D-06; persisted as additive optional field in `.stmproj` v1 mirroring `sharpenOnExport`. Phase 31 small-fixes batch: source-toggle disabling on missing artifacts (LOAD-05/06/07), Animation Breakdown collapse defaults + bulk Expand/Collapse all (PANEL-08..11; in-memory only), Windows admin DnD fallback advisory (PLATFORM-01), ExtrapolationIcon tooltip primitive (TOOLTIP-01). Late tester-regression fixes 1b5414c (Strip-Whitespace export pipeline) + 834c975 (auto-expand failed Optimize rows) + d86e7b3 (per-frame canonical dims for sequence attachments). Six patch tags through v1.3.6 (2026-05-10) per memory `project_v131_shipped`.
+**Milestone v1.4 — Spine 4.3 Forward-Compat + Rotated Atlases — SHIPPED 2026-05-12.** 4 phases (32, 33, 34, 35), 18 plans, 14 REQs (COMPAT-01..02 + ATLAS-01..04 + OPEN-01..05 + DEDUP-04..06). Phase 32 added 4.3-beta detect-and-warn + drop-zone v4.2 disclosure + planted SEED-006 (full 4.3 runtime port). Phase 33 added rotated atlas region support (loader D-01 attachment-walk for canonical-corner offset override + AABB W↔H swap + `sharp.rotate(+90)` materialization; libgdx atlas convention nuance documented). Phase 34 added File → Open `.json` acceptance via two-IPC-step `'project:open-dialog'` flow with dirty-guard-after-picker (amends Phase 08.2 D-183 for the menu path). Phase 35 migrated `buildExportPlan` from `summary.peaks` to `summary.regions` in both core and renderer parity (closes multi-skin atlas-source undercount: 160 atlas regions previously collapsed to 23 ExportRows on `fixtures/SKINS/JOKERMAN_SPINE.json`; now 160). HUMAN-UAT 1 scenario (Phase 34 picker rendering parity) host-blocked, deferred. Full record in `.planning/MILESTONES.md`; archive at `.planning/milestones/v1.4-ROADMAP.md`.
+
+**Prior milestone:** v1.3.1 (2026-05-09) — 3 phases, 16 plans, 20 REQs (REGION-01..07 + PREVIEW-01 + BUFFER-01..03 + LOAD-05..07 + PANEL-08..11 + PLATFORM-01 + TOOLTIP-01). Six patch tags through v1.3.6.
 
 ## Deferred Items
 
@@ -77,12 +67,21 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 | debug | path-indirected-duplicate-rows | pending_phase_plan — root cause closed by Phase 29 region-dedup fix; debug doc kept as a v1.4 reference for related surfaces (Atlas Preview optimized-mode tile expansion) |
 | debug | post-v1-3-tester-regressions | diagnosed — analyzer.ts atlas-region-name vs entry-name key bug; root-fixed by Phase 29 region-keyed dedup; doc retained for v1.4 follow-up surface audits |
 
-**Seeds for v1.4 / future:**
+**v1.4-era deferred items (added at close 2026-05-12):**
 
-- SEED-003 (Spine 4.3 compatibility) — planted 2026-05-07 (commit `823f490`); **picked up by v1.4 Phase 32** (detect-and-warn path; full port deferred to SEED-006).
-- SEED-004 (Rotated atlas regions) — planted 2026-05-08; **picked up by v1.4 Phase 33** (Option B: full rotated-region support, not just error-message UX).
-- SEED-005 (RGBA2 + InheritTimeline coverage) — planted 2026-05-08; deferred again, audit-only or full feature surface; not in v1.4 scope.
-- SEED-006 (Full Spine 4.3 runtime port) — **planted at v1.4 Phase 32 close**; trigger: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x AND/OR a paying user reports they cannot re-export their rig as Version 4.2.
+| Category | Item | Status |
+|----------|------|--------|
+| uat_gaps | Phase 34 34-HUMAN-UAT.md | partial — 1 open scenario: macOS/Windows picker rendering parity verification; host-blocked |
+| verification_gaps | Phase 34 34-VERIFICATION.md | human_needed — same root as the above (picker UI verification requires Electron-on-host) |
+| debug | skins-optimize-undercount | resolved — root cause closed by Phase 35 region-keyed export plan migration; doc retained as historical record |
+
+**Seeds (status after v1.4):**
+
+- SEED-003 (Spine 4.3 compatibility) — planted 2026-05-07; **closed in v1.4 Phase 32** (detect-and-warn shipped; full port deferred to SEED-006).
+- SEED-004 (Rotated atlas regions) — planted 2026-05-08; **closed in v1.4 Phase 33** (Option B: full rotated-region support).
+- SEED-005 (RGBA2 + InheritTimeline coverage) — planted 2026-05-08; **still dormant** (audit-only or full feature surface; not in v1.4 scope).
+- SEED-006 (Full Spine 4.3 runtime port) — planted at v1.4 Phase 32 close; **still dormant** (trigger: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x AND/OR a paying user reports they cannot re-export their rig as Version 4.2).
+- **SEED-007 (Split overrides per loaderMode)** — planted 2026-05-12 pre-close; **dormant**. atlas-source/atlas-less override-bleed bug; math is mode-invariant (verified during seed-capture) but intent-routing wrong. Locked decisions: schema split (additive, no version bump), legacy file route-by-saved-loaderMode (2-A), inactive bucket stays empty on mode switch (3-A). Trigger: v1.5+ when scoping overrides/loaderMode work or any milestone touching `.stmproj` schema or atlas-less mode ergonomics.
 
 ## Accumulated Context (carries across milestones)
 
@@ -98,5 +97,5 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 
 *This file is authored fresh at milestone start. v1.3.1 phases are archived under `.planning/milestones/v1.3.1-phases/` (29, 30, 31).*
 
-**Last Milestone:** v1.3.1 (Correctness & Refinements) — COMPLETE — 2026-05-09 (3 phases, 16 plans, 20 REQs; tag `v1.3.1` shipped).
-**Current Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — Roadmap landed 2026-05-10; Phases 32/33/34 complete; Phase 35 (region-keyed export plan) added 2026-05-12 and ready for `/gsd-discuss-phase 35`.
+**Last Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — COMPLETE — 2026-05-12 (4 phases, 18 plans, 14 REQs; tag `v1.4.0` pending push).
+**Current Milestone:** none — awaiting `/gsd-new-milestone` for v1.5 scoping.

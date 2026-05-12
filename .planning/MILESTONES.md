@@ -1,5 +1,52 @@
 # Milestones
 
+## v1.4 Spine 4.3 Forward-Compat + Rotated Atlases (Shipped: 2026-05-12)
+
+**Phases completed:** 4 (Phase 32, 33, 34, 35)
+**Plans:** 18 (4 + 6 + 4 + 4)
+**Requirements:** 14 (COMPAT-01..02 + ATLAS-01..04 + OPEN-01..05 + DEDUP-04..06)
+**Timeline:** 2026-05-10 → 2026-05-12 (3 days)
+**Git range:** `v1.3.6` tag → `1bf374f` (gitignore cleanup pre-close)
+**Tag:** `v1.4.0` (pending — to be pushed after this commit)
+
+**Delivered:** Made 4.2-only support honest and visible (drop-zone v4.2 disclosure + structured `SpineVersionUnsupportedError` replacing today's misleading `IK Constraint not found: <name>` symptom). Removed the rotated-atlas hard-throw with full rotated-region support (loader attachment-walk for canonical-corner offset override, AABB W↔H swap in bounds.ts, ExportPlan output-dim swap, `sharp.rotate(+90)` materialization in image-worker). Added File → Open menu acceptance for `.json` skeletons (closing the menu ↔ drag-drop asymmetry; two-IPC-step architecture with dirty-guard-after-picker). Propagated Phase 29's per-region dedup contract to `buildExportPlan` (iteration source migrated from `summary.peaks` → `summary.regions`, closing the multi-skin atlas-source undercount surfaced on the new JOKERMAN fixture: 160 atlas regions previously collapsed to 23 ExportRows; now produces 160).
+
+**Key accomplishments:**
+
+1. **Spine 4.3-beta detect-and-warn + drop-zone v4.2 disclosure + SEED-006 plant** (Phase 32, COMPAT-01/02) — `checkSpine43Schema` predicate landed in `src/core/loader.ts` BEFORE atlas resolution; sniffs `root.constraints` array OR `skeleton.spine` semver `≥ 4.3`. `SpineVersionUnsupportedError` constructor branched with COMPAT-01 wording for the 4.3-detected path: *"This app currently supports Spine v4.2. Re-export from your 4.3 editor as Version 4.2 (supported downgrade) and try again."* — replaces the misleading `IK Constraint not found: <name>` symptom that 4.2 spine-core surfaces on 4.3 JSONs (whose constraint definitions live under unified `root.constraints` instead of the legacy four-array layout). Idle drop-zone copy at `App.tsx:622` surfaces `v4.2` in `font-bold text-danger`. SEED-006 (full 4.3 runtime port — 5 sampler renames + 2 bounds signature changes + slot.pose access + slider validate + vendoring strategy) planted under `.planning/seeds/` for post-`spine-core@4.3-stable` npm publish trigger.
+2. **Rotated atlas region support** (Phase 33, ATLAS-01..04) — Hard-throw `RotatedRegionUnsupportedError` removed atomically alongside loader D-01 attachment-walk for canonical-corner offset override + AABB W↔H swap in `src/core/bounds.ts` when `region.rotate === true` + `sharp.rotate(+90)` materialization in image-worker (libvips extract+resize fusion bug requires materialize between operations — fix `5aa2651`) + real-Spine-packer regression fixture at `fixtures/spine_rotated/EXPORT/`. UAT surfaced the libgdx atlas convention nuance: `bounds:x,y,W,H` stores W/H in canonical (pre-rotation) orientation; page-pixel rect for rotated regions is `(H × W)` per spine-core TextureAtlas.js:164-167 — loader.ts now sets `packW/packH = page-pixel` and `w/h = canonical`. Atlas-less mode unaffected (synthetic atlas never packs with rotation).
+3. **File → Open accepts `.json` skeletons** (Phase 34, OPEN-01..05) — Wave 1 picker-only `handleOpenDialog` with three-arm discriminated `OpenDialogResponse` envelope + new `'project:open-dialog'` IPC channel + `openProjectPicker`/`loadSkeletonFromPath` preload bridges + old `window.api.openProject`/`'project:open'` channel/`handleProjectOpen` physically deleted. Wave 2 renderer rewire of `App.tsx onMenuOpen` to two-IPC-step flow with D-05 dirty-guard-after-picker (amends Phase 08.2 D-183 for the menu path: cancelling the picker NEVER fires the guard) + D-06 dispatch-by-kind. Wave 3 vitest coverage for OPEN-01..05 + renderer mock-surface migration + orphan 8.1-VR-02 skip block deleted. Wave 4 REQUIREMENTS.md OPEN-0x namespace + v1.4 coverage 6→11 + ROADMAP Phase 34 Requirements field locked. 16/16 must-haves verified programmatically; HUMAN-UAT 1 scenario host-blocked (deferred — see STATE.md Deferred Items).
+4. **Region-keyed export plan** (Phase 35, DEDUP-04..06) — `buildExportPlan` in both `src/core/export.ts` and renderer mirror `src/renderer/src/lib/export-view.ts` now iterates `summary.regions` (RegionRow[]) instead of `summary.peaks` (attachment-name-deduped DisplayRow[]). Closes the multi-skin atlas-source undercount: 160 atlas regions that collapse to 23 attachment-name-deduped peaks now produce 160 ExportRows. Plan 35-01 migrated core + Rule-3 auto-fixed synthetic summary literals in 4 sibling test files; Plan 35-02 mirrored byte-identically into renderer + updated parity-regex assertion in a single atomic commit; Plan 35-03 audit confirmed atlas-preview-view.ts / atlas-preview.ts / OptimizeDialog header already region-keyed (no-op — Phase 29 invariant preserved); Plan 35-04 added 5-layer regression test suite. UAT user-approved against new `fixtures/SKINS/JOKERMAN_SPINE.json` (7 skins, 160 regions). Full test suite: 1061 passed / 0 failed. Verifier: 8/8 must-haves verified.
+
+**Late post-implementation fixes (post-WAVE commits before tag):**
+
+- `c87ef04 fix(35) WR-06`: reject path-traversal segments in relativeOutPath (defensive).
+- `9381a32 fix(35) WR-05`: replace silent fixture-skip with it.skipIf for absent local-only fixtures.
+- `68e3ea7 fix(35) WR-04`: classify Tests 1-3 as shape locks, Test 4 as discriminator.
+- `2722338 fix(35) WR-03`: document divergences in synthRegionsFromPeaks helper.
+- `aa8c3f3 fix(35) WR-02`: key exclude check by regionName (Phase 29 D-04 alignment).
+- `f5cdf9f fix(35) WR-01`: dedup attachmentNames in initial-insert path.
+- `5aa2651 fix(33)`: materialize rotated atlas extract before resize (libvips fusion bug).
+- `c022c74 fix(loader-mode)`: honor saved atlas-less mode on reload (debug atlas-mode-toggle-load-prio).
+- `8f20c61 fix(override-migration)`: source presentRegions from summary.regions (multi-skin coverage).
+
+**Known deferred at close:** Phase 34 HUMAN-UAT 1 open scenario (host-blocked: macOS/Windows picker rendering parity verification) + Phase 34 VERIFICATION human_needed (same root). Plus pre-v1.4 carry-forwards from v1.0-v1.3.1: Phase 14/15/20/21/23/25/26.1/30/31 host-blocked UAT/verification gaps; phase-0-scale-overshoot debug session (long-lived); 3 long-lived pending todos (Phase 4 code review, Phase 20 Win/Linux DnD, Phase 31 Win admin DnD release UAT). Full list preserved in STATE.md `## Deferred Items` (carried forward unchanged).
+
+**Seeds carried forward to v1.5+:**
+
+- SEED-004 (Rotated atlas regions) — picked up THIS milestone (Phase 33); status now closed.
+- SEED-005 (RGBA2 + InheritTimeline coverage) — deferred again; audit-only or full feature surface; not in v1.4 scope.
+- SEED-006 (Full Spine 4.3 runtime port) — planted in Phase 32; trigger condition: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x OR a paying user reports they cannot re-export their rig as Version 4.2.
+- **SEED-007 (Split overrides per loaderMode) — planted 2026-05-12** pre-close; trigger: v1.5+ when scoping overrides/loaderMode work or any milestone touching `.stmproj` schema or atlas-less mode ergonomics. Bug is intent-routing (math is mode-invariant — verified during seed-capture).
+
+**Archived artifacts:**
+
+- `.planning/milestones/v1.4-ROADMAP.md` (full phase details preserved)
+- `.planning/milestones/v1.4-REQUIREMENTS.md` (all 14 v1.4 requirements with `[x]` outcomes)
+- `.planning/phases/32-*/`, `33-*/`, `34-*/`, `35-*/` (kept in place — not archived to milestones/v1.4-phases/ per user choice; can be retroactively archived later via /gsd-cleanup)
+
+---
+
 ## v1.3.1 Correctness & Refinements (Shipped: 2026-05-09)
 
 **Phases completed:** 3 (Phase 29, 30, 31)
