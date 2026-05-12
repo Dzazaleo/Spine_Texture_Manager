@@ -984,7 +984,7 @@ Plans:
 | 32. Spine 4.3-beta detect-and-warn + drop-zone version disclosure (+ SEED-006 plant) | v1.4 | 4/4 | Complete    | 2026-05-10 |
 | 33. Rotated atlas region support (loader + bounds + export + fixture) | v1.4 | 6/6 | Complete    | 2026-05-11 |
 | 34. File > Open menu accepts Spine skeleton JSON files (not only .stmproj) | v1.4 | 4/4 | Complete    | 2026-05-11 |
-| 35. Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | v1.4 | 4/4 | Complete   | 2026-05-12 |
+| 35. Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | v1.4 | 4/4 | Complete    | 2026-05-12 |
 
 ## Deferred (post-v1.1)
 

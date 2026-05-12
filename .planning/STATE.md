@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
-status: executing
+status: milestone_complete
 last_updated: "2026-05-12T12:30:01.330Z"
 last_activity: 2026-05-12 -- Phase 35 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
   completed_plans: 14
 ---
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 35 (region-keyed-export-plan) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 35
-Last activity: 2026-05-12 -- Phase 35 execution started
+Phase: 35
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-12
 Resume file: `.planning/debug/skins-optimize-undercount.md` (root-cause closed; awaiting discuss-phase to lock REQs)
 
 ## Project Reference
