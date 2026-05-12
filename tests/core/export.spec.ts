@@ -2859,16 +2859,29 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
     }
   });
 
-  it('Test 4 — fixtures/SKINS/JOKERMAN_SPINE.json (7 skins, 160 regions) → buildExportPlan returns 160 total entries (success criterion #1 from ROADMAP)', () => {
-    // Defensive skip: this fixture lives in-tree at fixtures/SKINS/. If it's
-    // somehow missing (CI shallow-clone misconfiguration, future gitignore
-    // edit), skip with a clear message rather than failing opaquely.
-    const jsonPath = path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json');
-    if (!existsSync(jsonPath)) {
-      console.warn(`Skipping: fixture missing at ${jsonPath}`);
-      return;
-    }
+  // WR-05 (2026-05-12) — explicit-skip gates so vitest REPORTS missing
+  // fixtures instead of silently passing a `console.warn + return`. Pattern
+  // mirrors tests/core/sequence-attachment-fanout.spec.ts:60-66 (FIXTURE_PRESENT
+  // + describeOrSkip). Test 4 fixture lives at fixtures/SKINS/JOKERMAN_SPINE.json
+  // (currently untracked in git — see CR-01 / IN-03). Test 5 fixture lives
+  // at fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/ (also currently
+  // untracked). When either fixture is absent, vitest emits a visible
+  // skip line instead of a buried console.warn — a regression that
+  // re-introduces attachment-name dedup will fail Test 4 in CI, not
+  // pass green.
+  const TEST_4_FIXTURE_PRESENT = existsSync(
+    path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json'),
+  );
+  const TEST_5_FIXTURE_PRESENT = existsSync(
+    path.resolve(
+      'fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/MeshOnly_TEST.json',
+    ),
+  );
+  const itIfTest4Fixture = TEST_4_FIXTURE_PRESENT ? it : it.skip;
+  const itIfTest5Fixture = TEST_5_FIXTURE_PRESENT ? it : it.skip;
 
+  itIfTest4Fixture('Test 4 — fixtures/SKINS/JOKERMAN_SPINE.json (7 skins, 160 regions) → buildExportPlan returns 160 total entries (success criterion #1 from ROADMAP)', () => {
+    const jsonPath = path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json');
     // BLOCKER 2 fix — inline the EXACT helper from tests/core/atlas-preview.spec.ts:56-77.
     // DO NOT import `buildSummary` from src/main/summary.ts — that function:
     //   (a) imports node:fs and node:path (Layer 3 — main process only)
@@ -2921,19 +2934,17 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
     expect(cardsLHand1Paths.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('Test 5 — atlas-less fixture (BLOCKER 3 fix: loaderMode separation invariant) → buildExportPlan is mode-agnostic; row count === summary.regions.length', () => {
+  itIfTest5Fixture('Test 5 — atlas-less fixture (BLOCKER 3 fix: loaderMode separation invariant) → buildExportPlan is mode-agnostic; row count === summary.regions.length', () => {
     // Atlas-less fixture per memory `project_strict_loadermode_separation.md`:
     // each region's image lives at a per-region disk path under images/, no .atlas
     // file. The buildExportPlan migration should be loaderMode-invariant — atlas-less
     // summaries also produce region-keyed plans now. This test codifies that
     // invariant in CI (previously only covered by manual UAT in Plan 03 Task 2 step 12).
+    // WR-05 (2026-05-12): explicit-skip via itIfTest5Fixture above replaces the
+    // prior `console.warn + return` pattern so vitest surfaces the skip.
     const jsonPath = path.resolve(
       'fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/MeshOnly_TEST.json',
     );
-    if (!existsSync(jsonPath)) {
-      console.warn(`Skipping: fixture missing at ${jsonPath}`);
-      return;
-    }
 
     // Inline loader helper (same as Test 4 — copy-paste, do NOT factor into a
     // shared helper this round; that's a future refactor and would expand this
