@@ -2,41 +2,43 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
-status: milestone_complete
-last_updated: "2026-05-11T19:38:20.699Z"
-last_activity: 2026-05-11 -- Phase 34 execution started
+status: executing
+last_updated: "2026-05-12T12:27:58.835Z"
+last_activity: 2026-05-12 -- Phase 35 planning complete
 progress:
-  total_phases: 16
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 5
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 14
+  completed_plans: 14
 ---
 
 # State
 
 ## Current Position
 
-Phase: 34
+Phase: 35
 Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-11
-Resume file: `.planning/phases/34-file-open-accepts-json-files/34-CONTEXT.md`
+Status: Ready to execute
+Last activity: 2026-05-12 -- Phase 35 planning complete
+Resume file: `.planning/debug/skins-optimize-undercount.md` (root-cause closed; awaiting discuss-phase to lock REQs)
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-10 — milestone v1.4 started)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 34 — file-open-accepts-json-files
+**Current focus:** Phase 35 — region-keyed export plan (propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode)
 
 ## v1.4 Roadmap At-a-Glance
 
 | Phase | Goal | REQs | Plans |
 |-------|------|------|-------|
-| 32 | 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (+ SEED-006 plant) | COMPAT-01, COMPAT-02 | TBD |
-| 33 | Rotated atlas region support (loader + bounds + export + fixture) | ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04 | TBD |
+| 32 | 4.3-beta detect-and-warn + drop-zone v4.2 disclosure (+ SEED-006 plant) | COMPAT-01, COMPAT-02 | 4/4 ✅ |
+| 33 | Rotated atlas region support (loader + bounds + export + fixture) | ATLAS-01, ATLAS-02, ATLAS-03, ATLAS-04 | 6/6 ✅ |
+| 34 | File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`) | OPEN-01..05 | 4/4 ✅ |
+| 35 | Region-keyed export plan — propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode | TBD (locked by `/gsd-discuss-phase 35`) | 0/0 |
 
-Coverage: 6/6 v1.4 REQs mapped. No orphans. SEED-006 plant is a P32 phase deliverable, not a REQ.
+Coverage: 11/11 v1.4 REQs mapped on completed phases (COMPAT-01..02, ATLAS-01..04, OPEN-01..05). SEED-006 plant is a P32 phase deliverable, not a REQ. Phase 35 REQ namespace TBD — will extend Phase 29's DEDUP-* family per `/gsd-discuss-phase 35` lock.
 
 ## Last completed milestone
 
@@ -90,10 +92,11 @@ Items acknowledged and deferred at v1.3.1 milestone close on 2026-05-09. Combine
 
 - 2026-05-11: Phase 34 added — File > Open menu accepts Spine skeleton JSON files (not only `.stmproj`). Closes asymmetry vs drag-drop surface; reuses Phase 08.1/08.2 wiring. Added manually after `gsd-sdk query phase.add` miscounted (picked 23 instead of 34); per memory `project_gsd_phase_complete_state_miscount`, SDK progress counters will re-derive from ROADMAP.md on next phase op.
 - 2026-05-11: Phase 34 context gathered via `/gsd-discuss-phase 34`. 6 decisions locked (D-01..D-06): unified picker filter, main-side suffix-branch, three-arm discriminated envelope, drag-drop loader-cascade reuse, dirty-guard-after-picker (amends Phase 08.2 D-183 for menu path), two-IPC-step architecture (`openProjectPicker` + `loadSkeletonFromPath`). Introduces `OPEN-0x` REQ namespace (planner threads into REQUIREMENTS.md). Ready for `/gsd-plan-phase 34`.
+- 2026-05-12: Phase 35 added — Region-keyed export plan (propagate Phase 29 dedup to Optimize modal + Atlas Preview optimized mode). Added manually (ROADMAP.md + STATE.md edits + `.planning/phases/35-region-keyed-export-plan/`) following memory `project_gsd_phase_complete_state_miscount` — SDK had previously marked v1.4 `milestone_complete` after Phase 34; manual edit resets status to `active` and restores accurate v1.4 counters (4 phases / 3 complete / 14 plans complete). Root cause for the underlying bug already closed in `.planning/debug/skins-optimize-undercount.md`: `buildExportPlan` iterates `summary.peaks` (attachment-name-deduped) instead of `summary.regions` (region-keyed); fix is mechanical iteration-source swap mirrored byte-identically in `src/core/export.ts` and `src/renderer/src/lib/export-view.ts` per lockstep parity invariant. Surfaced via testing of new `fixtures/SKINS/JOKERMAN_SPINE.json` multi-skin fixture (7 skins, 160 regions → 23 export rows under current code). Ready for `/gsd-discuss-phase 35`.
 
 ---
 
 *This file is authored fresh at milestone start. v1.3.1 phases are archived under `.planning/milestones/v1.3.1-phases/` (29, 30, 31).*
 
 **Last Milestone:** v1.3.1 (Correctness & Refinements) — COMPLETE — 2026-05-09 (3 phases, 16 plans, 20 REQs; tag `v1.3.1` shipped).
-**Current Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — Roadmap landed 2026-05-10; Phase 32 ready to plan.
+**Current Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — Roadmap landed 2026-05-10; Phases 32/33/34 complete; Phase 35 (region-keyed export plan) added 2026-05-12 and ready for `/gsd-discuss-phase 35`.

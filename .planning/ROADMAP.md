@@ -941,8 +941,11 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
+**Wave 1**
 - [ ] 35-01-buildExportPlan-region-iteration-PLAN.md — Migrate `src/core/export.ts:buildExportPlan` to iterate `summary.regions` (RegionRow[]) instead of `summary.peaks`; preserve override-by-regionName + per-sourcePath dedup + math chain.
 - [ ] 35-02-export-view-parity-mirror-PLAN.md — Mirror plan 01's change byte-identically into `src/renderer/src/lib/export-view.ts`; update the parity-regex assertion in tests/core/export.spec.ts in lockstep.
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 35-03-atlas-preview-consumer-audit-PLAN.md — Static audit of `atlas-preview-view.ts` + `atlas-preview.ts` optimized-mode tile expansion (expected no-op) + manual UAT loading fixtures/SKINS/JOKERMAN_SPINE.json to verify success criteria 1/2/3.
 - [ ] 35-04-regression-tests-multi-skin-PLAN.md — Add Phase 35 describe block to tests/core/export.spec.ts with 3 synthetic-fixture tests (multi-skin, per-region override, single-skin backward-compat) + 1 fixture-driven integration test loading fixtures/SKINS/JOKERMAN_SPINE.json.
 
