@@ -28,7 +28,7 @@ import * as os from 'node:os';
 import sharp from 'sharp';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
-import { analyze } from '../../src/core/analyzer.js';
+import { analyze, analyzeRegions } from '../../src/core/analyzer.js';
 // Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 import { buildExportPlan } from '../../src/core/export.js';
 import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
@@ -86,8 +86,17 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: populate regions[] for post-migration buildExportPlan iteration.
+    const regions = analyzeRegions(
+      sampled.globalPeaks,
+      load.sourcePaths,
+      load.atlasSources,
+      load.canonicalDimsByRegion,
+      load.actualDimsByRegion,
+    );
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks,
+      regions,
       orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(
@@ -118,8 +127,17 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
       load.canonicalDimsByRegion,
       load.actualDimsByRegion,
     );
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    // Phase 35: populate regions[] for post-migration buildExportPlan iteration.
+    const regions = analyzeRegions(
+      sampled.globalPeaks,
+      load.sourcePaths,
+      load.atlasSources,
+      load.canonicalDimsByRegion,
+      load.actualDimsByRegion,
+    );
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks,
+      regions,
       orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(

@@ -14,7 +14,71 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildExportPlan } from '../../src/core/export.js';
-import type { ExportPlan, SkeletonSummary } from '../../src/shared/types.js';
+import type { ExportPlan, RegionRow, SkeletonSummary } from '../../src/shared/types.js';
+
+// Phase 35: shared atlasSource literal used by both tests in this file. Lifted to a
+// const so the synthesized RegionRow.atlasSource carries the same metadata as the
+// peaks-side literal (post-Phase-35 buildExportPlan reads from summary.regions).
+const ROTATED_ATLAS_SRC = {
+  pagePath: '/fake/page.png',
+  x: 2,
+  y: 360,
+  packW: 500, // page-pixel W (= libgdx bounds H for rotated)
+  packH: 100, // page-pixel H (= libgdx bounds W for rotated)
+  offsetX: 0,
+  offsetY: 0,
+  w: 100, // canonical (unrotated) W — matches real fixture
+  h: 500, // canonical (unrotated) H
+  rotated: true,
+};
+
+// Phase 35 backfill — synthesize the single-contributor RegionRow that mirrors
+// the `peaks: [{ ... }]` literal below. buildExportPlan post-Phase-35 iterates
+// summary.regions; SIMPLE_PROJECT-style fixtures (regionName === attachmentName,
+// one contributor) produce a 1-to-1 RegionRow alongside the peaks array.
+function rotatedRectRegion(): RegionRow {
+  return {
+    regionName: 'rect',
+    attachmentName: 'rect',
+    skinName: 'default',
+    slotName: 'rect',
+    animationName: 'static',
+    time: 0,
+    frame: 0,
+    peakScale: 1.0,
+    peakScaleX: 1.0,
+    peakScaleY: 1.0,
+    worldW: 100,
+    worldH: 500,
+    sourceW: 100,
+    sourceH: 500,
+    canonicalW: 100,
+    canonicalH: 500,
+    actualSourceW: undefined,
+    actualSourceH: undefined,
+    dimsMismatch: false,
+    isSetupPosePeak: false,
+    sourcePath: '/fake/rect.png',
+    atlasSource: ROTATED_ATLAS_SRC,
+    originalSizeLabel: '',
+    peakSizeLabel: '',
+    scaleLabel: '',
+    sourceLabel: '',
+    frameLabel: '',
+    contributingAttachments: [
+      {
+        attachmentName: 'rect',
+        skinName: 'default',
+        slotName: 'rect',
+        peakScale: 1.0,
+        animationName: 'static',
+        time: 0,
+        frame: 0,
+        isSetupPosePeak: false,
+      },
+    ],
+  };
+}
 
 describe('buildExportPlan — rotated region canonical out dims (ATLAS-03)', () => {
   it('rotated row with canonicalW=100, canonicalH=500, peakScale=1.0 → outW=100, outH=500 (NOT 500×100 page-pixel)', () => {
@@ -38,20 +102,10 @@ describe('buildExportPlan — rotated region canonical out dims (ATLAS-03)', () 
           canonicalW: 100,
           canonicalH: 500,
           sourcePath: '/fake/rect.png',
-          atlasSource: {
-            pagePath: '/fake/page.png',
-            x: 2,
-            y: 360,
-            packW: 500, // page-pixel W (= libgdx bounds H for rotated)
-            packH: 100, // page-pixel H (= libgdx bounds W for rotated)
-            offsetX: 0,
-            offsetY: 0,
-            w: 100, // canonical (unrotated) W — matches real fixture
-            h: 500, // canonical (unrotated) H
-            rotated: true,
-          },
+          atlasSource: ROTATED_ATLAS_SRC,
         },
       ],
+      regions: [rotatedRectRegion()],
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
@@ -86,16 +140,10 @@ describe('buildExportPlan — rotated region canonical out dims (ATLAS-03)', () 
           canonicalW: 100,
           canonicalH: 500,
           sourcePath: '/fake/rect.png',
-          atlasSource: {
-            pagePath: '/fake/page.png',
-            x: 2, y: 360,
-            packW: 500, packH: 100,
-            offsetX: 0, offsetY: 0,
-            w: 100, h: 500,
-            rotated: true,
-          },
+          atlasSource: ROTATED_ATLAS_SRC,
         },
       ],
+      regions: [rotatedRectRegion()],
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 

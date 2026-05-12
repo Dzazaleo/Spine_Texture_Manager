@@ -18,7 +18,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
-import { analyze } from '../../src/core/analyzer.js';
+import { analyze, analyzeRegions } from '../../src/core/analyzer.js';
 // Phase 24 Plan 01: findUnusedAttachments removed; orphanedFiles replaces it.
 import { buildExportPlan } from '../../src/core/export.js';
 import { AtlasNotFoundError, MissingImagesDirError } from '../../src/core/errors.js';
@@ -147,10 +147,15 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
     const load = loadSkeleton(ATLAS_LESS_FIXTURE);
     const sampled = sampleSkeleton(load);
     const peaks = analyze(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
+    // Phase 35: also populate regions[] via analyzeRegions over the same peaks
+    // Map. buildExportPlan post-Phase-35 iterates summary.regions, so this is
+    // required for the pipeline to work. Mirrors atlas-preview.spec.ts:56-77.
+    const regions = analyzeRegions(sampled.globalPeaks, load.sourcePaths, load.atlasSources);
     // Build the minimal SkeletonSummary slice buildExportPlan reads.
     // (Pattern lifted from tests/core/export.spec.ts:49-55.)
-    const summary: Pick<SkeletonSummary, 'peaks' | 'orphanedFiles'> = {
+    const summary: Pick<SkeletonSummary, 'peaks' | 'regions' | 'orphanedFiles'> = {
       peaks,
+      regions,
       orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
     const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
