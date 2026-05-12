@@ -188,7 +188,18 @@ export function buildExportPlan(
   // preserved end-to-end. summary.peaks is attachment-name-deduped and would
   // collapse N skin-namespaced regions sharing one base name to one row.
   for (const region of summary.regions) {
-    if (excluded.has(region.attachmentName)) continue;
+    // WR-02 (2026-05-12): exclusion check keyed by regionName to match the
+    // Phase 29 D-04 lock (overrides Map is regionName-keyed; the future
+    // Plan 24-02 exclusion surface will be wired with the same key shape).
+    // `excluded` is always empty today (Plan 24-01 removed unusedAttachments;
+    // Plan 24-02 pending), so this is currently inert — but keying the check
+    // off attachmentName post-Phase-35 would be a latent inconsistency once
+    // the exclusion surface lands. Fallback to attachmentName matches the
+    // override-key fallback below for defense-in-depth on synthetic test
+    // fixtures that omit regionName.
+    // TODO(Plan 24-02): confirm the exclusion surface key shape when wired.
+    const excludeKey = region.regionName ?? region.attachmentName;
+    if (excluded.has(excludeKey)) continue;
     if (!region.sourcePath) continue; // defensive — Plan 06-02 guarantees populated, but skip empty rather than emit a bad row.
     // Peak-anchored override semantics (2026-05-05 redesign): override %
     // means "% of peak demand". applyOverride(pct, peakScale) returns a
