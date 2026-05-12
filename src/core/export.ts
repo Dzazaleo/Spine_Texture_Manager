@@ -286,12 +286,30 @@ export function buildExportPlan(
       // contributingAttachments.length === 1) this produces an identical
       // attachmentNames[] array to the pre-Phase-35 `[row.attachmentName]`
       // shape — single-skin tests are observationally equivalent.
+      //
+      // WR-01 (2026-05-12): dedup contributors by attachmentName at insert
+      // time so the initial-insert branch is symmetric with the merge branch
+      // below. Today `toRegionRow` (src/core/analyzer.ts:295-302) already
+      // dedupes contributors, so this is defense-in-depth — but the
+      // asymmetry between insert (no dedup) and merge (Array.includes dedup)
+      // was a tripwire: if a future analyzer change loosened the invariant,
+      // duplicate attachmentName entries would silently propagate. Set-based
+      // probe here is O(1) per contributor (vs Array.includes O(N) below; see
+      // IN-04 for the deferred merge-branch optimization).
+      const seen = new Set<string>();
+      const names: string[] = [];
+      for (const c of region.contributingAttachments) {
+        if (!seen.has(c.attachmentName)) {
+          seen.add(c.attachmentName);
+          names.push(c.attachmentName);
+        }
+      }
       bySourcePath.set(region.sourcePath, {
         row: region,
         effScale,
         isCapped,
         bufferCapped,  // Phase 30 BUFFER-02 — symmetric with isCapped above (R2)
-        attachmentNames: region.contributingAttachments.map((c) => c.attachmentName),
+        attachmentNames: names,
       });
     } else {
       if (effScale > prev.effScale) {
