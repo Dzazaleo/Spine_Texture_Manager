@@ -23,7 +23,7 @@
  * ceil-thousandth lower-bound property (see in-file describe block).
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
@@ -2472,6 +2472,451 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
     expect(row.effectiveScale).toBeCloseTo(0.2, 6);
     expect(row.outW).toBe(Math.ceil(699 * 0.2)); // 140
     expect(row.outH).toBe(Math.ceil(699 * 0.2));
+  });
+});
+
+describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-04/05)', () => {
+  // These tests lock the Phase 35 fix: buildExportPlan iterates summary.regions
+  // (region-keyed) instead of summary.peaks (attachment-name-deduped). Without
+  // them, a future refactor could silently regress N regions sharing K < N
+  // attachment names back to K ExportRows.
+  //
+  // Test 1 — synthetic multi-skin: 4 regions, 2 unique attachment names → 4 rows
+  // Test 2 — synthetic per-region override: WARNING 3 explicit effScale binding
+  // Test 3 — synthetic single-skin backward-compat (regionName === attachmentName)
+
+  // Shared synthetic fixture for Tests 1 + 2 — 4 regions, 2 unique attachment
+  // names (CARDS_L_HAND_1 and BODY), 4 skin-namespaced regionNames. Mirrors the
+  // real-world SKINS fixture (AVATAR/BUSINESS variants sharing one base name).
+  function makePhase35MultiSkinPeaks() {
+    return [
+      {
+        attachmentKey: 'AVATAR/SLOT_CARDS/CARDS_L_HAND_1',
+        attachmentName: 'CARDS_L_HAND_1',
+        regionName: 'AVATAR/CARDS_L_HAND_1',
+        skinName: 'AVATAR',
+        slotName: 'SLOT_CARDS',
+        animationName: 'TEST',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 50,
+        worldH: 50,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/images/AVATAR/CARDS_L_HAND_1.png',
+        canonicalW: 100,
+        canonicalH: 100,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+      {
+        attachmentKey: 'BUSINESS/SLOT_CARDS/CARDS_L_HAND_1',
+        attachmentName: 'CARDS_L_HAND_1',
+        regionName: 'BUSINESS/CARDS_L_HAND_1',
+        skinName: 'BUSINESS',
+        slotName: 'SLOT_CARDS',
+        animationName: 'TEST',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 50,
+        worldH: 50,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/images/BUSINESS/CARDS_L_HAND_1.png',
+        canonicalW: 100,
+        canonicalH: 100,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+      {
+        attachmentKey: 'AVATAR/SLOT_BODY/BODY',
+        attachmentName: 'BODY',
+        regionName: 'AVATAR/BODY',
+        skinName: 'AVATAR',
+        slotName: 'SLOT_BODY',
+        animationName: 'TEST',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 50,
+        worldH: 50,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/images/AVATAR/BODY.png',
+        canonicalW: 100,
+        canonicalH: 100,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+      {
+        attachmentKey: 'BUSINESS/SLOT_BODY/BODY',
+        attachmentName: 'BODY',
+        regionName: 'BUSINESS/BODY',
+        skinName: 'BUSINESS',
+        slotName: 'SLOT_BODY',
+        animationName: 'TEST',
+        time: 0,
+        frame: 0,
+        peakScale: 0.5,
+        peakScaleX: 0.5,
+        peakScaleY: 0.5,
+        worldW: 50,
+        worldH: 50,
+        sourceW: 100,
+        sourceH: 100,
+        sourcePath: '/fake/images/BUSINESS/BODY.png',
+        canonicalW: 100,
+        canonicalH: 100,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+    ];
+  }
+
+  it('Test 1 — multi-skin: 4 regions sharing 2 unique attachment names → 4 ExportRows (NOT 2) (success criterion #1)', () => {
+    // The pre-Phase-35 bug: buildExportPlan iterated summary.peaks (which is
+    // attachment-name-deduped — would collapse 4 regions sharing 2 base
+    // attachment names down to 2 DisplayRows), producing 2 ExportRows instead
+    // of 4. Post-Phase-35 it iterates summary.regions and emits one ExportRow
+    // per unique regionName.
+    const peaks = makePhase35MultiSkinPeaks();
+    const summary = {
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    const plan = buildExportPlan(summary, new Map());
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+
+    // The cardinality lock: 4 region-keyed entries (not 2 attachment-name-deduped).
+    expect(allRows.length).toBe(4);
+
+    // Each region produces a distinct sourcePath.
+    const sortedPaths = allRows.map((r) => r.sourcePath).sort();
+    expect(sortedPaths).toEqual([
+      '/fake/images/AVATAR/BODY.png',
+      '/fake/images/AVATAR/CARDS_L_HAND_1.png',
+      '/fake/images/BUSINESS/BODY.png',
+      '/fake/images/BUSINESS/CARDS_L_HAND_1.png',
+    ]);
+
+    // Each ExportRow.attachmentNames is a length-1 array containing the matching
+    // base attachmentName (CARDS_L_HAND_1 or BODY). Confirms the
+    // `region.contributingAttachments.map(c => c.attachmentName)` accumulator
+    // wired through correctly post-migration.
+    for (const row of allRows) {
+      expect(row.attachmentNames.length).toBe(1);
+      if (row.sourcePath.endsWith('CARDS_L_HAND_1.png')) {
+        expect(row.attachmentNames[0]).toBe('CARDS_L_HAND_1');
+      } else {
+        expect(row.attachmentNames[0]).toBe('BODY');
+      }
+    }
+  });
+
+  it('Test 2 — per-region override binds only the AVATAR variant via regionName key (Phase 29 D-04 preserved; WARNING 3 explicit-effScale)', () => {
+    // WARNING 3 explicit effScale assertions: lock the override-per-region
+    // binding at the math-chain level, not just at the outW level. If the
+    // override were accidentally keyed by attachmentName ('CARDS_L_HAND_1'),
+    // BOTH AVATAR + BUSINESS rows would carry the same effScale; keying by
+    // regionName ('AVATAR/CARDS_L_HAND_1') means only the AVATAR variant
+    // shifts to effScale 0.25 while the BUSINESS sibling stays at 0.5.
+    const peaks = makePhase35MultiSkinPeaks();
+    const summary = {
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // 50% override on the AVATAR variant only.
+    const overrides = new Map<string, number>([
+      ['AVATAR/CARDS_L_HAND_1', 50],
+    ]);
+    const plan = buildExportPlan(summary, overrides);
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+
+    // Cardinality unchanged — overrides don't change row count.
+    expect(allRows.length).toBe(4);
+
+    // 50% override × peakScale 0.5 = effScale 0.25 on AVATAR/CARDS_L_HAND_1.
+    // safeScale(0.25) === 0.25 exactly (clean multiple of 1/1000).
+    const avatarCards = allRows.find((r) =>
+      r.sourcePath.endsWith('AVATAR/CARDS_L_HAND_1.png'),
+    );
+    expect(avatarCards).toBeDefined();
+    expect(avatarCards!.effectiveScale).toBeCloseTo(0.25, 6);
+    expect(avatarCards!.outW).toBe(25); // ceil(100 × 0.25) = 25
+    expect(avatarCards!.outH).toBe(25);
+
+    // BUSINESS/CARDS_L_HAND_1 — NOT in the overrides Map → effScale = peakScale = 0.5.
+    const businessCards = allRows.find((r) =>
+      r.sourcePath.endsWith('BUSINESS/CARDS_L_HAND_1.png'),
+    );
+    expect(businessCards).toBeDefined();
+    expect(businessCards!.effectiveScale).toBeCloseTo(0.5, 6);
+    expect(businessCards!.outW).toBe(50); // ceil(100 × 0.5) = 50
+    expect(businessCards!.outH).toBe(50);
+
+    // Falsifying property: distinct effScale values prove the override key is
+    // regionName, not attachmentName. If keyed by attachmentName, BOTH
+    // CARDS_L_HAND_1 rows would have the same effScale.
+    expect(avatarCards!.effectiveScale).not.toBeCloseTo(
+      businessCards!.effectiveScale,
+      6,
+    );
+
+    // BODY rows untouched — no override on either regionName.
+    const avatarBody = allRows.find((r) =>
+      r.sourcePath.endsWith('AVATAR/BODY.png'),
+    );
+    const businessBody = allRows.find((r) =>
+      r.sourcePath.endsWith('BUSINESS/BODY.png'),
+    );
+    expect(avatarBody!.effectiveScale).toBeCloseTo(0.5, 6);
+    expect(businessBody!.effectiveScale).toBeCloseTo(0.5, 6);
+  });
+
+  it('Test 3 — backward-compat: single-skin synthetic (regionName === attachmentName, contributors.length === 1) → 3 ExportRows identical to pre-Phase-35 shape', () => {
+    // SIMPLE_PROJECT-shaped synthetic input: 3 regions where regionName ===
+    // attachmentName for each. Pre-Phase-35 and post-Phase-35 produce the same
+    // output count + shape on non-indirected fixtures. Locks success criterion
+    // #5: existing fixtures continue to produce identical export plans.
+    const canonical = 200;
+    const peak = 0.7;
+    const peaks = [
+      {
+        attachmentKey: 'default/CIRCLE/CIRCLE',
+        attachmentName: 'CIRCLE',
+        regionName: 'CIRCLE',
+        skinName: 'default',
+        slotName: 'CIRCLE',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: peak,
+        peakScaleX: peak,
+        peakScaleY: peak,
+        worldW: canonical * peak,
+        worldH: canonical * peak,
+        sourceW: canonical,
+        sourceH: canonical,
+        sourcePath: '/fake/CIRCLE.png',
+        canonicalW: canonical,
+        canonicalH: canonical,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+      {
+        attachmentKey: 'default/SQUARE/SQUARE',
+        attachmentName: 'SQUARE',
+        regionName: 'SQUARE',
+        skinName: 'default',
+        slotName: 'SQUARE',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: peak,
+        peakScaleX: peak,
+        peakScaleY: peak,
+        worldW: canonical * peak,
+        worldH: canonical * peak,
+        sourceW: canonical,
+        sourceH: canonical,
+        sourcePath: '/fake/SQUARE.png',
+        canonicalW: canonical,
+        canonicalH: canonical,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+      {
+        attachmentKey: 'default/TRIANGLE/TRIANGLE',
+        attachmentName: 'TRIANGLE',
+        regionName: 'TRIANGLE',
+        skinName: 'default',
+        slotName: 'TRIANGLE',
+        animationName: 'idle',
+        time: 0,
+        frame: 0,
+        peakScale: peak,
+        peakScaleX: peak,
+        peakScaleY: peak,
+        worldW: canonical * peak,
+        worldH: canonical * peak,
+        sourceW: canonical,
+        sourceH: canonical,
+        sourcePath: '/fake/TRIANGLE.png',
+        canonicalW: canonical,
+        canonicalH: canonical,
+        actualSourceW: undefined,
+        actualSourceH: undefined,
+        dimsMismatch: false,
+        isSetupPosePeak: false,
+      },
+    ];
+    const summary = {
+      peaks,
+      regions: synthRegionsFromPeaks(peaks),
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    const plan = buildExportPlan(summary, new Map());
+    const allRows = [...plan.rows, ...plan.passthroughCopies];
+
+    // Single-skin cardinality matches both region count AND attachment count
+    // (they're equal in non-indirected fixtures).
+    expect(allRows.length).toBe(3);
+
+    // attachmentNames must be a length-1 array matching the (regionName ===
+    // attachmentName) for each row. This matches the pre-Phase-35 shape where
+    // attachmentNames was `[row.attachmentName]`.
+    const byPath = new Map(allRows.map((r) => [r.sourcePath, r] as const));
+    expect(byPath.get('/fake/CIRCLE.png')!.attachmentNames).toEqual(['CIRCLE']);
+    expect(byPath.get('/fake/SQUARE.png')!.attachmentNames).toEqual(['SQUARE']);
+    expect(byPath.get('/fake/TRIANGLE.png')!.attachmentNames).toEqual(['TRIANGLE']);
+
+    // outW = Math.ceil(200 × safeScale(0.7)) = ceil(200 × 0.7) = 140 each.
+    // safeScale(0.7) === 0.7 exactly (clean multiple of 1/1000).
+    for (const row of allRows) {
+      expect(row.effectiveScale).toBeCloseTo(0.7, 6);
+      expect(row.outW).toBe(140);
+      expect(row.outH).toBe(140);
+    }
+  });
+
+  it('Test 4 — fixtures/SKINS/JOKERMAN_SPINE.json (7 skins, 160 regions) → buildExportPlan returns 160 total entries (success criterion #1 from ROADMAP)', () => {
+    // Defensive skip: this fixture lives in-tree at fixtures/SKINS/. If it's
+    // somehow missing (CI shallow-clone misconfiguration, future gitignore
+    // edit), skip with a clear message rather than failing opaquely.
+    const jsonPath = path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json');
+    if (!existsSync(jsonPath)) {
+      console.warn(`Skipping: fixture missing at ${jsonPath}`);
+      return;
+    }
+
+    // BLOCKER 2 fix — inline the EXACT helper from tests/core/atlas-preview.spec.ts:56-77.
+    // DO NOT import `buildSummary` from src/main/summary.ts — that function:
+    //   (a) imports node:fs and node:path (Layer 3 — main process only)
+    //   (b) has the wrong signature: buildSummary(load, sampled, elapsedMs) — takes
+    //       PRE-PROCESSED LoadResult + SamplerOutput, not a raw jsonPath.
+    //   (c) is forbidden in tests/core/ by the strict layering convention.
+    const load = loadSkeleton(jsonPath);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const peaksWithPath = peaks.map((r) => ({
+      ...r,
+      sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
+    }));
+    const sourcePaths = new Map<string, string>();
+    for (const p of sampled.globalPeaks.values()) {
+      const regionName = p.regionName ?? p.attachmentName;
+      sourcePaths.set(regionName, '/fake/' + regionName + '.png');
+    }
+    const regions = analyzeRegions(sampled.globalPeaks, sourcePaths);
+    const summary = {
+      peaks: peaksWithPath,
+      regions,
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // Lock the pre-Phase-35 baseline that's already covered by Phase 29:
+    // summary.regions.length === 160 (one row per unique regionName in the atlas).
+    expect(summary.regions.length).toBe(160);
+
+    // The Phase 35 contract: buildExportPlan produces ONE ExportRow per region.
+    // Locks ROADMAP success criterion #1 (modal header 160; downstream of
+    // plan.rows.length + plan.passthroughCopies.length).
+    const plan = buildExportPlan(summary, new Map(), undefined);
+    const totalRows = plan.rows.length + plan.passthroughCopies.length;
+    expect(totalRows).toBe(160);
+
+    // Spot-check: the skin-namespaced CARDS_L_HAND_1 regions all appear as
+    // distinct ExportRows. This is success criterion #2 from the ROADMAP at the
+    // ExportRow level (the OptimizeDialog body row list is downstream of this).
+    const allSourcePaths = [...plan.rows, ...plan.passthroughCopies].map(
+      (r) => r.sourcePath,
+    );
+    const cardsLHand1Paths = allSourcePaths.filter((p) =>
+      p.includes('CARDS_L_HAND_1'),
+    );
+    // At minimum one per skin that declares this region. JOKERMAN_SPINE.atlas
+    // has AVATAR/CARDS_L_HAND_1, BUSINESS/CARDS_L_HAND_1, IRONMAN/CARDS_L_HAND_1,
+    // JOKER/CARDS_L_HAND_1 (4 skins declare it). Assert at least 4 ExportRows
+    // mention CARDS_L_HAND_1 in their sourcePath.
+    expect(cardsLHand1Paths.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('Test 5 — atlas-less fixture (BLOCKER 3 fix: loaderMode separation invariant) → buildExportPlan is mode-agnostic; row count === summary.regions.length', () => {
+    // Atlas-less fixture per memory `project_strict_loadermode_separation.md`:
+    // each region's image lives at a per-region disk path under images/, no .atlas
+    // file. The buildExportPlan migration should be loaderMode-invariant — atlas-less
+    // summaries also produce region-keyed plans now. This test codifies that
+    // invariant in CI (previously only covered by manual UAT in Plan 03 Task 2 step 12).
+    const jsonPath = path.resolve(
+      'fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH_NON_ESSENTIAL/MeshOnly_TEST.json',
+    );
+    if (!existsSync(jsonPath)) {
+      console.warn(`Skipping: fixture missing at ${jsonPath}`);
+      return;
+    }
+
+    // Inline loader helper (same as Test 4 — copy-paste, do NOT factor into a
+    // shared helper this round; that's a future refactor and would expand this
+    // plan's scope).
+    const load = loadSkeleton(jsonPath);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const peaksWithPath = peaks.map((r) => ({
+      ...r,
+      sourcePath: '/fake/' + (r.regionName ?? r.attachmentName) + '.png',
+    }));
+    const sourcePaths = new Map<string, string>();
+    for (const p of sampled.globalPeaks.values()) {
+      const regionName = p.regionName ?? p.attachmentName;
+      sourcePaths.set(regionName, '/fake/' + regionName + '.png');
+    }
+    const regions = analyzeRegions(sampled.globalPeaks, sourcePaths);
+    const summary = {
+      peaks: peaksWithPath,
+      regions,
+      orphanedFiles: [],
+    } as unknown as SkeletonSummary;
+
+    // The contract: buildExportPlan emits one ExportRow per region regardless of
+    // loader mode. Atlas-less summaries have regions populated by analyzeRegions
+    // identically to atlas-source — the iteration source in buildExportPlan
+    // doesn't branch on mode.
+    const plan = buildExportPlan(summary, new Map(), undefined);
+    const totalRows = plan.rows.length + plan.passthroughCopies.length;
+    expect(totalRows).toBe(summary.regions.length);
+
+    // Atlas-less fixtures don't share regions across attachments (each attachment
+    // has its own per-region file path, no skin-namespacing collapsing happens
+    // because there's no .atlas region table to namespace from). Each ExportRow's
+    // attachmentNames array should be length 1.
+    for (const row of [...plan.rows, ...plan.passthroughCopies]) {
+      expect(row.attachmentNames.length).toBe(1);
+    }
   });
 });
 
