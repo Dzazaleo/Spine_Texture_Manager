@@ -832,7 +832,10 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     const ceilSig = /Math\.ceil\(\(acc\.row\.canonicalW \?\? acc\.row\.sourceW\)/;
     expect(coreText).toMatch(ceilSig);
     expect(viewText).toMatch(ceilSig);
-    const overrideSig = /applyOverride\(overridePct,\s*row\.peakScale\)\.effectiveScale/;
+    // Phase 35 — loop variable renamed `row` → `region` when buildExportPlan
+    // migrated to iterate summary.regions (DEDUP-04/05/06). Regex updated in
+    // lockstep with the source files (35-01 core, 35-02 renderer view).
+    const overrideSig = /applyOverride\(overridePct,\s*region\.peakScale\)\.effectiveScale/;
     expect(coreText).toMatch(overrideSig);
     expect(viewText).toMatch(overrideSig);
   });
