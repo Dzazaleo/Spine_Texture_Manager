@@ -112,6 +112,17 @@ function relativeOutPath(sourcePath: string): string {
   const normalized = sourcePath.replace(/\\/g, '/');
   const idx = normalized.lastIndexOf('/images/');
   const regionPart = idx >= 0 ? normalized.slice(idx + '/images/'.length) : normalized.slice(normalized.lastIndexOf('/') + 1);
+  // WR-06 (2026-05-12) — defensive path-traversal guard. region.sourcePath
+  // is loader-derived (src/core/loader.ts Plan 06-02) but the loader's
+  // atlas-synthesis path (src/core/synthetic-atlas.ts) reads region names
+  // from the .json/.atlas. A maliciously authored Spine project with a
+  // region name containing `..` or `.` segments could otherwise produce
+  // an ExportRow.outPath that, when joined with the user's outDir in
+  // image-worker.ts, escapes the chosen export directory. Reject
+  // traversal segments here so a bad plan never reaches the file writer.
+  if (regionPart.split('/').some((seg) => seg === '..' || seg === '.')) {
+    throw new Error(`Refusing to emit ExportRow with traversal segment: ${sourcePath}`);
+  }
   return 'images/' + regionPart;
 }
 
