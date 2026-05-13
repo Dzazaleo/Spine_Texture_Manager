@@ -1,14 +1,18 @@
 ---
 id: SEED-005
-status: planted
+status: closed
 planted: 2026-05-08
 planted_during: post-spine-sequence-undercount audit (.planning/SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md item 5)
+closed_during: 37-spine-4-2-timeline-coverage-hardening
+closed: 2026-05-13
 trigger_when: (a) we ship a feature that depends on accurate slot tinting (e.g. Atlas Preview color rendering); OR (b) a user reports a rig where animations look different in our app vs. Spine player; OR (c) a fixture surfaces an InheritTimeline-driven bug
 scope: A=Small (audit only — confirm both are render-scale-irrelevant) / B=Medium (add fixture coverage) / C=Large (handle in any product feature that surfaces tint/inheritance)
 proposed_phase: TBD — likely v1.4 or later
 ---
 
 # SEED-005: RGBA2 (two-color tinting) + InheritTimeline coverage gap
+
+**Closed:** 2026-05-13 (Phase 37 — Spine 4.2 Timeline Coverage Hardening shipped; TIMELINE-01..TIMELINE-05 all satisfied; audit doc items 6 + 7 PASS with source-cited evidence; `fixtures/INHERIT_TIMELINE/` + sampler tests `TIMELINE-03` / `TIMELINE-04` green).
 
 ## The Gap (one-line)
 
