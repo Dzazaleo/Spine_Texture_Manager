@@ -34,3 +34,27 @@ Surface during `/gsd-ship` v1.3.1 or final release verification. If the advisory
 - `.planning/phases/31-loader-ux-small-fixes-batch/31-HUMAN-UAT.md` (item 1)
 - `.planning/phases/31-loader-ux-small-fixes-batch/31-03-SUMMARY.md`
 - `.planning/phases/31-loader-ux-small-fixes-batch/31-VERIFICATION.md` (human_verification[0])
+
+***
+
+## Resolved
+
+2026-05-13 — Phase 39 (WINUAT-02 + WINUAT-03 Phase-31-half) — outcome: **passed**.
+
+Executed on a real Windows admin session per host-availability decision recorded at `.planning/phases/39-windows-host-blocked-uat-burndown/39-CONTRACT.md`.
+
+**Host:** Windows host (specific version + machine descriptor not volunteered at UAT report time)
+**Installer:** v1.3.1+ release installer (specific version not volunteered)
+
+**Observation matrix:**
+- Verbatim advisory copy match: **pass**
+- Drag-over ring suppressed: **pass**
+- File → Open path works: **pass**
+- Normal-relaunch DnD restores: **pass**
+- macOS sanity (optional): **not-tested**
+
+**Notes:** User reported all four observations as passed on 2026-05-13. Verbatim advisory string rendered correctly, drag-over ring suppression worked, File → Open still functional, normal-relaunch DnD restored. Specific Windows version + installer version metadata not recorded at UAT report time.
+
+**UAT file updated:** Item 1 in `.planning/milestones/v1.3.1-phases/31-loader-ux-small-fixes-batch/31-HUMAN-UAT.md` flipped from `deferred` to `passed`; Summary table updated to reflect `passed: 4`, `pending: 0`, `failed: 0`; frontmatter `status:` updated to match.
+
+**Related REQs:** WINUAT-02 (live UAT outcome), WINUAT-03 (Phase 31 todo retired to resolved/). Phase 20 side of WINUAT-03 owned by plan 39-02.
