@@ -309,17 +309,25 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
 
   it('TIMELINE-03 InheritTimeline NoScale detach — peak > inheriting baseline', () => {
     // Fixture inspection: fixtures/INHERIT_TIMELINE/INHERIT_TEST.json has a 3-bone rig
-    // (root -> PARENT -> CHILD) with a 100x100 REGION attachment on CHILD_SLOT, and
-    // two animations:
-    //   - BASELINE:       parent scaleX/Y ramps 1.0 -> 0.4 -> 1.0; CHILD inherits Normal
-    //                     throughout (no InheritTimeline). CHILD's world scale tracks
-    //                     PARENT's. Peak at start/end frames (~1.0), NOT the shrink frame.
-    //   - INHERIT_DETACH: same parent shrink + a per-bone "inherit" timeline on CHILD
-    //                     keying Inherit.Normal -> Inherit.NoScale -> Inherit.Normal at
-    //                     times 0.0 / 0.5 / 1.0. At t=0.5 (parent shrunk to 0.4), CHILD
-    //                     is detached -> CHILD's world scale remains ~1.0. Without detach
-    //                     it would be 0.4. With detach, peak > baseline at the shrink
-    //                     frame.
+    // (root -> PARENT -> CHILD) with a 100x100 REGION attachment on CHILD_SLOT.
+    // PARENT's setup-pose scaleX/Y is 0.4 (INHERIT_TEST.json:14), so the rig is
+    // pre-shrunk before any animation runs. Two animations exercise the differential:
+    //   - BASELINE:       PARENT scale timeline is a flat 0.4 (matches setup pose:
+    //                     keyframes [{x:0.4, y:0.4}, {time:1.0, x:0.4, y:0.4}]).
+    //                     CHILD has no inherit timeline -> Inherit.Normal throughout.
+    //                     CHILD's world scale tracks PARENT's flat 0.4. Peak ~0.4.
+    //   - INHERIT_DETACH: identical flat-0.4 PARENT scale timeline + a per-bone
+    //                     "inherit" timeline on CHILD keying
+    //                     Inherit.Normal -> Inherit.NoScale -> Inherit.Normal at
+    //                     times 0.0 / 0.5 / 1.0. At t=0.5 CHILD is detached -> its
+    //                     world scale ignores PARENT's 0.4 and reverts to ~1.0
+    //                     (CHILD's own local scaleX/Y = 1.0). Peak ~1.0.
+    //
+    // Why the differential holds: setup-pose pass yields world ~0.4 for both runs.
+    // BASELINE's animation pass cannot exceed 0.4 (flat parent, no detach), so its
+    // globalPeak latches at ~0.4. INHERIT_DETACH's animation pass produces world ~1.0
+    // at the NoScale frame, so its globalPeak latches at ~1.0. Margin ~0.6 vs strict
+    // `>`, comfortably above FP noise.
     //
     // What we exercise: full sampler lifecycle at default 120 Hz on both animations,
     // isolated via a per-animation filter (mirrors the perAnimationPeaks helper at
@@ -329,7 +337,7 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // updateLocalToWorld branch (Bone.js:144 `switch (this.inherit)`).
     //
     // If state.apply did NOT tick InheritTimeline, peak(detached) would equal
-    // peak(baseline). Strict `>` therefore catches a real sampler regression.
+    // peak(baseline) (both ~0.4). Strict `>` therefore catches a real sampler regression.
     // (CONTEXT.md D-01: TIMELINE-02 conditional escalation TRIGGERED -> assertion is
     // peak(detached) > peak(baseline) strict, load-bearing.)
     const peaksForAnimation = (animationName: string): Map<string, PeakRecord> => {
