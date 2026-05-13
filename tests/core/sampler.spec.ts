@@ -30,6 +30,7 @@
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { RGBA2Timeline } from '@esotericsoftware/spine-core';
 import { loadSkeleton } from '../../src/core/loader.js';
 import {
   sampleSkeleton,
@@ -360,6 +361,89 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
 
     // Load-bearing assertion (CONTEXT.md DC-02): peak(detached) > peak(baseline) strict.
     expect(detachedChild!.peakScale).toBeGreaterThan(baselineChild!.peakScale);
+  });
+
+  it('TIMELINE-04 RGBA2Timeline geometry-invariance — identical globalPeaks Map vs baseline', () => {
+    // Fixture inspection: fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json is the de-facto smoke
+    // fixture (CIRCLE / SQUARE / TRIANGLE / CHAIN_2..8 / PATH animation with non-trivial
+    // bone-scale variation). We pick the SQUARE2 slot (index 4 in skeletonData.slots) and
+    // the PATH animation as the injection target — PATH already exercises CHAIN_2 scale
+    // + CTRL_PATH translate/rotate/scale, so the sampler captures meaningful peaks.
+    //
+    // Slot pick rationale (Rule 1 fix during execution): RGBA2Timeline.apply at
+    // Animation.js:1041 writes `slot.darkColor.r = r2`. Slots whose JSON definition has no
+    // `dark` key get `slot.darkColor === null` at load time, and the timeline NPEs. SQUARE2
+    // is the only slot in SIMPLE_TEST with `"dark": "ff0000"` (SIMPLE_TEST.json:87), so it's
+    // the slot that satisfies the RGBA2 invariant. SQUARE2 also uses the SQUARE attachment
+    // on a pre-scaled bone (SQUARE2 bone setup scaleX/Y=0.2538), so geometry side-effects —
+    // if any — would propagate through the same hot loop path as any other attachment.
+    //
+    // What we exercise (CONTEXT.md D-05): load SIMPLE_TEST twice via loadSkeleton, inject
+    // a synthetic RGBA2Timeline(frameCount=2, bezierCount=0, slotIndex=SQUARE2) onto the
+    // PATH animation's timelines array in the second copy, populate two keyframes via
+    // setFrame, then run sampleSkeleton on both and compare globalPeaks Maps.
+    //
+    // Hypothesis (audit doc Item 6 + Animation.js:951-1030 source-read): RGBA2Timeline.apply
+    // writes only to slot.color + slot.darkColor. The sampler reads bone.* for transforms
+    // and attachment.vertices for geometry — neither path consults slot color. Therefore
+    // the two globalPeaks Maps must be byte-identical: same size, same keys, same numeric
+    // values for every PeakRecord.
+    //
+    // If RGBA2Timeline.apply somehow leaked into the bone transform path (impossible per
+    // the source-read but locked here defensively), strict .toBe() catches any drift —
+    // no epsilon tolerance per CONTEXT.md DC-01.
+    const baselineLoad = loadSkeleton(FIXTURE);
+    const baselinePeaks = sampleSkeleton(baselineLoad).globalPeaks;
+
+    const injectedLoad = loadSkeleton(FIXTURE);
+    const slotIndex = injectedLoad.skeletonData.slots.findIndex(
+      (s) => s.name === 'SQUARE2',
+    );
+    expect(slotIndex, 'SQUARE2 slot must exist in SIMPLE_TEST').toBeGreaterThanOrEqual(0);
+    // Sanity: target slot has a dark color (required for RGBA2Timeline at Animation.js:1041,
+    // which writes slot.darkColor.r = r2 — null-deref if the slot's JSON has no `dark` key).
+    expect(
+      injectedLoad.skeletonData.slots[slotIndex]!.darkColor,
+      'SQUARE2 must have a non-null darkColor (JSON `dark` field at SIMPLE_TEST.json:87)',
+    ).not.toBeNull();
+
+    const pathAnimation = injectedLoad.skeletonData.animations.find(
+      (a) => a.name === 'PATH',
+    );
+    expect(pathAnimation, 'PATH animation must exist in SIMPLE_TEST').toBeDefined();
+
+    // RGBA2Timeline(frameCount=2, bezierCount=0, slotIndex). Constructor at Animation.js:953.
+    const rgba2 = new RGBA2Timeline(2, 0, slotIndex);
+    // setFrame(frame, time, r, g, b, a, r2, g2, b2) per Animation.js:965 — full color sweep
+    // from white-tint+black-dark to black-tint+white-dark across the animation. The exact
+    // color values are irrelevant; what matters is that the timeline ticks during state.apply.
+    rgba2.setFrame(0, 0.0, 1, 1, 1, 1, 0, 0, 0);
+    rgba2.setFrame(1, 1.0, 0, 0, 0, 1, 1, 1, 1);
+    pathAnimation!.timelines.push(rgba2);
+
+    const injectedPeaks = sampleSkeleton(injectedLoad).globalPeaks;
+
+    // Map size must match (no key added or removed by the slot-color timeline).
+    expect(injectedPeaks.size).toBe(baselinePeaks.size);
+
+    // Per-record strict equality on every numeric field (PATTERNS.md S3 mirrors N1.6
+    // determinism loop). No epsilon — CONTEXT.md DC-01.
+    for (const [key, recBaseline] of baselinePeaks) {
+      const recInjected = injectedPeaks.get(key);
+      expect(
+        recInjected,
+        `missing key in injected run: ${key}`,
+      ).toBeDefined();
+      const ri = recInjected as PeakRecord;
+      expect(ri.peakScale).toBe(recBaseline.peakScale);
+      expect(ri.peakScaleX).toBe(recBaseline.peakScaleX);
+      expect(ri.peakScaleY).toBe(recBaseline.peakScaleY);
+      expect(ri.worldW).toBe(recBaseline.worldW);
+      expect(ri.worldH).toBe(recBaseline.worldH);
+      expect(ri.time).toBe(recBaseline.time);
+      expect(ri.animationName).toBe(recBaseline.animationName);
+      expect(ri.attachmentName).toBe(recBaseline.attachmentName);
+    }
   });
 });
 
