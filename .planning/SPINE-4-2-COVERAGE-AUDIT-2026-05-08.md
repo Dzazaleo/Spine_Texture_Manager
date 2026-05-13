@@ -102,13 +102,13 @@ Result: 8 features flagged. 5 well-covered, 3 with real risk, 2 deferred.
 |---|---|---|
 | Rotate/Scale/Translate/Shear | ✅ Covered | universal |
 | RGBATimeline (slot color) | ✅ Covered (render-scale-irrelevant) | universal |
-| RGBA2Timeline (two-color tinting) | 🟡 Deferred → SEED-005 | render-scale-irrelevant |
+| RGBA2Timeline (two-color tinting) | ✅ Covered (Phase 37) | render-scale-irrelevant; Item 6 PASS |
 | AttachmentTimeline | ✅ Covered | sampler reads `slot.getAttachment()` per-tick |
 | DeformTimeline | ✅ Covered | CHJ, computeWorldVertices handles |
 | DrawOrderTimeline | ✅ Irrelevant for bounds | n/a |
 | EventTimeline + audio | ✅ Ignored (correct) | events ≠ render |
 | **SequenceTimeline + DeformTimeline interaction** | 🔴 Latent → Item 2 | unproven assumption from today's fix |
-| InheritTimeline (4.0+) | 🟡 Deferred → SEED-005 | spine-ts has it; no fixture |
+| InheritTimeline (4.0+) | ✅ Covered (Phase 37) | bone.inherit mutation covered by lifecycle; Item 7 PASS |
 
 ### Loader/format features
 
@@ -191,10 +191,25 @@ Closure bar agreed for this pass: source-level inspection of spine-ts + our samp
 - The locked tick order (state.apply before updateWorldTransform) inherently covers timeline-driven physics mutation. No fixture or test gap to close — the lifecycle itself is the proof.
 - **Verdict:** SAFE. Worth noting if anyone proposes reordering the lifecycle in future, this is one more reason not to.
 
+### Item 6 — RGBA2Timeline geometry-invariance → PASS (geometry-invariant by construction)
+
+- RGBA2Timeline.apply (Animation.js:951-1030) writes only to `slot.color` (light tint) and `slot.darkColor` (dark tint). Constructor signature is `(frameCount, bezierCount, slotIndex)` at Animation.js:953 — the timeline is slot-scoped, not bone-scoped, and the apply body contains no `bone.*` writes and no geometry/vertex writes.
+- Cross-check: `slot.darkColor` is consumed only at GPU/render time. The sampler reads `bone.*` for transforms and `attachment.vertices` (via computeWorldVertices) for geometry — neither code path consults slot color. CLAUDE.md fact #4 (math phase does not decode PNGs) reinforces this: the sampler operates on atlas-metadata bounds + bone transforms only.
+- Consequence: slot-color timelines cannot affect peak render scale. Sampler output is byte-identical with or without RGBA2Timeline keyframes on any slot. The TIMELINE-04 synthetic-injection test (37-03) asserts this invariance by strict-deep-equal on `summary.globalPeaks` Map between a baseline run and an RGBA2-injected run on the same animation.
+- **Verdict:** PASS. RGBA2Timeline is render-scale-irrelevant by construction. If a future product feature surfaces slot tinting in a preview (e.g. Atlas Preview color rendering), that feature would consume `slot.color` / `slot.darkColor` separately — but render-scale calculation remains unaffected. SEED-005 partially closed by this finding (geometry-invariance half); the test in TIMELINE-04 locks the regression contract.
+
+### Item 7 — InheritTimeline detaches bone.inherit at runtime → PASS (lifecycle already covers)
+
+- InheritTimeline.apply (Animation.js:723-757) mutates `bone.inherit` directly at Animation.js:755: `bone.inherit = this.frames[Timeline.search(frames, time, 2) + 1];`. The class is registered in SkeletonJson.js for the per-bone `"inherit"` timeline-name JSON parse path (SkeletonJson.js:711-718).
+- Readback site: Bone.js:144 — `switch (this.inherit) {` — drives the world-transform branch in `updateLocalToWorld`. Cross-cited at Bone.js:271 / 278 / 288 / 299 for the per-mode branches (Normal / OnlyTranslation / NoRotationOrReflection / NoScale / NoScaleOrReflection). `bone.inherit` IS read by the world-transform computation; therefore InheritTimeline writes DO propagate into the sampled scale.
+- The locked sampler lifecycle (CLAUDE.md fact #3: `state.update → state.apply → skeleton.update → updateWorldTransform(Physics.update)`) inherently covers this case: `state.apply(skeleton)` ticks InheritTimeline and mutates `bone.inherit` at step 2; the subsequent `updateWorldTransform(Physics.update)` at step 4 reads the new flag value and computes the appropriate detached-bone scale.
+- **TIMELINE-02 conditional escalation clause TRIGGERED.** Per ROADMAP "if InheritTimeline mutates a Bone field that affects updateWorldTransform, the test MUST assert peak > baseline (load-bearing — real-risk gap fix)." The TIMELINE-03 test (37-02) therefore asserts strict `peak(detached) > peak(baseline)` on a rig where a parent bone shrinks and a child bone toggles `Inherit.NoScale` at the shrink-peak frame.
+- **Verdict:** PASS. Sampler lifecycle already covers InheritTimeline correctly by construction. The TIMELINE-03 test (37-02) provides a fixture-driven regression lock. No `src/core/` changes required. If the TIMELINE-03 test fails (peak ≤ baseline at the detached frame), that surfaces a real sampler bug — Phase 37 scope expands to include the fix.
+
 ### Items deferred (unchanged)
 
 - Item 1 — Rotated atlas regions → SEED-004 (untouched).
-- Item 5 — RGBA2 + InheritTimeline → SEED-005 (untouched).
+- Item 5 — RGBA2 + InheritTimeline → SEED-005 (closed Phase 37 — see items 6 + 7 above).
 
 ### How to reopen
 
