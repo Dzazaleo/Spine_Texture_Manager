@@ -1,7 +1,8 @@
 ---
-status: issues_found
+status: resolved
 phase: 36-split-overrides-per-loader-mode
 reviewed: 2026-05-13
+resolved: 2026-05-13
 depth: standard
 files_reviewed: 12
 findings:
@@ -272,3 +273,20 @@ The behavior is correct today but the form is brittle to future maintenance.
 | Info | 0 | — |
 
 Recommend running `/gsd-code-review-fix 36` to auto-apply CR-01 and WR-02 first; WR-01 / WR-03 may need a small Phase 36.1 closure plan as they touch surface beyond the strict OVR-01..07 scope.
+
+---
+
+## Fix Log
+
+**Resolved:** 2026-05-13
+**Scope applied:** Critical (CR-01) + Warning (WR-01, WR-02, WR-03, WR-04). No Info findings.
+
+| Finding | Status | Commit | Notes |
+|---------|--------|--------|-------|
+| CR-01   | fixed  | `e08c18e` | `ResampleArgs` extended with optional `overridesAtlasLess`; renderer sends BOTH buckets unconditionally on `runReload` + samplingHz-change useEffect; `handleProjectResample` routes by bucket-name (not `loaderMode`); 3 new regression tests in `tests/main/project-io.spec.ts` drive the real handler; `appshell-mode-switch-divergence.spec.tsx` stub updated to match the new IPC shape. |
+| WR-01   | fixed  | `64e12c1` | `SerializableError.SkeletonNotFoundOnLoadError` arm extended with optional `loaderMode` / `sharpenOnExport` / `safetyBufferPercent`; populated at both `project-io.ts` rescue payload sites; threaded through `App.tsx`'s `handleLocateSkeleton`. |
+| WR-02   | fixed  | `dbdd621` | `mergedOverridesBuckets` validator now uses strict object guards (mirrors `project-file.ts:290-298` pattern); rejects non-null/non-array/plain-object sub-buckets. Error message updated to `"... as objects"` (no test depended on the verbatim previous string). |
+| WR-03   | fixed  | `9d62991` | Legacy-routing heuristic now requires `!hadOverridesAtlasLessKey` — sensed via `Object.prototype.hasOwnProperty.call(parsed, 'overridesAtlasLess')` BEFORE validator pre-massage substitutes `{}`. v1.5+ files always serialise the key explicitly, so the heuristic no longer fires on legitimate v1.5 atlas-source-mode files with an empty atlas-less bucket. Lower-effort alternative — no schema version bump (per review recommendation). |
+| WR-04   | fixed  | `29f4202` | `anyOverrides` lifted to a `useMemo` above `onToggleLoaderMode`; deps array now references the stable boolean memo instead of `[overrides.size, overridesAtlasLess.size]`. |
+
+**Verification:** All 1076 tests pass (+3 new CR-01 regression tests over the 1073 baseline). `npm run typecheck` clean except 3 pre-existing out-of-scope errors (`scripts/probe-per-anim.ts`, `tests/_trace_tmp/trace.spec.ts`, `tests/main/image-worker-rotation.spec.ts`).
