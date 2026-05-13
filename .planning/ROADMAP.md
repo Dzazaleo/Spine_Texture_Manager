@@ -59,7 +59,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   5. `.planning/SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md` reflects items 5/6/7 closed and `.planning/seeds/SEED-005-rgba2-inherittimeline-coverage.md` frontmatter `status:` flips from `planted` to `closed` with closing phase reference.
 **Plans**: 3 plans
 - [x] 37-01-audit-rgba2-inherit-PLAN.md — Source-audit RGBA2Timeline + InheritTimeline; append Items 6 + 7 to SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md; log TIMELINE-02 conditional escalation TRIGGERED
-- [ ] 37-02-inherit-fixture-and-test-PLAN.md — Create fixtures/INHERIT_TIMELINE/ (JSON + atlas + placeholder PNG) + TIMELINE-03 sampler test asserting strict peak(detached) > peak(baseline)
+- [x] 37-02-inherit-fixture-and-test-PLAN.md — Create fixtures/INHERIT_TIMELINE/ (JSON + atlas + placeholder PNG) + TIMELINE-03 sampler test asserting strict peak(detached) > peak(baseline)
 - [ ] 37-03-rgba2-test-and-closure-PLAN.md — TIMELINE-04 RGBA2Timeline synthetic-injection geometry-invariance test + SEED-005 frontmatter status flip (planted → closed) + closure breadcrumb
 
 ### Phase 38: Phase 4 Code-Review Polish Pass
@@ -94,7 +94,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Split Overrides Per Loader Mode | 5/5 | Complete    | 2026-05-13 |
-| 37. Spine 4.2 Timeline Coverage Hardening | 1/3 | In Progress|  |
+| 37. Spine 4.2 Timeline Coverage Hardening | 2/3 | In Progress|  |
 | 38. Phase 4 Code-Review Polish Pass | 0/3 | Not started | - |
 | 39. Windows Host-Blocked UAT Burndown | 0/3 | Not started | - |
 
