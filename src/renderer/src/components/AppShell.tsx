@@ -340,8 +340,29 @@ export function AppShell({
   // Phase 8: when initialProject is provided (.stmproj routed through App.tsx),
   // seed the Map from the restored Record (Pitfall 3 boundary: Object → Map at
   // the IPC seam). Stale keys are already dropped main-side per D-150.
+  // Phase 36 SEED-007 L-01 — atlas-source bucket. Preserve the variable name
+  // (existing references throughout the file referred to atlas-source intent
+  // pre-Phase-36; semantic shift is no-op).
   const [overrides, setOverrides] = useState<Map<string, number>>(
     () => new Map(initialProject ? Object.entries(initialProject.restoredOverrides) : []),
+  );
+  // Phase 36 SEED-007 L-01 — atlas-less bucket. Seeded from
+  // initialProject.restoredOverridesAtlasLess on Open (Pitfall 3 boundary:
+  // Object → Map at the IPC seam). Strict mode-separation per
+  // project_strict_loadermode_separation (locked 2026-05-06).
+  const [overridesAtlasLess, setOverridesAtlasLess] = useState<Map<string, number>>(
+    () => new Map(initialProject ? Object.entries(initialProject.restoredOverridesAtlasLess ?? {}) : []),
+  );
+  // Phase 36 D-14 — active-mode slice. Read by the 4 buildExportPlan call
+  // sites, the OverrideDialog apply/clear handlers (D-08, D-10), the two
+  // panel mounts, AND the <AtlasPreviewModal> JSX prop mount at line 2138.
+  // Panel + modal prop signatures unchanged per OVR-05 — they still receive
+  // `overrides` but the slice that crosses the prop boundary is mode-aware.
+  // Atlas-source mode (auto / undefined-loaderMode legacy) reads the
+  // preserved `overrides` Map; atlas-less mode reads `overridesAtlasLess`.
+  const activeOverrides = useMemo(
+    () => (loaderMode === 'atlas-less' ? overridesAtlasLess : overrides),
+    [loaderMode, overrides, overridesAtlasLess],
   );
 
   // ---------------------------------------------------------------------------
@@ -362,6 +383,7 @@ export function AppShell({
    */
   const [lastSaved, setLastSaved] = useState<{
     overrides: Record<string, number>;
+    overridesAtlasLess: Record<string, number>; // Phase 36 D-11 — sibling snapshot of atlas-less bucket
     samplingHz: number;
     sharpenOnExport: boolean; // Phase 28 SHARP-01
     safetyBufferPercent: number; // Phase 30 BUFFER-03
@@ -369,6 +391,7 @@ export function AppShell({
     initialProject
       ? {
           overrides: { ...initialProject.restoredOverrides },
+          overridesAtlasLess: { ...(initialProject.restoredOverridesAtlasLess ?? {}) }, // Phase 36 D-11
           samplingHz: initialProject.samplingHz,
           sharpenOnExport: initialProject.sharpenOnExport ?? false,
           safetyBufferPercent: initialProject.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
@@ -429,7 +452,13 @@ export function AppShell({
     message: string;
     originalSkeletonPath: string;
     projectPath: string;
-    mergedOverrides: Record<string, number>;
+    // Phase 36 SEED-007 D-12 — renamed from mergedOverrides. Carries both
+    // mode buckets so locate-skeleton recovery preserves both atlas-source
+    // and atlas-less overrides across the rescue → reload cycle.
+    mergedOverridesBuckets: {
+      overrides: Record<string, number>;
+      overridesAtlasLess: Record<string, number>;
+    };
     cachedSamplingHz: number;
     cachedLastOutDir: string | null;
     cachedSortColumn: string | null;
@@ -561,7 +590,9 @@ export function AppShell({
       // math is row-agnostic.
       let currentPercent = 100;
       if (row.peakScale > 0) {
-        const stored = overrides.get(rowKey);
+        // Phase 36 D-14 — read the active-mode slice so the dialog prefills
+        // from the bucket the user is currently editing.
+        const stored = activeOverrides.get(rowKey);
         const overrideFrac = stored !== undefined ? clampOverride(stored) / 100 : 1;
         const canonW = row.canonicalW ?? row.sourceW;
         const canonH = row.canonicalH ?? row.sourceH;
@@ -576,10 +607,11 @@ export function AppShell({
         currentPercent = clampOverride(currentPercent);
       }
       // D-80: Reset-to-peak button visible when ANY scope row has an existing override.
-      const anyOverridden = scope.some((name) => overrides.has(name));
+      // Phase 36 D-14 — `has` against the active-mode slice.
+      const anyOverridden = scope.some((name) => activeOverrides.has(name));
       setDialogState({ scope, currentPercent, anyOverridden });
     },
-    [overrides],
+    [activeOverrides],
   );
 
   const onApplyOverride = useCallback((scope: string[], percent: number) => {
@@ -587,24 +619,31 @@ export function AppShell({
     // from renderer; the renderer copy in lib/overrides-view is the
     // canonical path for renderer-side clamp math.
     const clamped = clampOverride(percent);
-    setOverrides((prev) => {
+    // Phase 36 D-08 + D-10 — active-bucket-only write. Atlas-less mode
+    // writes into overridesAtlasLess; otherwise into the preserved
+    // atlas-source bucket. Mode-switch never auto-copies (OVR-03).
+    const setActive = loaderMode === 'atlas-less' ? setOverridesAtlasLess : setOverrides;
+    setActive((prev) => {
       const next = new Map(prev);
       // D-88: batch writes the same percent to every scope entry.
       for (const name of scope) next.set(name, clamped);
       return next;
     });
     setDialogState(null);
-  }, []);
+  }, [loaderMode]);
 
   const onClearOverride = useCallback((scope: string[]) => {
-    setOverrides((prev) => {
+    // Phase 36 D-08 — clear routes through the same active-bucket-only
+    // setter selection as onApplyOverride.
+    const setActive = loaderMode === 'atlas-less' ? setOverridesAtlasLess : setOverrides;
+    setActive((prev) => {
       const next = new Map(prev);
       // D-76: clearing = delete from map; no sentinel. D-88: batch clears all scope.
       for (const name of scope) next.delete(name);
       return next;
     });
     setDialogState(null);
-  }, []);
+  }, [loaderMode]);
 
   // Phase 6 Plan 06 — D-117 + D-118 + D-122 toolbar click flow.
   //   1. Pre-fill the picker with <skeletonDir>/images-optimized/ (D-122).
@@ -636,11 +675,12 @@ export function AppShell({
   const onClickOptimize = useCallback(async () => {
     // Phase 30 BUFFER-01 — thread the buffer into the initial plan so the
     // dialog's summary tiles reflect the user's current setting on open.
-    const plan = buildExportPlan(summary, overrides, {
+    // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
+    const plan = buildExportPlan(summary, activeOverrides, {
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState({ plan, outDir: lastOutDir });
-  }, [summary, overrides, lastOutDir, safetyBufferPercentLocal]);
+  }, [summary, activeOverrides, lastOutDir, safetyBufferPercentLocal]);
 
   // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
   //
@@ -758,12 +798,13 @@ export function AppShell({
     }
     // Phase 30 BUFFER-01 — thread the buffer so the rebuilt plan after a
     // pick-different reflects the user's current setting.
-    const plan = buildExportPlan(summary, overrides, {
+    // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
+    const plan = buildExportPlan(summary, activeOverrides, {
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState({ plan, outDir: newOutDir });
     setLastOutDir(newOutDir);
-  }, [pickOutputDir, summary, overrides, lastOutDir, safetyBufferPercentLocal]);
+  }, [pickOutputDir, summary, activeOverrides, lastOutDir, safetyBufferPercentLocal]);
   // closeBothDialogs is referenced in JSDoc above; keep the symbol live
   // for the typechecker even though it's no longer wired to any handler
   // (ConflictDialog Cancel routes through onConflictCancel which is more
@@ -804,6 +845,11 @@ export function AppShell({
         atlasPath: effectiveLoaderMode === 'atlas-less' ? null : (summary.atlasPath ?? null),
         imagesDir: null,
         overrides: Object.fromEntries(overrides),
+        // Phase 36 OVR-05 — Save serializes BOTH buckets. Active-mode independence
+        // means the file on disk carries the user's full editing intent regardless
+        // of which mode was active at save time. Mode-switch alone never dirties
+        // the snapshot (see isDirty derivation above).
+        overridesAtlasLess: Object.fromEntries(overridesAtlasLess),
         // Phase 9 Plan 06 — read from samplingHzLocal so an in-flight Settings
         // change is reflected in the saved session state. The prop seeds the
         // local on first mount; SettingsDialog.onApply mutates the local,
@@ -836,6 +882,7 @@ export function AppShell({
       summary.skeletonPath,
       summary.atlasPath,
       overrides,
+      overridesAtlasLess, // Phase 36 OVR-05 — sibling bucket in Save payload
       samplingHzLocal,
       documentation,
       loaderMode,
@@ -854,12 +901,13 @@ export function AppShell({
   // OptimizeDialog savings).
   const atlasPreviewState = useMemo(
     () =>
-      buildAtlasPreview(effectiveSummary, overrides, {
+      // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
+      buildAtlasPreview(effectiveSummary, activeOverrides, {
         mode: 'optimized',
         maxPageDim: 2048,
         safetyBufferPercent: safetyBufferPercentLocal, // Phase 30 BUFFER-01
       }),
-    [effectiveSummary, overrides, safetyBufferPercentLocal],
+    [effectiveSummary, activeOverrides, safetyBufferPercentLocal],
   );
 
   // Phase 20 D-21 — savings-percentage snapshot for the HTML export's
@@ -872,7 +920,8 @@ export function AppShell({
   const savingsPctMemo = useMemo<number | null>(() => {
     // Phase 30 BUFFER-01 — thread safety buffer so the savings snapshot
     // reflects the user's current buffer setting reactively.
-    const plan = buildExportPlan(effectiveSummary, overrides, {
+    // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
+    const plan = buildExportPlan(effectiveSummary, activeOverrides, {
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     if (plan.rows.length === 0) return null;
@@ -883,7 +932,7 @@ export function AppShell({
     const sumOutPixels = plan.rows.reduce((acc, r) => acc + r.outW * r.outH, 0);
     if (sumSourcePixels <= 0) return null;
     return (1 - sumOutPixels / sumSourcePixels) * 100;
-  }, [effectiveSummary, overrides, safetyBufferPercentLocal]);
+  }, [effectiveSummary, activeOverrides, safetyBufferPercentLocal]);
 
   /**
    * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.
@@ -912,6 +961,8 @@ export function AppShell({
       //   sharpenOnExport: false  (Phase 28 default)
       //   samplingHz: 120         (Phase 9 D-146 default)
       if (overrides.size > 0) return true;
+      // Phase 36 D-11 — atlas-less bucket also signals untitled-dirty.
+      if (overridesAtlasLess.size > 0) return true;
       if (safetyBufferPercentLocal !== 0) return true;
       if (sharpenOnExportLocal !== false) return true;
       if (samplingHzLocal !== 120) return true;
@@ -921,6 +972,14 @@ export function AppShell({
     for (const [k, v] of overrides) {
       if (lastSaved.overrides[k] !== v) return true;
     }
+    // Phase 36 D-11 — atlas-less bucket dirty check mirrors `overrides`.
+    // Mode-switch alone (no edits) stays clean because the dirty derivation
+    // has no `loaderMode` term and both buckets are compared against the
+    // snapshot independently of which slice is currently active.
+    if (overridesAtlasLess.size !== Object.keys(lastSaved.overridesAtlasLess).length) return true;
+    for (const [k, v] of overridesAtlasLess) {
+      if (lastSaved.overridesAtlasLess[k] !== v) return true;
+    }
     if (samplingHzLocal !== lastSaved.samplingHz) return true;
     // Phase 28 SHARP-01 — toggle change marks project dirty. Mirrors
     // samplingHz line above (D-06 — toggle persists per-project).
@@ -929,7 +988,7 @@ export function AppShell({
     // sharpenOnExport line above (D-14 — buffer persists per-project).
     if (safetyBufferPercentLocal !== lastSaved.safetyBufferPercent) return true;
     return false;
-  }, [overrides, lastSaved, samplingHzLocal, sharpenOnExportLocal, safetyBufferPercentLocal]);
+  }, [overrides, overridesAtlasLess, lastSaved, samplingHzLocal, sharpenOnExportLocal, safetyBufferPercentLocal]);
 
   /**
    * Phase 30 closure plan 30-04 — CR-01 fix. exportDialogState.plan is
@@ -967,12 +1026,13 @@ export function AppShell({
    */
   useEffect(() => {
     if (exportDialogState === null) return;
-    const plan = buildExportPlan(summary, overrides, {
+    // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
+    const plan = buildExportPlan(summary, activeOverrides, {
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState((prev) => (prev !== null ? { ...prev, plan } : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safetyBufferPercentLocal, summary, overrides, exportDialogState !== null]);
+  }, [safetyBufferPercentLocal, summary, activeOverrides, exportDialogState !== null]);
 
   /**
    * onClickSave — Save when currentProjectPath is set; Save As otherwise.
@@ -996,6 +1056,7 @@ export function AppShell({
       if (resp.ok) {
         setLastSaved({
           overrides: { ...state.overrides },
+          overridesAtlasLess: { ...state.overridesAtlasLess }, // Phase 36 D-11
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
           safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
@@ -1037,6 +1098,7 @@ export function AppShell({
         setCurrentProjectPath(resp.path);
         setLastSaved({
           overrides: { ...state.overrides },
+          overridesAtlasLess: { ...state.overridesAtlasLess }, // Phase 36 D-11
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
           safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
@@ -1079,7 +1141,10 @@ export function AppShell({
       skeletonPath: effectiveSummary.skeletonPath,
       atlasPath: effectiveSummary.atlasPath ?? undefined,
       samplingHz: samplingHzLocal,
-      overrides: Object.fromEntries(overrides),
+      // Phase 36 D-14 — resample is one-shot for the active bucket; the
+      // renderer's inactive bucket stays untouched on this round-trip. IPC
+      // schema is still single-Record (Pitfall 3 boundary).
+      overrides: Object.fromEntries(activeOverrides),
       lastOutDir,
       sortColumn: 'attachmentName',
       sortDir: 'asc',
@@ -1097,6 +1162,11 @@ export function AppShell({
     if (!resp.ok) return;
     setLocalSummary(resp.project.summary);
     setOverrides(new Map(Object.entries(resp.project.restoredOverrides)));
+    // Phase 36 G.1 — mirror the atlas-less bucket hydration on runReload.
+    // Symmetric to G.3 (samplingHz-change resample) — both hydrate from
+    // a resp.project payload. Missing this would wipe the inactive bucket
+    // on every locate-skeleton recovery cycle.
+    setOverridesAtlasLess(new Map(Object.entries(resp.project.restoredOverridesAtlasLess ?? {})));
     setStaleOverrideNotice(
       resp.project.staleOverrideKeys.length > 0
         ? resp.project.staleOverrideKeys
@@ -1120,7 +1190,7 @@ export function AppShell({
   }, [
     effectiveSummary,
     samplingHzLocal,
-    overrides,
+    activeOverrides, // Phase 36 D-14 — resample reads the active-mode slice
     lastOutDir,
     currentProjectPath,
     loaderMode,
@@ -1237,8 +1307,14 @@ export function AppShell({
     // pass real .stmproj paths and slot in unchanged.
     setCurrentProjectPath(project.projectFilePath !== '' ? project.projectFilePath : null);
     setOverrides(new Map(Object.entries(project.restoredOverrides)));
+    // Phase 36 G.2 — mirror the atlas-less bucket hydration. Uses the bare
+    // `project.` parameter variable (not `resp.project.`). Defensive `?? {}`
+    // accommodates legacy materializers that pre-date Plan 36-02.
+    setOverridesAtlasLess(new Map(Object.entries(project.restoredOverridesAtlasLess ?? {})));
     setLastSaved({
       overrides: { ...project.restoredOverrides },
+      // Phase 36 D-11 — snapshot the atlas-less bucket alongside `overrides`.
+      overridesAtlasLess: { ...(project.restoredOverridesAtlasLess ?? {}) },
       samplingHz: project.samplingHz,
       sharpenOnExport: project.sharpenOnExport ?? false, // Phase 28 SHARP-01
       safetyBufferPercent: project.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
@@ -1302,7 +1378,8 @@ export function AppShell({
     const resp = await window.api.reloadProjectWithSkeleton({
       projectPath: skeletonNotFoundError.projectPath,
       newSkeletonPath: located.newPath,
-      mergedOverrides: skeletonNotFoundError.mergedOverrides,
+      // Phase 36 SEED-007 D-12 — renamed from mergedOverrides; carries both buckets.
+      mergedOverridesBuckets: skeletonNotFoundError.mergedOverridesBuckets,
       samplingHz: skeletonNotFoundError.cachedSamplingHz,
       lastOutDir: skeletonNotFoundError.cachedLastOutDir,
       sortColumn: skeletonNotFoundError.cachedSortColumn,
@@ -1510,7 +1587,10 @@ export function AppShell({
         atlasPath: summary.atlasPath ?? undefined,
         samplingHz: samplingHzLocal,
         // Pitfall 3 boundary conversion: Map → Record at the IPC seam.
-        overrides: Object.fromEntries(overrides),
+        // Phase 36 D-14 — read the active-mode slice. The inactive bucket
+        // stays untouched on the renderer side; legacy single-Record IPC
+        // schema preserved.
+        overrides: Object.fromEntries(activeOverrides),
         lastOutDir: null,
         sortColumn: 'attachmentName',
         sortDir: 'asc',
@@ -1540,6 +1620,12 @@ export function AppShell({
         // the existing banner; restoredOverrides re-mounts the Map.
         setLocalSummary(resp.project.summary);
         setOverrides(new Map(Object.entries(resp.project.restoredOverrides)));
+        // Phase 36 G.3 — mirror the atlas-less bucket hydration on every
+        // samplingHz-change resample. Symmetric to G.1 (runReload) — both
+        // hydrate from a resp.project payload. Missing this site would
+        // wipe the atlas-less bucket on every samplingHz change AND on
+        // every loaderMode toggle (the useEffect re-fires on either dep).
+        setOverridesAtlasLess(new Map(Object.entries(resp.project.restoredOverridesAtlasLess ?? {})));
         setStaleOverrideNotice(
           resp.project.staleOverrideKeys.length > 0
             ? resp.project.staleOverrideKeys
@@ -2042,7 +2128,8 @@ export function AppShell({
           <GlobalMaxRenderPanel
             summary={effectiveSummary}
             onJumpToAnimation={onJumpToAnimation}
-            overrides={overrides}
+            /* Phase 36 D-14 — mode-aware slice flows through unchanged prop name. */
+            overrides={activeOverrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
             /* Phase 7 D-130 NEW props — mirror AnimationBreakdownPanel's
                focusAnimationName/onFocusConsumed pair.
@@ -2061,7 +2148,8 @@ export function AppShell({
             summary={effectiveSummary}
             focusAnimationName={focusAnimationName}
             onFocusConsumed={onFocusConsumed}
-            overrides={overrides}
+            /* Phase 36 D-14 — mode-aware slice flows through unchanged prop name. */
+            overrides={activeOverrides}
             onOpenOverrideDialog={onOpenOverrideDialog}
             query={query}
             onQueryChange={setQuery}
@@ -2135,7 +2223,11 @@ export function AppShell({
         <AtlasPreviewModal
           open={true}
           summary={effectiveSummary}
-          overrides={overrides}
+          /* Phase 36 D-14 — mode-aware slice. The modal's internal useMemo
+             snapshots this prop on open / mode toggle, so passing
+             activeOverrides ensures the atlas preview reflects the active-
+             mode bucket (atlas-source vs atlas-less). */
+          overrides={activeOverrides}
           onJumpToRegion={onJumpToRegion}
           onClose={() => setAtlasPreviewOpen(false)}
           onOpenOptimizeDialog={onClickOptimize}

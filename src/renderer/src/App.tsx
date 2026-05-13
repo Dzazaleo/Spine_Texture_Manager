@@ -187,7 +187,8 @@ export function App() {
     const resp = await window.api.reloadProjectWithSkeleton({
       projectPath: state.error.projectPath,
       newSkeletonPath: located.newPath,
-      mergedOverrides: state.error.mergedOverrides,
+      // Phase 36 SEED-007 D-12 — renamed from mergedOverrides; carries both buckets.
+      mergedOverridesBuckets: state.error.mergedOverridesBuckets,
       samplingHz: state.error.samplingHz,
       lastOutDir: state.error.lastOutDir,
       sortColumn: state.error.sortColumn,
