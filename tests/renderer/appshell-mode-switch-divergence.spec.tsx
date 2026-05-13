@@ -163,21 +163,31 @@ function makeSummary(opts: { atlasPath: string | null } = { atlasPath: '/a/b/SIM
 /**
  * Echo-style resample stub. Tracks the two buckets across calls so that the
  * resample-on-toggle (resample useEffect deps include `loaderMode`) preserves
- * state on the renderer side after re-hydration. Mirrors the Plan-36-02
- * per-bucket migration contract: the response carries BOTH buckets back so
- * the renderer's line-1542 sibling hydration can re-mount them.
+ * state on the renderer side after re-hydration. Mirrors the post-CR-01-fix
+ * main-process per-bucket migration contract: the response carries BOTH
+ * buckets back so the renderer's line-1656 sibling hydration can re-mount
+ * them.
  *
  * Returns a function suitable for `vi.mocked(window.api.resampleProject).mockImplementation(...)`.
  *
+ * Phase 36 CR-01 fix — pre-fix the renderer sent only the active bucket via
+ * `args.overrides` and this stub routed by `args.loaderMode`, which is what
+ * the broken main-side handler effectively did (and what hid the bug from
+ * this test). Post-CR-01 the renderer sends BOTH buckets unconditionally
+ * (`args.overrides` = atlas-source, `args.overridesAtlasLess` = atlas-less),
+ * and main routes by bucket-NAME, not by `loaderMode`. The stub now mirrors
+ * that contract.
+ *
  * The caller seeds the initial state via `initial`. On each call, the stub:
- *   - Reads `args.overrides` (the active bucket the renderer just sent over
- *     the wire — Pitfall-3 boundary).
- *   - Updates the bucket in `state` keyed by `args.loaderMode`.
+ *   - Reads `args.overrides`           (atlas-source bucket).
+ *   - Reads `args.overridesAtlasLess`  (atlas-less bucket; defaults to `{}`
+ *                                       if the renderer omitted it).
+ *   - Updates both buckets in `state` from the matching field.
  *   - Echoes BOTH buckets back via `restoredOverrides` + `restoredOverridesAtlasLess`.
  *
  * The closure variable can also be mutated externally between resample calls
  * (Test 3 uses this to force a SPECIFIC return shape for the samplingHz-change
- * call to confirm the renderer's line-1542 hydration site re-mounts the
+ * call to confirm the renderer's line-1656 hydration site re-mounts the
  * inactive bucket from the response — not from local closure state).
  */
 function makeResampleEcho(initial: {
@@ -192,13 +202,11 @@ function makeResampleEcho(initial: {
     overridesAtlasLess: { ...initial.overridesAtlasLess },
   };
   const impl = (args: ResampleArgs): Promise<OpenResponse> => {
-    // Update the bucket the renderer just sent (active bucket only) — mirrors
-    // Plan-36-02 main-side per-bucket migration.
-    if (args.loaderMode === 'atlas-less') {
-      state.overridesAtlasLess = { ...args.overrides };
-    } else {
-      state.overrides = { ...args.overrides };
-    }
+    // Phase 36 CR-01 fix — route by bucket-name, NOT by loaderMode. Both
+    // buckets are sent on every call; mirror what the production main-side
+    // handler now does.
+    state.overrides = { ...args.overrides };
+    state.overridesAtlasLess = { ...(args.overridesAtlasLess ?? {}) };
     return Promise.resolve({
       ok: true,
       project: {

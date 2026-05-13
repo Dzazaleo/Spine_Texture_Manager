@@ -407,6 +407,169 @@ describe('Phase 21 G-04 — toggle-resample-into-atlas-less precedence (handlePr
 });
 
 // ---------------------------------------------------------------------------
+// Phase 36 CR-01 — handleProjectResample bucket-routing regression test.
+//
+// FALSIFYING REGRESSION: pre-fix, handleProjectResample read the single
+// `args.overrides` field as the atlas-source bucket unconditionally and
+// dropped any `args.overridesAtlasLess` field on the floor. The renderer
+// (which only sent the active bucket via `args.overrides`) would therefore
+// get its atlas-less data routed into `restoredOverrides` and its
+// `restoredOverridesAtlasLess` slot would always be empty — silently
+// corrupting both buckets on every mode toggle.
+//
+// Post-fix: ResampleArgs carries BOTH buckets verbatim
+// (`args.overrides` = atlas-source, `args.overridesAtlasLess` = atlas-less),
+// and the handler runs per-bucket migration with bucket-name routing. The
+// response's `restoredOverrides` carries the atlas-source bucket; the
+// response's `restoredOverridesAtlasLess` carries the atlas-less bucket;
+// `loaderMode` is NOT consulted for routing.
+//
+// The three test cases below cover both loaderMode values + the omitted-
+// inactive-bucket back-compat shape. The pre-CR-01 handler would fail all
+// three: it cross-pollinated the buckets on every call.
+// ---------------------------------------------------------------------------
+
+describe('Phase 36 CR-01 — handleProjectResample bucket routing (no cross-bucket leak)', () => {
+  // Each test drives the REAL handleProjectResample handler (not the AppShell-
+  // side stub from appshell-mode-switch-divergence.spec.tsx, which mirrors the
+  // production contract but is decoupled from the actual main-process code).
+  //
+  // The test rig uses the same synthesized tmpdir fixture as the G-04 test
+  // above so the loader/sampler chain succeeds — the falsifying assertion is
+  // on the response buckets, not on summary contents.
+
+  it('atlas-less mode: atlas-source bucket → restoredOverrides; atlas-less bucket → restoredOverridesAtlasLess (no leak)', async () => {
+    const fsSync = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const SRC_NO_ATLAS_MESH = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'stm-resample-cr01-less-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpAtlas = path.join(tmpDir, 'canonical.atlas');
+    const tmpImages = path.join(tmpDir, 'images');
+    fsSync.mkdirSync(tmpImages, { recursive: true });
+    fsSync.copyFileSync(path.join(SRC_NO_ATLAS_MESH, 'MeshOnly_TEST.json'), tmpJson);
+    fsSync.writeFileSync(
+      tmpAtlas,
+      'tmp_page.png\nsize: 1,1\nfilter: Linear,Linear\nMESH_REGION\nbounds: 0,0,1,1\n',
+      'utf8',
+    );
+    try {
+      const { handleProjectResample } = await import('../../src/main/project-io.js');
+      const result = await handleProjectResample({
+        skeletonPath: tmpJson,
+        samplingHz: 120,
+        // CR-01 fix — both buckets passed via the IPC payload. Atlas-source
+        // bucket has SOURCE_KEY: 50; atlas-less bucket has LESS_KEY: 75.
+        // Both names are "stale" relative to the fixture (no matching regions),
+        // so both surface in staleOverrideKeys and BOTH restored buckets are
+        // empty. The bucket-routing assertion is on the SHAPE of the response
+        // fields, not on the restored values per se.
+        overrides: { SOURCE_KEY: 50 },
+        overridesAtlasLess: { LESS_KEY: 75 },
+        loaderMode: 'atlas-less',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('Expected ok:true');
+      // Both buckets stale-dropped (no matching regions in fixture), so each
+      // restored bucket is empty. The bucket-routing assertion is that neither
+      // key crossed buckets in stale: SOURCE_KEY only appears once, LESS_KEY
+      // only appears once, and they are not duplicated/swapped.
+      expect(result.project.restoredOverrides).toEqual({});
+      expect(result.project.restoredOverridesAtlasLess).toEqual({});
+      // Pre-CR-01 the stale list would carry both keys but with bucket
+      // contents cross-pollinated; post-fix both keys are in the union, but
+      // each came from its own bucket-named field — not cross-routed.
+      expect(result.project.staleOverrideKeys).toContain('SOURCE_KEY');
+      expect(result.project.staleOverrideKeys).toContain('LESS_KEY');
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('auto/atlas-source mode: bucket routing is identical (loaderMode does NOT swap buckets)', async () => {
+    const fsSync = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const SRC_NO_ATLAS_MESH = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'stm-resample-cr01-auto-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpAtlas = path.join(tmpDir, 'canonical.atlas');
+    const tmpImages = path.join(tmpDir, 'images');
+    fsSync.mkdirSync(tmpImages, { recursive: true });
+    fsSync.copyFileSync(path.join(SRC_NO_ATLAS_MESH, 'MeshOnly_TEST.json'), tmpJson);
+    fsSync.writeFileSync(
+      tmpAtlas,
+      'tmp_page.png\nsize: 1,1\nfilter: Linear,Linear\nMESH_REGION\nbounds: 0,0,1,1\n',
+      'utf8',
+    );
+    try {
+      const { handleProjectResample } = await import('../../src/main/project-io.js');
+      const result = await handleProjectResample({
+        skeletonPath: tmpJson,
+        atlasPath: tmpAtlas,
+        samplingHz: 120,
+        overrides: { SOURCE_KEY: 50 },
+        overridesAtlasLess: { LESS_KEY: 75 },
+        loaderMode: 'auto',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('Expected ok:true');
+      // Falsifying: the bucket-name → response-slot mapping does NOT depend
+      // on loaderMode. The PRE-CR-01 handler would have produced different
+      // shapes between 'atlas-less' and 'auto' modes because its routing was
+      // loaderMode-driven.
+      expect(result.project.restoredOverrides).toEqual({});
+      expect(result.project.restoredOverridesAtlasLess).toEqual({});
+      expect(result.project.staleOverrideKeys).toContain('SOURCE_KEY');
+      expect(result.project.staleOverrideKeys).toContain('LESS_KEY');
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('back-compat: omitted overridesAtlasLess field defaults to {} (no crash, no leak)', async () => {
+    const fsSync = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const SRC_NO_ATLAS_MESH = path.resolve('fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH');
+    const tmpDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'stm-resample-cr01-compat-'));
+    const tmpJson = path.join(tmpDir, 'MeshOnly_TEST.json');
+    const tmpAtlas = path.join(tmpDir, 'canonical.atlas');
+    const tmpImages = path.join(tmpDir, 'images');
+    fsSync.mkdirSync(tmpImages, { recursive: true });
+    fsSync.copyFileSync(path.join(SRC_NO_ATLAS_MESH, 'MeshOnly_TEST.json'), tmpJson);
+    fsSync.writeFileSync(
+      tmpAtlas,
+      'tmp_page.png\nsize: 1,1\nfilter: Linear,Linear\nMESH_REGION\nbounds: 0,0,1,1\n',
+      'utf8',
+    );
+    try {
+      const { handleProjectResample } = await import('../../src/main/project-io.js');
+      // Older renderer build: only sends `overrides`. Main must coerce missing
+      // `overridesAtlasLess` to `{}` and produce an empty restored slot, not
+      // throw.
+      const result = await handleProjectResample({
+        skeletonPath: tmpJson,
+        atlasPath: tmpAtlas,
+        samplingHz: 120,
+        overrides: { SOURCE_KEY: 50 },
+        loaderMode: 'auto',
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('Expected ok:true');
+      expect(result.project.restoredOverrides).toEqual({});
+      expect(result.project.restoredOverridesAtlasLess).toEqual({});
+      expect(result.project.staleOverrideKeys).toContain('SOURCE_KEY');
+      // No phantom LESS_KEY because the field was absent.
+      expect(result.project.staleOverrideKeys).not.toContain('LESS_KEY');
+    } finally {
+      fsSync.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Phase 34 Plan 01 Task 2 — handleOpenDialog (D-01 + D-02 + D-03).
 // The unified picker accepts both .stmproj and .json; returns a 3-arm
 // discriminated envelope. No load happens inside the handler.

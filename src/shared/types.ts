@@ -1174,11 +1174,28 @@ export interface ResampleArgs {
   /** New sampling rate. Main re-validates as positive integer. */
   samplingHz: number;
   /**
-   * Current overrides from AppShell's overrides Map, converted via
-   * Object.fromEntries. Main re-intersects against the new sampler peaks
-   * (D-150 stale-key drop), so the renderer doesn't need to pre-filter.
+   * Current overrides from AppShell's overrides Map (atlas-source bucket),
+   * converted via Object.fromEntries. Main re-intersects against the new
+   * sampler peaks (D-150 stale-key drop), so the renderer doesn't need to
+   * pre-filter.
+   *
+   * Phase 36 CR-01 fix — historically (pre-fix) this slot carried the
+   * ACTIVE bucket only (active=atlas-less when loaderMode==='atlas-less',
+   * else atlas-source). That single-slot routing silently corrupted both
+   * buckets on every mode toggle because the main handler routed this
+   * field as the atlas-source bucket unconditionally. The fix routes
+   * BY `loaderMode` instead: this field is always the atlas-source bucket
+   * and `overridesAtlasLess` (below) is always the atlas-less bucket.
    */
   overrides: Record<string, number>;
+  /**
+   * Phase 36 CR-01 — atlas-less override bucket. Sibling to `overrides`
+   * above; both buckets cross the IPC seam unconditionally so the main
+   * handler can re-materialise BOTH buckets per `loaderMode`. Optional
+   * for back-compat: older renderer builds that omit the field default
+   * to `{}` at the main-side coercion in `handleProjectResample`.
+   */
+  overridesAtlasLess?: Record<string, number>;
   /** Optional metadata round-tripped into MaterializedProject (no behavioral effect). */
   lastOutDir?: string | null;
   sortColumn?: string | null;

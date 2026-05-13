@@ -1151,28 +1151,43 @@ export async function handleProjectResample(
   // earlier seams). Per-key value validation guards against bad serialization
   // across IPC; migration counts travel through to the renderer banner.
   //
-  // Phase 36 OVR-04 — per-bucket migration at the resample seam.
-  // ResampleArgs (src/shared/types.ts:1167) carries the active bucket
-  // verbatim as `overrides: Record<string, number>` (Pitfall-3 boundary;
-  // the renderer Plan 36-03 sends `Object.fromEntries(activeOverrides)`).
-  // The atlas-less bucket is NOT part of the ResampleArgs type contract
-  // (Plan 36-01 deliberately did not add it — the resample IPC is one-shot
-  // for the active bucket). Defensively read `a.overridesAtlasLess` if
-  // present (forward-compat for a future ResampleArgs extension); default
-  // to `{}` when the field is missing. Per-bucket migration runs against
-  // the shared mode-invariant summary.regions; the missing-bucket call is
-  // a no-op (migrateOverrides({}, summary) returns empty restored/stale
-  // and 0 migratedKeyCount). The response carries both restoredOverrides
-  // and restoredOverridesAtlasLess so AppShell.mountOpenResponse (Plan
-  // 36-03) can re-hydrate the inactive bucket from the renderer's own
-  // useState slot (the inactive bucket round-trips through the renderer,
-  // not the IPC seam, on the resample path).
-  const resampleAtlasLessInput: Record<string, unknown> =
+  // Phase 36 CR-01 fix — per-bucket migration at the resample seam, with
+  // BUCKET ROUTING BY loaderMode.
+  //
+  // Historical bug (fixed by this code): pre-fix, the renderer sent the
+  // ACTIVE bucket only via `args.overrides` (active=atlas-less when
+  // loaderMode==='atlas-less', else atlas-source). The handler unconditionally
+  // routed `args.overrides` into the atlas-source bucket on the response.
+  // Every mode toggle therefore had the side-effect of moving the active
+  // bucket's data into the wrong response slot, destroying both buckets on
+  // the renderer hydration that followed (CR-01 silent corruption).
+  //
+  // Post-fix: ResampleArgs (Plan 36-01 + CR-01) carries BOTH buckets
+  // unconditionally:
+  //   - `args.overrides`           = atlas-source bucket
+  //   - `args.overridesAtlasLess`  = atlas-less bucket
+  //
+  // The renderer always sends both via Object.fromEntries on each Map. The
+  // optional shape on `overridesAtlasLess` is back-compat for older renderer
+  // builds (or a future caller that only re-materialises one bucket); when
+  // absent we default to `{}` and the per-bucket migration call is a no-op
+  // (migrateOverrides({}, summary) returns empty restored/stale, 0
+  // migratedKeyCount).
+  //
+  // Per-bucket migration runs against the shared mode-invariant
+  // summary.regions; the response carries both `restoredOverrides` (atlas-
+  // source) and `restoredOverridesAtlasLess` (atlas-less) so AppShell can
+  // re-hydrate BOTH buckets symmetrically.
+  const incomingAtlasSource: Record<string, unknown> =
+    a.overrides && typeof a.overrides === 'object'
+      ? (a.overrides as Record<string, unknown>)
+      : {};
+  const incomingAtlasLess: Record<string, unknown> =
     a.overridesAtlasLess && typeof a.overridesAtlasLess === 'object'
       ? (a.overridesAtlasLess as Record<string, unknown>)
       : {};
-  const aSrcRes = migrateOverrides(a.overrides as Record<string, unknown>, summary);
-  const aLessRes = migrateOverrides(resampleAtlasLessInput, summary);
+  const aSrcRes = migrateOverrides(incomingAtlasSource, summary);
+  const aLessRes = migrateOverrides(incomingAtlasLess, summary);
   const restored = aSrcRes.restored;
   const restoredAtlasLess = aLessRes.restored;
   const stale = [...new Set([...aSrcRes.stale, ...aLessRes.stale])]; // D-06 union

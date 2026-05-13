@@ -1169,10 +1169,16 @@ export function AppShell({
       skeletonPath: effectiveSummary.skeletonPath,
       atlasPath: effectiveSummary.atlasPath ?? undefined,
       samplingHz: samplingHzLocal,
-      // Phase 36 D-14 — resample is one-shot for the active bucket; the
-      // renderer's inactive bucket stays untouched on this round-trip. IPC
-      // schema is still single-Record (Pitfall 3 boundary).
-      overrides: Object.fromEntries(activeOverrides),
+      // Phase 36 CR-01 fix — send BOTH buckets unconditionally. Pre-CR-01 the
+      // payload carried only the active bucket via `overrides` and the main
+      // handler routed it as atlas-source unconditionally, silently corrupting
+      // both buckets on every mode toggle. Post-fix, atlas-source goes in
+      // `overrides`, atlas-less goes in `overridesAtlasLess`; main routes by
+      // bucket-name (not by `loaderMode`) and the response carries both
+      // restored buckets verbatim. Pitfall-3 boundary (Map → Record) applies
+      // to both fields.
+      overrides: Object.fromEntries(overrides),
+      overridesAtlasLess: Object.fromEntries(overridesAtlasLess),
       lastOutDir,
       sortColumn: 'attachmentName',
       sortDir: 'asc',
@@ -1218,7 +1224,11 @@ export function AppShell({
   }, [
     effectiveSummary,
     samplingHzLocal,
-    activeOverrides, // Phase 36 D-14 — resample reads the active-mode slice
+    // Phase 36 CR-01 fix — runReload now sends BOTH buckets unconditionally
+    // (was: activeOverrides single slice). The dep array must mirror the
+    // payload so the callback rebinds when either bucket mutates.
+    overrides,
+    overridesAtlasLess,
     lastOutDir,
     currentProjectPath,
     loaderMode,
@@ -1615,10 +1625,14 @@ export function AppShell({
         atlasPath: summary.atlasPath ?? undefined,
         samplingHz: samplingHzLocal,
         // Pitfall 3 boundary conversion: Map → Record at the IPC seam.
-        // Phase 36 D-14 — read the active-mode slice. The inactive bucket
-        // stays untouched on the renderer side; legacy single-Record IPC
-        // schema preserved.
-        overrides: Object.fromEntries(activeOverrides),
+        // Phase 36 CR-01 fix — send BOTH buckets unconditionally. Pre-CR-01
+        // the payload carried only the active bucket via `overrides` and
+        // main routed it as atlas-source, silently corrupting both buckets
+        // on every mode toggle. Post-fix, the renderer passes both buckets
+        // and main routes by bucket-name; the response carries both restored
+        // buckets so the line-1656 sibling hydration round-trips correctly.
+        overrides: Object.fromEntries(overrides),
+        overridesAtlasLess: Object.fromEntries(overridesAtlasLess),
         lastOutDir: null,
         sortColumn: 'attachmentName',
         sortDir: 'asc',
