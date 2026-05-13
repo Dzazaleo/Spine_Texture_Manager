@@ -84,15 +84,29 @@ Explicit exclusions with reasoning.
 
 ## Traceability
 
-(Filled by the roadmapper — each REQ-ID maps to exactly one phase below.)
+Each REQ-ID maps to exactly one phase in `.planning/ROADMAP.md`. 18/18 v1.5 REQs mapped (no orphans, no duplicates).
 
 | REQ-ID | Phase |
 |--------|-------|
-| OVR-01..07 | TBD |
-| TIMELINE-01..05 | TBD |
-| POLISH-01..03 | TBD |
-| WINUAT-01..03 | TBD |
+| OVR-01 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-02 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-03 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-04 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-05 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-06 | Phase 36 — Split Overrides Per Loader Mode |
+| OVR-07 | Phase 36 — Split Overrides Per Loader Mode |
+| TIMELINE-01 | Phase 37 — Spine 4.2 Timeline Coverage Hardening |
+| TIMELINE-02 | Phase 37 — Spine 4.2 Timeline Coverage Hardening |
+| TIMELINE-03 | Phase 37 — Spine 4.2 Timeline Coverage Hardening |
+| TIMELINE-04 | Phase 37 — Spine 4.2 Timeline Coverage Hardening |
+| TIMELINE-05 | Phase 37 — Spine 4.2 Timeline Coverage Hardening |
+| POLISH-01 | Phase 38 — Phase 4 Code-Review Polish Pass |
+| POLISH-02 | Phase 38 — Phase 4 Code-Review Polish Pass |
+| POLISH-03 | Phase 38 — Phase 4 Code-Review Polish Pass |
+| WINUAT-01 | Phase 39 — Windows Host-Blocked UAT Burndown |
+| WINUAT-02 | Phase 39 — Windows Host-Blocked UAT Burndown |
+| WINUAT-03 | Phase 39 — Windows Host-Blocked UAT Burndown |
 
 ---
 
-*Sourced from `.planning/seeds/SEED-005-rgba2-inherittimeline-coverage.md` + `.planning/seeds/SEED-007-split-overrides-per-loader-mode.md` + the three carry-forward todos in `.planning/todos/pending/`. SEED-007 decisions 1, 2-A, 3-A are LOCKED — do not relitigate during phase planning.*
+*Sourced from `.planning/seeds/SEED-005-rgba2-inherittimeline-coverage.md` + `.planning/seeds/SEED-007-split-overrides-per-loader-mode.md` + the three carry-forward todos in `.planning/todos/pending/`. SEED-007 decisions 1, 2-A, 3-A are LOCKED — do not relitigate during phase planning. TIMELINE-02 conditional escalation clause: if InheritTimeline audit reveals world-transform effects, TIMELINE-03 becomes load-bearing — Phase 37 planning checkpoint, not deferred risk. WINUAT-01..03 host-blocked: Phase 39 outcome is `human_needed` if no Win host available this cycle; todos carry forward to v1.6+.*
