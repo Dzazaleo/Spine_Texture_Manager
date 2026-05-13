@@ -22,7 +22,7 @@ v1.5 (Override Routing + Coverage Hardening) is a focused tech-debt + correctnes
 
 v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 
-- [ ] **Phase 36: Split Overrides Per Loader Mode** — Schema-additive `overridesAtlasLess` bucket + legacy file routing + per-bucket migration + AppShell threading (SEED-007 decisions 1/2-A/3-A locked)
+- [x] **Phase 36: Split Overrides Per Loader Mode** — Schema-additive `overridesAtlasLess` bucket + legacy file routing + per-bucket migration + AppShell threading (SEED-007 decisions 1/2-A/3-A locked) (completed 2026-05-13)
 - [ ] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B)
 - [ ] **Phase 38: Phase 4 Code-Review Polish Pass** — Audit IN-01..06 against current code, apply still-applicable findings, resolve long-lived v1.0-era todo
 - [ ] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable
@@ -40,11 +40,11 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   4. Override migration runs independently per bucket against the shared mode-invariant `summary.regions`; `migratedKeyCount` sums across buckets and stale keys union for the migration banner.
   5. `buildExportPlan` signature is unchanged, panel prop signatures are unchanged, no `.stmproj` schema version bump is required (pure additive field, follows `loaderMode` / `sharpenOnExport` / `safetyBufferPercent` precedent), and SEED-007 frontmatter `status:` flips from `dormant` to `closed` at phase close.
 **Plans**: 5 plans
-- [ ] 36-01-PLAN.md — Types + validator pre-massage (`overridesAtlasLess` + `restoredOverridesAtlasLess` + `mergedOverridesBuckets` rename in shared/types.ts; project-file.ts pre-massage + serializer + materializer)
-- [ ] 36-02-PLAN.md — Main-side IO: per-bucket migration at all 3 seams + legacy-routing decision (D-02/L-02) at the Open seam + rename `mergedOverrides` → `mergedOverridesBuckets` at rescue payloads
-- [ ] 36-03-PLAN.md — AppShell two-Map state + `activeOverrides` memo + thread through 4× `buildExportPlan` + OverrideDialog active-bucket writes + Save dual-bucket + `lastSaved`/dirty + mountOpenResponse/runReload + App.tsx rename + one-shot mode-toggle toast (D-01..D-04)
-- [ ] 36-04-PLAN.md — Tests: round-trip both buckets + legacy pre-massage path in `project-file.spec.ts`; per-bucket migration + stale-union in `override-migration.spec.ts`
-- [ ] 36-05-PLAN.md — AppShell mode-switch divergence integration test + SEED-007 status flip (dormant → closed) + phase-wide quality gate
+- [x] 36-01-PLAN.md — Types + validator pre-massage (`overridesAtlasLess` + `restoredOverridesAtlasLess` + `mergedOverridesBuckets` rename in shared/types.ts; project-file.ts pre-massage + serializer + materializer)
+- [x] 36-02-PLAN.md — Main-side IO: per-bucket migration at all 3 seams + legacy-routing decision (D-02/L-02) at the Open seam + rename `mergedOverrides` → `mergedOverridesBuckets` at rescue payloads
+- [x] 36-03-PLAN.md — AppShell two-Map state + `activeOverrides` memo + thread through 4× `buildExportPlan` + OverrideDialog active-bucket writes + Save dual-bucket + `lastSaved`/dirty + mountOpenResponse/runReload + App.tsx rename + one-shot mode-toggle toast (D-01..D-04)
+- [x] 36-04-PLAN.md — Tests: round-trip both buckets + legacy pre-massage path in `project-file.spec.ts`; per-bucket migration + stale-union in `override-migration.spec.ts`
+- [x] 36-05-PLAN.md — AppShell mode-switch divergence integration test + SEED-007 status flip (dormant → closed) + phase-wide quality gate
 **UI hint**: yes
 
 ### Phase 37: Spine 4.2 Timeline Coverage Hardening
@@ -90,7 +90,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 36. Split Overrides Per Loader Mode | 0/5 | Not started | - |
+| 36. Split Overrides Per Loader Mode | 5/5 | Complete   | 2026-05-13 |
 | 37. Spine 4.2 Timeline Coverage Hardening | 0/3 | Not started | - |
 | 38. Phase 4 Code-Review Polish Pass | 0/3 | Not started | - |
 | 39. Windows Host-Blocked UAT Burndown | 0/3 | Not started | - |
