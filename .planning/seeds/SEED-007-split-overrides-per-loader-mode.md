@@ -1,13 +1,17 @@
 ---
 id: SEED-007
-status: dormant
+status: closed
 planted: 2026-05-12
 planted_during: post-v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases — milestone_complete)
+closed_during: 36-split-overrides-per-loader-mode
+closed: 2026-05-13
 trigger_when: Next milestone after v1.4 ships (v1.5+) — when scoping overrides/loaderMode integration, or any milestone that touches export-pipeline UX, .stmproj schema, or atlas-less mode ergonomics.
 scope: Medium
 ---
 
 # SEED-007: Split overrides per loaderMode (atlas-source vs atlas-less)
+
+**Closed:** 2026-05-13 (Phase 36 — Split Overrides Per Loader Mode shipped; OVR-01..OVR-07 all satisfied; mode-toggle one-shot toast D-01..D-04 + per-bucket migration + AppShell mode-switch divergence integration test all green).
 
 ## Why This Matters
 
