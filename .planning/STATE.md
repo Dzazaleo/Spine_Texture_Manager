@@ -1,32 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Spine 4.3 Forward-Compat + Rotated Atlases
-status: completed
-last_updated: "2026-05-12T22:35:05.415Z"
-last_activity: 2026-05-12
+milestone: v1.5
+milestone_name: Override Routing + Coverage Hardening
+status: planning
+last_updated: "2026-05-13T07:45:12.602Z"
+last_activity: 2026-05-13
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: — (between milestones)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v1.4 archived; awaiting `/gsd-new-milestone` for v1.5+ scoping
-Last activity: 2026-05-12 — v1.4 milestone closed and archived
+Status: Defining requirements
+Last activity: 2026-05-13 — Milestone v1.5 started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pending push)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Between milestones — v1.4 archived 2026-05-12; v1.5 scoping pending.
+**Current focus:** v1.5 — Override Routing + Coverage Hardening. Scope: SEED-007 (split overrides per loaderMode), SEED-005 Level B (RGBA2 + InheritTimeline coverage), 3 long-lived pending todos.
 
 ## Last completed milestone
 
