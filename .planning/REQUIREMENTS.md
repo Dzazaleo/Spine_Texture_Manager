@@ -34,9 +34,9 @@ From `.planning/seeds/SEED-005-rgba2-inherittimeline-coverage.md` (planted 2026-
 
 From `.planning/todos/pending/2026-04-24-phase-4-code-review-follow-up.md`. v1.0-era Phase 4 code review surfaced 9 findings; WR-01 + WR-02 fixed inline at phase close, **WR-03 already fixed in Phase 27 (functional `setSelected` updater)**. Remaining 6 IN-* findings are deferred polish items — none are correctness bugs.
 
-- [ ] **POLISH-01**: Audit Phase 4 deferred findings against current code (IN-01 through IN-06 from `04-REVIEW.md`); enumerate which are still applicable. Some may have been swept by intervening phases (e.g. Phase 27 already closed WR-03 — confirm IN-06 dead-guard, IN-05 sort comparator, etc. against current `GlobalMaxRenderPanel.tsx` + `OverrideDialog.tsx`). Audit output → `.planning/phases/[N]-polish-pass/[N]-POLISH-AUDIT.md`.
-- [ ] **POLISH-02**: Apply the still-applicable findings with atomic per-finding commits (OverrideDialog focus-trap comment / focus-trap implementation; drag-to-cancel guard; empty-input guard; sort comparator locale options; dead-guard removal if still present). Skip IN-04 (DRY-candidate flag only — intentional per Phase 2 pattern).
-- [ ] **POLISH-03**: Move `.planning/todos/pending/2026-04-24-phase-4-code-review-follow-up.md` to `.planning/todos/resolved/` with closing note referencing the v1.5 polish-pass phase.
+- [x] **POLISH-01**: Audit Phase 4 deferred findings against current code (IN-01 through IN-06 from `04-REVIEW.md`); enumerate which are still applicable. Some may have been swept by intervening phases (e.g. Phase 27 already closed WR-03 — confirm IN-06 dead-guard, IN-05 sort comparator, etc. against current `GlobalMaxRenderPanel.tsx` + `OverrideDialog.tsx`). Audit output → `.planning/phases/[N]-polish-pass/[N]-POLISH-AUDIT.md`.
+- [x] **POLISH-02**: Apply the still-applicable findings with atomic per-finding commits (OverrideDialog focus-trap comment / focus-trap implementation; drag-to-cancel guard; empty-input guard; sort comparator locale options; dead-guard removal if still present). Skip IN-04 (DRY-candidate flag only — intentional per Phase 2 pattern).
+- [x] **POLISH-03**: Move `.planning/todos/pending/2026-04-24-phase-4-code-review-follow-up.md` to `.planning/todos/resolved/` with closing note referencing the v1.5 polish-pass phase.
 
 ### Windows Host-Blocked UAT Burndown (long-lived todos)
 
