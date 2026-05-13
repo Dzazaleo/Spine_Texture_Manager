@@ -63,3 +63,12 @@ window. Or fold into a dedicated "UI polish" phase if one materializes.
 
 None of these block Phase 4 closure — code review is advisory and WR-01 +
 WR-02 (the only user-visible items) are already fixed.
+
+---
+
+## Resolved
+
+2026-05-13 — Phase 38 (POLISH-01..03): audit at `.planning/phases/38-phase-4-code-review-polish-pass/38-POLISH-AUDIT.md` enumerated all 7 deferred findings against current code. Net outcome:
+  - **1 applies** (IN-02 drag-to-cancel overlay guard) — fixed in `src/renderer/src/modals/OverrideDialog.tsx` via `onMouseDown` + `e.target === e.currentTarget` guard; regression spec at `tests/renderer/override-dialog-drag-to-cancel.spec.tsx`.
+  - **5 no-ops** — IN-01 (Phase 6 Gap-Fix R6, commit `5551073` — focus trap via shared `useFocusTrap` hook), IN-03 (Phase 27 QA-02, commit `fb3fedc` — empty-input guard), IN-05 (Phase 27 QA-03, commit `01468e4` — natural-order localeCompare), IN-06 (Phase 27 QA-04, commit `cf098e0` — dead `open` prop removed), WR-03 (Phase 27 QA-01, commit `f7668c4` — functional `setSelected` updater).
+  - **1 skip** — IN-04 (`highlightMatch` duplication between `GlobalMaxRenderPanel.tsx` and `AnimationBreakdownPanel.tsx`) intentional per Phase 2/3 self-contained-panel pattern; no third consumer triggers the documented extraction threshold. Note: the original todo line 42-45 phrased the duplication as "from SearchBar.tsx" — that was a slip; the actual duplication sites are the two panels, as the 38-01 audit records.
