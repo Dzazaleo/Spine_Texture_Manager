@@ -94,7 +94,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Split Overrides Per Loader Mode | 5/5 | Complete    | 2026-05-13 |
-| 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete   | 2026-05-13 |
+| 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 0/3 | Not started | - |
 | 39. Windows Host-Blocked UAT Burndown | 0/3 | Not started | - |
 
