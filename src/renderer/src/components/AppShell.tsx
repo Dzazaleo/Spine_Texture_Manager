@@ -442,6 +442,13 @@ export function AppShell({
     initialProject?.loaderModeHealed === true,
   );
 
+  // Phase 36 D-01..D-04 — one-shot mode-toggle toast. Fires the first time
+  // per session the user toggles loaderMode AND at least one bucket has
+  // overrides (D-02 trigger). Suppressible per-machine via localStorage
+  // (D-03 — `stm.overrideModeToast.suppressed === 'true'` blocks future
+  // mounts). Auto-clears via the [Close] button.
+  const [overrideModeToastVisible, setOverrideModeToastVisible] = useState(false);
+
   /**
    * D-149 inline error state. Set when a load attempt returns
    * SkeletonNotFoundOnLoadError; cleared after the locate-skeleton + reload
@@ -644,6 +651,27 @@ export function AppShell({
     });
     setDialogState(null);
   }, [loaderMode]);
+
+  // Phase 36 D-01..D-04 — mode-toggle handler. Routes all user-initiated
+  // loaderMode toggle UI through this single callback so the D-02 trigger
+  // (at-least-one bucket has overrides) and D-03 suppression check run
+  // every time. State-init rehydration (mountOpenResponse line ~1345)
+  // keeps its direct `setLoaderMode` call by design — that path is not
+  // a user-initiated toggle.
+  const onToggleLoaderMode = useCallback((next: 'auto' | 'atlas-less') => {
+    setLoaderMode(next);
+    setLoaderMenuOpen(false);
+    // D-02 trigger: at least one bucket has overrides.
+    const anyOverrides = overrides.size > 0 || overridesAtlasLess.size > 0;
+    if (!anyOverrides) return;
+    // D-03 suppression check (per-machine, verbatim localStorage key).
+    try {
+      if (localStorage.getItem('stm.overrideModeToast.suppressed') === 'true') return;
+    } catch {
+      // localStorage unavailable (e.g., jsdom in tests with no storage) — skip suppression check.
+    }
+    setOverrideModeToastVisible(true);
+  }, [overrides.size, overridesAtlasLess.size]);
 
   // Phase 6 Plan 06 — D-117 + D-118 + D-122 toolbar click flow.
   //   1. Pre-fill the picker with <skeletonDir>/images-optimized/ (D-122).
@@ -1881,8 +1909,10 @@ export function AppShell({
                     title={altSourceMissing ? altMissingTitle : undefined}
                     className="w-full text-left px-3 py-2 text-xs text-fg hover:bg-surface transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:text-fg-muted"
                     onClick={() => {
-                      setLoaderMode(effectiveSummary.atlasPath === null ? 'auto' : 'atlas-less');
-                      setLoaderMenuOpen(false);
+                      // Phase 36 D-01..D-04 — route through onToggleLoaderMode
+                      // so the one-shot toast triggers when either bucket has
+                      // overrides. The handler also handles menu close.
+                      onToggleLoaderMode(effectiveSummary.atlasPath === null ? 'auto' : 'atlas-less');
                     }}
                   >
                     {effectiveSummary.atlasPath === null ? 'Use Atlas as Source' : 'Use Images Folder as Source'}
@@ -2082,6 +2112,43 @@ export function AppShell({
             className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
           >
             Dismiss
+          </button>
+        </div>
+      )}
+      {/* Phase 36 D-01..D-04 — one-shot toast surfaced on first mode-toggle
+          when either bucket has overrides. Verbatim copy from D-04; two
+          actions: "Don't show again" persists to localStorage (D-03),
+          "Close" dismisses for the session. Mirrors loaderModeHealedNotice
+          surface above so the visual idiom is consistent. */}
+      {overrideModeToastVisible && (
+        <div
+          role="status"
+          className="border-b border-border bg-panel px-6 py-2 text-xs text-fg-muted flex items-center gap-2"
+        >
+          <span className="inline-block w-1 h-4 bg-accent" aria-hidden="true" />
+          <span className="flex-1">
+            Overrides are tracked per loader mode — atlas-source and atlas-less each have their own.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.setItem('stm.overrideModeToast.suppressed', 'true');
+              } catch {
+                // localStorage unavailable — best-effort persistence.
+              }
+              setOverrideModeToastVisible(false);
+            }}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Don&apos;t show again
+          </button>
+          <button
+            type="button"
+            onClick={() => setOverrideModeToastVisible(false)}
+            className="border border-border rounded-md px-2 py-0.5 text-xs hover:border-accent hover:text-accent transition-colors cursor-pointer"
+          >
+            Close
           </button>
         </div>
       )}
