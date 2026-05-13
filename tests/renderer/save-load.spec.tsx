@@ -349,7 +349,8 @@ describe('8.1-VR-01: .stmproj drop SkeletonNotFoundOnLoadError → App.tsx recov
         message: 'Skeleton JSON not found: /a/b/RENAMED.json',
         projectPath: '/a/b/proj.stmproj',
         originalSkeletonPath: '/a/b/RENAMED.json',
-        mergedOverrides: { TRIANGLE: 50 },
+        // Phase 36 D-12 — mergedOverrides renamed to mergedOverridesBuckets carrying both buckets.
+        mergedOverridesBuckets: { overrides: { TRIANGLE: 50 }, overridesAtlasLess: {} },
         samplingHz: 120,
         lastOutDir: null,
         sortColumn: null,
@@ -472,7 +473,8 @@ describe('Phase 08.2 menu wiring', () => {
         message: 'Skeleton JSON not found: /missing/skel.json',
         projectPath: '/abs/proj.stmproj',
         originalSkeletonPath: '/missing/skel.json',
-        mergedOverrides: {},
+        // Phase 36 D-12 — mergedOverrides renamed to mergedOverridesBuckets carrying both buckets.
+        mergedOverridesBuckets: { overrides: {}, overridesAtlasLess: {} },
         samplingHz: 120,
         lastOutDir: null,
         sortColumn: null,

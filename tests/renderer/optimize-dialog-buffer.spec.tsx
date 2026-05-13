@@ -341,11 +341,17 @@ describe('reactive plan rebuild — Phase 30 CR-01 closure (post-mount buffer ch
     // The reactive-rebuild useEffect must exist with the boolean dep form to avoid set-loop.
     expect(appShell, 'AppShell.tsx must contain the reactive useEffect that rebuilds exportDialogState.plan')
       .toMatch(/useEffect\(\(\) => \{[\s\S]*?if \(exportDialogState === null\) return/);
-    expect(appShell, 'AppShell.tsx must rebuild plan via buildExportPlan(summary, overrides, { safetyBufferPercent: safetyBufferPercentLocal })')
+    // Phase 36 D-14 — the second positional arg to buildExportPlan was renamed
+    // from `overrides` to `activeOverrides` (mode-aware slice). The literal
+    // here permits either historical name so the sentinel survives the rename
+    // without falsely flagging during the Phase 36 split-overrides migration.
+    expect(appShell, 'AppShell.tsx must rebuild plan via buildExportPlan(summary, activeOverrides|overrides, { safetyBufferPercent: safetyBufferPercentLocal })')
       .toMatch(/setExportDialogState\(\(prev\) =>[\s\S]*?buildExportPlan\([\s\S]*?safetyBufferPercent: safetyBufferPercentLocal/);
     // Boolean dep form — `exportDialogState !== null` not `exportDialogState`.
-    // Using the full object would create a feedback loop.
+    // Using the full object would create a feedback loop. Phase 36 D-14: the
+    // third dep slot was renamed from `overrides` to `activeOverrides`; permit
+    // either name (the regex matches the legitimate post-36-03 shape).
     expect(appShell, 'AppShell.tsx useEffect deps must use boolean form `exportDialogState !== null` (not the full state object) to avoid feedback loop')
-      .toMatch(/\[\s*safetyBufferPercentLocal,\s*summary,\s*overrides,\s*exportDialogState !== null\s*\]/);
+      .toMatch(/\[\s*safetyBufferPercentLocal,\s*summary,\s*(?:activeOverrides|overrides),\s*exportDialogState !== null\s*\]/);
   });
 });

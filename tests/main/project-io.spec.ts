@@ -103,6 +103,8 @@ const baseState: AppSessionState = {
   atlasPath: '/a/b/SIMPLE.atlas',
   imagesDir: '/a/b/images',
   overrides: { CIRCLE: 50 },
+  // Phase 36 SEED-007 L-01 — atlas-less override bucket (sibling to overrides).
+  overridesAtlasLess: {},
   samplingHz: 120,
   lastOutDir: null,
   sortColumn: 'attachmentName',
@@ -257,7 +259,14 @@ describe('handleProjectOpenFromPath (F9.2)', () => {
       if (result.error.kind === 'SkeletonNotFoundOnLoadError') {
         expect(result.error.projectPath).toBe('/a/b/proj.stmproj');
         expect(result.error.originalSkeletonPath).toBe('/nonexistent/path.json');
-        expect(result.error.mergedOverrides).toEqual({ CIRCLE: 50, TRIANGLE: 75 });
+        // Phase 36 D-12 — rename: mergedOverrides → mergedOverridesBuckets
+        // carrying both atlas-source `overrides` and atlas-less `overridesAtlasLess`
+        // sub-buckets. Legacy v1.4-shape fixture (no `overridesAtlasLess`)
+        // pre-massages to `{}` via validator (project-file.ts:280).
+        expect(result.error.mergedOverridesBuckets).toEqual({
+          overrides: { CIRCLE: 50, TRIANGLE: 75 },
+          overridesAtlasLess: {},
+        });
         expect(result.error.samplingHz).toBe(120); // D-146 default
         expect(result.error.lastOutDir).toBeNull();
         expect(result.error.sortColumn).toBeNull();
