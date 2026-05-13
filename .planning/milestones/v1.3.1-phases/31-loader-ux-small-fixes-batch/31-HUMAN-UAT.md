@@ -1,9 +1,9 @@
 ---
-status: partial
+status: passed
 phase: 31-loader-ux-small-fixes-batch
 source: [31-VERIFICATION.md]
 started: 2026-05-08T17:46:00Z
-updated: 2026-05-08T18:05:00Z
+updated: 2026-05-13
 ---
 
 ## Current Test
@@ -14,7 +14,7 @@ updated: 2026-05-08T18:05:00Z
 
 ### 1. Windows-admin DnD advisory live UAT
 expected: On a real Windows machine, launching the app via 'Run as administrator' produces an idle DropZone showing the verbatim two-sentence advisory. Dragging a `.json` file over the window does NOT toggle the drag-over ring and does NOT load anything. macOS + Linux DnD remain functional.
-result: deferred — will exercise at v1.3.1 release time when an installed binary + admin session can be obtained. Tracked as a pending todo so it surfaces in `/gsd-progress` and `/gsd-audit-uat`.
+result: passed (2026-05-13) — Phase 39 WINUAT-02 — all four observations passed on a real Windows admin session (verbatim advisory, drag-over ring suppressed, File → Open functional, normal-relaunch DnD restored).
 
 ### 2. ExtrapolationIcon hover tooltip live UAT
 expected: Loading a fixture with `peakScale > 1` rows (e.g. fixtures with extrapolation), hovering the up-arrow icon in BOTH the Global Max Render Source panel AND the Animation Breakdown panel surfaces the verbatim "Spine rig peak: X.XX× source — export capped at canonical" tooltip in a portaled `<div role="tooltip">`. The parent TD's "World AABB at peak" tooltip should NOT appear when hovering the icon.
@@ -31,9 +31,9 @@ result: passed — 2026-05-08 (Windows dev build).
 ## Summary
 
 total: 4
-passed: 3
+passed: 4
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
