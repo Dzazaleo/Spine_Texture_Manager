@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening
 status: executing
-last_updated: "2026-05-13T09:53:27.557Z"
-last_activity: 2026-05-13 -- Phase 36 planning complete
+last_updated: "2026-05-13T09:58:06.108Z"
+last_activity: 2026-05-13 -- Phase 36 execution started
 progress:
   total_phases: 4
   completed_phases: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Current Position
 
-Phase: Not started (roadmap defined; awaiting `/gsd-plan-phase 36`)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-13 -- Phase 36 planning complete
+Phase: 36 (split-overrides-per-loader-mode) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 36
+Last activity: 2026-05-13 -- Phase 36 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pending push)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** v1.5 — Override Routing + Coverage Hardening. Scope: SEED-007 (split overrides per loaderMode — Phase 36), SEED-005 Level B (RGBA2 + InheritTimeline coverage — Phase 37), Phase 4 code-review polish (Phase 38), Windows host-blocked UAT burndown (Phase 39).
+**Current focus:** Phase 36 — split-overrides-per-loader-mode
 
 ## v1.5 Roadmap Summary
 
