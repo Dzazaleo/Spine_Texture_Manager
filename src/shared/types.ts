@@ -891,6 +891,21 @@ export type SerializableError =
       lastOutDir: string | null;
       sortColumn: string | null;
       sortDir: 'asc' | 'desc' | null;
+      /**
+       * Phase 36 WR-01 — locate-skeleton recovery from the App.tsx drag-drop
+       * arm was silently dropping these three fields because the
+       * SerializableError envelope didn't carry them. AppShell's
+       * onClickLocateSkeleton path already threaded them through; the
+       * drag-drop sibling at App.tsx was left re-defaulting to
+       * loaderMode='auto', sharpenOnExport=false, safetyBufferPercent=0
+       * silently. Now part of the envelope so both recovery paths
+       * round-trip them. All three are OPTIONAL for back-compat with main
+       * builds that pre-date this fix (the main-side handler already reads
+       * them defensively with sensible defaults).
+       */
+      loaderMode?: 'auto' | 'atlas-less';
+      sharpenOnExport?: boolean;
+      safetyBufferPercent?: number;
     }
   | {
       kind:

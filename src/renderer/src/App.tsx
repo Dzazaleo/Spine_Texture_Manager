@@ -193,6 +193,15 @@ export function App() {
       lastOutDir: state.error.lastOutDir,
       sortColumn: state.error.sortColumn,
       sortDir: state.error.sortDir,
+      // Phase 36 WR-01 — thread loaderMode / sharpenOnExport / safetyBufferPercent
+      // from the recovery envelope so the drag-drop recovery arm preserves the
+      // user's saved settings. Pre-WR-01 these three fields silently defaulted
+      // to 'auto' / false / 0 on this path (main reads them defensively but
+      // there's nothing for it to read). AppShell.tsx's onClickLocateSkeleton
+      // sibling already threaded them through (post-Phase-30 closure).
+      loaderMode: state.error.loaderMode,
+      sharpenOnExport: state.error.sharpenOnExport,
+      safetyBufferPercent: state.error.safetyBufferPercent,
     });
     if (!resp.ok) {
       if (resp.error.kind === 'SkeletonNotFoundOnLoadError') {

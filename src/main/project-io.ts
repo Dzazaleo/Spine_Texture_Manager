@@ -495,6 +495,17 @@ export async function handleProjectOpenFromPath(
           lastOutDir: materialized.lastOutDir,
           sortColumn: materialized.sortColumn,
           sortDir: materialized.sortDir,
+          // Phase 36 WR-01 — thread loaderMode / sharpenOnExport /
+          // safetyBufferPercent into the recovery envelope so the App.tsx
+          // drag-drop recovery arm (App.tsx:183-218) can forward them to
+          // handleProjectReloadWithSkeleton verbatim. Pre-WR-01 these
+          // three fields silently defaulted to 'auto' / false / 0 on the
+          // drag-drop recovery path, losing the user's saved settings.
+          // AppShell's onClickLocateSkeleton path already threaded them
+          // through (post-Phase-30 closure); App.tsx is the missed sibling.
+          loaderMode: materialized.loaderMode,
+          sharpenOnExport: materialized.sharpenOnExport,
+          safetyBufferPercent: materialized.safetyBufferPercent,
         },
       };
     }
@@ -868,6 +879,15 @@ export async function handleProjectReloadWithSkeleton(
           lastOutDir,
           sortColumn,
           sortDir,
+          // Phase 36 WR-01 — thread loaderMode / sharpenOnExport /
+          // safetyBufferPercent through the recovery-of-recovery envelope so
+          // the App.tsx drag-drop arm preserves user settings when the
+          // replacement skeleton ALSO fails to load. The local `loaderMode`
+          // / `sharpenOnExport` / `safetyBufferPercent` here are already
+          // validated/coerced from `a.*` at the top of this handler.
+          loaderMode,
+          sharpenOnExport,
+          safetyBufferPercent,
         },
       };
     }
