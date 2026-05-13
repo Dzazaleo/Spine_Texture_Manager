@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening
 status: executing
-last_updated: "2026-05-13T12:29:58.384Z"
-last_activity: 2026-05-13 -- Phase 37 planning complete
+last_updated: "2026-05-13T12:31:52.198Z"
+last_activity: 2026-05-13 -- Phase 37 execution started
 progress:
   total_phases: 4
   completed_phases: 1
@@ -17,17 +17,17 @@ progress:
 
 ## Current Position
 
-Phase: 37
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-13 -- Phase 37 planning complete
+Phase: 37 (spine-4-2-timeline-coverage-hardening) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 37
+Last activity: 2026-05-13 -- Phase 37 execution started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pending push)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 36 — split-overrides-per-loader-mode
+**Current focus:** Phase 37 — spine-4-2-timeline-coverage-hardening
 
 ## v1.5 Roadmap Summary
 
