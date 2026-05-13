@@ -427,4 +427,31 @@ describe('migrateOverrides — Phase 29 D-06 (project-io.ts shared helper)', () 
     expect(result.stale).toEqual(['GHOST']);
     expect(result.migratedKeyCount).toBe(2); // both '5/5/7/7' and '7/5/5' consumed
   });
+
+  it('Test 10 (Phase 36 OVR-04): per-bucket migration runs independently against shared summary.regions', () => {
+    // Atlas-source bucket has CIRCLE override; atlas-less bucket has SQUARE
+    // override. Both regions exist in summary.regions. Per-bucket migration
+    // produces identical results to running each in isolation.
+    const summary = makeSummary([makePeak('CIRCLE'), makePeak('SQUARE')]);
+    const aSrc = migrateOverrides({ CIRCLE: 75 }, summary);
+    const aLess = migrateOverrides({ SQUARE: 50 }, summary);
+    expect(aSrc.restored).toEqual({ CIRCLE: 75 });
+    expect(aSrc.stale).toEqual([]);
+    expect(aLess.restored).toEqual({ SQUARE: 50 });
+    expect(aLess.stale).toEqual([]);
+    // OVR-04 sum semantics:
+    expect(aSrc.migratedKeyCount + aLess.migratedKeyCount).toBe(0);
+    // OVR-04 union semantics:
+    expect([...new Set([...aSrc.stale, ...aLess.stale])]).toEqual([]);
+  });
+
+  it('Test 11 (Phase 36 OVR-04): stale keys union across buckets (Case C orphans in both)', () => {
+    const summary = makeSummary([makePeak('CIRCLE')]);
+    const aSrc = migrateOverrides({ ORPHAN_A: 25 }, summary);
+    const aLess = migrateOverrides({ ORPHAN_B: 50 }, summary);
+    expect(aSrc.stale).toEqual(['ORPHAN_A']);
+    expect(aLess.stale).toEqual(['ORPHAN_B']);
+    const union = [...new Set([...aSrc.stale, ...aLess.stale])];
+    expect(union.sort()).toEqual(['ORPHAN_A', 'ORPHAN_B']);
+  });
 });
