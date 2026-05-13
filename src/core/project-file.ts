@@ -277,6 +277,38 @@ export function validateProjectFile(input: unknown): ValidateResult {
     }
   }
 
+  // Phase 36 SEED-007 L-01 forward-compat — v1.3.x/v1.4.x .stmproj files have
+  // no `overridesAtlasLess` field; default to {} so legacy projects load with
+  // an empty atlas-less bucket. Legacy single-map routing per SEED-007 Decision
+  // 2-A happens at the Open seam in src/main/project-io.ts — by the time the
+  // file reaches the validator the legacy map either was already routed (Open
+  // pre-flight) or stays in `overrides` (validator is the inner gate).
+  // Mirrors loaderMode pre-massage at lines 176-188 above.
+  if (obj.overridesAtlasLess === undefined) {
+    obj.overridesAtlasLess = {};
+  }
+  if (
+    !obj.overridesAtlasLess
+    || typeof obj.overridesAtlasLess !== 'object'
+    || Array.isArray(obj.overridesAtlasLess)
+  ) {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: 'overridesAtlasLess is not an object' },
+    };
+  }
+  for (const [k, v] of Object.entries(obj.overridesAtlasLess as Record<string, unknown>)) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      return {
+        ok: false,
+        error: {
+          kind: 'invalid-shape',
+          message: `overridesAtlasLess.${k} is not a finite number`,
+        },
+      };
+    }
+  }
+
   // Reaching here, the shape matches ProjectFileV1.
   return { ok: true, project: obj as unknown as ProjectFileV1 };
 }
@@ -327,6 +359,10 @@ export function serializeProjectFile(
     atlasPath: state.atlasPath !== null ? relativizePath(state.atlasPath, basedir) : null,
     imagesDir: state.imagesDir !== null ? relativizePath(state.imagesDir, basedir) : null,
     overrides: { ...state.overrides },
+    // Phase 36 SEED-007 L-01 — atlas-less override bucket round-trips through
+    // .stmproj. Shallow clone is safe (primitive values); mirrors `overrides`
+    // line above. No schema version bump (still version: 1).
+    overridesAtlasLess: { ...state.overridesAtlasLess },
     samplingHz: state.samplingHz,
     lastOutDir: state.lastOutDir, // absolute per D-145 — not relativized
     sortColumn: state.sortColumn,
@@ -370,6 +406,13 @@ export interface PartialMaterialized {
   imagesDir: string | null;
   /** Restored overrides from disk (subject to Plan 03 staleness intersection). */
   overrides: Record<string, number>;
+  /**
+   * Phase 36 SEED-007 L-01 — atlas-less override bucket restored from disk
+   * (subject to per-bucket staleness intersection in src/main/project-io.ts).
+   * Mirrors the `overrides` slot directly above; legacy v1.3.x/v1.4.x files
+   * lack this field and the validator pre-massage substitutes `{}`.
+   */
+  overridesAtlasLess: Record<string, number>;
   /** Resolved sampling rate — D-146 default 120 when null on disk. */
   samplingHz: number;
   /** Absolute path of the last output directory the user picked, if any. */
@@ -462,6 +505,11 @@ export function materializeProjectFile(
     atlasPath: file.atlasPath !== null ? absolutizePath(file.atlasPath, basedir) : null,
     imagesDir: file.imagesDir !== null ? absolutizePath(file.imagesDir, basedir) : null,
     overrides: { ...file.overrides },
+    // Phase 36 SEED-007 L-01 — atlas-less override bucket round-trips through
+    // .stmproj. Mirrors `overrides` line above. Validator pre-massage already
+    // substitutes `{}` for legacy v1.3.x/v1.4.x files, so `file.overridesAtlasLess`
+    // is always a defined Record by the time we reach this materializer.
+    overridesAtlasLess: { ...file.overridesAtlasLess },
     samplingHz: file.samplingHz ?? 120, // D-146 default
     lastOutDir: file.lastOutDir,
     sortColumn: file.sortColumn,
