@@ -15,7 +15,10 @@
  *      clamp per D-79. The dialog itself does no clamping — it forwards
  *      Number(inputValue) raw so the clamp math has a single owner.
  *   3. ESC closes (discards); Enter inside the dialog applies; overlay
- *      click closes (discards). Phase 6 Gap-Fix Round 6 (2026-04-25)
+ *      mousedown-on-overlay closes (discards) — drag-to-cancel guarded
+ *      by `e.target === e.currentTarget` so a drag that starts inside
+ *      the panel and releases on the overlay is a no-op (IN-02, Phase
+ *      38 — drag-to-cancel guard). Phase 6 Gap-Fix Round 6 (2026-04-25)
  *      hoisted the focus trap + Escape handling into the shared
  *      useFocusTrap hook so focus never escapes the dialog (Tab cycles)
  *      and Escape works regardless of where focus has drifted. Auto-
@@ -125,7 +128,9 @@ export function OverrideDialog(props: OverrideDialogProps) {
       aria-modal="true"
       aria-labelledby="override-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={props.onCancel}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) props.onCancel();
+      }}
     >
       <div
         className="bg-modal border border-border rounded-md p-6 min-w-[360px] font-mono shadow-2xl"
