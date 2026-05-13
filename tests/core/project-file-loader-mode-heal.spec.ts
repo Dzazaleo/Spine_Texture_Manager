@@ -24,6 +24,7 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
     atlasPath: null,
     imagesDir: null,
     overrides: {},
+    overridesAtlasLess: {},
     samplingHz: 120,
     lastOutDir: null,
     sortColumn: null,
