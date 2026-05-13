@@ -576,14 +576,48 @@ export async function handleProjectOpenFromPath(
   //    smallest-wins, Case C orphans drop into the existing stale-override
   //    banner). Dropped names travel as `staleOverrideKeys`; migrated count
   //    travels as `migratedKeyCount` for the new sibling banner.
-  const { restored, stale, migratedKeyCount } = migrateOverrides(
-    materialized.overrides as Record<string, unknown>,
-    summary,
-  );
+  //
+  // Phase 36 SEED-007 L-02 — legacy single-map routing at the Open seam.
+  // v1.3.x/v1.4.x files saved a single `overrides` map shared across modes;
+  // the validator's pre-massage at src/core/project-file.ts substitutes {}
+  // for missing `overridesAtlasLess`. When the legacy file's saved loaderMode
+  // === 'atlas-less', the legacy single-map's intent was atlas-less; route
+  // the entire map into the atlas-less bucket. Otherwise (`auto` / undefined)
+  // the legacy map's intent was atlas-source; keep it in `overrides`.
+  // The bucket NOT receiving the legacy map starts empty. Per SEED-007
+  // Decision 2-A LOCKED 2026-05-12.
+  //
+  // Detection: a legacy v1.3.x/v1.4.x file is one where the pre-massage
+  // substituted `overridesAtlasLess === {}` AND `overrides` has at least
+  // one entry. We can't distinguish "legacy file" from "v1.5 file that
+  // happens to have an empty atlas-less bucket"; the conservative rule is
+  // that routing only matters when both conditions hold, and applying
+  // the rule to a v1.5 file with the same shape is a no-op.
+  const legacyMapPresent =
+    Object.keys(materialized.overrides).length > 0
+    && Object.keys(materialized.overridesAtlasLess).length === 0;
+  const routeToAtlasLess =
+    legacyMapPresent && materialized.loaderMode === 'atlas-less';
+
+  const atlasSourceBucketInput = routeToAtlasLess ? {} : materialized.overrides;
+  const atlasLessBucketInput = routeToAtlasLess
+    ? materialized.overrides
+    : materialized.overridesAtlasLess;
+
+  // Per-bucket migration against the shared mode-invariant summary.regions
+  // (REGION-05 skin-manifest pass — JSON-only, identical for both modes).
+  // OVR-04: migratedKeyCount sums; staleOverrideKeys union.
+  const aSrc = migrateOverrides(atlasSourceBucketInput as Record<string, unknown>, summary);
+  const aLess = migrateOverrides(atlasLessBucketInput as Record<string, unknown>, summary);
+  const restoredAtlasSource = aSrc.restored;
+  const restoredAtlasLess = aLess.restored;
+  const stale = [...new Set([...aSrc.stale, ...aLess.stale])]; // D-06 union
+  const migratedKeyCount = aSrc.migratedKeyCount + aLess.migratedKeyCount; // D-07 sum
 
   const project: MaterializedProject = {
     summary,
-    restoredOverrides: restored,
+    restoredOverrides: restoredAtlasSource,
+    restoredOverridesAtlasLess: restoredAtlasLess,
     staleOverrideKeys: stale,
     migratedKeyCount,
     samplingHz: materialized.samplingHz,
