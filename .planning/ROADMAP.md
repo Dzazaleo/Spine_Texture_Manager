@@ -57,7 +57,10 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   3. **Conditional escalation checkpoint (TIMELINE-02 result drives TIMELINE-03 contract):** if the audit reveals InheritTimeline mutates a Bone field that affects `updateWorldTransform`, the test in (2) MUST assert peak > baseline (load-bearing — real-risk gap fix); if the audit shows no world-transform effect, the test still locks the regression-free invariance contract (precautionary). The phase plan calls this out as a planning checkpoint, not a deferred risk.
   4. A minimal JSON or synthetic-test fixture exercising RGBA2Timeline keyframes on one slot produces world-AABB sampler output that is byte-identical to the same animation without RGBA2 keyframes (geometry-invariance proof — closes the assumption that two-color tinting cannot affect render scale).
   5. `.planning/SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md` reflects items 5/6/7 closed and `.planning/seeds/SEED-005-rgba2-inherittimeline-coverage.md` frontmatter `status:` flips from `planted` to `closed` with closing phase reference.
-**Plans**: TBD (estimated 3 plans: 37-01 source-audit RGBA2 + InheritTimeline + checkpoint decision recorded in CONTEXT, 37-02 InheritTimeline fixture + sampler test, 37-03 RGBA2 fixture + geometry-invariance test + audit-doc closure)
+**Plans**: 3 plans
+- [ ] 37-01-audit-rgba2-inherit-PLAN.md — Source-audit RGBA2Timeline + InheritTimeline; append Items 6 + 7 to SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md; log TIMELINE-02 conditional escalation TRIGGERED
+- [ ] 37-02-inherit-fixture-and-test-PLAN.md — Create fixtures/INHERIT_TIMELINE/ (JSON + atlas + placeholder PNG) + TIMELINE-03 sampler test asserting strict peak(detached) > peak(baseline)
+- [ ] 37-03-rgba2-test-and-closure-PLAN.md — TIMELINE-04 RGBA2Timeline synthetic-injection geometry-invariance test + SEED-005 frontmatter status flip (planted → closed) + closure breadcrumb
 
 ### Phase 38: Phase 4 Code-Review Polish Pass
 **Goal**: Sweep the six v1.0-era Phase 4 deferred IN-* findings against current code, applying only still-applicable ones, and retire the long-lived todo.
