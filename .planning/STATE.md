@@ -2,25 +2,25 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening
-status: executing
+status: ready_to_plan
 last_updated: "2026-05-13T09:58:06.108Z"
 last_activity: 2026-05-13 -- Phase 36 execution started
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
   completed_plans: 0
-  percent: 0
+  percent: 25
 ---
 
 # State
 
 ## Current Position
 
-Phase: 36 (split-overrides-per-loader-mode) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 36
-Last activity: 2026-05-13 -- Phase 36 execution started
+Phase: 37
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-13
 
 ## Project Reference
 
