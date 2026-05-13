@@ -38,6 +38,7 @@ import {
 } from '../../src/core/sampler.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+const INHERIT_FIXTURE = path.resolve('fixtures/INHERIT_TIMELINE/INHERIT_TEST.json');
 const SAMPLER_SRC = path.resolve('src/core/sampler.ts');
 const SETUP_POSE_LABEL = 'Setup Pose (Default)';
 
@@ -303,6 +304,62 @@ describe('sampler — sampleSkeleton (N1.1–N1.6, N2.1, N2.3)', () => {
     // eslint-disable-next-line no-console
     console.log(`[N2.1] SIMPLE_TEST sampler elapsed: ${elapsed.toFixed(2)} ms`);
     expect(elapsed).toBeLessThan(500);
+  });
+
+  it('TIMELINE-03 InheritTimeline NoScale detach — peak > inheriting baseline', () => {
+    // Fixture inspection: fixtures/INHERIT_TIMELINE/INHERIT_TEST.json has a 3-bone rig
+    // (root -> PARENT -> CHILD) with a 100x100 REGION attachment on CHILD_SLOT, and
+    // two animations:
+    //   - BASELINE:       parent scaleX/Y ramps 1.0 -> 0.4 -> 1.0; CHILD inherits Normal
+    //                     throughout (no InheritTimeline). CHILD's world scale tracks
+    //                     PARENT's. Peak at start/end frames (~1.0), NOT the shrink frame.
+    //   - INHERIT_DETACH: same parent shrink + a per-bone "inherit" timeline on CHILD
+    //                     keying Inherit.Normal -> Inherit.NoScale -> Inherit.Normal at
+    //                     times 0.0 / 0.5 / 1.0. At t=0.5 (parent shrunk to 0.4), CHILD
+    //                     is detached -> CHILD's world scale remains ~1.0. Without detach
+    //                     it would be 0.4. With detach, peak > baseline at the shrink
+    //                     frame.
+    //
+    // What we exercise: full sampler lifecycle at default 120 Hz on both animations,
+    // isolated via a per-animation filter (mirrors the perAnimationPeaks helper at
+    // line ~349). The differential gate proves the sampler tick order
+    // (state.update -> state.apply -> skeleton.update -> updateWorldTransform) propagates
+    // the InheritTimeline-driven bone.inherit mutation (Animation.js:755) through the
+    // updateLocalToWorld branch (Bone.js:144 `switch (this.inherit)`).
+    //
+    // If state.apply did NOT tick InheritTimeline, peak(detached) would equal
+    // peak(baseline). Strict `>` therefore catches a real sampler regression.
+    // (CONTEXT.md D-01: TIMELINE-02 conditional escalation TRIGGERED -> assertion is
+    // peak(detached) > peak(baseline) strict, load-bearing.)
+    const peaksForAnimation = (animationName: string): Map<string, PeakRecord> => {
+      const scoped = loadSkeleton(INHERIT_FIXTURE);
+      scoped.skeletonData.animations = scoped.skeletonData.animations.filter(
+        (a) => a.name === animationName,
+      );
+      return sampleSkeleton(scoped).globalPeaks;
+    };
+
+    const baselinePeaks = peaksForAnimation('BASELINE');
+    const detachedPeaks = peaksForAnimation('INHERIT_DETACH');
+
+    const baselineChild = [...baselinePeaks.values()].find(
+      (r) => r.attachmentName === 'REGION',
+    );
+    const detachedChild = [...detachedPeaks.values()].find(
+      (r) => r.attachmentName === 'REGION',
+    );
+
+    expect(baselineChild, 'BASELINE must produce a REGION peak record').toBeDefined();
+    expect(detachedChild, 'INHERIT_DETACH must produce a REGION peak record').toBeDefined();
+
+    // Sanity: both runs return finite positive scales.
+    expect(Number.isFinite(baselineChild!.peakScale)).toBe(true);
+    expect(baselineChild!.peakScale).toBeGreaterThan(0);
+    expect(Number.isFinite(detachedChild!.peakScale)).toBe(true);
+    expect(detachedChild!.peakScale).toBeGreaterThan(0);
+
+    // Load-bearing assertion (CONTEXT.md DC-02): peak(detached) > peak(baseline) strict.
+    expect(detachedChild!.peakScale).toBeGreaterThan(baselineChild!.peakScale);
   });
 });
 

@@ -11,7 +11,7 @@
 },
 "bones": [
 	{ "name": "root" },
-	{ "name": "PARENT", "parent": "root", "x": 0, "y": 0 },
+	{ "name": "PARENT", "parent": "root", "x": 0, "y": 0, "scaleX": 0.4, "scaleY": 0.4 },
 	{ "name": "CHILD", "parent": "PARENT", "length": 100, "x": 50, "y": 0 }
 ],
 "slots": [
@@ -32,9 +32,8 @@
 		"bones": {
 			"PARENT": {
 				"scale": [
-					{ "x": 1.0, "y": 1.0 },
-					{ "time": 0.5, "x": 0.4, "y": 0.4 },
-					{ "time": 1.0, "x": 1.0, "y": 1.0 }
+					{ "x": 0.4, "y": 0.4 },
+					{ "time": 1.0, "x": 0.4, "y": 0.4 }
 				]
 			}
 		}
@@ -43,9 +42,8 @@
 		"bones": {
 			"PARENT": {
 				"scale": [
-					{ "x": 1.0, "y": 1.0 },
-					{ "time": 0.5, "x": 0.4, "y": 0.4 },
-					{ "time": 1.0, "x": 1.0, "y": 1.0 }
+					{ "x": 0.4, "y": 0.4 },
+					{ "time": 1.0, "x": 0.4, "y": 0.4 }
 				]
 			},
 			"CHILD": {
