@@ -230,6 +230,40 @@ describe('Phase 9 Layer 3: src/main/sampler-worker.ts must not import DOM/render
   });
 });
 
+// Phase 36 follow-up — Layer 3 named anchor for the window-close dirty-guard.
+// Phase 8 wired `app.on('before-quit')` to gate Cmd+Q on the SaveQuitDialog,
+// but the X / Cmd+W path bypassed it (window destroyed before the IPC
+// roundtrip could land — surfaced during Phase 36 HUMAN-UAT Test 8 on
+// 2026-05-13). The fix adds `mainWindow.on('close', ...)` mirroring the
+// before-quit handler. This anchor block locks the binding in place so a
+// future refactor that removes the close-event guard breaks the build
+// instead of silently re-introducing the data-loss-on-X regression.
+describe('Phase 36 follow-up Layer 3: src/main/index.ts must guard window close with the dirty-check IPC', () => {
+  it("index.ts binds mainWindow.on('close', ...) AND sends project:check-dirty-before-quit from it", () => {
+    const filePath = 'src/main/index.ts';
+    const text = readFileSync(filePath, 'utf8');
+    expect(
+      text,
+      `${filePath} must bind a 'close' listener on mainWindow to route X / Cmd+W through the dirty-guard. Removing this handler re-introduces the silent data-loss bug surfaced in Phase 36 HUMAN-UAT Test 8 (2026-05-13).`,
+    ).toMatch(/mainWindow\.on\(\s*['"]close['"]/);
+    // The handler must dispatch the same IPC that the before-quit handler
+    // uses — single mental model, single renderer subscription path.
+    const closeBlockMatch = text.match(
+      /mainWindow\.on\(\s*['"]close['"][\s\S]*?\}\s*\)\s*;/,
+    );
+    expect(closeBlockMatch, 'expected the close handler to be a complete listener block').not.toBeNull();
+    expect(closeBlockMatch?.[0], 'close handler must send project:check-dirty-before-quit').toMatch(
+      /project:check-dirty-before-quit/,
+    );
+    // isQuitting re-entry guard is load-bearing — without it, the
+    // app.quit() → mainWindow.close() chain re-fires preventDefault and
+    // deadlocks the exit. Phase 8 Pitfall 1 carry-forward.
+    expect(closeBlockMatch?.[0], 'close handler must early-return when isQuitting is true').toMatch(
+      /isQuitting/,
+    );
+  });
+});
+
 // Phase 18 — Layer 3 named anchor for the lifted before-quit dirty-guard.
 // CONTEXT D-08: AppShell.tsx must NOT contain `onCheckDirtyBeforeQuit` after
 // the lift. Phase 18 moves that subscription up to App.tsx (always-mounted

@@ -480,6 +480,30 @@ function createWindow(): void {
     }
   });
 
+  // Phase 36 follow-up — close-path dirty-guard. The Phase 8 `before-quit`
+  // listener catches Cmd+Q (and File → Quit), but the window's own 'close'
+  // event (X / red dot on macOS, Cmd+W, Alt+F4) bypassed it: the window
+  // destroyed → window-all-closed → app.quit() → before-quit re-fired but
+  // win.isDestroyed() was already true, so the early-return at the listener
+  // skipped the IPC dirty-check and the user's unsaved work was lost
+  // silently. Surfaced during Phase 36 HUMAN-UAT Test 8 (2026-05-13). The
+  // pattern below mirrors the before-quit handler verbatim — same IPC channel
+  // (no new surface), same renderer dispatch (App.tsx:482-504), same
+  // isQuitting re-entry guard so `confirmQuitProceed` → `app.quit()` doesn't
+  // re-fire this listener and loop.
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return; // already through the dirty-guard; let it close
+    event.preventDefault();
+    if (mainWindow.isDestroyed()) {
+      // Defensive — should be unreachable because preventDefault above runs
+      // before destruction, but mirrors the before-quit symmetry.
+      isQuitting = true;
+      setTimeout(() => app.quit(), 0);
+      return;
+    }
+    mainWindow.webContents.send('project:check-dirty-before-quit');
+  });
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show();
     // DevTools in dev only — never leak internals to packaged users.
