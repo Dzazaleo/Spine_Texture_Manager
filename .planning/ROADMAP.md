@@ -23,7 +23,7 @@ v1.5 (Override Routing + Coverage Hardening) is a focused tech-debt + correctnes
 v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 
 - [x] **Phase 36: Split Overrides Per Loader Mode** — Schema-additive `overridesAtlasLess` bucket + legacy file routing + per-bucket migration + AppShell threading (SEED-007 decisions 1/2-A/3-A locked) (completed 2026-05-13)
-- [ ] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B)
+- [x] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B) (completed 2026-05-13)
 - [ ] **Phase 38: Phase 4 Code-Review Polish Pass** — Audit IN-01..06 against current code, apply still-applicable findings, resolve long-lived v1.0-era todo
 - [ ] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable
 
@@ -60,7 +60,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 **Plans**: 3 plans
 - [x] 37-01-audit-rgba2-inherit-PLAN.md — Source-audit RGBA2Timeline + InheritTimeline; append Items 6 + 7 to SPINE-4-2-COVERAGE-AUDIT-2026-05-08.md; log TIMELINE-02 conditional escalation TRIGGERED
 - [x] 37-02-inherit-fixture-and-test-PLAN.md — Create fixtures/INHERIT_TIMELINE/ (JSON + atlas + placeholder PNG) + TIMELINE-03 sampler test asserting strict peak(detached) > peak(baseline)
-- [ ] 37-03-rgba2-test-and-closure-PLAN.md — TIMELINE-04 RGBA2Timeline synthetic-injection geometry-invariance test + SEED-005 frontmatter status flip (planted → closed) + closure breadcrumb
+- [x] 37-03-rgba2-test-and-closure-PLAN.md — TIMELINE-04 RGBA2Timeline synthetic-injection geometry-invariance test + SEED-005 frontmatter status flip (planted → closed) + closure breadcrumb
 
 ### Phase 38: Phase 4 Code-Review Polish Pass
 **Goal**: Sweep the six v1.0-era Phase 4 deferred IN-* findings against current code, applying only still-applicable ones, and retire the long-lived todo.
@@ -94,7 +94,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 36. Split Overrides Per Loader Mode | 5/5 | Complete    | 2026-05-13 |
-| 37. Spine 4.2 Timeline Coverage Hardening | 2/3 | In Progress|  |
+| 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete   | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 0/3 | Not started | - |
 | 39. Windows Host-Blocked UAT Burndown | 0/3 | Not started | - |
 
