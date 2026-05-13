@@ -846,7 +846,7 @@ export interface SkeletonSummary {
  *
  * The `'SkeletonNotFoundOnLoadError'` kind carries the cached recovery
  * payload (D-149 chain) — `projectPath`, `originalSkeletonPath`,
- * `mergedOverrides`, `samplingHz`, `lastOutDir`, `sortColumn`, `sortDir`.
+ * `mergedOverridesBuckets`, `samplingHz`, `lastOutDir`, `sortColumn`, `sortDir`.
  * These fields are populated by `handleProjectOpenFromPath` in
  * `src/main/project-io.ts` from the `materialized` object already in
  * scope at the rescue branch, and consumed by both
@@ -876,7 +876,17 @@ export type SerializableError =
       // when the user picks a replacement skeleton (D-149 chain).
       projectPath: string;
       originalSkeletonPath: string;
-      mergedOverrides: Record<string, number>;
+      /**
+       * Phase 36 SEED-007 D-12 — renamed from `mergedOverrides` to carry both
+       * mode buckets so locate-skeleton recovery preserves both atlas-source
+       * and atlas-less overrides across the failed-Open → reload cycle.
+       * Per-bucket migration re-runs main-side against the resolved skeleton
+       * in `handleProjectReloadWithSkeleton` (src/main/project-io.ts).
+       */
+      mergedOverridesBuckets: {
+        overrides: Record<string, number>;
+        overridesAtlasLess: Record<string, number>;
+      };
       samplingHz: number;
       lastOutDir: string | null;
       sortColumn: string | null;
@@ -987,6 +997,17 @@ export interface ProjectFileV1 {
   atlasPath: string | null;
   imagesDir: string | null;
   overrides: Record<string, number>;
+  /**
+   * Phase 36 SEED-007 L-01 — atlas-less mode's independent override bucket.
+   * Sibling to `overrides` (which is now semantically the atlas-source bucket).
+   * v1.3.x/v1.4.x .stmproj files have no `overridesAtlasLess` field; the
+   * validator pre-massages missing → {} (mirrors loaderMode pre-massage in
+   * src/core/project-file.ts:174-186). Routing of legacy single-map files into
+   * one bucket vs. the other happens at the Open seam in src/main/project-io.ts
+   * per SEED-007 Decision 2-A (saved loaderMode === 'atlas-less' → bucket here;
+   * otherwise → bucket in `overrides`).
+   */
+  overridesAtlasLess: Record<string, number>;
   samplingHz: number | null;
   lastOutDir: string | null;
   sortColumn: string | null;
@@ -1037,6 +1058,7 @@ export interface AppSessionState {
   atlasPath: string | null;
   imagesDir: string | null;
   overrides: Record<string, number>;
+  overridesAtlasLess: Record<string, number>;
   samplingHz: number | null;
   lastOutDir: string | null;
   sortColumn: string | null;
@@ -1059,6 +1081,15 @@ export interface AppSessionState {
 export interface MaterializedProject {
   summary: SkeletonSummary;
   restoredOverrides: Record<string, number>;
+  /**
+   * Phase 36 SEED-007 L-02 — atlas-less bucket of overrides intersected
+   * against the resampled summary (mirrors `restoredOverrides` line above).
+   * Per-bucket migration ran main-side at the Open / recovery / resample
+   * seams; stale keys (`staleOverrideKeys`) are unioned across buckets;
+   * `migratedKeyCount` is the sum across buckets (D-07 IPC contract — single
+   * scalar, no per-bucket label needed at the renderer banner surface).
+   */
+  restoredOverridesAtlasLess: Record<string, number>;
   staleOverrideKeys: string[];
   /**
    * Phase 29 D-06 — count of v1.3-era contributor-keyed override entries
@@ -1300,7 +1331,16 @@ export interface Api {
   reloadProjectWithSkeleton: (args: {
     projectPath: string;
     newSkeletonPath: string;
-    mergedOverrides: Record<string, number>;
+    /**
+     * Phase 36 SEED-007 D-12 — renamed from `mergedOverrides`. Carries both
+     * mode buckets so locate-skeleton recovery preserves both atlas-source
+     * and atlas-less overrides across the rescue → reload cycle. Per-bucket
+     * migration re-runs main-side in `handleProjectReloadWithSkeleton`.
+     */
+    mergedOverridesBuckets: {
+      overrides: Record<string, number>;
+      overridesAtlasLess: Record<string, number>;
+    };
     samplingHz?: number;
     lastOutDir?: string | null;
     sortColumn?: string | null;
