@@ -71,7 +71,10 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   2. Each still-applicable finding lands as an atomic per-finding commit referencing the IN-NN tag: OverrideDialog focus-trap (IN-01) — either reword the misleading comment or land the ~15-line focus-trap implementation; drag-to-cancel guard (IN-02); empty-input guard (IN-03); sort comparator locale options (IN-05) so `CHAIN_10` sorts after `CHAIN_9`; dead `open` prop + early-return guard removal (IN-06) if still present after Phase 27.
   3. IN-04 (DRY-candidate flag — `highlightMatch` duplication from `SearchBar.tsx`) is explicitly skipped per Phase 2 pattern intent, and that decision is documented in the audit with rationale.
   4. `.planning/todos/pending/2026-04-24-phase-4-code-review-follow-up.md` moves to `.planning/todos/resolved/` with a closing note referencing Phase 38 and listing the per-finding outcome (closed / skipped / no-op).
-**Plans**: TBD (estimated 3 plans: 38-01 audit IN-01..06 against current code → POLISH-AUDIT.md, 38-02 apply still-applicable findings as atomic commits, 38-03 resolve long-lived todo with close-out note)
+**Plans**: 3 plans
+- [ ] 38-01-PLAN.md — POLISH-01 audit IN-01..IN-06 + WR-03 against current source → `.planning/phases/38-phase-4-code-review-polish-pass/38-POLISH-AUDIT.md` (verdict per finding: 1 applies / 5 no-op swept by Phase 6 + Phase 27 / 1 skip)
+- [ ] 38-02-PLAN.md — POLISH-02 apply IN-02 drag-to-cancel guard (`onMouseDown` + `e.target === e.currentTarget`) in `src/renderer/src/modals/OverrideDialog.tsx` + new regression spec `tests/renderer/override-dialog-drag-to-cancel.spec.tsx` as two atomic commits (test-first per Phase 27 precedent)
+- [ ] 38-03-PLAN.md — POLISH-03 git-mv `2026-04-24-phase-4-code-review-follow-up.md` from pending/ to resolved/ + append `## Resolved` close-out section referencing Phase 38 + per-finding outcomes
 **UI hint**: yes
 
 ### Phase 39: Windows Host-Blocked UAT Burndown
