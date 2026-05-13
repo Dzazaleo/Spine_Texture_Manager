@@ -71,3 +71,26 @@ npm run build:win   # produces release/Spine Texture Manager-1.1.3-x64.exe
 - `20-HUMAN-UAT.md` test #3
 - `20-CONTEXT.md` D-06 (effectAllowed='copy' lock)
 - `20-RESEARCH.md` §Pattern 4 (drag image guard)
+
+***
+
+## Resolved
+
+2026-05-13 — Phase 39 (WINUAT-01) — outcome: **passed**.
+
+Executed on a real Windows host per host-availability decision recorded at `.planning/phases/39-windows-host-blocked-uat-burndown/39-CONTRACT.md` (`host_available: yes` → `winuat_01_mode: live`).
+
+**Host:** Windows host (specific Windows version + machine descriptor not volunteered at UAT report time).
+**Installer:** v1.3.x or v1.4.x release installer (specific installer version not volunteered at UAT report time).
+
+**Observation matrix:**
+- Drag image rendered: **pass**
+- New entry `mixTime=0.25`: **pass**
+- New entry `loop=false`: **pass**
+- DevTools console clean (no errors): **pass**
+
+**Notes:** User reported all four observations as `pass` on 2026-05-13. Specific Windows version + installer version metadata not recorded at UAT report time; outcome integrity rests on this dated paragraph + Phase 39 contract reference + WINUAT-01 REQ-ID, per the audit-trail rules in 39-CONTRACT.md §2.
+
+**Linux scope dropped** per memory `project_linux_deferred` (Linux removed from CI/release at v1.3 — never UAT'd, never built). Windows-only outcome recorded; the original todo's Linux clause (item 2, "Linux test") is obsolete.
+
+**Related REQ:** WINUAT-01 (REQUIREMENTS.md). Phase 20 `20-HUMAN-UAT.md` is not updated because the file was deleted in commit `0787fe1` (v1.2 cleanup); this todo is the surviving audit-trail anchor per 39-CONTRACT.md §3.1.
