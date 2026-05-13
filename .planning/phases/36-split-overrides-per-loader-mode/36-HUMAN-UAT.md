@@ -1,14 +1,16 @@
 ---
-status: partial
+status: passed
 phase: 36-split-overrides-per-loader-mode
 source: [36-VERIFICATION.md, 36-REVIEW.md (CR-01 fix in e08c18e)]
 started: 2026-05-13
 updated: 2026-05-13
+approved_by: user
+approved_at: 2026-05-13
 ---
 
 ## Current Test
 
-[all 8 tests exercised; 7 passed, 1 surfaced a pre-existing gap — see Gap 1]
+[all complete — 8/8 passed; adjacent close-path gap surfaced + resolved in ef38cd3]
 
 ## Setup
 
@@ -167,12 +169,12 @@ Now **drag-drop the .stmproj** onto a fresh app instance (quit, relaunch, drop t
 
 total: 8
 passed: 8
-issues: 1
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
 
-(Test 8 passed for the in-scope Phase 36 mechanic — both-bucket dirty-detection — but exposed a pre-existing, adjacent gap in the app-close path. See Gap 1.)
+(Test 8 passed for the in-scope Phase 36 mechanic — both-bucket dirty-detection — and the adjacent close-path gap it exposed has been fixed and human-re-verified. See Gap 1.)
 
 ## Gaps
 
@@ -180,7 +182,14 @@ blocked: 0
 
 source_test: 8
 severity: bug (correctness — silent data loss on unsaved work)
-status: open
+status: resolved
+resolved_by: ef38cd3 fix(36-followup): guard window close (X / Cmd+W) with the dirty-save prompt
+resolved_at: 2026-05-13
+human_reverified: yes (approved by user 2026-05-13) — all four scenarios pass:
+  - X button on dirty session: SaveQuitDialog appears; Cancel cancels; Don't Save closes
+  - Cmd+W on dirty session: SaveQuitDialog appears (same flow as X)
+  - X / Cmd+W on clean session: closes immediately (no dialog)
+  - Cmd+Q regression check: dirty session still shows SaveQuitDialog (existing flow preserved)
 phase_36_introduced: no — pre-existing
 discovered_during: Phase 36 HUMAN-UAT (Test 8 setup)
 
