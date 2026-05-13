@@ -87,7 +87,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   3. If either UAT executed end-to-end, the corresponding pending todo (`.planning/todos/pending/2026-05-01-phase-20-windows-linux-dnd-cross-platform-uat.md` and/or `.planning/todos/pending/2026-05-08-phase-31-windows-admin-dnd-release-uat.md`) moves to `.planning/todos/resolved/` with a closing note. If a Windows host is NOT available this cycle, phase outcome is `human_needed`, the unexecuted todos stay in `pending/` with an updated note carrying them forward to v1.6+, and phase closure gates on programmatic verification + audit-trail integrity — NOT on host availability.
   4. The phase plan explicitly documents the graceful-degradation contract up front: WINUAT-01 and WINUAT-02 outcomes are independent (one can pass while the other defers), and `human_needed` is a first-class non-failure outcome for this phase.
 **Plans**: 3 plans
-- [ ] 39-01-PLAN.md — Host-availability checkpoint + 39-CONTRACT.md (graceful-degradation contract documenting WINUAT-01..02 independence, `human_needed` first-class non-failure, Phase 20 UAT deletion fact + Phase 31 UAT archived-path correction, plan-routing matrix) (WINUAT-01..03 joint gate)
+- [x] 39-01-PLAN.md — Host-availability checkpoint + 39-CONTRACT.md (graceful-degradation contract documenting WINUAT-01..02 independence, `human_needed` first-class non-failure, Phase 20 UAT deletion fact + Phase 31 UAT archived-path correction, plan-routing matrix) (WINUAT-01..03 joint gate)
 - [ ] 39-02-PLAN.md — WINUAT-01 live-execution on Windows OR structured deferral (DocBuilder DnD scenario; outcome recorded in Phase 20 pending-todo since 20-HUMAN-UAT.md was deleted in v1.2 cleanup)
 - [ ] 39-03-PLAN.md — WINUAT-02 live-execution on Windows OR structured deferral (admin DnD advisory scenario; flips item 1 in `.planning/milestones/v1.3.1-phases/31-loader-ux-small-fixes-batch/31-HUMAN-UAT.md` archived path + handles Phase 31 todo lifecycle = WINUAT-03 Phase-31-half)
 **UI hint**: yes
@@ -102,7 +102,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 36. Split Overrides Per Loader Mode | 5/5 | Complete    | 2026-05-13 |
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
-| 39. Windows Host-Blocked UAT Burndown | 0/3 | Not started | - |
+| 39. Windows Host-Blocked UAT Burndown | 1/3 | In Progress|  |
 
 ---
 
