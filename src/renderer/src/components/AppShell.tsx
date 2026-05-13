@@ -652,6 +652,20 @@ export function AppShell({
     setDialogState(null);
   }, [loaderMode]);
 
+  // Phase 36 WR-04 — `anyOverrides` lifted to a memo so the
+  // `onToggleLoaderMode` deps array references a boolean rather than the
+  // `.size` property of two Maps. The property-access form
+  // `[overrides.size, overridesAtlasLess.size]` is functionally correct
+  // (size is a primitive number; React shallow-compares correctly) but
+  // newer `react-hooks/exhaustive-deps` rule versions flag the form and a
+  // careless refactor could replace `.size` with the Map itself, causing
+  // the callback to re-bind on every override mutation. Stable boolean
+  // dep is robust to both.
+  const anyOverrides = useMemo(
+    () => overrides.size > 0 || overridesAtlasLess.size > 0,
+    [overrides, overridesAtlasLess],
+  );
+
   // Phase 36 D-01..D-04 — mode-toggle handler. Routes all user-initiated
   // loaderMode toggle UI through this single callback so the D-02 trigger
   // (at-least-one bucket has overrides) and D-03 suppression check run
@@ -662,7 +676,6 @@ export function AppShell({
     setLoaderMode(next);
     setLoaderMenuOpen(false);
     // D-02 trigger: at least one bucket has overrides.
-    const anyOverrides = overrides.size > 0 || overridesAtlasLess.size > 0;
     if (!anyOverrides) return;
     // D-03 suppression check (per-machine, verbatim localStorage key).
     try {
@@ -671,7 +684,7 @@ export function AppShell({
       // localStorage unavailable (e.g., jsdom in tests with no storage) — skip suppression check.
     }
     setOverrideModeToastVisible(true);
-  }, [overrides.size, overridesAtlasLess.size]);
+  }, [anyOverrides]);
 
   // Phase 6 Plan 06 — D-117 + D-118 + D-122 toolbar click flow.
   //   1. Pre-fill the picker with <skeletonDir>/images-optimized/ (D-122).
