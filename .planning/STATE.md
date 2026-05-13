@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening
 status: planning
-last_updated: "2026-05-13T08:00:00.000Z"
-last_activity: 2026-05-13
+last_updated: "2026-05-13T09:01:05.928Z"
+last_activity: 2026-05-13 — v1.5 ROADMAP.md authored (4 phases, ~14 plans, 18 REQs)
 progress:
   total_phases: 4
   completed_phases: 0
