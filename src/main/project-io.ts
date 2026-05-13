@@ -483,7 +483,14 @@ export async function handleProjectOpenFromPath(
           message: err.message,
           projectPath: absolutePath,
           originalSkeletonPath: materialized.skeletonPath,
-          mergedOverrides: materialized.overrides,
+          // Phase 36 D-12 — carry BOTH buckets across locate-skeleton
+          // recovery. Active-bucket-only here would be silent data loss for
+          // the inactive bucket; the renderer's mergedOverridesBuckets
+          // payload is the source of truth on the reload-with-skeleton hop.
+          mergedOverridesBuckets: {
+            overrides: materialized.overrides,
+            overridesAtlasLess: materialized.overridesAtlasLess,
+          },
           samplingHz: materialized.samplingHz,
           lastOutDir: materialized.lastOutDir,
           sortColumn: materialized.sortColumn,
@@ -717,10 +724,13 @@ export async function handleLocateSkeleton(
  *     stays correct; this path's directory remains the relativization basedir
  *     for any subsequent Save).
  *   - newSkeletonPath: the user-picked replacement skeleton (.json), absolute.
- *   - mergedOverrides: the overrides Record from the failed Open response,
- *     forwarded verbatim — main re-intersects against the new sampler peaks
- *     (D-150 stale-key drop applies on every load, including recovery, because
- *     the new skeleton may not have all the attachments the old one had).
+ *   - mergedOverridesBuckets: the per-bucket overrides Record pair from the
+ *     failed Open response (Phase 36 D-12 — renamed from `mergedOverrides`;
+ *     carries BOTH atlas-source `overrides` and atlas-less `overridesAtlasLess`
+ *     buckets). Forwarded verbatim — main re-intersects each bucket against
+ *     the new sampler peaks (D-150 stale-key drop applies on every load,
+ *     including recovery, because the new skeleton may not have all the
+ *     attachments the old one had).
  *
  * Returns the same `OpenResponse` envelope shape as `handleProjectOpenFromPath`,
  * so the renderer can mount the result via the same code path it uses for Open.
@@ -757,10 +767,20 @@ export async function handleProjectReloadWithSkeleton(
       error: { kind: 'Unknown', message: 'newSkeletonPath must be a .json path' },
     };
   }
-  if (!a.mergedOverrides || typeof a.mergedOverrides !== 'object') {
+  // Phase 36 D-12 — validate the renamed `mergedOverridesBuckets` payload
+  // carries BOTH atlas-source and atlas-less buckets. Active-bucket-only
+  // would be silent data loss for the inactive bucket on the
+  // reload-with-skeleton hop; the renderer (Plan 36-03) always sends both
+  // because lastSaved snapshots both per D-11.
+  if (
+    !a.mergedOverridesBuckets
+    || typeof a.mergedOverridesBuckets !== 'object'
+    || !(a.mergedOverridesBuckets as Record<string, unknown>).overrides
+    || !(a.mergedOverridesBuckets as Record<string, unknown>).overridesAtlasLess
+  ) {
     return {
       ok: false,
-      error: { kind: 'Unknown', message: 'mergedOverrides must be a Record' },
+      error: { kind: 'Unknown', message: 'mergedOverridesBuckets must carry both buckets' },
     };
   }
 
@@ -825,6 +845,14 @@ export async function handleProjectReloadWithSkeleton(
       // can re-prompt the locate-skeleton picker without losing the cached
       // overrides/settings. `originalSkeletonPath` carries the just-picked
       // (now-missing) path so the picker can default-locate near it.
+      // Phase 36 D-12 — re-thread the renamed `mergedOverridesBuckets`
+      // payload verbatim. The validator at the top of this handler already
+      // asserted both sub-buckets exist as objects; cast each sub-bucket
+      // to the typed Record<string, number> contract.
+      const buckets = a.mergedOverridesBuckets as {
+        overrides: Record<string, number>;
+        overridesAtlasLess: Record<string, number>;
+      };
       return {
         ok: false,
         error: {
@@ -832,7 +860,10 @@ export async function handleProjectReloadWithSkeleton(
           message: err.message,
           projectPath: a.projectPath,
           originalSkeletonPath: a.newSkeletonPath,
-          mergedOverrides: a.mergedOverrides as Record<string, number>,
+          mergedOverridesBuckets: {
+            overrides: buckets.overrides,
+            overridesAtlasLess: buckets.overridesAtlasLess,
+          },
           samplingHz,
           lastOutDir,
           sortColumn,
@@ -904,14 +935,28 @@ export async function handleProjectReloadWithSkeleton(
   // recovery — the new skeleton may have different attachments than the old
   // one. The helper preserves the typeof+isFinite guard from the original
   // per-seam loop (silently skips bad serialized values).
-  const { restored, stale, migratedKeyCount } = migrateOverrides(
-    a.mergedOverrides as Record<string, unknown>,
-    summary,
-  );
+  //
+  // Phase 36 OVR-04 — per-bucket migration. Recovery seam receives buckets
+  // that are ALREADY split from the renderer (D-11 lastSaved snapshot
+  // carries both buckets; Plan 36-03 owns the renderer-side dispatch).
+  // No legacy-routing logic here — that lives at the Open seam ONLY
+  // (PATTERNS.md §3-A "Departure notes"). The validator at the top of
+  // this handler asserted both buckets exist as objects.
+  const recoveryBuckets = a.mergedOverridesBuckets as {
+    overrides: Record<string, unknown>;
+    overridesAtlasLess: Record<string, unknown>;
+  };
+  const aSrcRec = migrateOverrides(recoveryBuckets.overrides, summary);
+  const aLessRec = migrateOverrides(recoveryBuckets.overridesAtlasLess, summary);
+  const restored = aSrcRec.restored;
+  const restoredAtlasLess = aLessRec.restored;
+  const stale = [...new Set([...aSrcRec.stale, ...aLessRec.stale])]; // D-06 union
+  const migratedKeyCount = aSrcRec.migratedKeyCount + aLessRec.migratedKeyCount; // D-07 sum
 
   const project: MaterializedProject = {
     summary,
     restoredOverrides: restored,
+    restoredOverridesAtlasLess: restoredAtlasLess,
     staleOverrideKeys: stale,
     migratedKeyCount,
     samplingHz,
@@ -1105,14 +1150,38 @@ export async function handleProjectResample(
   // D-150 stale-key intersect + Phase 29 D-06 migration (mirrors the two
   // earlier seams). Per-key value validation guards against bad serialization
   // across IPC; migration counts travel through to the renderer banner.
-  const { restored, stale, migratedKeyCount } = migrateOverrides(
-    a.overrides as Record<string, unknown>,
-    summary,
-  );
+  //
+  // Phase 36 OVR-04 — per-bucket migration at the resample seam.
+  // ResampleArgs (src/shared/types.ts:1167) carries the active bucket
+  // verbatim as `overrides: Record<string, number>` (Pitfall-3 boundary;
+  // the renderer Plan 36-03 sends `Object.fromEntries(activeOverrides)`).
+  // The atlas-less bucket is NOT part of the ResampleArgs type contract
+  // (Plan 36-01 deliberately did not add it — the resample IPC is one-shot
+  // for the active bucket). Defensively read `a.overridesAtlasLess` if
+  // present (forward-compat for a future ResampleArgs extension); default
+  // to `{}` when the field is missing. Per-bucket migration runs against
+  // the shared mode-invariant summary.regions; the missing-bucket call is
+  // a no-op (migrateOverrides({}, summary) returns empty restored/stale
+  // and 0 migratedKeyCount). The response carries both restoredOverrides
+  // and restoredOverridesAtlasLess so AppShell.mountOpenResponse (Plan
+  // 36-03) can re-hydrate the inactive bucket from the renderer's own
+  // useState slot (the inactive bucket round-trips through the renderer,
+  // not the IPC seam, on the resample path).
+  const resampleAtlasLessInput: Record<string, unknown> =
+    a.overridesAtlasLess && typeof a.overridesAtlasLess === 'object'
+      ? (a.overridesAtlasLess as Record<string, unknown>)
+      : {};
+  const aSrcRes = migrateOverrides(a.overrides as Record<string, unknown>, summary);
+  const aLessRes = migrateOverrides(resampleAtlasLessInput, summary);
+  const restored = aSrcRes.restored;
+  const restoredAtlasLess = aLessRes.restored;
+  const stale = [...new Set([...aSrcRes.stale, ...aLessRes.stale])]; // D-06 union
+  const migratedKeyCount = aSrcRes.migratedKeyCount + aLessRes.migratedKeyCount; // D-07 sum
 
   const project: MaterializedProject = {
     summary,
     restoredOverrides: restored,
+    restoredOverridesAtlasLess: restoredAtlasLess,
     staleOverrideKeys: stale,
     migratedKeyCount,
     samplingHz: a.samplingHz,
