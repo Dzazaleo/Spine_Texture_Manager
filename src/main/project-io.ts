@@ -783,15 +783,29 @@ export async function handleProjectReloadWithSkeleton(
   // would be silent data loss for the inactive bucket on the
   // reload-with-skeleton hop; the renderer (Plan 36-03) always sends both
   // because lastSaved snapshots both per D-11.
+  //
+  // Phase 36 WR-02 — replace truthiness checks with strict object guards
+  // (mirrors the validator precedent in project-file.ts:290-298). Pre-fix
+  // a non-empty string / number / array / function-ref on either sub-bucket
+  // slot passed the validator and got cast as Record<string, number>; the
+  // downstream Object.entries walk produced garbage but didn't crash.
+  // Defense-in-depth at the IPC trust boundary; the renderer never sends
+  // bad shapes today, but the inner gate should be authoritative.
+  const buckets = a.mergedOverridesBuckets as Record<string, unknown> | null | undefined;
   if (
-    !a.mergedOverridesBuckets
-    || typeof a.mergedOverridesBuckets !== 'object'
-    || !(a.mergedOverridesBuckets as Record<string, unknown>).overrides
-    || !(a.mergedOverridesBuckets as Record<string, unknown>).overridesAtlasLess
+    !buckets
+    || typeof buckets !== 'object'
+    || Array.isArray(buckets)
+    || typeof buckets.overrides !== 'object'
+    || buckets.overrides === null
+    || Array.isArray(buckets.overrides)
+    || typeof buckets.overridesAtlasLess !== 'object'
+    || buckets.overridesAtlasLess === null
+    || Array.isArray(buckets.overridesAtlasLess)
   ) {
     return {
       ok: false,
-      error: { kind: 'Unknown', message: 'mergedOverridesBuckets must carry both buckets' },
+      error: { kind: 'Unknown', message: 'mergedOverridesBuckets must carry both buckets as objects' },
     };
   }
 
