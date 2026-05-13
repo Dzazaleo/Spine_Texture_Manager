@@ -34,7 +34,7 @@ Touched surfaces (canonical): `src/shared/types.ts`, `src/core/project-file.ts`,
 
 ### Clear / Reset Scope
 - **D-08:** Per-row Clear (OverrideDialog "Clear" path) acts on the active bucket only. Strict separation — clearing CIRCLE in atlas-source mode leaves any atlas-less CIRCLE override untouched. Same path as Apply: both write to the active slice only.
-- **D-09:** No bulk "wipe all overrides" path exists today; no decision needed there. If one is added later, default would be active-bucket-only by analogy with D-08.
+- **D-09 [informational]:** No bulk "wipe all overrides" path exists today; no decision needed there. If one is added later, default would be active-bucket-only by analogy with D-08.
 - **D-10:** OverrideDialog stays unaware of the inactive bucket — multi-row selection lives in the active panel; Apply writes to the active bucket only; no `(atlas-less: 75%)` hint in the dialog. Simplest mental model.
 
 ### Dirty-Detection + Recovery Payload
