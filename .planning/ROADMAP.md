@@ -25,7 +25,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 - [x] **Phase 36: Split Overrides Per Loader Mode** — Schema-additive `overridesAtlasLess` bucket + legacy file routing + per-bucket migration + AppShell threading (SEED-007 decisions 1/2-A/3-A locked) (completed 2026-05-13)
 - [x] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B) (completed 2026-05-13)
 - [x] **Phase 38: Phase 4 Code-Review Polish Pass** — Audit IN-01..06 against current code, apply still-applicable findings, resolve long-lived v1.0-era todo (completed 2026-05-13)
-- [ ] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable
+- [x] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable (completed 2026-05-13)
 
 ## Phase Details
 
@@ -88,8 +88,8 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
   4. The phase plan explicitly documents the graceful-degradation contract up front: WINUAT-01 and WINUAT-02 outcomes are independent (one can pass while the other defers), and `human_needed` is a first-class non-failure outcome for this phase.
 **Plans**: 3 plans
 - [x] 39-01-PLAN.md — Host-availability checkpoint + 39-CONTRACT.md (graceful-degradation contract documenting WINUAT-01..02 independence, `human_needed` first-class non-failure, Phase 20 UAT deletion fact + Phase 31 UAT archived-path correction, plan-routing matrix) (WINUAT-01..03 joint gate)
-- [ ] 39-02-PLAN.md — WINUAT-01 live-execution on Windows OR structured deferral (DocBuilder DnD scenario; outcome recorded in Phase 20 pending-todo since 20-HUMAN-UAT.md was deleted in v1.2 cleanup)
-- [ ] 39-03-PLAN.md — WINUAT-02 live-execution on Windows OR structured deferral (admin DnD advisory scenario; flips item 1 in `.planning/milestones/v1.3.1-phases/31-loader-ux-small-fixes-batch/31-HUMAN-UAT.md` archived path + handles Phase 31 todo lifecycle = WINUAT-03 Phase-31-half)
+- [x] 39-02-PLAN.md — WINUAT-01 live-execution on Windows OR structured deferral (DocBuilder DnD scenario; outcome recorded in Phase 20 pending-todo since 20-HUMAN-UAT.md was deleted in v1.2 cleanup)
+- [x] 39-03-PLAN.md — WINUAT-02 live-execution on Windows OR structured deferral (admin DnD advisory scenario; flips item 1 in `.planning/milestones/v1.3.1-phases/31-loader-ux-small-fixes-batch/31-HUMAN-UAT.md` archived path + handles Phase 31 todo lifecycle = WINUAT-03 Phase-31-half)
 **UI hint**: yes
 
 ## Progress
@@ -102,7 +102,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 36. Split Overrides Per Loader Mode | 5/5 | Complete    | 2026-05-13 |
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
-| 39. Windows Host-Blocked UAT Burndown | 1/3 | In Progress|  |
+| 39. Windows Host-Blocked UAT Burndown | 3/3 | Complete   | 2026-05-13 |
 
 ---
 
