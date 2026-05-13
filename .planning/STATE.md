@@ -4,12 +4,12 @@ milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening
 status: milestone_complete
 last_updated: "2026-05-13T18:55:40.909Z"
-last_activity: 2026-05-13 -- Phase 39 execution started
+last_activity: 2026-05-13 -- Phase 39 complete; v1.5 milestone complete
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 14
   percent: 100
 ---
 
