@@ -418,6 +418,25 @@ export async function handleProjectOpenFromPath(
     };
   }
 
+  // Phase 36 WR-03 — sense whether the file ON DISK carried an
+  // `overridesAtlasLess` key (before validator pre-massage substitutes `{}`
+  // for the missing-field case). Used below to gate the legacy single-map
+  // routing heuristic: a file written by v1.5+ post-Phase-36 always serialises
+  // the key explicitly (even when the atlas-less bucket is empty), so the
+  // presence of the key reliably distinguishes "v1.5 file with empty atlas-
+  // less bucket" (do NOT legacy-route) from "v1.3.x/v1.4.x file written
+  // before the field existed" (legacy-route is appropriate). The validator's
+  // pre-massage at project-file.ts:287-289 conflates both cases by the time
+  // `materialized.overridesAtlasLess` is read, hence the raw-key check here.
+  //
+  // Cast is safe because parsed has already been narrowed below by validator;
+  // we sample BEFORE validation but only read the key membership (which is
+  // safe on any object). Falsy `parsed` (null) → `false`.
+  const hadOverridesAtlasLessKey =
+    typeof parsed === 'object'
+    && parsed !== null
+    && Object.prototype.hasOwnProperty.call(parsed, 'overridesAtlasLess');
+
   // 3. Validate. invalid-shape / unknown-version → ProjectFileParseError;
   //    newer-version → ProjectFileVersionTooNewError (D-151).
   const v = validateProjectFile(parsed);
@@ -605,14 +624,16 @@ export async function handleProjectOpenFromPath(
   // The bucket NOT receiving the legacy map starts empty. Per SEED-007
   // Decision 2-A LOCKED 2026-05-12.
   //
-  // Detection: a legacy v1.3.x/v1.4.x file is one where the pre-massage
-  // substituted `overridesAtlasLess === {}` AND `overrides` has at least
-  // one entry. We can't distinguish "legacy file" from "v1.5 file that
-  // happens to have an empty atlas-less bucket"; the conservative rule is
-  // that routing only matters when both conditions hold, and applying
-  // the rule to a v1.5 file with the same shape is a no-op.
+  // Phase 36 WR-03 fix — legacy detection now requires that the on-disk file
+  // DID NOT carry the `overridesAtlasLess` key at all. Pre-fix the heuristic
+  // also fired for v1.5 files that happened to have an empty atlas-less bucket
+  // (legitimate state: atlas-source-mode file with no atlas-less overrides
+  // applied yet) — saving and reopening such a file would silently move the
+  // atlas-source map into the atlas-less bucket on every cycle. `hadOverridesAtlasLessKey`
+  // (sensed before validator pre-massage) reliably distinguishes the two cases.
   const legacyMapPresent =
-    Object.keys(materialized.overrides).length > 0
+    !hadOverridesAtlasLessKey
+    && Object.keys(materialized.overrides).length > 0
     && Object.keys(materialized.overridesAtlasLess).length === 0;
   const routeToAtlasLess =
     legacyMapPresent && materialized.loaderMode === 'atlas-less';
