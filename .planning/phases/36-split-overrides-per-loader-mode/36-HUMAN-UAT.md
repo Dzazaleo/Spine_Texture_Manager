@@ -8,7 +8,7 @@ updated: 2026-05-13
 
 ## Current Test
 
-[awaiting human testing — all 8 scenarios pending]
+[all 8 tests exercised; 7 passed, 1 surfaced a pre-existing gap — see Gap 1]
 
 ## Setup
 
@@ -33,7 +33,7 @@ updated: 2026-05-13
 
 **why_human:** This is the core OVR-07 contract — the production bug CR-01 caused the atlas-source bucket to be silently overwritten with atlas-less data on every toggle, and the integration test `tests/renderer/appshell-mode-switch-divergence.spec.tsx` stubbed around the broken IPC handler. Now that the production handler routes correctly, a human needs to confirm the end-to-end flow in the running app: real OS toggle event → real IPC round-trip → real renderer hydration → real Override dialog read of both buckets. The unit + integration tests cover the seams in isolation but not the live click path.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -49,7 +49,7 @@ updated: 2026-05-13
 
 **why_human:** Test 3 in `tests/renderer/appshell-mode-switch-divergence.spec.tsx` covers this for `samplingHz` changes, but it stubs `makeResampleEcho` to model the corrected behavior. The actual `handleProjectResample` handler is now driven correctly by the renderer sending both buckets — confirm in the live app that the IPC round-trip preserves the inactive bucket value (not just the key).
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -68,7 +68,7 @@ updated: 2026-05-13
 
 **why_human:** `tests/core/project-file.spec.ts` covers the serializer round-trip at the schema level but does not cover the AppShell `lastSaved`-vs-`overrides`/`overridesAtlasLess` dirty-detection comparison in the running renderer. A human must confirm that opening a freshly-saved project does NOT flag dirty — this is the symptom that would surface if `mountOpenResponse` doesn't hydrate both buckets symmetrically.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -86,7 +86,7 @@ updated: 2026-05-13
 
 **why_human:** Banner JSX is rendered conditionally on a state slot; live React reconciliation, focus management, and CSS visibility on the actual DOM cannot be jsdom-tested. ARIA `role="status"` announcement to a screen reader (if accessible-user) is also human-domain.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -101,7 +101,7 @@ updated: 2026-05-13
 
 **why_human:** The `anyOverrides` useMemo (WR-04 fix) gates toast emission. Confirm the gate works at the live click path — the unit-level cannot exercise the click handler with both empty Maps to assert the early-return.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -121,7 +121,7 @@ updated: 2026-05-13
 
 **why_human:** WR-03 fix gates the legacy-routing heuristic on the *on-disk* key presence (`Object.prototype.hasOwnProperty.call(parsed, 'overridesAtlasLess')`) BEFORE validator pre-massage. The unit test reads pre-massaged data. Only a real on-disk legacy file exercises the full code path — including the JSON.parse → hasOwnProperty check → conditional routing.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -141,7 +141,7 @@ Now **drag-drop the .stmproj** onto a fresh app instance (quit, relaunch, drop t
 
 **why_human:** Triggering `SkeletonNotFoundOnLoadError` requires a real disk-level skeleton rename + real drag-drop event; both are out of jsdom reach. The fix threads `loaderMode`/`sharpenOnExport`/`safetyBufferPercent` through `SerializableError`'s recovery arm and `App.tsx`'s `handleLocateSkeleton`. Human must confirm post-recovery settings match pre-error state.
 
-**result:** [pending]
+**result:** passed (2026-05-13)
 
 ---
 
@@ -159,19 +159,50 @@ Now **drag-drop the .stmproj** onto a fresh app instance (quit, relaunch, drop t
 
 **why_human:** The `isDirty` memo (`AppShell.tsx:980-1019`) compares both Map sizes AND entries against `lastSaved.overrides` + `lastSaved.overridesAtlasLess`. Title-bar / save-button dirty visual state in the live Electron window is what the user actually sees — not reachable from unit tests.
 
-**result:** [pending]
+**result:** passed for the dirty-detection mechanic (2026-05-13) — dirty indicator + Save flow both flip correctly for both-bucket changes. However, this test also surfaced an **adjacent pre-existing gap**: closing the app via the window's X button (or Cmd+W) skips the dirty-save prompt entirely. See Gap 1.
 
 ---
 
 ## Summary
 
 total: 8
-passed: 0
-issues: 0
-pending: 8
+passed: 8
+issues: 1
+pending: 0
 skipped: 0
 blocked: 0
 
+(Test 8 passed for the in-scope Phase 36 mechanic — both-bucket dirty-detection — but exposed a pre-existing, adjacent gap in the app-close path. See Gap 1.)
+
 ## Gaps
 
-(none identified yet — to be filled in if any test fails)
+### Gap 1 — Window close (X / Cmd+W) skips the dirty-save prompt
+
+source_test: 8
+severity: bug (correctness — silent data loss on unsaved work)
+status: open
+phase_36_introduced: no — pre-existing
+discovered_during: Phase 36 HUMAN-UAT (Test 8 setup)
+
+**Symptom:** With unsaved overrides in either bucket, clicking the window's red X button (or pressing Cmd+W) closes the app immediately. No SaveQuitDialog is shown, the user's dirty changes are discarded silently.
+
+**Expected:** Same Save / Don't Save / Cancel prompt that Cmd+Q (or App menu → Quit) currently shows.
+
+**Root cause:** [src/main/index.ts:135-148](src/main/index.ts#L135-L148) guards `app.on('before-quit')` with the IPC `'project:check-dirty-before-quit'` roundtrip → `AppShell.isDirty()` → `SaveQuitDialog`. But `mainWindow.on('close', ...)` (the X / Cmd+W path) has no equivalent guard — the only handler at [src/main/index.ts:477-481](src/main/index.ts#L477-L481) just nulls `mainWindowRef`. Flow:
+
+1. User clicks X with dirty state.
+2. Electron fires `mainWindow.on('close')` → window is destroyed (no `event.preventDefault()`).
+3. `window-all-closed` fires → `app.quit()` at [src/main/index.ts:610-616](src/main/index.ts#L610-L616).
+4. `before-quit` listener fires, but `win.isDestroyed() === true` → the early-return at [index.ts:139-145](src/main/index.ts#L139-L145) (`isQuitting = true; app.quit()`) skips the IPC dirty-check.
+5. App exits, dirty state lost.
+
+**Fix sketch (one-off bug fix, ~15-30 lines):**
+Add a `mainWindow.on('close', (event) => { ... })` handler in [src/main/index.ts](src/main/index.ts) that mirrors the `before-quit` pattern: a re-entry guard (`isClosing` boolean), `event.preventDefault()`, send `'project:check-dirty-before-quit'` to the renderer, wait for `'project:confirm-quit-proceed'` IPC, then call `mainWindow.destroy()` (or `app.quit()` since this is the last window).
+
+Alternative: route the X / Cmd+W close through the same path as Cmd+Q by intercepting at the menu `role: 'close'` and re-emitting as `app.quit()` — but per Phase 8.2 D-23 (no platform branching) and the comment at [src/main/index.ts:288-305](src/main/index.ts#L288-L305) the `role: 'close'` is load-bearing for Cmd+W menu accelerator semantics. The cleaner fix is the `mainWindow.on('close')` guard.
+
+**Affected platforms:** All. macOS X button is the most-used path because closing the window is muscle-memory; Windows X is even more lethal because there's no "stay in dock" backstop. Cmd+W / Ctrl+W same impact.
+
+**Tracking:** This pre-dates Phase 36 entirely (the dirty-guard at `before-quit` shipped in Phase 8 / Phase 18 lift-to-App.tsx). Phase 36 only added new state contributors (`overridesAtlasLess`) to the `isDirty` memo, which is correct. The close-path gap is independent.
+
+**Recommendation:** Defer this to its own quick-task or a Phase 36.1 follow-up — fixing in a Phase 36 commit would muddle the scope (this isn't override-bucket work). Open a `.planning/todos/pending/` entry tagged for v1.5 close.
