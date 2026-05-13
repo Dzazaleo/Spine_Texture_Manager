@@ -117,6 +117,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasPath: '/a/b/SIMPLE.atlas',
       imagesDir: '/a/b/images',
       overrides: { CIRCLE: 50 },
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: '/tmp/out',
       sortColumn: 'attachmentName',
@@ -137,7 +138,9 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
     const state: AppSessionState = {
       skeletonPath: '/a/b/SIMPLE.json',
       atlasPath: null, imagesDir: null,
-      overrides: {}, samplingHz: null, lastOutDir: null,
+      overrides: {},
+      overridesAtlasLess: {},
+      samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
@@ -170,6 +173,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: null,
       lastOutDir: null,
       sortColumn: null,
@@ -198,6 +202,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: null,
       lastOutDir: null,
       sortColumn: null,
@@ -270,7 +275,9 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       skeletonPath: path.join(basedir, 'SIMPLE.json'),
       atlasPath: path.join(basedir, 'SIMPLE.atlas'),
       imagesDir: path.join(basedir, 'images'),
-      overrides: {}, samplingHz: null, lastOutDir: null,
+      overrides: {},
+      overridesAtlasLess: {},
+      samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null,
       documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
@@ -309,7 +316,9 @@ describe('migrate (D-151)', () => {
   it('migrate is identity on v1', () => {
     const file: ProjectFileV1 = {
       version: 1, skeletonPath: 'x.json', atlasPath: null, imagesDir: null,
-      overrides: {}, samplingHz: null, lastOutDir: null,
+      overrides: {},
+      overridesAtlasLess: {},
+      samplingHz: null, lastOutDir: null,
       sortColumn: null, sortDir: null, documentation: DEFAULT_DOCUMENTATION,
       loaderMode: 'auto',
       sharpenOnExport: false,
@@ -369,6 +378,7 @@ describe('Phase 21 — loaderMode (D-08)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -437,6 +447,7 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -458,6 +469,7 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -537,6 +549,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -558,6 +571,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -579,6 +593,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -598,6 +613,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasPath: null,
       imagesDir: null,
       overrides: {},
+      overridesAtlasLess: {},
       samplingHz: 120,
       lastOutDir: null,
       sortColumn: null,
@@ -622,5 +638,55 @@ describe('hygiene — Layer 3 invariant for src/core/project-file.ts (T-08-LAYER
     expect(src, 'core/project-file.ts must not import sharp').not.toMatch(/from ['"]sharp['"]/);
     expect(src, 'core/project-file.ts must not import electron').not.toMatch(/from ['"]electron['"]/);
     // node:path IS permitted — see tests/arch.spec.ts:116-134 (no path block in regex).
+  });
+});
+
+describe('Phase 36 — overridesAtlasLess (SEED-007 L-01)', () => {
+  it('validateProjectFile pre-massages missing overridesAtlasLess to {} (forward-compat for v1.3.x/v1.4.x files)', () => {
+    const legacy: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: { CIRCLE: 75 },
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+      // overridesAtlasLess INTENTIONALLY ABSENT (v1.3.x/v1.4.x shape)
+    };
+    const result = validateProjectFile(legacy);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).overridesAtlasLess).toEqual({});
+    }
+  });
+
+  it('serialize → materialize round-trips both buckets losslessly', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: { CIRCLE: 75 },
+      overridesAtlasLess: { SQUARE: 50 },
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'atlas-less',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.overrides).toEqual({ CIRCLE: 75 });
+    expect(serialized.overridesAtlasLess).toEqual({ SQUARE: 50 });
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.overrides).toEqual({ CIRCLE: 75 });
+    expect(materialized.overridesAtlasLess).toEqual({ SQUARE: 50 });
   });
 });
