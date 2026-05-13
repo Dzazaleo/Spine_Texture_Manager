@@ -1,0 +1,5 @@
+INHERIT_TEST.png
+size:128,128
+filter:Linear,Linear
+REGION
+bounds:2,2,100,100
