@@ -1,6 +1,7 @@
 ---
 created: 2026-05-08
 phase: 31
+resolves_phase: 39
 source: 31-HUMAN-UAT.md item 1
 host_blocked: windows-admin-session
 priority: pre-release-of-v1.3.1

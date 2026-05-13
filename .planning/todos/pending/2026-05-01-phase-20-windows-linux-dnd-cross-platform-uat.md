@@ -2,6 +2,7 @@
 created: 2026-05-01T21:50:00Z
 title: Phase 20 cross-platform DnD UAT — Windows + Linux
 area: uat
+resolves_phase: 39
 files:
   - .planning/phases/20-documentation-builder-feature/20-HUMAN-UAT.md
   - .planning/phases/20-documentation-builder-feature/20-VERIFICATION.md
