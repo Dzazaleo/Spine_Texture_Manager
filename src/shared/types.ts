@@ -1198,6 +1198,18 @@ export interface MaterializedProject {
    * recovery / resample. Mirrors sharpenOnExport above.
    */
   safetyBufferPercent: number;
+  /**
+   * Phase 40 REPACK-07 — atlas output mode threaded through to AppShell so
+   * the OptimizeDialog Output card can seed its radio selection on Open /
+   * locate-skeleton recovery / resample. Validator-defaulted to 'loose'.
+   */
+  atlasOutputMode: 'loose' | 'atlas' | 'both';
+  /** Phase 40 REPACK-07 — validator-defaulted to 4096. */
+  atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+  /** Phase 40 REPACK-07 — validator-defaulted to false. */
+  atlasAllowRotation: boolean;
+  /** Phase 40 REPACK-07 — integer 0..16; validator-defaulted to 2. */
+  atlasPadding: number;
 }
 
 export type SaveResponse =

@@ -65,12 +65,12 @@ describe('Phase 40 Plan 07 — AppShell atlas state threading', () => {
     expect(/atlasPadding\s*:\s*atlasPadding\b|atlasPadding\s*,/.test(src)).toBe(true);
     // Hardcoded defaults at the Save site must be GONE — the 4 lines below
     // were the Plan 01 placeholder. Plan 07 replaces them with state reads.
-    expect(/atlasOutputMode:\s*['"]loose['"]/.test(src)).toBe(false);
-    expect(/atlasMaxPageSize:\s*4096/.test(src)).toBe(false);
-    expect(/atlasAllowRotation:\s*false/.test(src)).toBe(false);
-    // atlasPadding: 2 might appear in initial useState — only check the
-    // Save site is no longer a literal. Use the buildSessionState boundary.
-    // (Conservative: skip this one — initial state legitimately uses ?? 2.)
+    // We allow `atlasOutputMode: 'loose' | 'atlas' | 'both'` (the type
+    // literal union in the lastSaved type signature) — the value-side
+    // assertion below excludes the trailing-comma value-only pattern.
+    expect(/atlasOutputMode:\s*['"]loose['"]\s*,/.test(src)).toBe(false);
+    expect(/atlasMaxPageSize:\s*4096\s*,/.test(src)).toBe(false);
+    expect(/atlasAllowRotation:\s*false\s*,/.test(src)).toBe(false);
   });
 
   it('(6) mountOpenResponse seeds state from project.atlasOutputMode etc on Open', () => {

@@ -327,6 +327,26 @@ export function AppShell({
     () => initialProject?.safetyBufferPercent ?? 0,
   );
 
+  // Phase 40 REPACK-07 — local atlas state. Seeded from the project's
+  // 4 additive .stmproj fields landed in Plan 01. OptimizeDialog hydrates
+  // and mutates via the new onOutputModeChange / onAtlasOptsChange props
+  // (Plan 07 D-01); AppShell threads them into the IPC dispatch on Start
+  // (Plan 06 widened `export:start` to accept outputMode + atlasOpts).
+  // Defaults match the validator pre-massage (legacy .stmproj files load
+  // with byte-stable loose-PNG behavior).
+  const [atlasOutputMode, setAtlasOutputMode] = useState<'loose' | 'atlas' | 'both'>(
+    () => initialProject?.atlasOutputMode ?? 'loose',
+  );
+  const [atlasMaxPageSize, setAtlasMaxPageSize] = useState<1024 | 2048 | 4096 | 8192>(
+    () => initialProject?.atlasMaxPageSize ?? 4096,
+  );
+  const [atlasAllowRotation, setAtlasAllowRotation] = useState<boolean>(
+    () => initialProject?.atlasAllowRotation ?? false,
+  );
+  const [atlasPadding, setAtlasPadding] = useState<number>(
+    () => initialProject?.atlasPadding ?? 2,
+  );
+
   const [loaderMenuOpen, setLoaderMenuOpen] = useState(false);
 
   // Phase 23 — lastOutDir: session-metadata state slot. Seeded from
@@ -387,6 +407,13 @@ export function AppShell({
     samplingHz: number;
     sharpenOnExport: boolean; // Phase 28 SHARP-01
     safetyBufferPercent: number; // Phase 30 BUFFER-03
+    // Phase 40 REPACK-07 — atlas-field snapshot. Mirrors sharpenOnExport /
+    // safetyBufferPercent above so the isDirty memo can mark the project
+    // dirty when the user toggles atlas-mode or adjusts the knobs.
+    atlasOutputMode: 'loose' | 'atlas' | 'both';
+    atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+    atlasAllowRotation: boolean;
+    atlasPadding: number;
   } | null>(
     initialProject
       ? {
@@ -395,6 +422,13 @@ export function AppShell({
           samplingHz: initialProject.samplingHz,
           sharpenOnExport: initialProject.sharpenOnExport ?? false,
           safetyBufferPercent: initialProject.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
+          // Phase 40 REPACK-07 — seed the 4 atlas snapshot fields from the
+          // freshly-materialized project. Validator already pre-massaged
+          // defaults for legacy .stmproj files lacking these fields.
+          atlasOutputMode: initialProject.atlasOutputMode ?? 'loose',
+          atlasMaxPageSize: initialProject.atlasMaxPageSize ?? 4096,
+          atlasAllowRotation: initialProject.atlasAllowRotation ?? false,
+          atlasPadding: initialProject.atlasPadding ?? 2,
         }
       : null,
   );
@@ -918,14 +952,14 @@ export function AppShell({
         // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14.
         safetyBufferPercent: safetyBufferPercentLocal,
         // Phase 40 REPACK-07 — 4 additive atlas fields per CONTEXT D-01a..e.
-        // Plan 40-01 lands the schema; Plan 40-02 wires the OptimizeDialog
-        // UI state slots that will replace these defaults at save time.
-        // Defaults match validator pre-massage (project-file.ts) so legacy
-        // round-trips remain byte-stable.
-        atlasOutputMode: 'loose',
-        atlasMaxPageSize: 4096,
-        atlasAllowRotation: false,
-        atlasPadding: 2,
+        // Plan 40-01 lands the schema; Plan 40-07 wires the OptimizeDialog
+        // UI state slots through here. The 4 useState slots seeded from the
+        // .stmproj at the top of this component are the source of truth at
+        // save time — replacing the placeholder defaults Plan 01 inserted.
+        atlasOutputMode,
+        atlasMaxPageSize,
+        atlasAllowRotation,
+        atlasPadding,
       };
     },
     [
@@ -939,6 +973,11 @@ export function AppShell({
       lastOutDir,
       sharpenOnExportLocal, // Phase 28 SHARP-01 — new dependency
       safetyBufferPercentLocal, // Phase 30 BUFFER-03 — new dependency
+      // Phase 40 REPACK-07 — atlas state slots feed the Save payload
+      atlasOutputMode,
+      atlasMaxPageSize,
+      atlasAllowRotation,
+      atlasPadding,
     ],
   );
 
@@ -1016,6 +1055,14 @@ export function AppShell({
       if (safetyBufferPercentLocal !== 0) return true;
       if (sharpenOnExportLocal !== false) return true;
       if (samplingHzLocal !== 120) return true;
+      // Phase 40 REPACK-07 — untitled-session atlas dirty checks. Mirror
+      // safetyBufferPercent/sharpenOnExport above: a non-default atlas
+      // selection marks the project dirty so SaveQuitDialog surfaces on
+      // close. Defaults match the validator pre-massage in project-file.ts.
+      if (atlasOutputMode !== 'loose') return true;
+      if (atlasMaxPageSize !== 4096) return true;
+      if (atlasAllowRotation !== false) return true;
+      if (atlasPadding !== 2) return true;
       return false;
     }
     if (overrides.size !== Object.keys(lastSaved.overrides).length) return true;
@@ -1037,8 +1084,27 @@ export function AppShell({
     // Phase 30 BUFFER-03 — buffer change marks project dirty. Mirrors
     // sharpenOnExport line above (D-14 — buffer persists per-project).
     if (safetyBufferPercentLocal !== lastSaved.safetyBufferPercent) return true;
+    // Phase 40 REPACK-07 — atlas-field changes mark project dirty so the
+    // SaveQuitDialog appears on close. Mirrors safetyBufferPercent/
+    // sharpenOnExport lines above.
+    if (atlasOutputMode !== lastSaved.atlasOutputMode) return true;
+    if (atlasMaxPageSize !== lastSaved.atlasMaxPageSize) return true;
+    if (atlasAllowRotation !== lastSaved.atlasAllowRotation) return true;
+    if (atlasPadding !== lastSaved.atlasPadding) return true;
     return false;
-  }, [overrides, overridesAtlasLess, lastSaved, samplingHzLocal, sharpenOnExportLocal, safetyBufferPercentLocal]);
+  }, [
+    overrides,
+    overridesAtlasLess,
+    lastSaved,
+    samplingHzLocal,
+    sharpenOnExportLocal,
+    safetyBufferPercentLocal,
+    // Phase 40 REPACK-07 — atlas dependencies
+    atlasOutputMode,
+    atlasMaxPageSize,
+    atlasAllowRotation,
+    atlasPadding,
+  ]);
 
   /**
    * Phase 30 closure plan 30-04 — CR-01 fix. exportDialogState.plan is
@@ -1110,6 +1176,13 @@ export function AppShell({
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
           safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
+          // Phase 40 REPACK-07 — snapshot the 4 atlas fields alongside their
+          // siblings so the next dirty-check correctly references the
+          // post-save baseline.
+          atlasOutputMode: state.atlasOutputMode,
+          atlasMaxPageSize: state.atlasMaxPageSize,
+          atlasAllowRotation: state.atlasAllowRotation,
+          atlasPadding: state.atlasPadding,
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
@@ -1152,6 +1225,12 @@ export function AppShell({
           samplingHz: state.samplingHz ?? 120,
           sharpenOnExport: state.sharpenOnExport, // Phase 28 SHARP-01
           safetyBufferPercent: state.safetyBufferPercent, // Phase 30 BUFFER-03
+          // Phase 40 REPACK-07 — snapshot atlas fields on Save As (parallel to
+          // the Save path above).
+          atlasOutputMode: state.atlasOutputMode,
+          atlasMaxPageSize: state.atlasMaxPageSize,
+          atlasAllowRotation: state.atlasAllowRotation,
+          atlasPadding: state.atlasPadding,
         });
         setStaleOverrideNotice(null);
         // Phase 29 D-06 — Save As also rewrites with regionName-keyed overrides.
@@ -1378,6 +1457,12 @@ export function AppShell({
       samplingHz: project.samplingHz,
       sharpenOnExport: project.sharpenOnExport ?? false, // Phase 28 SHARP-01
       safetyBufferPercent: project.safetyBufferPercent ?? 0, // Phase 30 BUFFER-03
+      // Phase 40 REPACK-07 — snapshot the 4 atlas fields from the freshly-
+      // materialized project so the next dirty-check baselines correctly.
+      atlasOutputMode: project.atlasOutputMode ?? 'loose',
+      atlasMaxPageSize: project.atlasMaxPageSize ?? 4096,
+      atlasAllowRotation: project.atlasAllowRotation ?? false,
+      atlasPadding: project.atlasPadding ?? 2,
     });
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
@@ -1411,6 +1496,14 @@ export function AppShell({
     // project. Materializer back-fills file.safetyBufferPercent ?? 0, so
     // legacy .stmproj files load with buffer=0 (D-03 default).
     setSafetyBufferPercentLocal(project.safetyBufferPercent ?? 0);
+    // Phase 40 REPACK-07 — restore the 4 atlas fields from the materialized
+    // project. Materializer back-fills validator pre-massage defaults for
+    // legacy .stmproj files (loose / 4096 / false / 2) so the OptimizeDialog
+    // Output card opens to byte-stable defaults on every Open path.
+    setAtlasOutputMode(project.atlasOutputMode ?? 'loose');
+    setAtlasMaxPageSize(project.atlasMaxPageSize ?? 4096);
+    setAtlasAllowRotation(project.atlasAllowRotation ?? false);
+    setAtlasPadding(project.atlasPadding ?? 2);
     setLastOutDir(project.lastOutDir ?? null);
   }, []);
 
@@ -2300,6 +2393,24 @@ export function AppShell({
           onSharpenChange={setSharpenOnExportLocal}
           safetyBufferPercent={safetyBufferPercentLocal}
           onSafetyBufferChange={setSafetyBufferPercentLocal}
+          // Phase 40 REPACK-07 — Output card props (D-01 series). State lives
+          // in AppShell so it round-trips through .stmproj (Save/Open/
+          // resample) and survives the dialog open/close lifecycle. The
+          // onAtlasOptsChange callback fan-outs the merged shape across the
+          // 3 useState setters so the existing per-field dirty-check just
+          // works without extra plumbing.
+          outputMode={atlasOutputMode}
+          onOutputModeChange={setAtlasOutputMode}
+          atlasOpts={{
+            maxPageSize: atlasMaxPageSize,
+            allowRotation: atlasAllowRotation,
+            padding: atlasPadding,
+          }}
+          onAtlasOptsChange={(opts) => {
+            setAtlasMaxPageSize(opts.maxPageSize);
+            setAtlasAllowRotation(opts.allowRotation);
+            setAtlasPadding(opts.padding);
+          }}
         />
       )}
       {/* Gap-Fix Round 3 (2026-04-25) — ConflictDialog stacks on top of
