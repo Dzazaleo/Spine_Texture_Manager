@@ -36,40 +36,12 @@
  *
  * Defensive: throws if `projectName` contains `:` (would corrupt page-
  * header parsing — RESEARCH §Landmines #5).
- *
- * ---
- * NOTE ON PARALLEL-WAVE TYPE DEFINITIONS:
- *   `RepackPage` and `RepackedRegion` are owned by Plan 02 (`src/core/
- *   repack.ts`). At the time Plan 03 executes in its parallel worktree,
- *   Plan 02's worktree has not yet merged, so the canonical types are
- *   not importable. The exported shapes below are byte-identical to
- *   Plan 02's locked interfaces (40-02-PLAN.md `<interfaces>` block,
- *   lines 99-113). When Plan 02 merges first, this file will be reconciled
- *   to `import type { RepackPage, RepackedRegion } from '../core/repack.js'`
- *   and the local re-declarations dropped — TypeScript structural typing
- *   makes the transition zero-cost. Documented as Rule 3 deviation in the
- *   plan SUMMARY.
  */
 
-/**
- * Public input shape consumed by Plan 02's `computeRepack` and re-exported here
- * for Plan 03 self-containment. MUST stay structurally identical to Plan 02.
- */
-export interface RepackedRegion {
-  regionName: string;
-  pageIndex: number;
-  x: number;
-  y: number;
-  w: number; // post-rotation dim on page (maxrects-packer .d.ts:97-98)
-  h: number; // post-rotation dim on page
-  rotated: boolean;
-}
+import type { RepackPage, RepackedRegion } from '../core/repack.js';
 
-export interface RepackPage {
-  pageIndex: number;
-  width: number;
-  height: number;
-}
+// Re-export so consumers can import the layout types alongside `buildAtlasText`.
+export type { RepackPage, RepackedRegion };
 
 export interface AtlasWriterInput {
   projectName: string;
