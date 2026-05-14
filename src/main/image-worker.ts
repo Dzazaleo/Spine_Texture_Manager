@@ -2,7 +2,7 @@
  * Phase 6 Plan 04 — Main-process export worker (F8.2 + F8.4 + F8.5 + N3.1).
  *
  * runExport(plan, outDir, onProgress, isCancelled, allowOverwrite=false,
- *           sharpenEnabled=false)
+ *           sharpenEnabled=false, writtenPaths=new Set())
  * walks ExportPlan.rows sequentially, performing per-row:
  *   1. fs.access(R_OK) pre-flight per D-112. If the per-region source
  *      PNG is missing AND row.atlasSource is populated (Gap-Fix #2,
@@ -54,6 +54,19 @@
  * with the IPC envelope + webContents.send('export:progress', ...) +
  * cancel-flag closure. Tests invoke runExport DIRECTLY (no Electron),
  * mirroring tests/core/ipc.spec.ts handler-extraction discipline.
+ *
+ * Phase 40 D-04a (writtenPaths accumulator):
+ *   - writtenPaths: optional Set<string> accumulator for atomic rollback.
+ *     When supplied (Phase 40 'both' mode dispatch in ipc.ts handleStartExport),
+ *     every tmpPath + final resolvedOut is added BEFORE the write attempt at
+ *     BOTH atomic-write sites (passthrough copy block + per-region resize
+ *     block) so ipc.ts's finally-block can fs.rm-sweep on any subsequent
+ *     throw (e.g. runRepack failing AFTER runExport already wrote loose PNGs
+ *     in 'both' mode). Default `new Set()` preserves backward compatibility
+ *     for ALL existing callers — the Set is mutated in-place but never read
+ *     inside runExport, so its presence has no observable effect on loose-
+ *     mode PNG bytes (REPACK-01 byte-parity invariant; gated by the within-
+ *     run SHA256 test at tests/main/image-worker.integration.spec.ts:106).
  */
 import sharp from 'sharp';
 import { access, copyFile, mkdir, rename, constants as fsConstants } from 'node:fs/promises';
@@ -89,6 +102,19 @@ export async function runExport(
   // preserves the neutral baseline for direct test invocations and any
   // caller bypassing the IPC layer (mirrors allowOverwrite default).
   sharpenEnabled: boolean = false,
+  // Phase 40 D-04a — shared rollback accumulator passed in by ipc.ts when
+  // dispatching outputMode='both'. Every tmpPath + final resolvedOut is
+  // registered BEFORE the atomic write at both atomic-write sites
+  // (passthrough copy + per-region resize) so the IPC handler's finally-
+  // block can fs.rm-sweep every entry on any throw downstream (e.g. when
+  // runRepack throws AFTER runExport already wrote some loose PNGs).
+  // Default `new Set()` preserves backward compatibility — every existing
+  // caller (direct test invocations, pre-Phase-40 IPC paths, anyone
+  // bypassing the IPC layer) continues to work unchanged. The Set is
+  // mutated in-place; nothing is read from it inside runExport.
+  // RESEARCH §Landmines #7+#8: register BOTH tmpPath AND final path so
+  // the sweep is complete regardless of which one landed on disk.
+  writtenPaths: Set<string> = new Set(),
 ): Promise<ExportSummary> {
   const t0 = performance.now();
   const errors: ExportError[] = [];
@@ -257,6 +283,13 @@ export async function runExport(
     //    (a) per-region PNG on disk → copyFile (byte-identical, fast)
     //    (b) atlas-extract fallback → sharp extract at native region size
     const tmpPath = resolvedOut + '.tmp';
+    // Phase 40 D-04a: register both paths for atomic rollback (RESEARCH §
+    // Landmines #7+#8 — tmp may orphan if rename throws; final may exist if
+    // copyFile/toFile succeeded; sweeping both with { force: true } is safe).
+    // Default empty Set when called outside the Phase 40 'both' dispatch
+    // makes this a no-op for every pre-Phase-40 caller.
+    writtenPaths.add(tmpPath);
+    writtenPaths.add(resolvedOut);
     try {
       if (passthroughUseAtlasExtract && row.atlasSource) {
         const a = row.atlasSource;
@@ -499,6 +532,14 @@ export async function runExport(
     //        .png(level 9).toFile(tmpPath)
     //    Tmp suffix derived from resolvedOut (same dir → rename atomic).
     const tmpPath = resolvedOut + '.tmp';
+    // Phase 40 D-04a: register both paths for atomic rollback (RESEARCH §
+    // Landmines #7+#8 — tmp may orphan if rename throws; final may exist if
+    // toFile succeeded; sweeping both with { force: true } is safe). Default
+    // empty Set when called outside the Phase 40 'both' dispatch makes this
+    // a no-op for every pre-Phase-40 caller; loose-mode PNG bytes are
+    // unaffected (REPACK-01 byte-parity invariant).
+    writtenPaths.add(tmpPath);
+    writtenPaths.add(resolvedOut);
     try {
       if (useAtlasExtract && row.atlasSource) {
         // sharp.extract uses {left, top, width, height} in PAGE-PNG coords.

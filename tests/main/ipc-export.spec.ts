@@ -61,13 +61,30 @@ vi.mock('../../src/main/image-worker.js', () => ({
   }),
 }));
 
+// Phase 40 D-04a — mock repack-worker so dispatch tests can assert which
+// worker the handler called, and simulate the REPACK-10 throw without
+// touching real sharp/libvips. Default impl resolves with empty paths so
+// happy-path 'atlas' / 'both' dispatch returns ok=true.
+vi.mock('../../src/main/repack-worker.js', () => ({
+  runRepack: vi.fn().mockResolvedValue({
+    pageFiles: [],
+    atlasFile: '/tmp/out/SIMPLE_TEST.atlas',
+  }),
+}));
+
 // Gap-Fix Round 3 (2026-04-25) — mock node:fs/promises.access so the
 // Round 3 defense-in-depth probe doesn't hit the real filesystem from
 // these unit tests. Default: every probed path is "missing" (rejects)
 // so by default no pre-existing-file conflicts surface; tests that need
 // an existence-collision opt in by overriding the mock.
+//
+// Phase 40 D-04a — `rm` is the rollback sweep primitive. Default impl
+// resolves (file removed) so the sweep in handleStartExport's inner
+// catch is a no-op when no conflicts/rollbacks occur. REPACK-10 tests
+// override with a spy to assert the per-path sweep call list.
 vi.mock('node:fs/promises', () => ({
   access: vi.fn().mockRejectedValue(new Error('ENOENT')),
+  rm: vi.fn().mockResolvedValue(undefined),
   constants: { F_OK: 0, R_OK: 4 },
 }));
 
@@ -86,6 +103,22 @@ beforeEach(async () => {
   // default factory impl from the vi.mock() block above is what runs.
   const fsPromises = await import('node:fs/promises');
   vi.mocked(fsPromises.access).mockReset().mockRejectedValue(new Error('ENOENT'));
+  // Phase 40 D-04a — reset rm + runRepack + runExport impls so REPACK-10
+  // throw-rigging in one test does not leak into a subsequent test.
+  vi.mocked(fsPromises.rm).mockReset().mockResolvedValue(undefined);
+  const imageWorker = await import('../../src/main/image-worker.js');
+  vi.mocked(imageWorker.runExport).mockReset().mockResolvedValue({
+    successes: 0,
+    errors: [],
+    outputDir: '/tmp/out',
+    durationMs: 1,
+    cancelled: false,
+  });
+  const repackWorker = await import('../../src/main/repack-worker.js');
+  vi.mocked(repackWorker.runRepack).mockReset().mockResolvedValue({
+    pageFiles: [],
+    atlasFile: '/tmp/out/SIMPLE_TEST.atlas',
+  });
 });
 
 describe('handlePickOutputDirectory — F8.1 + D-122', () => {
@@ -898,5 +931,294 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     if (probe.ok) {
       expect(probe.conflicts).toEqual([]);
     }
+  });
+});
+
+/**
+ * Phase 40 REPACK-01 + REPACK-10 — IPC dispatch + atomic rollback.
+ *
+ * These tests gate the `outputMode` + `atlasOpts` extension to
+ * `export:start` (Plan 06):
+ *   - validateExportOpts rejects all 4 malformed input shapes.
+ *   - handleStartExport dispatches to runExport / runRepack / both based
+ *     on outputMode, and the shared writtenPaths Set drives a finally-
+ *     block fs.rm sweep on ANY throw.
+ *   - The locked REPACK-10 error string ("...exceeds the page-size cap...")
+ *     is propagated through the IPC envelope and the rollback sweep
+ *     removes every recorded artifact path (atomic-or-fail acceptance b).
+ *
+ * Test mocking strategy: runExport + runRepack are mocked at the top of
+ * the file (factory defaults: both resolve with empty success shapes).
+ * Individual tests override with mockImplementationOnce / mockRejectedValueOnce
+ * to drive dispatch and throw scenarios; the runRepack mock can also
+ * mutate the writtenPaths Set argument before throwing so the rollback
+ * sweep assertion has paths to find. All assertions are against the IPC
+ * envelope shape + the mock spy call lists — NO real disk I/O.
+ */
+describe('handleStartExport — Phase 40 REPACK-01 outputMode dispatch + validator rejection', () => {
+  it('REPACK-01 validator: rejects malformed outputMode with kind=Unknown + "outputMode is not" message', async () => {
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'rgba' as unknown as 'loose',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toMatch(/outputMode is not/);
+    }
+  });
+
+  it('REPACK-01 validator: rejects malformed atlasOpts.maxPageSize (e.g. 3000) with kind=Unknown', async () => {
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 3000 as unknown as 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toMatch(/atlasOpts\.maxPageSize/);
+    }
+  });
+
+  it('REPACK-01 validator: rejects non-boolean atlasOpts.allowRotation', async () => {
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 4096, allowRotation: 'yes' as unknown as boolean, padding: 2 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toMatch(/atlasOpts\.allowRotation/);
+    }
+  });
+
+  it('REPACK-01 validator: rejects atlasOpts.padding out of [0, 16] range (e.g. 99)', async () => {
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 99 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toMatch(/atlasOpts\.padding/);
+    }
+  });
+
+  it('REPACK-01 loose mode (default): calls runExport only; runRepack is NOT invoked', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'loose',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    expect(vi.mocked(imageWorker.runExport)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(repackWorker.runRepack)).not.toHaveBeenCalled();
+  });
+
+  it('REPACK-01 loose mode passes the shared writtenPaths Set as 7th arg to runExport', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'loose',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    // 7th positional arg (index 6) is the shared writtenPaths accumulator.
+    const callArgs = vi.mocked(imageWorker.runExport).mock.calls[0];
+    expect(callArgs.length).toBeGreaterThanOrEqual(7);
+    expect(callArgs[6]).toBeInstanceOf(Set);
+  });
+
+  it('REPACK-01 atlas mode: calls runRepack only; runExport is NOT invoked', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    expect(vi.mocked(repackWorker.runRepack)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(imageWorker.runExport)).not.toHaveBeenCalled();
+  });
+
+  it('REPACK-01 atlas mode forwards atlasOpts to runRepack as 7th positional arg', async () => {
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const opts = { maxPageSize: 2048 as const, allowRotation: true, padding: 4 };
+    await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      opts,
+    );
+    const callArgs = vi.mocked(repackWorker.runRepack).mock.calls[0];
+    // runRepack signature: (plan, outDir, onProgress, isCancelled, allowOverwrite, sharpenEnabled, atlasOpts, writtenPaths)
+    expect(callArgs[6]).toEqual(opts);
+    expect(callArgs[7]).toBeInstanceOf(Set);
+  });
+
+  it('REPACK-01 both mode: calls runExport THEN runRepack (sharing one writtenPaths Set)', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'both',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    expect(vi.mocked(imageWorker.runExport)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(repackWorker.runRepack)).toHaveBeenCalledTimes(1);
+    // The shared rollback Set is the LAST positional arg of runExport (index 6)
+    // and the LAST positional arg of runRepack (index 7). Both must be the
+    // SAME object reference (`===`) so a runRepack throw can sweep paths
+    // registered by runExport.
+    const exportSet = vi.mocked(imageWorker.runExport).mock.calls[0][6];
+    const repackSet = vi.mocked(repackWorker.runRepack).mock.calls[0][7];
+    expect(exportSet).toBe(repackSet);
+    expect(exportSet).toBeInstanceOf(Set);
+  });
+
+  it('REPACK-10 atomic rollback: runRepack throws the locked "exceeds the page-size cap" error → fs.rm sweep called for every registered path', async () => {
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const fsPromises = await import('node:fs/promises');
+
+    // Rig runRepack to register some paths in writtenPaths and then throw
+    // the locked REPACK-10 error string. Simulates the mid-pipeline failure
+    // covered by repack-worker.spec.ts "oversize abort: throws locked error
+    // string and writes no files" — but at the IPC seam.
+    const LOCKED_ERROR =
+      'Region HUGE is 1500×1500 px which exceeds the page-size cap. Increase atlasMaxPageSize or apply a smaller override.';
+    vi.mocked(repackWorker.runRepack).mockImplementationOnce(
+      async (_plan, _out, _onP, _isC, _aOw, _sharp, _aOpts, writtenPaths) => {
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.png.tmp');
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.png');
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.atlas.tmp');
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.atlas');
+        throw new Error(LOCKED_ERROR);
+      },
+    );
+
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 1024, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // The outer catch wraps with kind='Unknown'; the message carries the
+      // locked REPACK-10 error string verbatim.
+      expect(result.error.kind).toBe('Unknown');
+      expect(result.error.message).toContain('exceeds the page-size cap');
+    }
+    // The rollback sweep must have called fs.rm with { force: true } for
+    // EVERY path the worker registered (atomic-or-fail acceptance b).
+    const rmCalls = vi.mocked(fsPromises.rm).mock.calls;
+    const rmPaths = rmCalls.map((c) => c[0]);
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png.tmp');
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png');
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.atlas.tmp');
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.atlas');
+    // Every rm call must pass { force: true } so ENOENT is swallowed
+    // (paths whose tmp landed but final never did, and vice-versa).
+    for (const c of rmCalls) {
+      expect(c[1]).toEqual({ force: true });
+    }
+  });
+
+  it('REPACK-10 both mode rollback: runExport-registered loose paths AND runRepack-registered atlas paths swept together', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    const fsPromises = await import('node:fs/promises');
+
+    // Rig runExport to register a loose-mode path then succeed; rig
+    // runRepack to register atlas paths and throw. The inner catch must
+    // sweep ALL paths — loose AND atlas — because they share one Set.
+    vi.mocked(imageWorker.runExport).mockImplementationOnce(
+      async (_plan, _out, _onP, _isC, _aOw, _sharp, writtenPaths) => {
+        if (writtenPaths) {
+          writtenPaths.add('/tmp/out/images/OK.png.tmp');
+          writtenPaths.add('/tmp/out/images/OK.png');
+        }
+        return {
+          successes: 1,
+          errors: [],
+          outputDir: '/tmp/out',
+          durationMs: 1,
+          cancelled: false,
+        };
+      },
+    );
+    vi.mocked(repackWorker.runRepack).mockImplementationOnce(
+      async (_plan, _out, _onP, _isC, _aOw, _sharp, _aOpts, writtenPaths) => {
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.png.tmp');
+        writtenPaths.add('/tmp/out/SIMPLE_TEST.png');
+        throw new Error(
+          'Region HUGE is 1500×1500 px which exceeds the page-size cap. Increase atlasMaxPageSize or apply a smaller override.',
+        );
+      },
+    );
+
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'both',
+      { maxPageSize: 1024, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(false);
+    // Sweep must include BOTH the loose path (registered by runExport) AND
+    // the atlas page path (registered by runRepack) — proves the shared
+    // Set drives a unified rollback (REPACK-10 acceptance b end-to-end).
+    const rmPaths = vi.mocked(fsPromises.rm).mock.calls.map((c) => c[0]);
+    expect(rmPaths).toContain('/tmp/out/images/OK.png.tmp');
+    expect(rmPaths).toContain('/tmp/out/images/OK.png');
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png.tmp');
+    expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png');
   });
 });
