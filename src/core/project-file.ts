@@ -223,6 +223,75 @@ export function validateProjectFile(input: unknown): ValidateResult {
     };
   }
 
+  // Phase 40 REPACK-07 forward-compat — v1.5-era .stmproj files written
+  // BEFORE Phase 40 have no `atlasOutputMode` field; default to 'loose'
+  // so legacy projects load with the byte-unchanged loose-PNG pipeline
+  // (CONTEXT D-01a). Mirrors loaderMode pre-massage at lines 176-188 above.
+  if (obj.atlasOutputMode === undefined) {
+    obj.atlasOutputMode = 'loose';
+  }
+  if (
+    obj.atlasOutputMode !== 'loose'
+    && obj.atlasOutputMode !== 'atlas'
+    && obj.atlasOutputMode !== 'both'
+  ) {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: "atlasOutputMode is not 'loose' | 'atlas' | 'both'" },
+    };
+  }
+
+  // Phase 40 REPACK-07 forward-compat — v1.5-era .stmproj files written
+  // BEFORE Phase 40 have no `atlasMaxPageSize` field; default to 4096
+  // per CONTEXT D-01c. Strict literal-union check.
+  if (obj.atlasMaxPageSize === undefined) {
+    obj.atlasMaxPageSize = 4096;
+  }
+  if (
+    obj.atlasMaxPageSize !== 1024
+    && obj.atlasMaxPageSize !== 2048
+    && obj.atlasMaxPageSize !== 4096
+    && obj.atlasMaxPageSize !== 8192
+  ) {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: 'atlasMaxPageSize is not 1024 | 2048 | 4096 | 8192' },
+    };
+  }
+
+  // Phase 40 REPACK-07 forward-compat — v1.5-era .stmproj files written
+  // BEFORE Phase 40 have no `atlasAllowRotation` field; default to false
+  // per CONTEXT D-01d (conservative — matches input-side rotation policy).
+  // Mirrors sharpenOnExport pre-massage at lines 190-202 above.
+  if (obj.atlasAllowRotation === undefined) {
+    obj.atlasAllowRotation = false;
+  }
+  if (typeof obj.atlasAllowRotation !== 'boolean') {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: 'atlasAllowRotation is not boolean' },
+    };
+  }
+
+  // Phase 40 REPACK-07 forward-compat — v1.5-era .stmproj files written
+  // BEFORE Phase 40 have no `atlasPadding` field; default to 2 per
+  // CONTEXT D-01e. Integer-range pattern mirrors safetyBufferPercent at
+  // lines 204-224 above.
+  if (obj.atlasPadding === undefined) {
+    obj.atlasPadding = 2;
+  }
+  if (
+    typeof obj.atlasPadding !== 'number'
+    || !Number.isInteger(obj.atlasPadding)
+    || obj.atlasPadding < 0
+    || obj.atlasPadding > 16
+  ) {
+    return {
+      ok: false,
+      error: { kind: 'invalid-shape', message: 'atlasPadding is not an integer in [0, 16]' },
+    };
+  }
+
   // Optional/nullable fields — null OR matching type both permitted.
   if (obj.atlasPath !== null && typeof obj.atlasPath !== 'string') {
     return {
@@ -377,6 +446,12 @@ export function serializeProjectFile(
     // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14. Always
     // written (verbose-but-explicit; mirrors Phase 28 sharpenOnExport).
     safetyBufferPercent: state.safetyBufferPercent,
+    // Phase 40 REPACK-07 — 4 additive atlas fields. Verbose-but-explicit;
+    // mirrors Phase 28 sharpenOnExport + Phase 30 safetyBufferPercent.
+    atlasOutputMode: state.atlasOutputMode,
+    atlasMaxPageSize: state.atlasMaxPageSize,
+    atlasAllowRotation: state.atlasAllowRotation,
+    atlasPadding: state.atlasPadding,
   };
 }
 
@@ -455,6 +530,26 @@ export interface PartialMaterialized {
    */
   safetyBufferPercent: number;
   /**
+   * Phase 40 REPACK-07 — defence-in-depth fallback (validator pre-massage
+   * already substitutes 'loose'). Mirrors safetyBufferPercent above.
+   */
+  atlasOutputMode: 'loose' | 'atlas' | 'both';
+  /**
+   * Phase 40 REPACK-07 — defence-in-depth fallback (validator pre-massage
+   * already substitutes 4096). Mirrors atlasOutputMode above.
+   */
+  atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+  /**
+   * Phase 40 REPACK-07 — defence-in-depth fallback (validator pre-massage
+   * already substitutes false). Mirrors atlasMaxPageSize above.
+   */
+  atlasAllowRotation: boolean;
+  /**
+   * Phase 40 REPACK-07 — defence-in-depth fallback (validator pre-massage
+   * already substitutes 2). Mirrors atlasAllowRotation above.
+   */
+  atlasPadding: number;
+  /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
    * as `currentProjectPath` without re-threading the arg through the IPC
@@ -531,6 +626,13 @@ export function materializeProjectFile(
     // Phase 30 BUFFER-03 — defence-in-depth nullish-coalesce; validator
     // pre-massage already substitutes 0. Mirrors sharpenOnExport line above.
     safetyBufferPercent: file.safetyBufferPercent ?? 0,
+    // Phase 40 REPACK-07 — defence-in-depth nullish-coalesce; validator
+    // pre-massage already substitutes the defaults. Mirrors safetyBufferPercent
+    // line above.
+    atlasOutputMode: file.atlasOutputMode ?? 'loose',
+    atlasMaxPageSize: file.atlasMaxPageSize ?? 4096,
+    atlasAllowRotation: file.atlasAllowRotation ?? false,
+    atlasPadding: file.atlasPadding ?? 2,
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };
