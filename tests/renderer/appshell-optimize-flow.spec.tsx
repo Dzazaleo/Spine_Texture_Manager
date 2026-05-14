@@ -82,6 +82,11 @@ const REQUIRED_PROPS = {
   outDir: null as string | null, // Phase 23: null on first open (no saved path)
   onClose: vi.fn(),
   onOpenAtlasPreview: vi.fn(),
+  // Phase 40 D-01 — Plan 07 added 4 required props for the Output card.
+  outputMode: 'loose' as const,
+  onOutputModeChange: vi.fn(),
+  atlasOpts: { maxPageSize: 4096 as const, allowRotation: false, padding: 2 },
+  onAtlasOptsChange: vi.fn(),
 };
 
 // ---------------------------------------------------------------------------

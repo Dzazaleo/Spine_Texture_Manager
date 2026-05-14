@@ -84,6 +84,10 @@ describe('OptimizeDialog — auto-expand on per-row error', () => {
         onSharpenChange={() => undefined}
         safetyBufferPercent={0}
         onSafetyBufferChange={() => undefined}
+        outputMode="loose"
+        onOutputModeChange={() => undefined}
+        atlasOpts={{ maxPageSize: 4096, allowRotation: false, padding: 2 }}
+        onAtlasOptsChange={() => undefined}
       />,
     );
 
@@ -125,6 +129,10 @@ describe('OptimizeDialog — auto-expand on per-row error', () => {
         onSharpenChange={() => undefined}
         safetyBufferPercent={0}
         onSafetyBufferChange={() => undefined}
+        outputMode="loose"
+        onOutputModeChange={() => undefined}
+        atlasOpts={{ maxPageSize: 4096, allowRotation: false, padding: 2 }}
+        onAtlasOptsChange={() => undefined}
       />,
     );
 

@@ -85,6 +85,12 @@ const REQUIRED_PROPS = {
   outDir: '/tmp/out',
   onClose: vi.fn(),
   onOpenAtlasPreview: vi.fn(),
+  // Phase 40 D-01 — Plan 07 added 4 required props for the Output card.
+  // Defaults mirror the .stmproj validator pre-massage (project-file.ts).
+  outputMode: 'loose' as const,
+  onOutputModeChange: vi.fn(),
+  atlasOpts: { maxPageSize: 4096 as const, allowRotation: false, padding: 2 },
+  onAtlasOptsChange: vi.fn(),
 };
 
 describe('OptimizeDialog — DIMS-04 passthrough COPY indicator (Phase 22)', () => {

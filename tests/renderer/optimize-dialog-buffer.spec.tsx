@@ -77,6 +77,12 @@ function buildProps(
     onSharpenChange: vi.fn(),
     safetyBufferPercent: 0,
     onSafetyBufferChange: vi.fn(),
+    // Phase 40 D-01 — required props added by Plan 07. Defaults match the
+    // validator pre-massage in src/core/project-file.ts.
+    outputMode: 'loose',
+    onOutputModeChange: vi.fn(),
+    atlasOpts: { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    onAtlasOptsChange: vi.fn(),
     ...overrides,
   } as unknown as ComponentProps<typeof OptimizeDialog>;
 }
