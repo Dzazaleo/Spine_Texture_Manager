@@ -917,6 +917,15 @@ export function AppShell({
         sharpenOnExport: sharpenOnExportLocal,
         // Phase 30 BUFFER-03 — round-trips through .stmproj per D-14.
         safetyBufferPercent: safetyBufferPercentLocal,
+        // Phase 40 REPACK-07 — 4 additive atlas fields per CONTEXT D-01a..e.
+        // Plan 40-01 lands the schema; Plan 40-02 wires the OptimizeDialog
+        // UI state slots that will replace these defaults at save time.
+        // Defaults match validator pre-massage (project-file.ts) so legacy
+        // round-trips remain byte-stable.
+        atlasOutputMode: 'loose',
+        atlasMaxPageSize: 4096,
+        atlasAllowRotation: false,
+        atlasPadding: 2,
       };
     },
     [

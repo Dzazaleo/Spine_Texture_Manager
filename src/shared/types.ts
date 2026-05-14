@@ -535,6 +535,14 @@ export interface ExportProgressEvent {
   outPath: string;
   status: 'success' | 'error';
   error?: ExportError;
+  /**
+   * Phase 40 D-05 — 'resize' fires once per region (index 0..N-1);
+   * 'composite' fires once per page (index 0..P-1). Additive field —
+   * existing single-stream consumers can ignore. Per CONTEXT D-05:
+   * the two stages do qualitatively different work (compositing a 4096²
+   * page vs resizing one region), so a unified counter would jump.
+   */
+  phase?: 'resize' | 'composite';
 }
 
 /**
@@ -1058,6 +1066,34 @@ export interface ProjectFileV1 {
    * D-04 strictly integer, D-14 same name across all surfaces.
    */
   safetyBufferPercent: number;
+  /**
+   * Phase 40 REPACK-07 — atlas output mode. v1.5-era .stmproj files written
+   * BEFORE Phase 40 have no `atlasOutputMode` field; the validator pre-massages
+   * missing → 'loose' (mirrors safetyBufferPercent pre-massage in
+   * src/core/project-file.ts:204-224). Default 'loose' per CONTEXT D-01a;
+   * 'atlas'/'both' activate the repack code path. No schema version bump.
+   */
+  atlasOutputMode: 'loose' | 'atlas' | 'both';
+  /**
+   * Phase 40 REPACK-07 — max page dimension (px), one of 1024/2048/4096/8192.
+   * v1.5-era .stmproj files written before Phase 40 have no `atlasMaxPageSize`
+   * field; the validator pre-massages missing → 4096 per CONTEXT D-01c.
+   */
+  atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+  /**
+   * Phase 40 REPACK-07 — allow 90° packer rotation for tighter packing.
+   * v1.5-era .stmproj files written before Phase 40 have no
+   * `atlasAllowRotation` field; the validator pre-massages missing → false
+   * per CONTEXT D-01d (conservative default; matches input-side rotation policy
+   * in project_atlas_pack_options_atlas_source_only memory).
+   */
+  atlasAllowRotation: boolean;
+  /**
+   * Phase 40 REPACK-07 — inter-region padding (px), integer in [0, 16].
+   * v1.5-era .stmproj files written before Phase 40 have no `atlasPadding`
+   * field; the validator pre-massages missing → 2 per CONTEXT D-01e.
+   */
+  atlasPadding: number;
 }
 
 export type ProjectFile = ProjectFileV1;
@@ -1086,6 +1122,14 @@ export interface AppSessionState {
   sharpenOnExport: boolean;
   /** Phase 30 BUFFER-03 — round-trips through .stmproj per D-14. Integer 0-25. */
   safetyBufferPercent: number;
+  /** Phase 40 REPACK-07 — round-trips through .stmproj per D-01a. */
+  atlasOutputMode: 'loose' | 'atlas' | 'both';
+  /** Phase 40 REPACK-07 — round-trips through .stmproj per D-01c. */
+  atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+  /** Phase 40 REPACK-07 — round-trips through .stmproj per D-01d. */
+  atlasAllowRotation: boolean;
+  /** Phase 40 REPACK-07 — round-trips through .stmproj per D-01e. Integer 0-16. */
+  atlasPadding: number;
 }
 
 /**
