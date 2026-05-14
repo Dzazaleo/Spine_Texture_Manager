@@ -39,12 +39,19 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { access, constants as fsConstants } from 'node:fs/promises';
+import { access, constants as fsConstants, rm as fsRm } from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
 import { SpineLoaderError, SpineVersionUnsupportedError } from '../core/errors.js';
 import { buildSummary } from './summary.js';
 import { runExport } from './image-worker.js';
+// Phase 40 D-04a — atlas-mode dispatch target. runRepack orchestrates the
+// sharp resize → emits-truth read-back → pack → composite → atlas-write
+// pipeline (REPACK-01/03/05/10). The IPC handler below threads a shared
+// writtenPaths Set<string> across runExport + runRepack so the finally-
+// block can fs.rm-sweep every artifact on any throw — the atomic-or-fail
+// rollback contract from RESEARCH §Landmines #7+#8.
+import { runRepack, type AtlasOpts } from './repack-worker.js';
 import {
   handleProjectSave,
   handleProjectSaveAs,
@@ -103,6 +110,7 @@ import { getIsElevated } from './elevation.js';
 import type {
   ExportPlan,
   ExportResponse,
+  ExportSummary,
   LoadResponse,
   ProbeConflictsResponse,
   SerializableError,
@@ -305,6 +313,59 @@ function validateExportPlan(plan: unknown): string | null {
     ) {
       return `plan.rows[${i}] has invalid shape`;
     }
+  }
+  return null;
+}
+
+/**
+ * Phase 40 D-04 — trust-boundary validator for the 2 new positional args
+ * on `export:start` (outputMode, atlasOpts). Mirrors `validateExportPlan`
+ * shape immediately above: returns `null` on success, a string error
+ * message on failure. `handleStartExport` short-circuits on non-null
+ * before claiming the exportInFlight slot.
+ *
+ * Validation rules (all 4 fields rejected by their literal-union types
+ * + integer range):
+ *   - outputMode: must be 'loose' | 'atlas' | 'both'
+ *   - atlasOpts.maxPageSize: must be 1024 | 2048 | 4096 | 8192
+ *   - atlasOpts.allowRotation: must be boolean
+ *   - atlasOpts.padding: must be an integer in [0, 16]
+ *
+ * Not exported — internal helper for handleStartExport.
+ */
+function validateExportOpts(
+  outputMode: unknown,
+  atlasOpts: unknown,
+): string | null {
+  if (outputMode !== 'loose' && outputMode !== 'atlas' && outputMode !== 'both') {
+    return "outputMode is not 'loose' | 'atlas' | 'both'";
+  }
+  if (!atlasOpts || typeof atlasOpts !== 'object') {
+    return 'atlasOpts is not an object';
+  }
+  const ao = atlasOpts as {
+    maxPageSize?: unknown;
+    allowRotation?: unknown;
+    padding?: unknown;
+  };
+  if (
+    ao.maxPageSize !== 1024
+    && ao.maxPageSize !== 2048
+    && ao.maxPageSize !== 4096
+    && ao.maxPageSize !== 8192
+  ) {
+    return 'atlasOpts.maxPageSize is not 1024 | 2048 | 4096 | 8192';
+  }
+  if (typeof ao.allowRotation !== 'boolean') {
+    return 'atlasOpts.allowRotation is not boolean';
+  }
+  if (
+    typeof ao.padding !== 'number'
+    || !Number.isInteger(ao.padding)
+    || ao.padding < 0
+    || ao.padding > 16
+  ) {
+    return 'atlasOpts.padding is not an integer in [0, 16]';
   }
   return null;
 }
@@ -551,6 +612,18 @@ export async function handleStartExport(
   overwrite: boolean = false,
   // Phase 28 SHARP-02 — 5th arg, default false (mirrors overwrite default).
   sharpenEnabled: boolean = false,
+  // Phase 40 D-04 — additive positional args (6th + 7th). Pre-Phase-40 callers
+  // passing only 5 args get safe defaults; renderer (Plan 07) supplies real
+  // values via the OptimizeDialog Output card. Default 'loose' + maxPageSize
+  // 4096 + no rotation + 2px padding makes legacy IPC traffic byte-equivalent
+  // to pre-Phase-40 behavior (REPACK-01 acceptance — gated by the loose-
+  // baseline test in Plan 08).
+  outputMode: 'loose' | 'atlas' | 'both' = 'loose',
+  atlasOpts: AtlasOpts = {
+    maxPageSize: 4096,
+    allowRotation: false,
+    padding: 2,
+  },
 ): Promise<ExportResponse> {
   // D-115: re-entrancy guard — checked FIRST so a second invocation while
   // a first is pending sees the flag set and bails immediately.
@@ -565,6 +638,17 @@ export async function handleStartExport(
   const planErr = validateExportPlan(plan);
   if (planErr !== null) {
     return { ok: false, error: { kind: 'Unknown', message: `Invalid plan: ${planErr}` } };
+  }
+  // Phase 40 D-04: validate the 2 new args (mirrors validateExportPlan at
+  // L294-318). Rejection envelope shares the 'Unknown' kind with the plan
+  // validator since the existing ExportResponse error union does not carry
+  // an 'invalid-opts' arm — keeps the renderer's error-rendering branch
+  // unchanged. The message string carries the per-field rejection reason
+  // verbatim (locked by validateExportOpts above) so tests can pattern-
+  // match against it.
+  const optsErr = validateExportOpts(outputMode, atlasOpts);
+  if (optsErr !== null) {
+    return { ok: false, error: { kind: 'Unknown', message: `Invalid options: ${optsErr}` } };
   }
   const validPlan = plan as ExportPlan;
 
@@ -658,20 +742,82 @@ export async function handleStartExport(
       }
     }
 
-    const summary = await runExport(
-      validPlan,
-      outDir,
-      (e) => {
-        // webContents.send may throw if the renderer has gone away
-        // mid-export (window closed). Swallow — the export still
-        // completes and the summary is returned to whoever is left.
-        try { evt.sender.send('export:progress', e); } catch { /* webContents gone */ }
-      },
-      () => exportCancelFlag,
-      overwrite,
-      sharpenEnabled, // Phase 28 SHARP-02
-    );
-    return { ok: true, summary };
+    // Phase 40 D-04a — shared rollback accumulator. Both workers register
+    // tmp + final paths in `written` BEFORE every atomic write; on ANY
+    // throw inside the dispatch block, the inner catch sweeps every entry
+    // via fs.rm(p, { force: true }).catch(() => {}). RESEARCH §Landmines
+    // #7+#8: force-rm swallows ENOENT, so sweeping paths whose tmp landed
+    // but final never did (or vice-versa) is safe by construction. This
+    // realizes the REPACK-10 atomic-or-fail acceptance b: NO orphan files
+    // left in `outDir` after a failed atlas/both export.
+    //
+    // Dispatch matrix (D-04a):
+    //   - 'loose' → runExport only (byte-identical to pre-Phase-40 path)
+    //   - 'atlas' → runRepack only
+    //   - 'both'  → runExport THEN runRepack (sharing the same `written` Set)
+    //
+    // Progress event sender is the same closure for both workers so the
+    // renderer receives a single event stream with the additive `phase`
+    // field discriminating resize/composite (D-05).
+    const written = new Set<string>();
+    const sendProgress = (e: Parameters<typeof evt.sender.send>[1]) => {
+      // webContents.send may throw if the renderer has gone away
+      // mid-export (window closed). Swallow — the export still
+      // completes and the summary is returned to whoever is left.
+      try { evt.sender.send('export:progress', e); } catch { /* webContents gone */ }
+    };
+    try {
+      let summary: ExportSummary | undefined;
+      if (outputMode === 'loose' || outputMode === 'both') {
+        summary = await runExport(
+          validPlan,
+          outDir,
+          sendProgress,
+          () => exportCancelFlag,
+          overwrite,
+          sharpenEnabled, // Phase 28 SHARP-02
+          written,        // Phase 40 D-04a — shared rollback accumulator
+        );
+      }
+      if (outputMode === 'atlas' || outputMode === 'both') {
+        await runRepack(
+          validPlan as ExportPlan,
+          outDir,
+          sendProgress,
+          () => exportCancelFlag,
+          overwrite,
+          sharpenEnabled,
+          atlasOpts,
+          written,
+        );
+      }
+      // If outputMode was 'atlas' (no loose summary), synthesize a minimal
+      // success summary so the renderer's existing happy-path UI works.
+      // The atlas-mode result paths (pageFiles + atlasFile) are not
+      // surfaced through ExportResponse in this plan — Plan 07 (UI) will
+      // either add a new envelope arm or the renderer can list outDir
+      // contents post-success. Keeping the envelope shape unchanged here
+      // means existing renderer code paths remain green.
+      const finalSummary: ExportSummary = summary ?? {
+        successes: 0,
+        errors: [],
+        outputDir: path.resolve(outDir),
+        durationMs: 0,
+        cancelled: false,
+      };
+      return { ok: true, summary: finalSummary };
+    } catch (innerErr) {
+      // Rollback: delete every recorded path. fs.rm with { force: true }
+      // swallows ENOENT, so this is safe even if some paths never landed.
+      // .catch(() => {}) on each call adds defense-in-depth against
+      // permission errors during the sweep (e.g. another process holding
+      // a handle on Windows). The outer catch below catches the re-thrown
+      // error and converts to the standard 'Unknown' envelope.
+      for (const p of written) {
+        await fsRm(p, { force: true }).catch(() => { /* defense-in-depth */ });
+      }
+      throw innerErr;
+    }
   } catch (err) {
     return {
       ok: false,
@@ -700,13 +846,31 @@ export function registerIpcHandlers(): void {
   // Gap-Fix Round 3 (2026-04-25) — 'export:start' gains `overwrite` as a
   // 3rd argument. Strict `=== true` check: any non-true value (undefined,
   // null, 0, false) keeps the safe default and re-runs the probe.
-  ipcMain.handle('export:start', async (evt, plan, outDir, overwrite, sharpenEnabled) =>
+  // Phase 28 SHARP-02 — 'export:start' gains `sharpenEnabled` as a 4th
+  // argument (strict boolean coerce).
+  // Phase 40 D-04 — 'export:start' gains outputMode + atlasOpts as
+  // positional args 5 + 6. Renderer-supplied values are coerced to safe
+  // defaults if garbage / undefined arrives at the IPC boundary (the
+  // validateExportOpts call inside handleStartExport is the canonical
+  // rejection gate for VALID-shape-but-wrong-value; this outer coercion
+  // covers the "renderer is older than the handler" forward-compat case
+  // where outputMode/atlasOpts simply weren't sent).
+  ipcMain.handle('export:start', async (evt, plan, outDir, overwrite, sharpenEnabled, outputMode, atlasOpts) =>
     handleStartExport(
       evt,
       plan,
       outDir,
       overwrite === true,
       sharpenEnabled === true, // Phase 28 SHARP-02 — strict boolean coerce
+      // Phase 40 D-04: coerce to safe defaults if renderer omits / sends garbage.
+      // The validateExportOpts gate inside handleStartExport will reject
+      // wrong-value-but-right-shape inputs explicitly.
+      (outputMode === 'loose' || outputMode === 'atlas' || outputMode === 'both')
+        ? outputMode
+        : 'loose',
+      (atlasOpts && typeof atlasOpts === 'object')
+        ? (atlasOpts as AtlasOpts)
+        : { maxPageSize: 4096, allowRotation: false, padding: 2 },
     ),
   );
   ipcMain.on('export:cancel', () => {
