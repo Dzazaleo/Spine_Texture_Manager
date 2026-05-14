@@ -30,3 +30,21 @@ changes in Plan 40-01.
 - `tests/main/image-worker-rotation.spec.ts:187,13` — `error TS6133: 'data'
   is declared but its value is never read.`
 - Pre-existing unused-binding warning; not introduced by Plan 40-01.
+
+## During Plan 40-04 execution (2026-05-14)
+
+### Pre-existing test failure — `tests/main/sampler-worker-girl.spec.ts` (re-observed)
+
+**Failure shape:**
+```
+sampler-worker-girl.spec.ts:38
+expect(warmup.type, 'warm-up run must complete (not error/cancel...')
+  Expected: "complete"
+  Received: "error"
+```
+
+Same root cause as the Plan 40-01 observation above (missing `fixtures/Girl/`
+fixture). Verified pre-existing via `git stash` applied to clean pre-Plan-04
+tree by the 40-04 executor.
+
+**Action:** Surfaced for future triage. Not a Plan 04 regression.

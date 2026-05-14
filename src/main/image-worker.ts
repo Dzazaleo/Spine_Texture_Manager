@@ -64,50 +64,14 @@ import type {
   ExportProgressEvent,
   ExportSummary,
 } from '../shared/types.js';
-
-// Phase 28 SHARP-02 — fixed sigma for sharp.sharpen() unsharp mask. NOT a
-// tunable, slider, or per-row override (D-05 LOCKED). Closely matches
-// Photoshop's "Bicubic Sharper (reduction)" preset for typical Spine art at
-// 50–75% downscale ratios.
-const SHARPEN_SIGMA = 0.5;
-
-/**
- * Phase 28 SHARP-02 — applies the resize chain (Lanczos3 fill) AND the
- * conditional sharpen pass to a sharp pipeline. Both image-worker resize
- * call sites (per-region + atlas-extract) collapse onto this helper so the
- * downscale-only gate + sigma constant live in ONE place (D-08).
- *
- * Sharpen runs only when sharpenEnabled === true AND effectiveScale < 1.0
- * (D-07). Identity (1.0×) and upscale rows skip sharpen entirely; passthrough
- * rows never enter this helper at all (they take the byte-copy fast path
- * earlier in runExport).
- *
- * Idempotency guaranteed by shape: the helper applies sharpen at most once
- * per call. Calling .sharpen() twice in a single sharp pipeline is NOT
- * idempotent (compounds the unsharp mask).
- */
-function applyResizeAndSharpen(
-  pipeline: sharp.Sharp,
-  outW: number,
-  outH: number,
-  effectiveScale: number,
-  sharpenEnabled: boolean,
-): sharp.Sharp {
-  let p = pipeline.resize(outW, outH, { kernel: 'lanczos3', fit: 'fill' });
-  // WR-02 (2026-05-06): explicit Number.isFinite guard. NaN < 1.0 is `false`
-  // so the original gate already happened to skip sharpen on NaN by accident,
-  // but that is implicit contract — a future caller producing NaN
-  // effectiveScale should not silently get non-sharpened output. Make the
-  // skip explicit; defense-in-depth at the actual decision site.
-  if (
-    sharpenEnabled &&
-    Number.isFinite(effectiveScale) &&
-    effectiveScale < 1.0
-  ) {
-    p = p.sharpen({ sigma: SHARPEN_SIGMA });
-  }
-  return p.png({ compressionLevel: 9 });
-}
+// Phase 40 REPACK-03 / D-03a — shared resize+sharpen helper. Extracted
+// 2026-05-14 from this file's former local helpers (applyResizeAndSharpen
+// + SHARPEN_SIGMA constant, both removed). Both image-worker resize call
+// sites now delegate to resizeToTmpFile so the loose-export and
+// atlas-repack workers share ONE source of truth for the resize kernel
+// + conditional sharpen gate. REPACK-01 byte-parity invariant: changing
+// this helper changes loose-mode export bytes.
+import { resizeToTmpFile } from './sharp-resize.js';
 
 export async function runExport(
   plan: ExportPlan,
@@ -543,9 +507,10 @@ export async function runExport(
         // to reconstitute the orig canvas before resize — downstream
         // outW/outH are computed from canonicalW (orig dims) per
         // computeExportDims, so the resize input must also be orig-sized.
-        // Phase 28 SHARP-02: both branches collapse onto applyResizeAndSharpen
-        // so the downscale-only sharpen gate (D-07) + sigma constant (D-05)
-        // live in ONE place; D-08 enforces both call sites covered.
+        // Phase 28 SHARP-02 / Phase 40 D-03a: both branches collapse onto
+        // resizeToTmpFile (sharp-resize.ts) so the downscale-only sharpen
+        // gate (D-07) + sigma constant (D-05) live in ONE place; D-08
+        // enforces both call sites covered.
         //
         // 2026-05-08 fix (debug session export-extract-area-bad-area):
         // previously passed atlasSource.w/h directly which overshot the
@@ -556,7 +521,7 @@ export async function runExport(
         // pipeline yields (resize_target + 2*padding) — wrong. For SW
         // regions we materialize the extend output to a Buffer first, then
         // re-open as a fresh pipeline that contains only the orig-canvas
-        // pixels, and feed that to applyResizeAndSharpen.
+        // pixels, and feed that to resizeToTmpFile.
         const a = row.atlasSource;
         let pipeline: sharp.Sharp;
         // Phase 33 D-03 — post-rotation canonical orientation. For rotated
@@ -571,7 +536,7 @@ export async function runExport(
           // Mirrors the original SW fix for libvips operation reordering
           // (RESEARCH §"Pitfall 4: Sharp pipeline order"). Rotation slots
           // into the pre-pipeline BEFORE .toBuffer() so the materialized
-          // canvas is in canonical orientation when applyResizeAndSharpen
+          // canvas is in canonical orientation when resizeToTmpFile
           // sees it.
           let pre = sharp(a.pagePath).extract({
             left: a.x, top: a.y, width: a.packW, height: a.packH,
@@ -613,7 +578,7 @@ export async function runExport(
             height: a.packH,
           });
         }
-        await applyResizeAndSharpen(
+        await resizeToTmpFile(
           pipeline,
           row.outW,
           row.outH,
@@ -621,7 +586,7 @@ export async function runExport(
           sharpenEnabled,
         ).toFile(tmpPath);
       } else {
-        await applyResizeAndSharpen(
+        await resizeToTmpFile(
           sharp(sourcePath),
           row.outW,
           row.outH,
