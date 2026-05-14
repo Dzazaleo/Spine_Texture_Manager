@@ -64,11 +64,13 @@ describe('Phase 40 Plan 07 — preload bridge: widened startExport signature', (
   it('(4) Api.startExport type declaration includes outputMode field with literal union "loose" | "atlas" | "both"', () => {
     const src = sharedTypesSource();
     // The Api.startExport block declares the new positional arg type.
-    expect(/outputMode\s*:\s*'loose'\s*\|\s*'atlas'\s*\|\s*'both'/.test(src)).toBe(true);
+    // `?` allows both required and optional declarations — main has safe
+    // defaults so the renderer-side optional marker is acceptable.
+    expect(/outputMode\??\s*:\s*'loose'\s*\|\s*'atlas'\s*\|\s*'both'/.test(src)).toBe(true);
   });
 
   it('(5) Api.startExport type declaration includes atlasOpts: { maxPageSize; allowRotation; padding }', () => {
     const src = sharedTypesSource();
-    expect(/atlasOpts\s*:\s*\{[\s\S]*?maxPageSize[\s\S]*?allowRotation[\s\S]*?padding/.test(src)).toBe(true);
+    expect(/atlasOpts\??\s*:\s*\{[\s\S]*?maxPageSize[\s\S]*?allowRotation[\s\S]*?padding/.test(src)).toBe(true);
   });
 });

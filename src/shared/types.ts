@@ -1346,6 +1346,26 @@ export interface Api {
      * Defaults to false in main when omitted (mirrors overwrite default).
      */
     sharpenEnabled?: boolean,
+    /**
+     * Phase 40 D-04 — additive 5th positional arg. Selects the export-pipeline
+     * dispatch in `src/main/ipc.ts` (`runExport` only / `runRepack` only / both
+     * with a shared rollback list). Defaults to 'loose' in main when omitted —
+     * preserves byte-stable behavior for any legacy caller that has not yet
+     * adopted the widened signature. Renderer always passes an explicit value.
+     */
+    outputMode?: 'loose' | 'atlas' | 'both',
+    /**
+     * Phase 40 D-04 — additive 6th positional arg. The 3 atlas-mode knobs
+     * threaded from OptimizeDialog's Output card (CONTEXT D-01c..e). Main has
+     * a default object `{ maxPageSize: 4096, allowRotation: false, padding: 2 }`
+     * so legacy callers continue to work; renderer always passes the
+     * .stmproj-hydrated values.
+     */
+    atlasOpts?: {
+      maxPageSize: 1024 | 2048 | 4096 | 8192;
+      allowRotation: boolean;
+      padding: number;
+    },
   ) => Promise<ExportResponse>;
   /**
    * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
