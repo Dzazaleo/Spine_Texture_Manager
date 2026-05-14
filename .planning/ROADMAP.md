@@ -104,7 +104,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
 | 39. Windows Host-Blocked UAT Burndown | 3/3 | Complete    | 2026-05-13 |
-| 40. Atlas Repack Output | 0/9 | Not started | — |
+| 40. Atlas Repack Output | 4/9 | In Progress|  |
 
 ### Phase 40: Atlas Repack Output
 **Goal**: Optimize Dialog gains an additive `loose | atlas | both` output mode (default `loose`) that emits a libgdx-format `.atlas` + composite page PNG(s), letting animators ship packed atlases directly from optimized regions without round-tripping through the Spine editor.
@@ -120,10 +120,10 @@ Phases are mutually independent — any ordering is correct. Default sequential 
   7. `core/` stays pure-TS (pack math + region planning); sharp invocations + `.atlas` text writing live in `main/`. Vitest covers pack math headlessly with synthetic region inputs.
   8. SEED-008 frontmatter `status:` flips from `dormant` to `closed` at phase close, with closing breadcrumb to Phase 40.
 **Plans**: 9 plans
-- [ ] 40-01-PLAN.md — `.stmproj` schema extension (REPACK-07): 4 additive ProjectFileV1 + AppSessionState fields, validator pre-massage, ExportProgressEvent.phase
-- [ ] 40-02-PLAN.md — `core/repack.ts` pure-TS pack planner (REPACK-02, REPACK-06): maxrects-packer wrapper, deterministic regionName sort, oversize pre-flight
-- [ ] 40-03-PLAN.md — `main/atlas-writer.ts` libgdx text serializer (REPACK-04, REPACK-06): TextureAtlas round-trip, multi-page, rotation flag
-- [ ] 40-04-PLAN.md — Shared resize helper extraction (`main/sharp-resize.ts`, D-03a): resizeToTmpFile + resizeToBuffer; loose-mode byte parity preserved
+- [x] 40-01-PLAN.md — `.stmproj` schema extension (REPACK-07): 4 additive ProjectFileV1 + AppSessionState fields, validator pre-massage, ExportProgressEvent.phase
+- [x] 40-02-PLAN.md — `core/repack.ts` pure-TS pack planner (REPACK-02, REPACK-06): maxrects-packer wrapper, deterministic regionName sort, oversize pre-flight
+- [x] 40-03-PLAN.md — `main/atlas-writer.ts` libgdx text serializer (REPACK-04, REPACK-06): TextureAtlas round-trip, multi-page, rotation flag
+- [x] 40-04-PLAN.md — Shared resize helper extraction (`main/sharp-resize.ts`, D-03a): resizeToTmpFile + resizeToBuffer; loose-mode byte parity preserved
 - [ ] 40-05-PLAN.md — `main/repack-worker.ts` sharp orchestration (REPACK-03, REPACK-05, REPACK-10): emit-truth, materialize-rotate, atomic-or-fail, locked error string
 - [ ] 40-06-PLAN.md — IPC extension (REPACK-01, REPACK-10, D-04, D-04a, D-05): export:start outputMode + atlasOpts; validateExportOpts; shared writtenPaths rollback
 - [ ] 40-07-PLAN.md — OptimizeDialog Output card UI (REPACK-01, D-01..D-01e): radio + 3 conditional knobs; AppShell threading; preload bridge
