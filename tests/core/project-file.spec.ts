@@ -126,6 +126,10 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -146,6 +150,10 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -182,6 +190,10 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const json = JSON.stringify(file);
@@ -211,6 +223,10 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       loaderMode: 'auto' as const,
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose' as const,
+      atlasMaxPageSize: 4096 as const,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
     expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -283,6 +299,10 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -323,6 +343,10 @@ describe('migrate (D-151)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
   });
@@ -387,6 +411,10 @@ describe('Phase 21 — loaderMode (D-08)', () => {
       loaderMode: 'atlas-less',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.loaderMode).toBe('atlas-less');
@@ -456,6 +484,10 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       loaderMode: 'auto',
       sharpenOnExport: true,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(true);
@@ -478,6 +510,10 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(false);
@@ -558,6 +594,10 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 5,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.safetyBufferPercent).toBe(5);
@@ -580,6 +620,10 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.safetyBufferPercent).toBe(0);
@@ -602,6 +646,10 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 5,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.version).toBe(1);
@@ -622,6 +670,10 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       loaderMode: 'auto',
       sharpenOnExport: false,
       safetyBufferPercent: 7,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const a = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
     const b = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
@@ -681,6 +733,10 @@ describe('Phase 36 — overridesAtlasLess (SEED-007 L-01)', () => {
       loaderMode: 'atlas-less',
       sharpenOnExport: false,
       safetyBufferPercent: 0,
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.overrides).toEqual({ CIRCLE: 75 });
@@ -688,5 +744,128 @@ describe('Phase 36 — overridesAtlasLess (SEED-007 L-01)', () => {
     const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
     expect(materialized.overrides).toEqual({ CIRCLE: 75 });
     expect(materialized.overridesAtlasLess).toEqual({ SQUARE: 50 });
+  });
+});
+
+describe('Phase 40 — atlas fields (REPACK-07)', () => {
+  it('validator pre-massages missing atlas fields to defaults (REPACK-07 atlas defaults)', () => {
+    const r = validateProjectFile({
+      version: 1,
+      skeletonPath: './SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      // No atlas fields supplied — validator must backfill defaults.
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const project = r.project as ProjectFileV1;
+      expect(project.atlasOutputMode).toBe('loose');
+      expect(project.atlasMaxPageSize).toBe(4096);
+      expect(project.atlasAllowRotation).toBe(false);
+      expect(project.atlasPadding).toBe(2);
+    }
+  });
+
+  it('atlas fields with non-default values round-trip losslessly through serialize+validate+materialize (REPACK-07 atlas round-trip)', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      overridesAtlasLess: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+      atlasOutputMode: 'both',
+      atlasMaxPageSize: 8192,
+      atlasAllowRotation: true,
+      atlasPadding: 16,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    // JSON round-trip simulates the on-disk persist→read path.
+    const parsed = JSON.parse(JSON.stringify(serialized));
+    const r = validateProjectFile(parsed);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const materialized = materializeProjectFile(r.project, '/abs/project.stmproj');
+      expect(materialized.atlasOutputMode).toBe('both');
+      expect(materialized.atlasMaxPageSize).toBe(8192);
+      expect(materialized.atlasAllowRotation).toBe(true);
+      expect(materialized.atlasPadding).toBe(16);
+    }
+  });
+
+  it('project_format_version is unchanged after Phase 40 atlas fields land (REPACK-07 version unchanged)', () => {
+    const session: AppSessionState = {
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      overridesAtlasLess: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: { ...DEFAULT_DOCUMENTATION },
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+      atlasOutputMode: 'atlas',
+      atlasMaxPageSize: 2048,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
+    };
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    // Existing tests use `serialized.version` for the schema-version assertion
+    // (the .stmproj wire field is `version`, not `project_format_version`).
+    // The acceptance gate: Phase 40 adds atlas fields without bumping the
+    // schema version — must still be 1.
+    expect(serialized.version).toBe(1);
+  });
+
+  it('validator rejects malformed atlas fields with invalid-shape errors (REPACK-07 type guard)', () => {
+    const baseValid: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: './SIMPLE.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      atlasOutputMode: 'loose',
+      atlasMaxPageSize: 4096,
+      atlasAllowRotation: false,
+      atlasPadding: 2,
+    };
+    const cases: Array<[string, unknown, RegExp]> = [
+      ['atlasOutputMode', 'rgba', /atlasOutputMode/],
+      ['atlasMaxPageSize', 3000, /atlasMaxPageSize/],
+      ['atlasAllowRotation', 'yes', /atlasAllowRotation/],
+      ['atlasPadding', -1, /atlasPadding/],
+      ['atlasPadding', 17, /atlasPadding/],
+      ['atlasPadding', 1.5, /atlasPadding/],
+    ];
+    for (const [field, bad, msgRegex] of cases) {
+      const r = validateProjectFile({ ...baseValid, [field]: bad });
+      expect(r.ok, `${field}=${String(bad)} must reject`).toBe(false);
+      if (!r.ok) {
+        expect(r.error.kind, `${field}=${String(bad)} kind`).toBe('invalid-shape');
+        expect(r.error.message, `${field}=${String(bad)} message`).toMatch(msgRegex);
+      }
+    }
   });
 });
