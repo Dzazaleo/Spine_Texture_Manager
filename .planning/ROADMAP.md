@@ -26,6 +26,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 - [x] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B) (completed 2026-05-13)
 - [x] **Phase 38: Phase 4 Code-Review Polish Pass** — Audit IN-01..06 against current code, apply still-applicable findings, resolve long-lived v1.0-era todo (completed 2026-05-13)
 - [x] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable (completed 2026-05-13)
+- [ ] **Phase 40: Atlas Repack Output** — Optimize Dialog gains additive `loose | atlas | both` output mode (default loose); emits libgdx-format `.atlas` + composite page PNG(s) via `maxrects-packer` (already in deps) + sharp per-region trim/rotate/composition; both atlas-source + atlas-less input loaderModes supported; JSON invariant under repack (source-confirmed spine-ts 4.2.111); 7 additive `.stmproj` fields (no schema bump); `safetyBufferPercent` / `sharpenOnExport` / D-91 cap apply pre-pack per-region (SEED-008)
 
 ## Phase Details
 
@@ -95,7 +96,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 ## Progress
 
 **Execution Order:**
-Phases are mutually independent — any ordering is correct. Default sequential 36 → 37 → 38 → 39 reflects estimated effort (largest scope first) and lets Win-host availability for Phase 39 surface late in the cycle.
+Phases are mutually independent — any ordering is correct. Default sequential 36 → 37 → 38 → 39 reflects estimated effort (largest scope first) and lets Win-host availability for Phase 39 surface late in the cycle. Phase 40 was added after Phases 36–39 completed (2026-05-14) and is the v1.5 milestone-close phase; it depends on no earlier v1.5 work.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -103,6 +104,23 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
 | 39. Windows Host-Blocked UAT Burndown | 3/3 | Complete    | 2026-05-13 |
+| 40. Atlas Repack Output | 0/0 | Not planned | — |
+
+### Phase 40: Atlas Repack Output
+**Goal**: Optimize Dialog gains an additive `loose | atlas | both` output mode (default `loose`) that emits a libgdx-format `.atlas` + composite page PNG(s), letting animators ship packed atlases directly from optimized regions without round-tripping through the Spine editor.
+**Depends on**: Nothing (independent — Optimize Dialog already a v1.4 surface)
+**Requirements**: REPACK-01..REPACK-09 (tentative; finalized by `/gsd-spec-phase 40`)
+**Success Criteria** (what must be TRUE):
+  1. Optimize Dialog renders a `loose | atlas | both` radio (default `loose`); existing loose-PNG export pipeline is byte-unchanged in the `loose` default. Selecting `atlas` or `both` activates the repack path.
+  2. With mode `atlas` or `both`, the export emits a libgdx-format `.atlas` text file + 1..N composite page PNGs at the same output root used by loose export today. Page layout is computed by `maxrects-packer` (already in `package.json`) over the same per-region pixel data loose export would write.
+  3. Per-region quality knobs apply **before packing**: `safetyBufferPercent`, `sharpenOnExport`, and the D-91 cap each transform per-region pixel data prior to layout. Pack geometry is purely mechanical; no quality knob interacts with packing.
+  4. Both `atlas-source` and `atlas-less` input loaderModes produce identical repack output for the same set of optimized regions. Per [[project_strict_loadermode_separation]], loaderMode gates only the input side; the repack pipeline is mode-agnostic on output.
+  5. Skeleton JSON is **not modified** by repack. Source-confirmed against spine-ts 4.2.111 per [[project_spine_4_2_atlas_json_precedence]]: runtime reads region dims from `.atlas`, references are by name, so `.atlas` + page PNGs are the only changed artifacts.
+  6. `.stmproj` schema gains up to 7 additive fields for repack settings (no `project_format_version` bump — precedent: `loaderMode`, `sharpenOnExport`, `safetyBufferPercent`). v1.5-era `.stmproj` files written before Phase 40 round-trip losslessly through the validator.
+  7. `core/` stays pure-TS (pack math + region planning); sharp invocations + `.atlas` text writing live in `main/`. Vitest covers pack math headlessly with synthetic region inputs.
+  8. SEED-008 frontmatter `status:` flips from `dormant` to `closed` at phase close, with closing breadcrumb to Phase 40.
+**Plans**: 0 plans (run `/gsd-spec-phase 40` then `/gsd-plan-phase 40` to break down)
+**UI hint**: yes
 
 ---
 
@@ -114,3 +132,4 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 - *TIMELINE-02 has a conditional escalation clause — if the InheritTimeline source audit reveals world-transform effects, TIMELINE-03 becomes load-bearing (real-risk gap fix) rather than precautionary (invariance lock). This is a `/gsd-plan-phase 37` checkpoint, not a deferred risk.*
 - *Some POLISH IN-* findings may already be no-ops by the time Phase 38 runs (WR-03 already closed in Phase 27 per PROJECT.md Key Decisions). POLISH-01 audit step confirms which still apply.*
 - *WINUAT-01..03 are host-blocked. Phase 39 outcome is `human_needed` if no Win host is available this cycle; todos carry forward to v1.6+. Closure gates on programmatic verification + audit-trail integrity, NOT on host availability.*
+- *Phase 40 locked design facts from SEED-008: output mode is additive (loose default unchanged), JSON is invariant under repack, both loaderModes supported, 7 additive `.stmproj` fields with no schema bump, `core/` stays pure-TS for pack math, sharp + `.atlas` writing in `main/`, quality knobs apply pre-pack per-region. `/gsd-spec-phase 40` and `/gsd-discuss-phase 40` SHOULD NOT relitigate these.*

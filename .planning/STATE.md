@@ -1,37 +1,37 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.5
-milestone_name: Override Routing + Coverage Hardening
-status: milestone_complete
-last_updated: "2026-05-13T18:55:40.909Z"
-last_activity: 2026-05-13 -- Phase 39 complete; v1.5 milestone complete
+milestone_name: Override Routing + Coverage Hardening + Atlas Repack
+status: in_progress
+last_updated: "2026-05-14T00:00:00.000Z"
+last_activity: 2026-05-14 -- Phase 40 added (atlas-repack-output); v1.5 reopened from milestone_complete
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
   total_plans: 14
   completed_plans: 14
-  percent: 100
+  percent: 80
 ---
 
 # State
 
 ## Current Position
 
-Phase: 39
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-13
+Phase: 40
+Plan: Not specced yet (run /gsd-spec-phase 40 next)
+Status: Phase 40 added to v1.5; milestone reopened from milestone_complete
+Last activity: 2026-05-14
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pending push)
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
-**Current focus:** Phase 39 — windows-host-blocked-uat-burndown
+**Current focus:** Phase 40 — atlas-repack-output (SEED-008)
 
 ## v1.5 Roadmap Summary
 
-4 independent phases (any ordering correct; default 36 → 37 → 38 → 39):
+5 independent phases (Phase 40 added 2026-05-14 after 36–39 complete):
 
 | Phase | Goal | REQs | Plans (est.) |
 |-------|------|------|--------------|
@@ -39,8 +39,9 @@ See: .planning/PROJECT.md (updated 2026-05-12 — v1.4 shipped, v1.4.0 tag pendi
 | 37 — Spine 4.2 Timeline Coverage Hardening | Source-audit + fixture-lock RGBA2 + InheritTimeline | TIMELINE-01..05 | 3 |
 | 38 — Phase 4 Code-Review Polish Pass | Audit IN-01..06 against current code, apply still-applicable findings | POLISH-01..03 | 3 |
 | 39 — Windows Host-Blocked UAT Burndown | Run Phase 20 + 31 Win-host UATs OR defer with audit-trail | WINUAT-01..03 | 3 |
+| 40 — Atlas Repack Output | Additive `loose | atlas | both` output mode → libgdx `.atlas` + page PNG(s) via maxrects-packer + sharp | REPACK-01..09 (tentative) | TBD |
 
-**Coverage:** 18/18 v1.5 REQs mapped (no orphans, no duplicates).
+**Coverage:** 18/18 pre-Phase-40 v1.5 REQs mapped (no orphans, no duplicates); REPACK-01..09 tentative pending `/gsd-spec-phase 40`.
 
 ## Last completed milestone
 
@@ -90,10 +91,15 @@ Carried forward from v1.4 milestone close (2026-05-12). Items resolved/addressed
 - **SEED-007 Decision 3-A:** mode-switch leaves inactive bucket untouched; no auto-copy.
 - **TIMELINE-02 conditional escalation:** if InheritTimeline audit reveals world-transform effects, TIMELINE-03 becomes load-bearing (real-risk fix); otherwise precautionary (invariance lock). Phase 37 plan checkpoint, not a deferred risk.
 - **WINUAT-01..03 host-blocked graceful degradation:** Phase 39 `human_needed` outcome is first-class non-failure; todos carry forward to v1.6+ if no Win host available this cycle.
+- **SEED-008 (Phase 40) locked design facts:** Output mode is additive (loose default unchanged); JSON invariant under repack (source-confirmed spine-ts 4.2.111); both atlas-source + atlas-less input loaderModes supported on output; 7 additive `.stmproj` fields with no schema bump; `core/` stays pure-TS for pack math; sharp + `.atlas` writing in `main/`; `safetyBufferPercent` / `sharpenOnExport` / D-91 cap apply pre-pack per-region. `/gsd-spec-phase 40` and `/gsd-discuss-phase 40` SHOULD NOT relitigate these.
+
+### Roadmap Evolution
+
+- 2026-05-14 — Phase 40 added (`atlas-repack-output`) post-hoc after v1.5 marked `milestone_complete`. v1.5 reopened (`status: in_progress`, `total_phases: 4 → 5`). Phase 40 is the v1.5 milestone-close phase; planted as SEED-008 immediately prior. Branch `experiment/phase-40-atlas-repack` already in use.
 
 ---
 
 *This file is authored fresh at milestone start. v1.4 phases preserved at `.planning/phases/32-*..35-*/` (per user choice — not archived to `milestones/v1.4-phases/`).*
 
 **Last Milestone:** v1.4 (Spine 4.3 Forward-Compat + Rotated Atlases) — COMPLETE — 2026-05-12 (4 phases, 18 plans, 14 REQs; tag `v1.4.0` pending push).
-**Current Milestone:** v1.5 (Override Routing + Coverage Hardening) — PLANNING — 4 phases, ~14 plans est., 18 REQs.
+**Current Milestone:** v1.5 (Override Routing + Coverage Hardening + Atlas Repack) — IN PROGRESS — 5 phases (36–39 complete; 40 pending spec/plan/execute), 14+TBD plans, 18+REPACK-01..09 REQs.
