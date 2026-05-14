@@ -40,6 +40,10 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
     loaderMode: 'auto',
     sharpenOnExport: false,
     safetyBufferPercent: 0,
+    atlasOutputMode: 'loose',
+    atlasMaxPageSize: 4096,
+    atlasAllowRotation: false,
+    atlasPadding: 2,
   };
 
   it('heals (atlas-less + atlasPath set) → auto, flags loaderModeHealed=true', () => {

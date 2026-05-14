@@ -120,6 +120,11 @@ const baseState: AppSessionState = {
   // Phase 30 BUFFER-03 — safetyBufferPercent default 0 (off); Plan 30-02
   // wires the integer into the export pipeline.
   safetyBufferPercent: 0,
+  // Phase 40 REPACK-07 — 4 additive atlas fields per CONTEXT D-01a..e.
+  atlasOutputMode: 'loose',
+  atlasMaxPageSize: 4096,
+  atlasAllowRotation: false,
+  atlasPadding: 2,
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
