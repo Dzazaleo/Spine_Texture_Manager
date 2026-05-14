@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening + Atlas Repack
-status: in_progress
-last_updated: "2026-05-14T00:00:00.000Z"
-last_activity: 2026-05-14 -- Phase 40 added (atlas-repack-output); v1.5 reopened from milestone_complete
+status: executing
+last_updated: "2026-05-14T16:42:08.572Z"
+last_activity: 2026-05-14 -- Phase 40 planning complete
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 14
+  total_plans: 23
   completed_plans: 14
-  percent: 80
+  percent: 61
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 40
 Plan: Not specced yet (run /gsd-spec-phase 40 next)
-Status: Phase 40 added to v1.5; milestone reopened from milestone_complete
-Last activity: 2026-05-14
+Status: Ready to execute
+Last activity: 2026-05-14 -- Phase 40 planning complete
 
 ## Project Reference
 
