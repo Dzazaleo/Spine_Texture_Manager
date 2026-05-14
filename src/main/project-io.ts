@@ -682,6 +682,15 @@ export async function handleProjectOpenFromPath(
     // its safetyBufferPercentLocal slot on Open. Mirrors sharpenOnExport
     // site immediately above (Phase 28 SHARP-01).
     safetyBufferPercent: materialized.safetyBufferPercent,
+    // Phase 40 REPACK-07 — thread the 4 atlas fields so AppShell can seed
+    // OptimizeDialog Output card state on Open. Validator pre-massage
+    // already substituted defaults for legacy .stmproj files; the
+    // materializer's defence-in-depth fallback ensures the type contract
+    // holds even if a future code path bypasses the validator.
+    atlasOutputMode: materialized.atlasOutputMode,
+    atlasMaxPageSize: materialized.atlasMaxPageSize,
+    atlasAllowRotation: materialized.atlasAllowRotation,
+    atlasPadding: materialized.atlasPadding,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -861,6 +870,31 @@ export async function handleProjectReloadWithSkeleton(
       ? a.safetyBufferPercent
       : 0;
 
+  // Phase 40 REPACK-07 — recovery path threads the 4 atlas fields from the
+  // renderer's last-known session payload. Defaults match the validator
+  // pre-massage in project-file.ts (legacy .stmproj files / pre-Plan-07
+  // renderer builds resolve to byte-stable loose-PNG behavior).
+  const atlasOutputMode: 'loose' | 'atlas' | 'both' =
+    a.atlasOutputMode === 'atlas' || a.atlasOutputMode === 'both'
+      ? a.atlasOutputMode
+      : 'loose';
+  const atlasMaxPageSize: 1024 | 2048 | 4096 | 8192 =
+    a.atlasMaxPageSize === 1024
+    || a.atlasMaxPageSize === 2048
+    || a.atlasMaxPageSize === 4096
+    || a.atlasMaxPageSize === 8192
+      ? a.atlasMaxPageSize
+      : 4096;
+  const atlasAllowRotation: boolean =
+    typeof a.atlasAllowRotation === 'boolean' ? a.atlasAllowRotation : false;
+  const atlasPadding: number =
+    typeof a.atlasPadding === 'number'
+    && Number.isInteger(a.atlasPadding)
+    && a.atlasPadding >= 0
+    && a.atlasPadding <= 16
+      ? a.atlasPadding
+      : 2;
+
   // Reuse the loader+sampler+buildSummary chain from handleProjectOpenFromPath
   // steps 6-9. atlasPath is intentionally undefined → loader's F1.2 sibling
   // auto-discovery runs against the NEW skeleton's directory (D-152).
@@ -1029,6 +1063,13 @@ export async function handleProjectReloadWithSkeleton(
     // renderer cached before the failed Open (computed above from
     // `a.safetyBufferPercent` with defensive coerce).
     safetyBufferPercent,
+    // Phase 40 REPACK-07 — recovery path threads the 4 atlas fields from the
+    // renderer's cached session payload (computed above from `a.atlas*` with
+    // defensive coerce). Mirrors safetyBufferPercent site immediately above.
+    atlasOutputMode,
+    atlasMaxPageSize,
+    atlasAllowRotation,
+    atlasPadding,
     // Phase 20 D-01 — locate-skeleton recovery does not re-read the .stmproj
     // file (it reuses the renderer's cached overrides/settings from the
     // failed Open). `documentation` is not part of the cached args today;
@@ -1296,6 +1337,32 @@ export async function handleProjectResample(
       && a.safetyBufferPercent <= 25
         ? a.safetyBufferPercent
         : 0,
+    // Phase 40 REPACK-07 — resample seam preserves the 4 atlas fields across
+    // re-materialise. AppShell threads atlasOutputMode/atlasMaxPageSize/
+    // atlasAllowRotation/atlasPadding into ResampleArgs (Plan 07 will add
+    // them); defensive coerce at the IPC boundary (mirrors safetyBufferPercent
+    // / sharpenOnExport above). Out-of-shape values fall back to the
+    // validator pre-massage defaults.
+    atlasOutputMode:
+      a.atlasOutputMode === 'atlas' || a.atlasOutputMode === 'both'
+        ? a.atlasOutputMode
+        : 'loose',
+    atlasMaxPageSize:
+      a.atlasMaxPageSize === 1024
+      || a.atlasMaxPageSize === 2048
+      || a.atlasMaxPageSize === 4096
+      || a.atlasMaxPageSize === 8192
+        ? a.atlasMaxPageSize
+        : 4096,
+    atlasAllowRotation:
+      typeof a.atlasAllowRotation === 'boolean' ? a.atlasAllowRotation : false,
+    atlasPadding:
+      typeof a.atlasPadding === 'number'
+      && Number.isInteger(a.atlasPadding)
+      && a.atlasPadding >= 0
+      && a.atlasPadding <= 16
+        ? a.atlasPadding
+        : 2,
   };
   return { ok: true, project };
 }

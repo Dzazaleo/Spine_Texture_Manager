@@ -116,6 +116,28 @@ export interface OptimizeDialogProps {
    */
   safetyBufferPercent: number;
   onSafetyBufferChange: (n: number) => void;
+  /**
+   * Phase 40 REPACK-01 / D-04 — output-mode dispatch. Threaded from
+   * AppShell.atlasOutputMode (.stmproj). Mirrors sharpenOnExport's
+   * controlled-prop pattern: the dialog renders the radio group + 3
+   * conditional knobs, AppShell owns the state.
+   */
+  outputMode: 'loose' | 'atlas' | 'both';
+  onOutputModeChange: (mode: 'loose' | 'atlas' | 'both') => void;
+  /**
+   * Phase 40 REPACK-01 / D-04 — 3 atlas knobs (max page size / allow
+   * rotation / padding). Threaded from AppShell as a single object; the
+   * onAtlasOptsChange callback receives the merged shape on every knob
+   * change. Validator-clamped in AppShell on commit; the dialog clamps
+   * padding 0..16 inline in the onChange handler (UI-SPEC validation locus,
+   * mirror of safetyBufferPercent at L450-468).
+   */
+  atlasOpts: {
+    maxPageSize: 1024 | 2048 | 4096 | 8192;
+    allowRotation: boolean;
+    padding: number;
+  };
+  onAtlasOptsChange: (opts: OptimizeDialogProps['atlasOpts']) => void;
 }
 
 export function OptimizeDialog(props: OptimizeDialogProps) {
@@ -168,7 +190,13 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
         next.set(event.index, event.status);
         return next;
       });
-      setProgress({ current: event.index + 1, lastPath: event.path });
+      // Phase 40 D-05 — additive `phase` field on ExportProgressEvent. Prefix
+      // the rendered lastPath with "Resize: " or "Composite: " so users see
+      // the stage transition without a separate progress bar. When `phase` is
+      // undefined (legacy loose-only flow), the path renders unchanged.
+      const phaseLabel = event.phase === 'composite' ? 'Composite' : 'Resize';
+      const displayPath = event.phase ? `${phaseLabel}: ${event.path}` : event.path;
+      setProgress({ current: event.index + 1, lastPath: displayPath });
       if (event.status === 'error' && event.error) {
         const errMsg = event.error.message;
         setRowErrors((prev) => {
@@ -276,6 +304,8 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       resolvedOutDir,
       overwrite,
       props.sharpenOnExport, // Phase 28 SHARP-02 — 4th arg per Q1 inline recommendation
+      props.outputMode,      // Phase 40 D-04 — 5th positional arg
+      props.atlasOpts,       // Phase 40 D-04 — 6th positional arg
     );
     if (response.ok) {
       setSummary(response.summary);
@@ -428,6 +458,134 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
             <span className="text-base font-semibold text-fg">{savingsPct.toFixed(1)}%</span>
             <span className="text-xs text-fg-muted text-center">Saving est. pixels</span>
           </div>
+        </div>
+
+        {/* Phase 40 REPACK-01 / D-01 — Output card: radio group + conditional
+            atlas knobs. Layout: Stats tiles → Output card → Quality card →
+            footer (locked by CONTEXT D-01). Border + bg-surface mirror the
+            Quality card visual treatment verbatim. */}
+        <div className="border border-border rounded-md bg-surface p-3 mb-4">
+          <span className="text-xs text-fg-muted mb-2 block">Output</span>
+          <div
+            role="radiogroup"
+            aria-label="Output mode"
+            className="flex items-center gap-3 mb-2 text-xs text-fg"
+          >
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="output-mode"
+                value="loose"
+                checked={props.outputMode === 'loose'}
+                onChange={() => props.onOutputModeChange('loose')}
+                disabled={state === 'in-progress'}
+                className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              Loose PNGs
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="output-mode"
+                value="atlas"
+                checked={props.outputMode === 'atlas'}
+                onChange={() => props.onOutputModeChange('atlas')}
+                disabled={state === 'in-progress'}
+                className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              Atlas
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="radio"
+                name="output-mode"
+                value="both"
+                checked={props.outputMode === 'both'}
+                onChange={() => props.onOutputModeChange('both')}
+                disabled={state === 'in-progress'}
+                className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              Both
+            </label>
+          </div>
+          {/* D-01b — atlas knobs hidden in 'loose'; revealed in 'atlas' / 'both'. */}
+          {props.outputMode !== 'loose' && (
+            <div className="flex flex-col gap-2 mt-2">
+              <label
+                htmlFor="atlas-max-page-size"
+                className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+              >
+                Max page size:
+                <select
+                  id="atlas-max-page-size"
+                  value={props.atlasOpts.maxPageSize}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (v === 1024 || v === 2048 || v === 4096 || v === 8192) {
+                      props.onAtlasOptsChange({ ...props.atlasOpts, maxPageSize: v });
+                    }
+                  }}
+                  disabled={state === 'in-progress'}
+                  className="bg-surface border border-border text-fg px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value={1024}>1024</option>
+                  <option value={2048}>2048</option>
+                  <option value={4096}>4096</option>
+                  <option value={8192}>8192</option>
+                </select>
+                <span className="text-fg-muted">px</span>
+              </label>
+
+              <label
+                htmlFor="atlas-allow-rotation-toggle"
+                className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+              >
+                <input
+                  id="atlas-allow-rotation-toggle"
+                  type="checkbox"
+                  checked={props.atlasOpts.allowRotation}
+                  onChange={(e) =>
+                    props.onAtlasOptsChange({
+                      ...props.atlasOpts,
+                      allowRotation: e.target.checked,
+                    })
+                  }
+                  disabled={state === 'in-progress'}
+                  title="Packer may rotate regions 90° for tighter packing."
+                  className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                Allow rotation
+              </label>
+
+              <label
+                htmlFor="atlas-padding-input"
+                className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+              >
+                Padding:
+                <input
+                  id="atlas-padding-input"
+                  type="number"
+                  min={0}
+                  max={16}
+                  step={1}
+                  value={props.atlasOpts.padding}
+                  onChange={(e) => {
+                    const parsed = parseInt(e.target.value, 10);
+                    if (!Number.isFinite(parsed)) {
+                      props.onAtlasOptsChange({ ...props.atlasOpts, padding: 0 });
+                      return;
+                    }
+                    const clamped = Math.max(0, Math.min(16, parsed));
+                    props.onAtlasOptsChange({ ...props.atlasOpts, padding: clamped });
+                  }}
+                  disabled={state === 'in-progress'}
+                  title="Inter-region gap on the packed atlas page."
+                  className="w-16 bg-surface border border-border text-fg px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <span className="text-fg-muted">px</span>
+              </label>
+            </div>
+          )}
         </div>
 
         {/* Phase 30 BUFFER-01 — Quality group containing safety buffer input
@@ -792,6 +950,25 @@ function InProgressBody(props: {
           {props.summary.cancelled ? ' — cancelled' : ''}
         </p>
       )}
+      {/* Phase 40 REPACK-10 surfacing — when the IPC throws BEFORE any
+          row-level progress event (pre-flight aborts like the oversize-region
+          error from repack-worker.ts), onStart synthesizes a summary with the
+          IPC error.message verbatim. Row-level errors already surface via the
+          per-row expandable error block above; this block surfaces the
+          synthetic pre-flight error so the locked REPACK-10 string
+          (`"Region {name} is {W}×{H} px which exceeds the page-size cap.
+          Increase atlasMaxPageSize or apply a smaller override."`) reaches the
+          user UNCHANGED. The detection heuristic is: rowErrors is empty (no
+          per-row event fired) AND summary.errors is non-empty. */}
+      {props.summary !== null &&
+        props.summary.errors.length > 0 &&
+        props.rowErrors.size === 0 && (
+          <ul className="mt-2 text-xs text-[color:var(--color-danger)]">
+            {props.summary.errors.map((err, i) => (
+              <li key={i}>{err.message}</li>
+            ))}
+          </ul>
+        )}
     </>
   );
 }

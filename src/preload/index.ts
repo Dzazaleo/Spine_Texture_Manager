@@ -95,13 +95,20 @@ const api: Api = {
    * would be overwritten. After ConflictDialog "Overwrite all", AppShell
    * passes overwrite=true and main bypasses the per-row collision check.
    */
-  startExport: (plan, outDir, overwrite, sharpenEnabled) =>
+  // Phase 40 D-04 — widened with `outputMode` + `atlasOpts` as the 5th + 6th
+  // positional args. Renderer-perspective counting (1=plan, 2=outDir,
+  // 3=overwrite, 4=sharpenEnabled, 5=outputMode, 6=atlasOpts). Main side
+  // counts `evt` at index 0 and the same wire as 7 args. Plan 06 finalised
+  // the main-side handler at `src/main/ipc.ts:858` accepting all 7.
+  startExport: (plan, outDir, overwrite, sharpenEnabled, outputMode, atlasOpts) =>
     ipcRenderer.invoke(
       'export:start',
       plan,
       outDir,
       overwrite === true,
       sharpenEnabled === true, // Phase 28 SHARP-02
+      outputMode,              // Phase 40 D-04 — 5th positional arg
+      atlasOpts,               // Phase 40 D-04 — 6th positional arg
     ),
 
   /**

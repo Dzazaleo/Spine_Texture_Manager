@@ -1198,6 +1198,18 @@ export interface MaterializedProject {
    * recovery / resample. Mirrors sharpenOnExport above.
    */
   safetyBufferPercent: number;
+  /**
+   * Phase 40 REPACK-07 — atlas output mode threaded through to AppShell so
+   * the OptimizeDialog Output card can seed its radio selection on Open /
+   * locate-skeleton recovery / resample. Validator-defaulted to 'loose'.
+   */
+  atlasOutputMode: 'loose' | 'atlas' | 'both';
+  /** Phase 40 REPACK-07 — validator-defaulted to 4096. */
+  atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
+  /** Phase 40 REPACK-07 — validator-defaulted to false. */
+  atlasAllowRotation: boolean;
+  /** Phase 40 REPACK-07 — integer 0..16; validator-defaulted to 2. */
+  atlasPadding: number;
 }
 
 export type SaveResponse =
@@ -1346,6 +1358,26 @@ export interface Api {
      * Defaults to false in main when omitted (mirrors overwrite default).
      */
     sharpenEnabled?: boolean,
+    /**
+     * Phase 40 D-04 — additive 5th positional arg. Selects the export-pipeline
+     * dispatch in `src/main/ipc.ts` (`runExport` only / `runRepack` only / both
+     * with a shared rollback list). Defaults to 'loose' in main when omitted —
+     * preserves byte-stable behavior for any legacy caller that has not yet
+     * adopted the widened signature. Renderer always passes an explicit value.
+     */
+    outputMode?: 'loose' | 'atlas' | 'both',
+    /**
+     * Phase 40 D-04 — additive 6th positional arg. The 3 atlas-mode knobs
+     * threaded from OptimizeDialog's Output card (CONTEXT D-01c..e). Main has
+     * a default object `{ maxPageSize: 4096, allowRotation: false, padding: 2 }`
+     * so legacy callers continue to work; renderer always passes the
+     * .stmproj-hydrated values.
+     */
+    atlasOpts?: {
+      maxPageSize: 1024 | 2048 | 4096 | 8192;
+      allowRotation: boolean;
+      padding: number;
+    },
   ) => Promise<ExportResponse>;
   /**
    * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
