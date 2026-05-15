@@ -966,11 +966,12 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
    * against an outDir already containing those files skipped the
    * ConflictDialog and tripped runRepack's existence check at write time.
    *
-   * projectName is derived from `basename(resolve(outDir))` (per
-   * `src/main/atlas-paths.ts:deriveProjectName`), so for outDir
-   * `/tmp/test_repack` the canonical sentinels are:
-   *   /tmp/test_repack/test_repack.png
-   *   /tmp/test_repack/test_repack.atlas
+   * projectName is derived from the JSON / first-row sourcePath basename
+   * (per `src/main/atlas-paths.ts:deriveProjectName`, precedence
+   * inverted 2026-05-15 — see debug session `atlas-repack-output-bugs`).
+   * These tests use sourcePath=`/proj/test_repack.json` so the derived
+   * projectName is `test_repack`, matching the canonical sentinels
+   * /tmp/test_repack/test_repack.png + .atlas at outDir root.
    * Additional pages (2, 3, ...) are discovered via readdir.
    */
   it('UAT Round 3 (atlas mode): surfaces {projectName}.png + .atlas at outDir root', async () => {
@@ -996,7 +997,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const plan: ExportPlan = {
       rows: [
         {
-          sourcePath: '/proj/images/CIRCLE.png',
+          sourcePath: '/proj/test_repack.json',
           outPath: 'images/CIRCLE.png',
           sourceW: 64,
           sourceH: 64,
@@ -1057,7 +1058,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const plan: ExportPlan = {
       rows: [
         {
-          sourcePath: '/proj/images/CIRCLE.png',
+          sourcePath: '/proj/test_repack.json',
           outPath: 'images/CIRCLE.png',
           sourceW: 64,
           sourceH: 64,
@@ -1110,7 +1111,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const plan: ExportPlan = {
       rows: [
         {
-          sourcePath: '/proj/images/CIRCLE.png',
+          sourcePath: '/proj/test_repack.json',
           outPath: 'images/CIRCLE.png',
           sourceW: 64,
           sourceH: 64,
@@ -1160,7 +1161,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const plan: ExportPlan = {
       rows: [
         {
-          sourcePath: '/proj/images/CIRCLE.png',
+          sourcePath: '/proj/test_repack.json',
           outPath: 'images/CIRCLE.png',
           sourceW: 64,
           sourceH: 64,
@@ -1198,7 +1199,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const plan: ExportPlan = {
       rows: [
         {
-          sourcePath: '/proj/images/CIRCLE.png',
+          sourcePath: '/proj/test_repack.json',
           outPath: 'images/CIRCLE.png',
           sourceW: 64,
           sourceH: 64,

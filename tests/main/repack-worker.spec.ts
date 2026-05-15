@@ -370,9 +370,11 @@ describe('runRepack — REPACK-10 atomic-or-fail', () => {
 
     vi.resetModules();
 
-    // Create a SIMPLE_TEST-named subdir as outDir so deriveProjectName
-    // produces "SIMPLE_TEST" → predictable page filenames for the
-    // sentinel assertions below.
+    // Create a SIMPLE_TEST-named subdir as outDir; FIXTURE_PNG basename is
+    // also SIMPLE_TEST so the 2026-05-15 sourcePath-preferred precedence
+    // (debug `atlas-repack-output-bugs`) and the legacy outDir-fallback
+    // both yield projectName="SIMPLE_TEST" → predictable page filenames
+    // for the sentinel assertions below.
     const namedDir = path.join(tmpDir, 'SIMPLE_TEST');
     fs.mkdirSync(namedDir, { recursive: true });
 

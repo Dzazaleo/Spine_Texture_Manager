@@ -158,11 +158,12 @@ describe('REPACK-08 — cross-loaderMode parity', () => {
   beforeAll(() => {
     rootA = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-parity-a-'));
     rootB = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-parity-b-'));
-    // Stable per-run outDir basename so deriveProjectName yields the same
-    // SIMPLE_TEST projectName on both runs (atlas + page filenames pin to
-    // SIMPLE_TEST.atlas / SIMPLE_TEST.png on both sides — the SHA256
-    // identity check below would always fail if one side wrote SIMPLE_TEST
-    // and the other wrote stm-parity-X-<random>).
+    // Stable per-run outDir basename so the test is self-documenting.
+    // After the 2026-05-15 deriveProjectName inversion (debug
+    // `atlas-repack-output-bugs`), the primary source is FIXTURE_PNG's
+    // basename (`SIMPLE_TEST.png` → `SIMPLE_TEST`) — outDir is only the
+    // fallback. Both runs see the same FIXTURE_PNG so they produce
+    // SIMPLE_TEST.atlas + SIMPLE_TEST.png on both sides regardless.
     outA = path.join(rootA, 'SIMPLE_TEST');
     outB = path.join(rootB, 'SIMPLE_TEST');
     fs.mkdirSync(outA, { recursive: true });

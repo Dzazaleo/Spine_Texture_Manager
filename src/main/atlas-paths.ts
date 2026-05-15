@@ -12,11 +12,16 @@
  * ConflictDialog and ran into repack-worker's defensive existence check at
  * write time (locked error `repack-worker: page PNG already exists at ...`).
  *
- * Contract:
- *   - `deriveProjectName(plan, outDir)` — outDir basename preferred (the
- *     renderer-chosen folder name maps naturally to `{projectName}.atlas`);
- *     falls back to skeleton-derived row basename when outDir is unusable
- *     (e.g. `:` on Windows drive roots).
+ * Contract (precedence inverted 2026-05-15 — debug session
+ * `atlas-repack-output-bugs`):
+ *   - `deriveProjectName(plan, outDir)` — JSON / first-row sourcePath
+ *     basename PREFERRED (the source identity the user expects to see
+ *     in the output, and what the spine-player will use to find the
+ *     sibling .atlas under app-image://). Falls back to outDir basename
+ *     when the row's sourcePath is unusable. Pre-2026-05-15 the
+ *     precedence was reversed, which produced `test_repack.atlas` +
+ *     `test_repack.png` for any user who exported to a folder named
+ *     `test_repack/` (regardless of the input JSON's actual name).
  *   - `pageFilename(projectName, pageIndex)` — page 0 → `{projectName}.png`;
  *     page N (N >= 1) → `{projectName}_{N+1}.png`. Matches REPACK-05 spec
  *     and the spine-runtime atlas convention.
@@ -27,27 +32,46 @@ import type { ExportPlan } from '../shared/types.js';
 
 /**
  * Derive the project basename used for `{projectName}.atlas` and
- * `{projectName}_N.png`. Preferred source is the outDir basename — the
- * renderer sets outDir, so the user's chosen folder name maps naturally
- * to the atlas filename. Falls back to the first row's sourcePath basename
- * (stripped of `.png` / `.json`) when outDir is unusable.
+ * `{projectName}_N.png`.
+ *
+ * Precedence (inverted 2026-05-15 — debug session
+ * `atlas-repack-output-bugs`):
+ *   1. PRIMARY: first row's `sourcePath` basename (stripped of `.json` /
+ *      `.png`). This is the source identity the user expects to see in
+ *      the output — naming the atlas `JOKERMAN_SPINE_ROT` for a JSON of
+ *      that name is what the Animation Viewer needs to find sibling
+ *      `.atlas` references via `app-image://`. The renderer always
+ *      populates `plan.rows[0].sourcePath` at plan-build time.
+ *   2. FALLBACK: outDir basename (`basename(pathResolve(outDir))`).
+ *      Preserves a defensive path for synthetic plans missing rows
+ *      (every shipping codepath has rows, but the guard avoids a hard
+ *      crash on edge cases).
  *
  * Throws when both sources are unusable; this is a defensive guard — under
  * the IPC contract `outDir` is a non-empty string and `plan.rows` is
  * always present (validated at the trust boundary).
  */
 export function deriveProjectName(plan: ExportPlan, outDir: string): string {
-  const fromDir = basename(pathResolve(outDir));
-  if (fromDir && !fromDir.includes(':')) return fromDir;
-
+  // PRIMARY: derive from the first row's sourcePath basename. The renderer
+  // populates plan.rows[0] from the loaded skeleton's JSON path (atlas-less
+  // mode) or first region PNG (atlas-source mode); both share the same
+  // basename root (`JOKERMAN_SPINE_ROT.json` and `JOKERMAN_SPINE_ROT.png`
+  // both yield `JOKERMAN_SPINE_ROT`). The `:` guard rejects Windows drive
+  // roots that would corrupt libgdx page-header parsing.
   const fromRow = plan.rows[0]?.sourcePath;
   if (fromRow) {
     const name = basename(fromRow).replace(/\.(png|json)$/i, '');
     if (name && !name.includes(':')) return name;
   }
 
+  // FALLBACK: outDir basename. Preserves the legacy defensive path for
+  // synthetic plans without rows (none in production, but a hard crash
+  // on edge cases is worse than a folder-derived name).
+  const fromDir = basename(pathResolve(outDir));
+  if (fromDir && !fromDir.includes(':')) return fromDir;
+
   throw new Error(
-    'atlas-paths: could not derive projectName (outDir + skeleton sourcePath both unusable).',
+    'atlas-paths: could not derive projectName (skeleton sourcePath + outDir both unusable).',
   );
 }
 

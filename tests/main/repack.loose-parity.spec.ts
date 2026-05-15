@@ -134,11 +134,12 @@ describe('REPACK-01 — Loose-mode SHA256 byte-identity (strictest phase gate)',
   let outDir: string;
   beforeAll(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loose-parity-'));
-    // Use a deterministic outDir basename so deriveProjectName (which reads
-    // basename(outDir)) yields 'SIMPLE_TEST' on every run — pinning the
-    // atlas + page-PNG filenames to `SIMPLE_TEST.atlas` + `SIMPLE_TEST.png`.
-    // Without this, the random tmp-dir name leaks into the SHA256 baselines
-    // and they cannot round-trip.
+    // Use a deterministic outDir name so the test is self-documenting; the
+    // actual projectName derivation (2026-05-15 inversion — debug
+    // `atlas-repack-output-bugs`) reads the FIXTURE_PNG basename
+    // (`SIMPLE_TEST.png`) first and falls back to outDir basename only if
+    // sourcePath is unusable. Either source yields `SIMPLE_TEST` here, so
+    // SHA256 baselines round-trip regardless of precedence.
     outDir = path.join(tmpRoot, 'SIMPLE_TEST');
     fs.mkdirSync(outDir, { recursive: true });
   });
