@@ -8,7 +8,9 @@ A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSO
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-## Current State (post v1.5)
+## Current State (post v1.5, v1.5.1 in progress)
+
+**In progress:** v1.5.1 Spine Animation Viewer — Phase 41 complete (3 plans, all green; basic-render VIEWER-04 live-confirmed on SIMPLE_TEST + JOKERMAN_SPINE_ROT after 3 gap fixes landed during UAT: CSP `connect-src 'app-image:'`, CORS ACAO on protocol handler, straight-alpha SpinePlayer config). 5 HUMAN-UAT items remain pending (anim/skin switch + scrub synchrony, GL leak cycles, real-fs error UX, atlas-less parity, File menu suppression) and are tracked in `41-HUMAN-UAT.md`.
 
 **Shipped:** v1.5 Override Routing + Coverage Hardening + Atlas Repack — 2026-05-15 (5 phases, 23 plans, 18 documented REQs + 10 REPACK REQs). Tag: `v1.5.0` (pending push). Full record in `.planning/MILESTONES.md`. Prior: v1.4 (2026-05-12), v1.3.1 (2026-05-09), v1.3.0 (2026-05-07), v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
 
@@ -163,7 +165,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-15 — v1.5.1 milestone STARTED (Spine Animation Viewer; viewer-only scope per user, polish items deferred). Continues phase numbering at Phase 41. Research skipped (scope locked by SEED-009 design facts 1–4). v1.5 phase directories 36–40 retained in `.planning/phases/`. Prior footer: 2026-05-15 — v1.5 SHIPPED (Override Routing + Coverage Hardening + Atlas Repack). 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (archived). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 closed. 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user — backlog for v1.5.2 / v1.6. Milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 + 10/10).*
+*Last updated: 2026-05-15 — Phase 41 COMPLETE (Spine Animation Viewer; 3 plans landed; basic-render UAT confirmed live after 3 follow-up fixes for CSP/CORS/PMA). 5 HUMAN-UAT items remain partial. Prior footer: 2026-05-15 — v1.5.1 milestone STARTED (Spine Animation Viewer; viewer-only scope per user, polish items deferred). Continues phase numbering at Phase 41. Research skipped (scope locked by SEED-009 design facts 1–4). v1.5 phase directories 36–40 retained in `.planning/phases/`. Prior footer: 2026-05-15 — v1.5 SHIPPED (Override Routing + Coverage Hardening + Atlas Repack). 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (archived). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 closed. 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user — backlog for v1.5.2 / v1.6. Milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 + 10/10).*
 
 <details>
 <summary>Prior phase footer (v1.4 + v1.5 mid-flight detail)</summary>
