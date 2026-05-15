@@ -46,6 +46,88 @@ import { computeRepack } from '../core/repack.js';
 import type { RepackInput } from '../core/repack.js';
 import { buildAtlasText } from './atlas-writer.js';
 import { resizeToBuffer } from './sharp-resize.js';
+
+/**
+ * Phase 40 CR-01 (BLOCKER) — atlas-source fallback. Mirrors the loose-export
+ * path's pre-flight at src/main/image-worker.ts:444-606: if `row.sourcePath`
+ * is absent on disk but `row.atlasSource` is populated, extract the region
+ * from the atlas page PNG and return a sharp pipeline pre-positioned on
+ * those pixels (un-rotated to canonical orientation if the source region
+ * was packed rotated). Strip-Whitespace `extend()` reconstitution is NOT
+ * applied here — the resize loop below targets `outW/outH` directly, so the
+ * resize chain naturally rescales the trimmed region to the requested dims.
+ * (Loose mode needs SW extend because it writes a canonical-canvas PNG; the
+ * repack-worker writes packed bytes only.)
+ *
+ * Returns `{ pipeline, isFromAtlasSource }`. The boolean is consumed by the
+ * passthrough WR-06 path so it can decide between `readFile(sourcePath)`
+ * (loose on-disk source ⇒ byte-parity-to-source) and the atlas-extract
+ * fallback (no on-disk loose PNG ⇒ sharp-extract-then-buffer).
+ *
+ * Inputs: any ExportRow-ish shape carrying `sourcePath` and (optionally)
+ * `atlasSource`. Callers narrow to ExportRow at the call site.
+ */
+type AtlasSourceMeta = {
+  pagePath: string;
+  x: number;
+  y: number;
+  packW: number;
+  packH: number;
+  offsetX: number;
+  offsetY: number;
+  w: number;
+  h: number;
+  rotated: boolean;
+};
+
+async function loadRegionSource(row: {
+  sourcePath: string;
+  atlasSource?: AtlasSourceMeta;
+}): Promise<{ pipeline: sharp.Sharp; isFromAtlasSource: boolean }> {
+  // Prefer the per-region PNG if it exists on disk. This is the common case
+  // in atlas-less mode (and in atlas-source mode when the user kept the
+  // pre-export images/ folder alongside the .atlas).
+  const looseExists = await access(row.sourcePath, fsConstants.F_OK)
+    .then(() => true)
+    .catch(() => false);
+  if (looseExists) {
+    return { pipeline: sharp(row.sourcePath), isFromAtlasSource: false };
+  }
+  // Fallback: atlas-source projects (no per-region PNGs). Extract the
+  // trimmed rect from the page PNG. Mirrors image-worker.ts:582-606 — for
+  // rotated regions we un-rotate via .rotate(+90) BEFORE the extract is
+  // materialized, then re-open from the buffer so libvips cannot fuse the
+  // rotation into a downstream resize/composite step (RESEARCH §"Pipeline
+  // fusion landmine").
+  if (!row.atlasSource) {
+    throw new Error(
+      `repack-worker: source PNG missing and no atlasSource fallback available: ${row.sourcePath}`,
+    );
+  }
+  const a = row.atlasSource;
+  if (a.rotated) {
+    // Materialize the un-rotated trimmed rect so the returned pipeline is
+    // pre-positioned on a canonical-orientation buffer. Direction (+90)
+    // matches image-worker.ts:588 + scripts/probe-sharp-rotate.mjs (Phase 33
+    // empirically verified — the WRITE inverse the repack-worker step 4
+    // rotate uses is -90, but this is the READ direction).
+    const rotated = await sharp(a.pagePath)
+      .extract({ left: a.x, top: a.y, width: a.packW, height: a.packH })
+      .rotate(90)
+      .png()
+      .toBuffer();
+    return { pipeline: sharp(rotated), isFromAtlasSource: true };
+  }
+  return {
+    pipeline: sharp(a.pagePath).extract({
+      left: a.x,
+      top: a.y,
+      width: a.packW,
+      height: a.packH,
+    }),
+    isFromAtlasSource: true,
+  };
+}
 // UAT Round 3 (2026-05-15) — deriveProjectName + pageFilename extracted
 // to atlas-paths.ts so probeExportConflicts (src/main/ipc.ts) can derive
 // the same atlas-mode targets. The two call sites MUST agree byte-for-byte
@@ -175,8 +257,12 @@ export async function runRepack(
       continue;
     }
 
+    // CR-01: atlas-source fallback. If the per-region PNG is missing on
+    // disk, extract from the atlas page (un-rotated to canonical if packed
+    // rotated). Mirrors image-worker.ts:444-606.
+    const { pipeline: sourcePipeline } = await loadRegionSource(row);
     const resized = await resizeToBuffer(
-      sharp(row.sourcePath),
+      sourcePipeline,
       row.outW,
       row.outH,
       row.effectiveScale,
@@ -243,11 +329,17 @@ export async function runRepack(
       continue;
     }
 
+    // CR-01: atlas-source fallback. Use loadRegionSource so atlas-source
+    // projects (no on-disk per-region PNGs) still get region bytes via
+    // atlas-extract. Returned pipeline is pre-positioned on canonical-
+    // orientation pixels (un-rotated if the source region was packed
+    // rotated).
+    const { pipeline: sourcePipeline } = await loadRegionSource(row);
     // No resize: load source bytes verbatim. Re-encoding via sharp().png()
     // .toBuffer() (no resize chain) normalizes the bytes through libvips so
     // downstream composite/rotate/extract see the same pixel layout as
     // resized rows.
-    const passthroughBuf = await sharp(row.sourcePath).png().toBuffer();
+    const passthroughBuf = await sourcePipeline.png().toBuffer();
     const meta = await sharp(passthroughBuf).metadata();
     const packW = meta.width ?? row.sourceW;
     const packH = meta.height ?? row.sourceH;

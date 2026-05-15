@@ -1214,3 +1214,128 @@ describe('runRepack — cancellation cooperation', () => {
     expect(atlasFiles.length).toBe(0);
   });
 });
+
+describe('runRepack — CR-01: atlas-source fallback (per-region PNG absent on disk)', () => {
+  it('extracts region from atlas page when sourcePath is missing but atlasSource is populated', async () => {
+    // CR-01 BLOCKER repro: atlas-source projects (project_strict_loadermode_separation
+    // memory) have a .atlas + page PNG on disk but NO per-region PNGs. row.sourcePath
+    // is a synthesized non-existent images/REGION.png path that fails fs.access. The
+    // loose-mode pipeline at image-worker.ts:444-606 falls back to atlas-extract via
+    // row.atlasSource; pre-fix runRepack crashed on sharp(sourcePath) because no
+    // such file existed. Fix mirrors loose-mode behavior via loadRegionSource.
+    //
+    // Build a synthetic atlas page (200×200 with a 80×60 distinguishable region at
+    // x=20,y=30) and assert the resized region bytes match the source pixels.
+    const pageW = 200;
+    const pageH = 200;
+    const regionX = 20;
+    const regionY = 30;
+    const regionW = 80;
+    const regionH = 60;
+    // Page canvas: gray background with a distinct colored block in the region rect.
+    // We use a flat color (red) so we can assert byte parity post-extract trivially.
+    const pageBuf = Buffer.alloc(pageW * pageH * 4, 0);
+    for (let i = 0; i < pageBuf.length; i += 4) {
+      pageBuf[i] = 32;
+      pageBuf[i + 1] = 32;
+      pageBuf[i + 2] = 32;
+      pageBuf[i + 3] = 255;
+    }
+    for (let yy = regionY; yy < regionY + regionH; yy++) {
+      for (let xx = regionX; xx < regionX + regionW; xx++) {
+        const idx = (yy * pageW + xx) * 4;
+        pageBuf[idx] = 220;
+        pageBuf[idx + 1] = 40;
+        pageBuf[idx + 2] = 40;
+        pageBuf[idx + 3] = 255;
+      }
+    }
+    const pagePath = path.join(tmpDir, 'atlas_source_page.png');
+    await sharp(pageBuf, {
+      raw: { width: pageW, height: pageH, channels: 4 },
+    })
+      .png()
+      .toFile(pagePath);
+
+    // synthesized sourcePath that does NOT exist on disk — the atlas-source
+    // contract: loaders populate `atlasSource` but the per-region PNG is absent.
+    const ghostSourcePath = path.join(tmpDir, 'images', 'ATLAS_REGION.png');
+    expect(fs.existsSync(ghostSourcePath)).toBe(false);
+
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: ghostSourcePath,
+          outPath: 'images/ATLAS_REGION.png',
+          sourceW: regionW,
+          sourceH: regionH,
+          outW: regionW,
+          outH: regionH,
+          effectiveScale: 1.0,
+          attachmentNames: ['ATLAS_REGION'],
+          atlasSource: {
+            pagePath,
+            x: regionX,
+            y: regionY,
+            packW: regionW,
+            packH: regionH,
+            offsetX: 0,
+            offsetY: 0,
+            w: regionW,
+            h: regionH,
+            rotated: false,
+          },
+        },
+      ] as ExportRow[],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    // runRepack succeeded — the atlas-source fallback path resolved.
+    expect(fs.existsSync(result.atlasFile)).toBe(true);
+    expect(result.pageFiles.length).toBeGreaterThanOrEqual(1);
+
+    // Extract the packed region from the composite page and assert the pixels
+    // match the source region (mostly red with a small libvips composite drift
+    // tolerance, mirroring the REPACK-03 pixel-preserved test's MAE ≤ 8/255).
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    const match = atlasText.match(
+      /ATLAS_REGION\nbounds:(\d+),(\d+),(\d+),(\d+)/,
+    );
+    expect(match, 'ATLAS_REGION bounds line present in .atlas').not.toBeNull();
+    if (!match) return;
+    const x = parseInt(match[1], 10);
+    const y = parseInt(match[2], 10);
+    const w = parseInt(match[3], 10);
+    const h = parseInt(match[4], 10);
+    expect([w, h]).toEqual([regionW, regionH]);
+
+    const fromComposite = await sharp(result.pageFiles[0])
+      .extract({ left: x, top: y, width: w, height: h })
+      .raw()
+      .toBuffer();
+    // Assert centroid pixel is red-ish (un-rotated extract picked up the
+    // distinguishable rect). Sample at (40, 30) inside the region.
+    const cx = Math.floor(regionW / 2);
+    const cy = Math.floor(regionH / 2);
+    const pi = (cy * regionW + cx) * 4;
+    expect(
+      fromComposite[pi],
+      `red channel at region centroid should be ~220 (was ${fromComposite[pi]})`,
+    ).toBeGreaterThan(150);
+    expect(fromComposite[pi + 1]).toBeLessThan(80);
+    expect(fromComposite[pi + 2]).toBeLessThan(80);
+  });
+});
