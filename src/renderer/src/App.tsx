@@ -6,7 +6,7 @@
  * appropriate children for each state:
  *
  *   status: 'idle'    → pre-drop empty-state copy (D-18)
- *   status: 'loading' → "Loading foo.json…" hint
+ *   status: 'loading' → <LoadingBar> indeterminate sweep (foo.json)
  *   status: 'loaded'  → the global-max render panel (D-19 in-place
  *                       replacement per D-43 — DropZone keeps full-window
  *                       wrap, no app shell; D-17 echoes summary to console)
@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DropZone } from './components/DropZone';
 import { AppShell } from './components/AppShell';
+import { LoadingBar } from './components/LoadingBar';
 import { UpdateDialog, type UpdateDialogState, type UpdateDialogVariant } from './modals/UpdateDialog';
 import type {
   SkeletonSummary,
@@ -675,11 +676,7 @@ export function App() {
             Drop a Spine <span className="font-bold text-danger">v4.2</span> <code>.spine</code> JSON file anywhere in this window
           </p>
         ))}
-      {state.status === 'loading' && (
-        <p className="text-fg-muted font-mono text-sm">
-          Loading {state.fileName}…
-        </p>
-      )}
+      {state.status === 'loading' && <LoadingBar fileName={state.fileName} />}
       {state.status === 'loaded' && (
         // Phase 8 Plan 04 Task 4: thread samplingHz=120 constant. Phase 9
         // replaces this with a value read from settings state.

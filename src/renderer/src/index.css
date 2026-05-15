@@ -89,3 +89,28 @@ body {
   @apply bg-surface text-fg font-sans antialiased;
   margin: 0;
 }
+
+/* Indeterminate loading bar (LoadingBar.tsx) — shown while a dropped
+   skeleton's images/atlas are being processed, between the drop and the
+   Global panel populating. Tailwind v4 ships no utility for a custom
+   sweep keyframe, so this is a hand-written class consumed as a string
+   literal (Pitfall 8 safe). A single accent segment (w-1/3) sweeps fully
+   across the track and off both edges on a continuous loop. Under
+   prefers-reduced-motion it degrades to a static full-width accent fill
+   so the "busy" state is still conveyed without motion. */
+@keyframes loading-bar-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.loading-bar-sweep {
+  animation: loading-bar-sweep 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar-sweep {
+    animation: none;
+    transform: none;
+    width: 100%;
+  }
+}
