@@ -15,20 +15,20 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Viewer Integration
 
-- [ ] **VIEWER-01**: spine-player runtime is installed and importable from the renderer (npm dependency vs vendored copy resolved at `/gsd-discuss-phase` per SEED-009 D-01).
-- [ ] **VIEWER-02**: A React component wraps `spine-player` and mounts/unmounts cleanly inside an Electron renderer window, surviving HMR in dev and project-change in production.
-- [ ] **VIEWER-03**: The viewer consumes the currently-open project's skeleton JSON, atlas, and page PNG(s) (asset feed routing — source dir vs post-export output dir vs user-selectable — resolved at `/gsd-discuss-phase` per SEED-009 D-04).
+- [x] **VIEWER-01**: spine-player runtime is installed and importable from the renderer (npm dependency vs vendored copy resolved at `/gsd-discuss-phase` per SEED-009 D-01).
+- [x] **VIEWER-02**: A React component wraps `spine-player` and mounts/unmounts cleanly inside an Electron renderer window, surviving HMR in dev and project-change in production.
+- [x] **VIEWER-03**: The viewer consumes the currently-open project's skeleton JSON, atlas, and page PNG(s) (asset feed routing — source dir vs post-export output dir vs user-selectable — resolved at `/gsd-discuss-phase` per SEED-009 D-04).
 
 ### Viewer UX
 
-- [ ] **VIEWER-04**: The viewer is reachable from the main UI (toolbar button vs tab vs both resolved at `/gsd-discuss-phase` per SEED-009 D-03). Opening it shows the user's character animated and playing back.
-- [ ] **VIEWER-05**: User can switch animations from the available list and switch skins from the available list while the viewer is open; the playback updates immediately on selection.
-- [ ] **VIEWER-06**: User can play, pause, and scrub the active animation. Default behavior on open: play first animation, loop on.
+- [x] **VIEWER-04**: The viewer is reachable from the main UI (toolbar button vs tab vs both resolved at `/gsd-discuss-phase` per SEED-009 D-03). Opening it shows the user's character animated and playing back.
+- [x] **VIEWER-05**: User can switch animations from the available list and switch skins from the available list while the viewer is open; the playback updates immediately on selection.
+- [x] **VIEWER-06**: User can play, pause, and scrub the active animation. Default behavior on open: play first animation, loop on.
 
 ### Viewer Lifecycle
 
-- [ ] **VIEWER-08**: The viewer disposes its GL context and frees memory on close; re-opening after closing works without leaking; switching to a different project closes the prior viewer instance.
-- [ ] **VIEWER-09**: When the project is malformed, the atlas is missing, or page PNGs are missing/unreadable, the viewer surfaces a clear in-modal error state (verbatim copy resolved during phase planning) instead of a blank canvas, browser console error, or hard crash.
+- [x] **VIEWER-08**: The viewer disposes its GL context and frees memory on close; re-opening after closing works without leaking; switching to a different project closes the prior viewer instance.
+- [x] **VIEWER-09**: When the project is malformed, the atlas is missing, or page PNGs are missing/unreadable, the viewer surfaces a clear in-modal error state (verbatim copy resolved during phase planning) instead of a blank canvas, browser console error, or hard crash.
 
 **Atlas-less mode note:** v1.5.1 viewer must work in BOTH `atlas-source` and `atlas-less` loaderModes (per `project_strict_loadermode_separation`). The atlas-less synthetic-atlas path from Phase 21 already produces the data spine-player needs; VIEWER-03 covers wiring both feeds.
 
@@ -91,14 +91,14 @@ Populated by `gsd-roadmapper` during roadmap creation 2026-05-15.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIEWER-01 | Phase 41 | Pending |
-| VIEWER-02 | Phase 41 | Pending |
-| VIEWER-03 | Phase 41 | Pending |
-| VIEWER-04 | Phase 41 | Pending |
-| VIEWER-05 | Phase 41 | Pending |
-| VIEWER-06 | Phase 41 | Pending |
-| VIEWER-08 | Phase 41 | Pending |
-| VIEWER-09 | Phase 41 | Pending |
+| VIEWER-01 | Phase 41 | Complete |
+| VIEWER-02 | Phase 41 | Complete |
+| VIEWER-03 | Phase 41 | Complete |
+| VIEWER-04 | Phase 41 | Complete |
+| VIEWER-05 | Phase 41 | Complete |
+| VIEWER-06 | Phase 41 | Complete |
+| VIEWER-08 | Phase 41 | Complete |
+| VIEWER-09 | Phase 41 | Complete |
 
 **Coverage:**
 - v1.5.1 requirements: 8 total (VIEWER-01..06, VIEWER-08, VIEWER-09 — VIEWER-07 is Future)
