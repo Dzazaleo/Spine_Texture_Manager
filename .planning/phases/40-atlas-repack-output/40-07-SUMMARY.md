@@ -192,5 +192,141 @@ None — no external service configuration required.
 - Worktree HEAD on `worktree-agent-ac6e696801596a2fb`; merge-base correct against plan base `af6a55594e12b18e94c3ea31b8c87aec3e2674b4`.
 
 ---
+
+## UAT-Fix Appendix (2026-05-15)
+
+Human UAT against `fixtures/SKINS/test_repack/` surfaced 4 concrete bugs in
+the Phase 40 atlas-mode export. All 4 were fixed in this worktree on top of
+plan 40-07's original deliverable; per-bug RED test → GREEN fix → atomic
+commit. STATE.md and ROADMAP.md were NOT modified (re-verification pass
+owns that.)
+
+### Bug 1 (CRITICAL) — `runRepack` did not dedup by regionName
+
+**Symptom (user-reported):** `fixtures/SKINS/test_repack/test_repack.atlas`
+contained 161 entries for only 26 unique region names. `AVATAR/BODY`
+appeared 7 times. Page PNG had overlapping regions.
+
+**Root cause:** `src/main/repack-worker.ts` iterated every `plan.rows` entry
+and pushed one item per row into `repackInputs[]`. With N skeletons sharing
+the same source PNG (the SKINS workflow), the packer received N copies of
+the same regionName and laid them out at N distinct positions.
+`regionBuffers` (Map) naturally deduped — the inputs array did not.
+
+**Fix:** Dedup `repackInputs` by regionName (Map keyed by regionName, first
+occurrence wins). `computeRepack`'s `localeCompare` sort guarantees pack
+determinism regardless of insertion order, preserving REPACK-08 cross-mode
+parity.
+
+- **Commit:** `b41e009` — `fix(40-07): dedup runRepack inputs by regionName (UAT bug 1)`
+- **Files:** `src/main/repack-worker.ts`, `tests/main/repack-worker.spec.ts`
+- **Regression test:** 6 rows declaring 2 unique regionNames → `.atlas`
+  contains exactly 1 entry per region (2 bounds lines).
+
+### Bug 2 (CRITICAL) — atlas page bytes rotated in the wrong direction (faces upside-down)
+
+**Symptom (user-reported):** Rotated regions on the atlas page rendered
+upside-down in Spine (180° net error).
+
+**Root cause:** `repack-worker.ts` applied `sharp.rotate(+90)` for the
+canonical → atlas WRITE direction. Phase 33's empirical "+90 is CCW" verdict
+was about the READ direction the spine runtime applies (atlas → canonical),
+so the WRITE direction is its INVERSE. Pre-fix the on-page bytes were
+rotated in the same direction the runtime later rotates → 180° net.
+
+**Empirical verification:** New script `scripts/probe-sharp-rotate-write.mjs`
+painted distinguishable canonical corners, applied each candidate WRITE
+rotation, then applied the Phase-33-verified READ rotation. Verdict:
+
+```
+WRITE rotate(-90) -> READ rotate(+90) restores canonical: true
+ROTATE_FOR_ATLAS = rotate(-90)
+```
+
+**Fix:** Change `sharp(orig).rotate(90)` → `sharp(orig).rotate(-90)` in the
+materialize-then-reload step. Expand the docblock to call out the READ/WRITE
+inverse pair so this is not re-litigated.
+
+- **Commit:** `b2dda96` — `fix(40-07): correct atlas rotation direction (UAT bug 2)`
+- **Files:** `src/main/repack-worker.ts`, `tests/main/repack-worker.spec.ts`,
+  `scripts/probe-sharp-rotate-write.mjs` (NEW — regression sentinel)
+- **Regression test:** Composites a single WIDE region with corner-marked
+  canonical (RED/GREEN/BLUE/WHITE), forces packer rotation via 2× TALL +
+  1× WIDE fixture at maxPageSize=1024, extracts the rotated bytes from the
+  page, applies spine READ rotation, asserts corners match canonical.
+  Pre-fix: corners 180°-rotated; post-fix: corners match.
+
+### Bug 3 (HIGH) — atlas-mode summary reported "0 of N succeeded"
+
+**Symptom (user-reported):** After successful atlas-mode export the
+renderer's progress card read literally "0 of 160 succeeded" despite files
+being written.
+
+**Root cause:** `runRepack` returned only `{ pageFiles, atlasFile }`.
+`src/main/ipc.ts` synthesized `{ successes: 0, durationMs: 0, ... }`
+whenever loose-mode was not run. The renderer dutifully reported what it
+received.
+
+**Fix:**
+1. Widen `RepackResultPaths` with `summary: ExportSummary`. Successes =
+   unique regionNames packed (post-Bug-1 dedup count). durationMs =
+   wall-time delta. outputDir = resolved outDir. cancelled =
+   isCancelled() at completion.
+2. Replace the placeholder summary synth in ipc.ts with the real summaries
+   from each worker. For `both` mode: sum successes; concat errors;
+   outputDir = looseSummary's; sum durationMs (sequential); OR cancelled.
+
+- **Commit:** `34c8fa7` — `fix(40-07): surface real success count for atlas-mode exports (UAT bug 3)`
+- **Files:** `src/main/repack-worker.ts`, `src/main/ipc.ts`,
+  `tests/main/repack-worker.spec.ts`, `tests/main/ipc-export.spec.ts`
+- **Regression tests:** runRepack summary shape + dedup interplay (6 rows
+  / 2 unique → successes=2); IPC atlas mode `successes` matches worker
+  (NOT 0); IPC both mode merge math; IPC both mode cancelled flag is OR.
+
+### Bug 4 (LOW) — tooltip on checkbox not on label (hover-on-row didn't work)
+
+**Symptom (user-reported):** Hovering over "Allow rotation" text did not
+show the tooltip; users had to hover the tiny checkbox square.
+
+**Root cause:** `OptimizeDialog.tsx` placed `title=` only on the `<input>`,
+not the wrapping `<label>`.
+
+**Fix:** Mirror the title onto the `<label>` element. Keep the input title
+too (defense in depth + preserves existing test asserting checkbox.title).
+
+- **Commit:** `c09cb26` — `fix(40-07): move tooltip to label so hover-on-row works (UAT bug 4)`
+- **Files:** `src/renderer/src/modals/OptimizeDialog.tsx`,
+  `tests/renderer/optimize-dialog-output-card.spec.tsx`
+- **Regression test:** `checkbox.closest('label')!.getAttribute('title')`
+  equals the locked tooltip string.
+
+### UAT-fix verification
+
+- `npx tsc --noEmit` — clean.
+- `npm test` — 1140 passes; 1 pre-existing failure
+  (`tests/main/sampler-worker-girl.spec.ts` — missing `fixtures/Girl/` per
+  `.planning/phases/40-atlas-repack-output/deferred-items.md`); 1
+  pre-existing suite-load failure (`tests/core/sampler-skin-defined-unbound-attachment.spec.ts`
+  — missing `fixtures/SAMPLER_ALPHA_ZERO/` per the same deferred-items log).
+  Both are unrelated to Phase 40 work and were already known.
+- All 11 `tests/main/repack-worker.spec.ts` cases pass (10 pre-existing + 2 new dedup +
+  1 new rotation + 2 new summary). All 18 `tests/renderer/optimize-dialog-output-card.spec.tsx`
+  cases pass (17 pre-existing + 1 new tooltip-on-label). All 33
+  `tests/main/ipc-export.spec.ts` cases pass (30 pre-existing + 3 new
+  summary-merge).
+
+### Self-Check (UAT appendix): PASSED
+
+- All 4 fix commits exist on `worktree-agent-ad2d0ef4c58b142ee`
+  (`b41e009`, `b2dda96`, `34c8fa7`, `c09cb26`).
+- `scripts/probe-sharp-rotate-write.mjs` exists on disk and prints
+  `ROTATE_FOR_ATLAS = rotate(-90)` when invoked.
+- No file deletions across the 4 fix commits.
+- HEAD on `worktree-agent-ad2d0ef4c58b142ee` (worktree-agent namespace
+  preserved).
+- No STATE.md / ROADMAP.md modifications (re-verification owns these).
+
+---
 *Phase: 40-atlas-repack-output*
 *Completed: 2026-05-14*
+*UAT-fix appendix: 2026-05-15*
