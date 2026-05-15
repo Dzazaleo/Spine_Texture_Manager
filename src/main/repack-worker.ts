@@ -40,12 +40,17 @@ import {
   access,
   constants as fsConstants,
 } from 'node:fs/promises';
-import { basename, join, resolve as pathResolve } from 'node:path';
+import { join, resolve as pathResolve } from 'node:path';
 
 import { computeRepack } from '../core/repack.js';
 import type { RepackInput } from '../core/repack.js';
 import { buildAtlasText } from './atlas-writer.js';
 import { resizeToBuffer } from './sharp-resize.js';
+// UAT Round 3 (2026-05-15) — deriveProjectName + pageFilename extracted
+// to atlas-paths.ts so probeExportConflicts (src/main/ipc.ts) can derive
+// the same atlas-mode targets. The two call sites MUST agree byte-for-byte
+// or the probe is moot.
+import { deriveProjectName, pageFilename } from './atlas-paths.js';
 import type {
   ExportPlan,
   ExportProgressEvent,
@@ -79,43 +84,6 @@ export interface RepackResultPaths {
   pageFiles: string[];
   atlasFile: string;
   summary: ExportSummary;
-}
-
-/**
- * Derive the project basename used for {projectName}.atlas and
- * {projectName}_N.png. Per RESEARCH §Landmines #16 / Assumption A1:
- * preferred source is the per-row sourcePath basename (matches Spine's
- * exporter convention where the per-region PNG basename is the region
- * name; the *project* basename is derived from the outDir or the
- * skeleton path). Falls back to outDir basename if no row exists.
- *
- * The Phase 40 IPC handler (Plan 06) will eventually thread an explicit
- * skeleton basename through ExportPlan. Until then the contract is:
- * derive from outDir basename, which the renderer can name freely
- * (typical pattern: user picks {project}-export/ as the output folder).
- */
-function deriveProjectName(plan: ExportPlan, outDir: string): string {
-  // Prefer outDir basename — the renderer sets outDir, so the user's
-  // chosen folder name maps naturally to {projectName}.atlas. Strips
-  // common suffixes that would produce ugly atlas names.
-  const fromDir = basename(pathResolve(outDir));
-  if (fromDir && !fromDir.includes(':')) return fromDir;
-
-  // Fallback: skeleton basename via first row's sourcePath.
-  const fromRow = plan.rows[0]?.sourcePath;
-  if (fromRow) {
-    const name = basename(fromRow).replace(/\.(png|json)$/i, '');
-    if (name && !name.includes(':')) return name;
-  }
-
-  throw new Error(
-    'repack-worker: could not derive projectName (outDir + skeleton sourcePath both unusable).',
-  );
-}
-
-function pageFilename(projectName: string, pageIndex: number): string {
-  if (pageIndex === 0) return `${projectName}.png`;
-  return `${projectName}_${pageIndex + 1}.png`;
 }
 
 export async function runRepack(
