@@ -589,8 +589,28 @@ app.whenReady().then(async () => {
       const contentType =
         ext === 'png' ? 'image/png' :
         ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+        ext === 'json' ? 'application/json' :
+        ext === 'atlas' ? 'text/plain' :
         'application/octet-stream';
-      return new Response(data, { headers: { 'content-type': contentType } });
+      // Phase 41 — spine-player issues XHRs with `crossOrigin = "anonymous"`
+      // for skeleton JSON / .atlas text / page PNGs. The renderer's origin
+      // (http://localhost:5173 in dev, file:// in prod) differs from the
+      // app-image:// origin, so the request is cross-origin and CORS is
+      // enforced. Without Access-Control-Allow-Origin, Electron sets XHR
+      // status to 0 with an empty body — spine-player's downloader treats
+      // status 0 as success (line 6168 of vendored spine-player.js:
+      // `status == 200 || status == 0`), then `JSON.parse("")` throws
+      // uncaught inside the XHR.onload callback, and the loading promise
+      // never resolves. Result: the player spinner spins forever. ACAO=*
+      // is safe here because app-image:// is not navigable from the public
+      // web — only the renderer (already in-process) can issue these
+      // requests. Mirrors the protocol's existing trust posture.
+      return new Response(data, {
+        headers: {
+          'content-type': contentType,
+          'access-control-allow-origin': '*',
+        },
+      });
     } catch {
       return new Response(null, { status: 404 });
     }
