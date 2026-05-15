@@ -39,7 +39,12 @@
 import { ipcMain, dialog, shell, BrowserWindow } from 'electron';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { access, constants as fsConstants, rm as fsRm } from 'node:fs/promises';
+import {
+  access,
+  constants as fsConstants,
+  rm as fsRm,
+  readdir,
+} from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
 import { SpineLoaderError, SpineVersionUnsupportedError } from '../core/errors.js';
@@ -52,6 +57,9 @@ import { runExport } from './image-worker.js';
 // block can fs.rm-sweep every artifact on any throw — the atomic-or-fail
 // rollback contract from RESEARCH §Landmines #7+#8.
 import { runRepack, type AtlasOpts } from './repack-worker.js';
+// UAT Round 3 (2026-05-15) — shared atlas-target derivation. probe and
+// runRepack MUST agree byte-for-byte on filenames or the probe is moot.
+import { deriveProjectName, pageFilename } from './atlas-paths.js';
 import {
   handleProjectSave,
   handleProjectSaveAs,
@@ -398,7 +406,19 @@ function validateExportOpts(
 async function probeExportConflicts(
   plan: ExportPlan,
   outDir: string,
+  // UAT Round 3 (2026-05-15) — added so atlas/both modes can probe the
+  // outDir-root atlas targets `{projectName}.png`, `{projectName}_N.png`,
+  // `{projectName}.atlas` in addition to the loose-mode per-region paths
+  // under `outDir/images/...`. Defaults preserve pre-Round-3 behavior
+  // (loose-only paths) for any caller that hasn't been updated.
+  outputMode: 'loose' | 'atlas' | 'both' = 'loose',
+  atlasOpts: AtlasOpts = { maxPageSize: 4096, allowRotation: false, padding: 2 },
 ): Promise<string[]> {
+  // Silence unused-arg lint — `atlasOpts` is part of the signature so future
+  // probe extensions (e.g. pack-plan-derived page count) can use it without
+  // breaking callers, but the current probe is page-count-agnostic.
+  void atlasOpts;
+
   // Gap-Fix Round 4 (2026-04-25) — collision == "would clobber a file that
   // currently exists". Existence on disk (F_OK) is the only correct gate.
   // The earlier round-3 synchronous string-match checks against row.sourcePath
@@ -407,16 +427,91 @@ async function probeExportConflicts(
   // projects (the atlas-extract fallback runs at write time), so any outDir
   // landing on the same string triggered the alarm even after the user had
   // manually deleted the images folder.
-  const existencePromises = plan.rows.map(async (row) => {
-    const resolvedOut = path.resolve(outDir, row.outPath);
-    const exists = await access(resolvedOut, fsConstants.F_OK)
-      .then(() => true)
-      .catch(() => false);
-    return exists ? resolvedOut : null;
-  });
-  const results = await Promise.all(existencePromises);
+  //
+  // UAT Round 3 (2026-05-15) — loose-mode per-row check is now gated on
+  // outputMode so atlas-only exports don't surface stale loose-mode artifacts
+  // as conflicts. Atlas-mode probe (below) covers the outDir-root targets
+  // (`{projectName}.png`, `{projectName}_N.png`, `{projectName}.atlas`).
   const conflictSet = new Set<string>();
-  for (const r of results) if (r !== null) conflictSet.add(r);
+
+  if (outputMode === 'loose' || outputMode === 'both') {
+    const existencePromises = plan.rows.map(async (row) => {
+      const resolvedOut = path.resolve(outDir, row.outPath);
+      const exists = await access(resolvedOut, fsConstants.F_OK)
+        .then(() => true)
+        .catch(() => false);
+      return exists ? resolvedOut : null;
+    });
+    const results = await Promise.all(existencePromises);
+    for (const r of results) if (r !== null) conflictSet.add(r);
+  }
+
+  // Atlas-mode probe: derive `{projectName}.png` + `{projectName}.atlas`
+  // via the SAME helpers runRepack uses (atlas-paths.ts) so both call sites
+  // agree byte-for-byte. The first page (`{projectName}.png`) and the atlas
+  // text are canonical sentinels — if either exists, a prior atlas export
+  // ran here. We don't know the exact page count until pack-plan computation
+  // (it depends on resized region dims + maxPageSize), so additional pages
+  // (`{projectName}_2.png`, `_3.png`, ...) are discovered by listing outDir
+  // and matching the `{projectName}_<number>.png` filename pattern. Any
+  // matched files are included in the conflict list verbatim.
+  if (outputMode === 'atlas' || outputMode === 'both') {
+    let projectName: string;
+    try {
+      projectName = deriveProjectName(plan, outDir);
+    } catch {
+      // Defensive: deriveProjectName throws when both outDir basename and
+      // skeleton sourcePath are unusable. Under the IPC contract this is
+      // unreachable (outDir is a validated non-empty string upstream), but
+      // we surface 0 atlas conflicts rather than throwing — the loose-mode
+      // path may still have populated conflictSet above.
+      return Array.from(conflictSet).sort();
+    }
+    const resolvedOutDir = path.resolve(outDir);
+    const firstPagePath = path.join(
+      resolvedOutDir,
+      pageFilename(projectName, 0),
+    );
+    const atlasPath = path.join(resolvedOutDir, `${projectName}.atlas`);
+
+    // Check the two canonical sentinels in parallel.
+    const [firstPageExists, atlasExists] = await Promise.all([
+      access(firstPagePath, fsConstants.F_OK)
+        .then(() => true)
+        .catch(() => false),
+      access(atlasPath, fsConstants.F_OK)
+        .then(() => true)
+        .catch(() => false),
+    ]);
+    if (firstPageExists) conflictSet.add(firstPagePath);
+    if (atlasExists) conflictSet.add(atlasPath);
+
+    // Multi-page: list outDir and pick any file matching
+    // `{projectName}_<integer>.png` (with the integer >= 2). We use readdir
+    // on the resolved outDir; the directory may not exist (ENOENT) — in
+    // that case there can be no conflicts, so we skip silently.
+    try {
+      const entries = await readdir(resolvedOutDir);
+      // Escape regex metacharacters in projectName so a user picking a
+      // folder name like `joker.export` doesn't accidentally widen the
+      // match. `\` and `]` are not legal in a path basename on macOS/Win
+      // pickers but defensive escaping is cheap.
+      const escapedName = projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const multiPageRe = new RegExp(`^${escapedName}_(\\d+)\\.png$`);
+      for (const entry of entries) {
+        const match = multiPageRe.exec(entry);
+        if (!match) continue;
+        const n = parseInt(match[1], 10);
+        if (Number.isFinite(n) && n >= 2) {
+          conflictSet.add(path.join(resolvedOutDir, entry));
+        }
+      }
+    } catch {
+      // ENOENT (outDir does not yet exist) or permission denied — no
+      // additional pages to surface.
+    }
+  }
+
   return Array.from(conflictSet).sort();
 }
 
@@ -435,6 +530,13 @@ async function probeExportConflicts(
 export async function handleProbeExportConflicts(
   plan: unknown,
   outDir: unknown,
+  // UAT Round 3 (2026-05-15) — optional positional args mirror the
+  // additive contract on `export:start` (Phase 40 D-04). Defaults preserve
+  // pre-Round-3 behavior (loose-only probe) for any caller that hasn't
+  // adopted the widened signature; the renderer always passes explicit
+  // values via the OptimizeDialog Output card state.
+  outputMode: unknown = 'loose',
+  atlasOpts: unknown = { maxPageSize: 4096, allowRotation: false, padding: 2 },
 ): Promise<ProbeConflictsResponse> {
   if (typeof outDir !== 'string' || outDir.length === 0) {
     return { ok: false, error: { kind: 'Unknown', message: 'outDir must be a non-empty string' } };
@@ -443,6 +545,20 @@ export async function handleProbeExportConflicts(
   if (planErr !== null) {
     return { ok: false, error: { kind: 'Unknown', message: `Invalid plan: ${planErr}` } };
   }
+  // Validate the new positional args via the shared validateExportOpts
+  // helper. Garbage values are coerced to safe defaults rather than
+  // rejected — probe is an advisory call, not a state-changing one, so
+  // a malformed renderer should still get a useful (if loose-mode-only)
+  // conflict list rather than a hard error.
+  const optsErr = validateExportOpts(outputMode, atlasOpts);
+  const validOutputMode =
+    optsErr === null
+      ? (outputMode as 'loose' | 'atlas' | 'both')
+      : 'loose';
+  const validAtlasOpts =
+    optsErr === null
+      ? (atlasOpts as AtlasOpts)
+      : { maxPageSize: 4096 as const, allowRotation: false, padding: 2 };
   const validPlan = plan as ExportPlan;
 
   // Hard-reject: outDir IS the source-images dir itself. Every output
@@ -477,7 +593,12 @@ export async function handleProbeExportConflicts(
     }
   }
 
-  const conflicts = await probeExportConflicts(validPlan, outDir);
+  const conflicts = await probeExportConflicts(
+    validPlan,
+    outDir,
+    validOutputMode,
+    validAtlasOpts,
+  );
   return { ok: true, conflicts };
 }
 
@@ -729,7 +850,17 @@ export async function handleStartExport(
     // entirely and trust the worker's allowOverwrite=true gate to skip
     // its own defense-in-depth check too.
     if (!overwrite) {
-      const conflicts = await probeExportConflicts(validPlan, outDir);
+      // UAT Round 3 (2026-05-15) — forward the validated outputMode +
+      // atlasOpts so the defense-in-depth probe matches the mode we're
+      // about to run. Without this, an atlas-mode re-export would bypass
+      // the per-row loose probe (since loose paths don't yet exist) but
+      // then runRepack's existence check at write time would throw.
+      const conflicts = await probeExportConflicts(
+        validPlan,
+        outDir,
+        outputMode,
+        atlasOpts,
+      );
       if (conflicts.length > 0) {
         return {
           ok: false,
@@ -880,8 +1011,15 @@ export function registerIpcHandlers(): void {
   // the precise list of files that would be overwritten and offer
   // Cancel / Pick-different-folder / Overwrite-all. No exportInFlight
   // mutation; safe to call repeatedly.
-  ipcMain.handle('export:probe-conflicts', async (_evt, plan, outDir) =>
-    handleProbeExportConflicts(plan, outDir),
+  // UAT Round 3 (2026-05-15) — widened to forward `outputMode` + `atlasOpts`
+  // so the probe matches the export-mode the renderer will actually run.
+  // Pre-Round-3 the probe was loose-only blind; atlas re-exports against
+  // an outDir already holding {projectName}.png skipped the ConflictDialog
+  // and ran into runRepack's defensive existence check at write time.
+  ipcMain.handle(
+    'export:probe-conflicts',
+    async (_evt, plan, outDir, outputMode, atlasOpts) =>
+      handleProbeExportConflicts(plan, outDir, outputMode, atlasOpts),
   );
   // Gap-Fix Round 3 (2026-04-25) — 'export:start' gains `overwrite` as a
   // 3rd argument. Strict `=== true` check: any non-true value (undefined,

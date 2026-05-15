@@ -118,9 +118,22 @@ const api: Api = {
    * offer Cancel / Pick-different-folder / Overwrite-all. Empty conflicts
    * list === safe to start without a confirmation modal. No re-entrancy
    * mutation in main — safe to call repeatedly.
+   *
+   * UAT Round 3 (2026-05-15) — widened to forward `outputMode` + `atlasOpts`
+   * so atlas/both modes probe the outDir-root targets `{projectName}.png`,
+   * `{projectName}_N.png`, `{projectName}.atlas`. Pre-Round-3 the probe
+   * was loose-only blind, so re-running an atlas export bypassed the
+   * ConflictDialog. Args 3 + 4 are forwarded verbatim to main; defaults
+   * mirror startExport's coercion path so omitting them stays loose-only.
    */
-  probeExportConflicts: (plan, outDir) =>
-    ipcRenderer.invoke('export:probe-conflicts', plan, outDir),
+  probeExportConflicts: (plan, outDir, outputMode, atlasOpts) =>
+    ipcRenderer.invoke(
+      'export:probe-conflicts',
+      plan,
+      outDir,
+      outputMode,
+      atlasOpts,
+    ),
 
   /**
    * D-115: one-way cancel signal. Fire-and-forget. The next progress

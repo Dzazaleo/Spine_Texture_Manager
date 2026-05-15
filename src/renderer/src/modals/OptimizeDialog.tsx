@@ -162,8 +162,22 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   });
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map());
   const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
-  const [progress, setProgress] = useState<{ current: number; lastPath: string }>({
+  // UAT Round 3 (2026-05-15) — added `total` to the progress state so the
+  // header denominator follows the IPC-reported total. Pre-fix the header
+  // read `${progress.current} of ${total}` where `total = plan.rows +
+  // passthroughCopies`. In atlas mode the composite phase emits
+  // `total: resizeUnits + pages.length` (162-163 for the SKINS fixture vs
+  // the local 160). progress.current overshot the static denominator and
+  // the user saw "163 of 160". Initialize from the local total so the
+  // pre-flight header (before any IPC events fire) still displays a
+  // sensible 0/total framing; updates flow from the IPC on every event.
+  const [progress, setProgress] = useState<{
+    current: number;
+    total: number;
+    lastPath: string;
+  }>({
     current: 0,
+    total: 0, // overwritten by `useEffect` below once `total` is in scope
     lastPath: '',
   });
   const [summary, setSummary] = useState<ExportSummary | null>(null);
@@ -196,7 +210,17 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       // undefined (legacy loose-only flow), the path renders unchanged.
       const phaseLabel = event.phase === 'composite' ? 'Composite' : 'Resize';
       const displayPath = event.phase ? `${phaseLabel}: ${event.path}` : event.path;
-      setProgress({ current: event.index + 1, lastPath: displayPath });
+      // UAT Round 3 (2026-05-15) — track event.total as the source of truth
+      // for the header denominator. In atlas mode the composite phase emits
+      // `total: resizeUnits + pages.length` (163 for SKINS) while the local
+      // total stays at 160 (rows + passthroughCopies). Without this update,
+      // progress.current overshot the static local total and the user saw
+      // "163 of 160" at the last composite event.
+      setProgress({
+        current: event.index + 1,
+        total: event.total,
+        lastPath: displayPath,
+      });
       if (event.status === 'error' && event.error) {
         const errMsg = event.error.message;
         setRowErrors((prev) => {
@@ -428,11 +452,20 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
   const completionTotal = summary
     ? summary.successes + summary.errors.length
     : total;
+  // UAT Round 3 (2026-05-15) — in-progress denominator now follows the
+  // IPC-reported total. Pre-fix the header used the static local `total`
+  // (= rows + passthrough = 160 for SKINS); the composite-phase events
+  // emit `total: resizeUnits + pages.length` (163 for SKINS) → user saw
+  // "163 of 160" at the last composite event. Falling back to local
+  // `total` covers the brief window between in-progress flip and the
+  // first IPC event (progress.total still 0), so the header never
+  // displays a literal `of 0`.
+  const inProgressTotal = progress.total > 0 ? progress.total : total;
   const headerTitle =
     state === 'complete'
       ? `Export complete — ${summary?.successes ?? 0} of ${completionTotal} succeeded`
       : state === 'in-progress'
-        ? `Optimize Assets — ${progress.current} of ${total} → ${props.outDir}`
+        ? `Optimize Assets — ${progress.current} of ${inProgressTotal} → ${props.outDir}`
         : props.outDir !== null
           ? `Optimize Assets — ${total} images → ${props.outDir}`
           : `Optimize Assets — ${total} images`;
@@ -686,7 +719,14 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
               });
             }}
             progressCurrent={progress.current}
-            total={total}
+            // UAT Round 3 (2026-05-15) — IPC-sourced total so the progress
+            // bar denominator matches the in-progress header. Falls back
+            // to the local total during the brief window before the first
+            // IPC event arrives (progress.total still 0). The complete-
+            // state branch (InProgressBody pct calc) uses props.total
+            // regardless of summary; passing inProgressTotal here keeps
+            // the bar monotonic across resize → composite phase boundary.
+            total={inProgressTotal}
             summary={summary}
           />
         )}

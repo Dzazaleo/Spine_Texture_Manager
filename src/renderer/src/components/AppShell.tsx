@@ -800,7 +800,21 @@ export function AppShell({
     setExportDialogState((prev) => (prev ? { ...prev, outDir: pickedDir } : null));
     setLastOutDir(pickedDir);
 
-    const probeResult = await window.api.probeExportConflicts(plan, pickedDir);
+    // UAT Round 3 (2026-05-15) — forward outputMode + atlasOpts so the
+    // probe matches the export mode the user is about to run. Pre-Round-3
+    // the probe was loose-only blind, so re-running atlas-mode exports
+    // skipped the ConflictDialog and tripped runRepack's existence check
+    // at write time.
+    const probeResult = await window.api.probeExportConflicts(
+      plan,
+      pickedDir,
+      atlasOutputMode,
+      {
+        maxPageSize: atlasMaxPageSize,
+        allowRotation: atlasAllowRotation,
+        padding: atlasPadding,
+      },
+    );
     if (!probeResult.ok) {
       // Hard-reject (e.g. outDir IS source-images-dir). Let the dialog
       // proceed; startExport will fail with the same error and the
@@ -823,7 +837,19 @@ export function AppShell({
         resolve({ ...decision, outDir: decision.outDir ?? pickedDir });
       setConflictState({ conflicts: probeResult.conflicts });
     });
-  }, [exportDialogState, lastOutDir, summary.skeletonPath, pickOutputDir]);
+  }, [
+    exportDialogState,
+    lastOutDir,
+    summary.skeletonPath,
+    pickOutputDir,
+    // UAT Round 3 (2026-05-15) — read inside the probe call to forward the
+    // mode-aware atlas targets. Closure must capture current values, not
+    // stale dialog-mount-time snapshots.
+    atlasOutputMode,
+    atlasMaxPageSize,
+    atlasAllowRotation,
+    atlasPadding,
+  ]);
 
   const closeBothDialogs = useCallback(() => {
     setConflictState(null);
