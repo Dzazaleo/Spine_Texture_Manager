@@ -655,6 +655,68 @@ describe('runRepack — UAT bug 2: atlas rotation direction round-trips through 
   });
 });
 
+describe('runRepack — UAT bug 3: returns a real ExportSummary', () => {
+  it('returns summary with successes equal to unique regionNames processed', async () => {
+    // UAT bug 3: pre-fix the IPC handler synthesized successes=0 for atlas-
+    // mode because runRepack returned only { pageFiles, atlasFile }. The
+    // renderer's "X of N succeeded" line read literally "0 of N". Fix
+    // widens RepackResultPaths to embed an ExportSummary whose
+    // successes = unique regions processed, outputDir = resolved outDir,
+    // durationMs = wall-time of the run, cancelled = the cancellation flag
+    // at completion. errors = [] for happy path (per-row errors are not
+    // emitted by the repack worker; oversize throws atomic-or-fail).
+    const plan = makePlan([
+      { outW: 200, outH: 200, attachmentNames: ['A'] },
+      { outW: 200, outH: 200, attachmentNames: ['B'] },
+      { outW: 200, outH: 200, attachmentNames: ['C'] },
+    ]);
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    expect(result.summary).toBeDefined();
+    expect(result.summary.successes).toBe(3);
+    expect(result.summary.errors).toEqual([]);
+    expect(result.summary.outputDir).toBe(path.resolve(tmpDir));
+    expect(result.summary.cancelled).toBe(false);
+    expect(typeof result.summary.durationMs).toBe('number');
+    expect(result.summary.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('summary.successes counts unique regionNames AFTER dedup (UAT bug 1 + 3 interplay)', async () => {
+    // The summary must reflect what was actually packed (post-dedup count),
+    // NOT the input row count. With 6 rows declaring 2 unique regionNames,
+    // successes must be 2 (not 6).
+    const plan = makePlan([
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+    ]);
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    expect(result.summary.successes).toBe(2);
+  });
+});
+
 describe('runRepack — UAT bug 1: dedup repackInputs by regionName', () => {
   it('emits ONE pack entry per unique regionName even when N skeletons share the same source PNG', async () => {
     // UAT repro: 6 skeletons each declaring AVATAR/BODY → 6 rows with the same

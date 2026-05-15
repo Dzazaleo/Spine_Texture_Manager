@@ -46,7 +46,11 @@ import { computeRepack } from '../core/repack.js';
 import type { RepackInput } from '../core/repack.js';
 import { buildAtlasText } from './atlas-writer.js';
 import { resizeToBuffer } from './sharp-resize.js';
-import type { ExportPlan, ExportProgressEvent } from '../shared/types.js';
+import type {
+  ExportPlan,
+  ExportProgressEvent,
+  ExportSummary,
+} from '../shared/types.js';
 
 export interface AtlasOpts {
   maxPageSize: 1024 | 2048 | 4096 | 8192;
@@ -54,9 +58,27 @@ export interface AtlasOpts {
   padding: number;
 }
 
+/**
+ * UAT bug 3 (2026-05-15) — widened with `summary: ExportSummary`. Pre-fix
+ * the IPC handler synthesized successes=0 for atlas mode because the
+ * worker returned only file paths; the renderer's progress card read
+ * literally "0 of N succeeded" despite files being written. The summary
+ * carries the real counts so the IPC handler can return them verbatim
+ * (atlas mode) or merge them with runExport's summary (both mode).
+ *
+ *   successes  = unique regionNames packed + composited (= dedup'd input set)
+ *   errors     = empty for happy path (oversize aborts atomically; per-row
+ *                errors are not currently emitted by the repack worker)
+ *   outputDir  = pathResolve(outDir), matching runExport's contract
+ *   durationMs = wall-time of the run (Date.now delta)
+ *   cancelled  = isCancelled() at completion (true if we threw 'cancelled'
+ *                — but in that case runRepack throws before returning, so
+ *                in practice this is always false on the success path)
+ */
 export interface RepackResultPaths {
   pageFiles: string[];
   atlasFile: string;
+  summary: ExportSummary;
 }
 
 /**
@@ -106,6 +128,7 @@ export async function runRepack(
   atlasOpts: AtlasOpts,
   writtenPaths: Set<string>,
 ): Promise<RepackResultPaths> {
+  const startedAt = Date.now();
   const projectName = deriveProjectName(plan, outDir);
   const resolvedOutDir = pathResolve(outDir);
 
@@ -315,5 +338,17 @@ export async function runRepack(
   await writeFile(atlasTmpPath, atlasText, 'utf8');
   await rename(atlasTmpPath, atlasPath);
 
-  return { pageFiles, atlasFile: atlasPath };
+  // UAT bug 3 (2026-05-15) — surface a real ExportSummary so the IPC
+  // handler doesn't fabricate "0 of N succeeded" for atlas mode. Successes
+  // count is the number of unique regionNames packed; this is the same
+  // count the .atlas file reports (one entry per unique region).
+  const summary: ExportSummary = {
+    successes: repackInputs.length,
+    errors: [],
+    outputDir: resolvedOutDir,
+    durationMs: Date.now() - startedAt,
+    cancelled: isCancelled(),
+  };
+
+  return { pageFiles, atlasFile: atlasPath, summary };
 }
