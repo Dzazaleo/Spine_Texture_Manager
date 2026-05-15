@@ -35,6 +35,7 @@
 import sharp from 'sharp';
 import {
   writeFile,
+  readFile,
   rename,
   mkdir,
   access,
@@ -348,17 +349,32 @@ export async function runRepack(
       continue;
     }
 
-    // CR-01: atlas-source fallback. Use loadRegionSource so atlas-source
-    // projects (no on-disk per-region PNGs) still get region bytes via
-    // atlas-extract. Returned pipeline is pre-positioned on canonical-
-    // orientation pixels (un-rotated if the source region was packed
-    // rotated).
-    const { pipeline: sourcePipeline } = await loadRegionSource(row);
-    // No resize: load source bytes verbatim. Re-encoding via sharp().png()
-    // .toBuffer() (no resize chain) normalizes the bytes through libvips so
-    // downstream composite/rotate/extract see the same pixel layout as
-    // resized rows.
-    const passthroughBuf = await sourcePipeline.png().toBuffer();
+    // CR-01 + WR-06: passthrough region bytes.
+    //
+    // WR-06: loose-mode preserves byte-parity-to-source by `copyFile`
+    // (image-worker.ts:337). Atlas-mode pre-fix re-encoded via sharp(...)
+    // .png().toBuffer() — a libvips round-trip that drops byte-parity (the
+    // emitted PNG has different compression headers, possibly slightly
+    // different pixel encoding under PMA paths). When the source PNG is on
+    // disk we read it verbatim with readFile and feed those bytes into the
+    // composite layer's `input`. Sharp's composite step accepts PNG buffers
+    // natively, so this is the byte-parity path.
+    //
+    // CR-01: when source is NOT on disk (atlas-source mode), there is no
+    // "source bytes" to copy verbatim — fall back to sharp-extract-then-
+    // buffer (via loadRegionSource). The isFromAtlasSource flag gates this.
+    let passthroughBuf: Buffer;
+    const loaded = await loadRegionSource(row);
+    if (loaded.isFromAtlasSource) {
+      // No on-disk loose PNG to verbatim-copy; materialize the extracted
+      // region as a PNG buffer (libvips round-trip is unavoidable here).
+      passthroughBuf = await loaded.pipeline.png().toBuffer();
+    } else {
+      // Loose-on-disk source — preserve byte parity by reading PNG bytes
+      // verbatim. The packer's packW/packH still comes from sharp metadata
+      // on the same buffer (sharp-emits-truth invariant preserved).
+      passthroughBuf = await readFile(row.sourcePath);
+    }
     const meta = await sharp(passthroughBuf).metadata();
     const packW = meta.width ?? row.sourceW;
     const packH = meta.height ?? row.sourceH;

@@ -1215,6 +1215,105 @@ describe('runRepack — cancellation cooperation', () => {
   });
 });
 
+describe('runRepack — WR-06: passthrough preserves source-PNG pixel parity', () => {
+  it('passthrough region pixels match source PNG pixels (no sharp re-encode round-trip)', async () => {
+    // WR-06: loose-mode preserves byte-parity-to-source via copyFile
+    // (image-worker.ts:337). Atlas-mode pre-fix re-encoded via
+    // sharp(source).png().toBuffer() — a libvips PNG-decode-then-PNG-
+    // encode round-trip that can drop pixels through PMA paths. Per
+    // project_pma_no_op_in_current_stack the per-pixel delta is ~0 on the
+    // current sharp 0.34 + libvips 8.17 stack, but the invariant ("source
+    // bytes flow verbatim into composite, packer reads truth from
+    // metadata()") is the regression sentinel.
+    //
+    // Build a passthrough row whose source PNG has distinguishable pixels
+    // and assert: after compositing into a page, the page bytes extracted
+    // at the region's (x,y,w,h) bounds decode to RGBA bytes identical to
+    // the source PNG's RGBA bytes (per-pixel, MAE = 0). Pre-fix the libvips
+    // round-trip risked MAE > 0; post-fix the source bytes feed composite
+    // directly.
+    const sourceW = 64;
+    const sourceH = 48;
+    const srcBuf = Buffer.alloc(sourceW * sourceH * 4, 0);
+    // Gradient + corner-mark to make any per-pixel drift visible.
+    for (let yy = 0; yy < sourceH; yy++) {
+      for (let xx = 0; xx < sourceW; xx++) {
+        const i = (yy * sourceW + xx) * 4;
+        srcBuf[i] = (xx * 255) / (sourceW - 1);
+        srcBuf[i + 1] = (yy * 255) / (sourceH - 1);
+        srcBuf[i + 2] = ((xx + yy) * 255) / (sourceW + sourceH - 2);
+        srcBuf[i + 3] = 255;
+      }
+    }
+    const sourcePath = path.join(tmpDir, 'WR06_PASS.png');
+    await sharp(srcBuf, {
+      raw: { width: sourceW, height: sourceH, channels: 4 },
+    })
+      .png({ compressionLevel: 9 })
+      .toFile(sourcePath);
+    // Source PNG bytes decoded to RGBA — what a Spine runtime would see.
+    const sourceRgba = await sharp(sourcePath).raw().toBuffer();
+
+    const plan: ExportPlan = {
+      rows: [],
+      excludedUnused: [],
+      passthroughCopies: [
+        {
+          sourcePath,
+          outPath: 'images/WR06_PASS.png',
+          sourceW,
+          sourceH,
+          outW: sourceW,
+          outH: sourceH,
+          effectiveScale: 1.0,
+          attachmentNames: ['WR06_PASS'],
+        },
+      ] as ExportRow[],
+      totals: { count: 1 },
+    };
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+
+    // Locate the region on the page from the .atlas bounds line.
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    const match = atlasText.match(/WR06_PASS\nbounds:(\d+),(\d+),(\d+),(\d+)/);
+    expect(match, 'WR06_PASS bounds present').not.toBeNull();
+    if (!match) return;
+    const x = parseInt(match[1], 10);
+    const y = parseInt(match[2], 10);
+    const w = parseInt(match[3], 10);
+    const h = parseInt(match[4], 10);
+    expect([w, h]).toEqual([sourceW, sourceH]);
+
+    // Extract the region's RGBA bytes from the composite page.
+    const fromPage = await sharp(result.pageFiles[0])
+      .extract({ left: x, top: y, width: w, height: h })
+      .raw()
+      .toBuffer();
+    // SHA256 parity: source-decoded == page-extracted (per-pixel byte
+    // identity through the composite step). Pre-fix the libvips round-
+    // trip could introduce nonzero MAE; post-fix the source bytes feed
+    // composite verbatim so the decode-only path matches exactly.
+    const srcHash = createHash('sha256').update(sourceRgba).digest('hex');
+    const pageHash = createHash('sha256').update(fromPage).digest('hex');
+    expect(
+      pageHash,
+      `passthrough pixel parity failed — source SHA256 != page SHA256.\n` +
+        `  source: ${srcHash}\n  page:   ${pageHash}\n` +
+        `(If this fails the WR-06 fix regressed and sharp is re-encoding the source bytes.)`,
+    ).toBe(srcHash);
+  });
+});
+
 describe('runRepack — WR-02: rotation-prep loop honors cancellation', () => {
   it('cancellation between rotation iterations throws and writes no .atlas', async () => {
     // WR-02: the rotation prep loop is the third phase of work (after
