@@ -111,8 +111,19 @@ export async function runRepack(
   // Map keyed by regionName (= attachmentNames[0]) — the loader-mode-invariant
   // identifier per project_strict_loadermode_separation memory + RESEARCH
   // §Landmines #9. computeRepack uses the SAME key for its sort.
+  //
+  // UAT bug 1 (2026-05-15): when N skeletons share source PNGs (the SKINS
+  // workflow), plan.rows can contain N entries with the same
+  // attachmentNames[0]. WITHOUT dedup the packer received N copies of the
+  // same regionName and laid them out at N different positions → the .atlas
+  // contained duplicate entries (e.g. AVATAR/BODY × 7) and the page PNG
+  // had overlapping regions. Fix: dedup repackInputs by regionName, FIRST
+  // OCCURRENCE WINS (deterministic — preserves row-0's resize result). The
+  // regionBuffers Map already deduped naturally (Map by key); we mirror the
+  // same key discipline on the inputs array. computeRepack's localeCompare
+  // sort guarantees pack-order determinism regardless of insertion order.
   const regionBuffers = new Map<string, Buffer>();
-  const repackInputs: RepackInput[] = [];
+  const repackInputsByName = new Map<string, RepackInput>();
 
   for (let i = 0; i < plan.rows.length; i++) {
     if (isCancelled()) {
@@ -120,6 +131,20 @@ export async function runRepack(
     }
     const row = plan.rows[i];
     const regionName = row.attachmentNames?.[0] ?? row.outPath;
+
+    // Dedup: skip subsequent rows for the same regionName. First occurrence
+    // wins (its resized buffer + packW/H is what lands in the atlas).
+    if (repackInputsByName.has(regionName)) {
+      onProgress({
+        index: i,
+        total: plan.rows.length,
+        path: regionName,
+        outPath: '',
+        status: 'success',
+        phase: 'resize',
+      });
+      continue;
+    }
 
     const resized = await resizeToBuffer(
       sharp(row.sourcePath),
@@ -136,7 +161,7 @@ export async function runRepack(
     const packH = meta.height ?? row.outH;
 
     regionBuffers.set(regionName, resized);
-    repackInputs.push({ regionName, packW, packH });
+    repackInputsByName.set(regionName, { regionName, packW, packH });
 
     onProgress({
       index: i,
@@ -147,6 +172,8 @@ export async function runRepack(
       phase: 'resize',
     });
   }
+
+  const repackInputs: RepackInput[] = Array.from(repackInputsByName.values());
 
   // -------- Step 3: Pack + oversize pre-flight --------
   const packResult = computeRepack(repackInputs, {

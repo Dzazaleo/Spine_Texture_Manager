@@ -468,6 +468,49 @@ describe('runRepack — REPACK-10 atomic-or-fail', () => {
   });
 });
 
+describe('runRepack — UAT bug 1: dedup repackInputs by regionName', () => {
+  it('emits ONE pack entry per unique regionName even when N skeletons share the same source PNG', async () => {
+    // UAT repro: 6 skeletons each declaring AVATAR/BODY → 6 rows with the same
+    // attachmentNames[0]. Pre-fix the packer received 6 entries for "AVATAR/BODY"
+    // and laid it out at 6 different positions → atlas grew to 161 entries for
+    // 26 unique names → overlapping regions on the page PNG. The dedup-by-
+    // regionName invariant (project_strict_loadermode_separation + Phase 29
+    // memo) must hold: first occurrence per regionName wins; subsequent rows
+    // are dropped from the pack-inputs array.
+    const plan = makePlan([
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+    ]);
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    // .atlas region count must equal the number of UNIQUE regionNames (2),
+    // NOT the number of plan rows (6). The repack-worker dedups inputs by
+    // regionName; the packer + atlas-writer downstream are byte-equivalent
+    // when they receive the deduplicated input set.
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    const bodyOccurrences = (atlasText.match(/^AVATAR\/BODY$/gm) ?? []).length;
+    const headOccurrences = (atlasText.match(/^AVATAR\/HEAD$/gm) ?? []).length;
+    expect(bodyOccurrences, 'AVATAR/BODY appears exactly once in atlas').toBe(1);
+    expect(headOccurrences, 'AVATAR/HEAD appears exactly once in atlas').toBe(1);
+    // bounds lines: one per unique region.
+    const boundsLines = (atlasText.match(/^bounds:/gm) ?? []).length;
+    expect(boundsLines, 'bounds line count equals unique region count').toBe(2);
+  });
+});
+
 describe('runRepack — cancellation cooperation', () => {
   it('cancellation between resize iterations: throws and writes no files', async () => {
     const plan = makePlan([
