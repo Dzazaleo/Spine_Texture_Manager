@@ -239,13 +239,79 @@ export async function runRepack(
     });
   }
 
+  // -------- Step 1b: Passthrough rows — pack at native dims --------
+  // UAT round 2 (2026-05-15): plan.passthroughCopies are rows where outW ===
+  // sourceW (no resize needed); image-worker.ts handles them via copyFile
+  // in loose mode. For atlas mode they must STILL be packed into the atlas
+  // (otherwise the spine runtime can't find them — every region declared in
+  // the .json `path:` field must have an entry in the .atlas, regardless of
+  // whether it was resized or copied byte-identical).
+  //
+  // Read source bytes verbatim through sharp().png().toBuffer() — NO resize
+  // chain — so downstream metadata/rotate/composite see a normalized RGBA
+  // buffer matching the resized-row pipeline. Native packW/H are read back
+  // from sharp metadata (sharp-emits-truth invariant per REPACK-03).
+  //
+  // Progress events fire in the absolute index space AFTER the resize loop
+  // (offset by plan.rows.length); Task 3 widens denominators to include
+  // passthrough rows.
+  const passthroughCopies = plan.passthroughCopies ?? [];
+  for (let pi = 0; pi < passthroughCopies.length; pi++) {
+    if (isCancelled()) {
+      throw new Error('cancelled');
+    }
+    const row = passthroughCopies[pi];
+    const regionName = outPathToRegionName(row.outPath);
+    const absIndex = plan.rows.length + pi;
+
+    if (repackInputsByName.has(regionName)) {
+      console.warn(
+        `[runRepack] duplicate outPath in passthroughCopies (upstream bug — D-108 violated): ` +
+          `regionName=${regionName}, passthrough index=${pi}, outPath=${row.outPath}. ` +
+          `First occurrence wins; subsequent rows dropped from atlas.`,
+      );
+      onProgress({
+        index: absIndex,
+        total: plan.rows.length,
+        path: regionName,
+        outPath: '',
+        status: 'success',
+        phase: 'resize',
+      });
+      continue;
+    }
+
+    // No resize: load source bytes verbatim. Re-encoding via sharp().png()
+    // .toBuffer() (no resize chain) normalizes the bytes through libvips so
+    // downstream composite/rotate/extract see the same pixel layout as
+    // resized rows.
+    const passthroughBuf = await sharp(row.sourcePath).png().toBuffer();
+    const meta = await sharp(passthroughBuf).metadata();
+    const packW = meta.width ?? row.sourceW;
+    const packH = meta.height ?? row.sourceH;
+
+    regionBuffers.set(regionName, passthroughBuf);
+    repackInputsByName.set(regionName, { regionName, packW, packH });
+
+    onProgress({
+      index: absIndex,
+      total: plan.rows.length,
+      path: regionName,
+      outPath: '',
+      status: 'success',
+      phase: 'resize',
+    });
+  }
+
   const repackInputs: RepackInput[] = Array.from(repackInputsByName.values());
 
   // Diagnostic: dedup outcome.
   console.log('[runRepack] dedup', {
     rowsIn: plan.rows.length,
+    passthroughIn: passthroughCopies.length,
     uniqueRegions: repackInputs.length,
-    dedupedDuplicates: plan.rows.length - repackInputs.length,
+    dedupedDuplicates:
+      plan.rows.length + passthroughCopies.length - repackInputs.length,
   });
 
   // -------- Step 3: Pack + oversize pre-flight --------
