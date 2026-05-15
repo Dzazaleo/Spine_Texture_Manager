@@ -688,9 +688,10 @@ All claims tagged `[ASSUMED]` in this research:
 | A4 | spine-player's bundled CSS (`dist/spine-player.css`) can be omitted entirely when `showControls: false` | Anti-Patterns, Standard Stack | Low — verified the only CSS classes the player injects are scoped to its inner `spine-player` div and only meaningful when controls render. Confirm by inspecting the canvas div in DevTools post-mount: no class-targeted styles missing. |
 | A5 | The exact-version pin `@esotericsoftware/spine-player@4.2.111` will continue to be available on npm | Standard Stack | Negligible — Esoteric does not unpublish; npm registry retention is permanent for non-revoked packages. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 ### Q1 — Atlas text delivery shape: new IPC vs additive `MaterializedProject` field
+**RESOLVED:** Option A (new `viewer:get-asset-feed` IPC handler, implemented in Plan 41-01)
 **What we know:** Renderer cannot run `synthesizeAtlasText` (`fs`-bound, lives in `core/`). Main can. Two paths exist:
 - **Option A (new IPC):** Add `viewer:get-asset-feed` handler that re-runs synth on demand. Pro: nothing changes in existing payload shapes. Con: ~one-off IPC roundtrip per viewer open + planner-mandated coordination on type definitions in `shared/types.ts`.
 - **Option B (additive field):** Add optional `atlasText?: string` to `SkeletonSummary` (or `MaterializedProject`), populated by `core/loader.ts` for atlas-less mode (already has the text — line 417 + 494 pass it into `new TextureAtlas()`). Pro: zero IPC cost on viewer open. Con: ~30 KB string in every payload regardless of whether the viewer is opened; couples a renderer-of-the-future feature to a load-time data structure.
@@ -698,10 +699,12 @@ All claims tagged `[ASSUMED]` in this research:
 **Recommendation:** Option A. The structuredClone cost across all IPC paths to plumb an unused field is wasteful for a low-frequency viewer-open event. The IPC roundtrip is fast (synth is ~5ms for the SIMPLE_TEST fixture, dominated by I/O).
 
 ### Q2 — `atlasOutputMode: 'atlas' | 'both'` projects: does the viewer play the source atlas or the user-side `loaderMode` bucket?
+**RESOLVED:** `loaderMode` (input-side) governs the source/feed branch; `atlasOutputMode` does NOT affect viewer feed selection
 **What we know:** Phase 40 added `atlasOutputMode` (loose / atlas / both) for export. CONTEXT D-04 locks "viewer plays the source project" — but is "source project" the `loaderMode='atlas-less'` bucket regardless of what `atlasOutputMode` is set to?
 **Recommendation:** Yes. `loaderMode` is the user's INPUT-side decision (what files on disk to read). `atlasOutputMode` is the OUTPUT-side decision (what to write during Optimize). The viewer plays SOURCE, so input-side bucket wins. Concretely: the viewer's `isAtlasLess` branch in `buildAssetFeed` should derive from `summary.atlasPath === null || loaderMode === 'atlas-less'` (mirroring the `effectiveLoaderMode` idiom at `AppShell.tsx:932-935`), NOT from `atlasOutputMode`. This is consistent with D-04a "atlas-less reuses Phase 21 synthetic-atlas path."
 
 ### Q3 — Loop toggle: needed in v1.5.1 or implicit?
+**RESOLVED:** No loop toggle in v1.5.1 (loop stays permanently on); revisit if UAT shows friction
 **What we know:** D-04b says "play + loop on" by default. VIEWER-06 doesn't list a loop toggle in the control set. CONTEXT D-02b lists "[Animation ▾] [Skin ▾] [⏵ play] [⏸ pause] [───●───── scrub]" — no loop control.
 **Recommendation:** No loop UI in v1.5.1. Loop stays on permanently. If a future phase wants the toggle, the state lives in a `loopEnabled` boolean already needed internally (Pattern 3 uses it to set `entry.loop` on animation change). Surface in UI later if animator UAT requests it.
 
