@@ -46,7 +46,7 @@
  * types — never `src/core/*` directly (tests/arch.spec.ts gate, lines 19-34).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { act, cleanup, render, screen, fireEvent } from '@testing-library/react';
 import { pathToFileURL } from 'node:url';
 import { AnimationPlayerModal } from '../../src/renderer/src/modals/AnimationPlayerModal';
 import { SpinePlayer } from '@esotericsoftware/spine-player';
@@ -59,73 +59,87 @@ interface MockSpinePlayerRecord {
   player: any;
   disposed: boolean;
 }
+// spinePlayerInstances kept as a documentation alias for the global sink
+// the mock factory writes to (the factory can't reach into module scope
+// because vi.mock hoists above all imports — see readInstances() below).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const spinePlayerInstances: MockSpinePlayerRecord[] = [];
 
 vi.mock('@esotericsoftware/spine-player', () => {
   // Vitest hoists this factory above the imports — we can't close over
-  // `spinePlayerInstances` from above, so we synthesize the same shape
-  // via the module-scope `(globalThis as any).__spinePlayerInstances`
-  // sink. The spec body reaches into the same global to inspect calls.
-  const sink: MockSpinePlayerRecord[] =
-    ((globalThis as any).__spinePlayerInstances ??= []);
-
-  const SpinePlayer = vi.fn().mockImplementation((_container: HTMLElement, config: any) => {
-    const player: any = {
-      dispose: vi.fn(),
-      play: vi.fn(),
-      pause: vi.fn(),
-      setAnimation: vi.fn(),
-      playTime: 0,
-      paused: false,
-      skeleton: {
-        data: {
-          animations: [{ name: 'idle' }, { name: 'walk' }],
-          skins: [{ name: 'default' }, { name: 'red' }],
-        },
-        setSkinByName: vi.fn(),
-        setSlotsToSetupPose: vi.fn(),
-        update: vi.fn(),
-        updateWorldTransform: vi.fn(),
-      },
-      animationState: {
-        getCurrent: vi.fn(() => ({
-          animation: { duration: 1, name: 'idle' },
-          loop: true,
-        })),
-        update: vi.fn(),
-        apply: vi.fn(),
-      },
-    };
-    const record: MockSpinePlayerRecord = { config, player, disposed: false };
-    // Bind dispose to flip the disposed flag so tests can verify
-    // double-dispose guard (Pitfall 5).
-    player.dispose.mockImplementation(() => {
-      record.disposed = true;
-    });
-    sink.push(record);
-    // Microtask-deferred success — gives the renderer a chance to set
-    // playerRef + transition state to 'ready' on the next tick.
-    Promise.resolve().then(() => {
-      try {
-        config.success?.(player);
-      } catch {
-        /* swallow — tests drive error paths via a dedicated `config.error`
-           helper below */
-      }
-    });
-    return player;
-  });
-
+  // module-scope variables defined later in the file. We synthesize the
+  // shared sink via `(globalThis as any).__spinePlayerInstances` so the
+  // spec body and the mock factory both reference the same array.
+  const SpinePlayer = vi.fn();
   return { SpinePlayer };
 });
 
 // Pull the global sink into a module-local alias for ergonomic test reads.
-// Reset between every test so spy assertions don't carry over.
 function readInstances(): MockSpinePlayerRecord[] {
-  return (globalThis as any).__spinePlayerInstances as MockSpinePlayerRecord[];
+  return ((globalThis as any).__spinePlayerInstances ??=
+    [] as MockSpinePlayerRecord[]);
+}
+
+// Default mock implementation — invokes config.success on a microtask. The
+// `mockImplementation(...)` call is applied in beforeEach so vi.clearAllMocks
+// (and per-test `.mockImplementationOnce(...)` for the error path) interact
+// cleanly. MUST be a function declaration (not an arrow) so `new SpinePlayer`
+// can call it as a constructor — vi.fn's underlying mock invokes the
+// implementation in a way that delegates to the impl's [[Construct]] internal
+// method.
+function defaultSpinePlayerImpl(_container: HTMLElement, config: any) {
+  const player: any = {
+    dispose: vi.fn(),
+    play: vi.fn(),
+    pause: vi.fn(),
+    setAnimation: vi.fn(),
+    playTime: 0,
+    paused: false,
+    skeleton: {
+      data: {
+        animations: [{ name: 'idle' }, { name: 'walk' }],
+        skins: [{ name: 'default' }, { name: 'red' }],
+      },
+      setSkinByName: vi.fn(),
+      setSlotsToSetupPose: vi.fn(),
+      update: vi.fn(),
+      updateWorldTransform: vi.fn(),
+    },
+    animationState: {
+      getCurrent: vi.fn(() => ({
+        animation: { duration: 1, name: 'idle' },
+        loop: true,
+      })),
+      update: vi.fn(),
+      apply: vi.fn(),
+    },
+  };
+  const record: MockSpinePlayerRecord = { config, player, disposed: false };
+  // Bind dispose to flip the disposed flag so tests can verify the
+  // double-dispose guard (Pitfall 5).
+  player.dispose.mockImplementation(() => {
+    record.disposed = true;
+  });
+  readInstances().push(record);
+  // Microtask-deferred success — gives the renderer a chance to set
+  // playerRef + transition state to 'ready' on the next tick.
+  Promise.resolve().then(() => {
+    try {
+      config.success?.(player);
+    } catch {
+      /* tests drive error paths via mockImplementationOnce below */
+    }
+  });
+  return player;
 }
 
 beforeEach(() => {
+  // Re-apply the default mock implementation so vi.clearAllMocks (afterEach)
+  // doesn't leave the constructor with a no-op body. Per-test error tests
+  // override via `.mockImplementationOnce(...)`.
+  (SpinePlayer as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    defaultSpinePlayerImpl,
+  );
   // window.api stub mirrors AtlasPreviewModal spec (pathToImageUrl mock)
   // and adds the new Plan 01 getViewerAssetFeed channel.
   vi.stubGlobal('api', {
@@ -146,7 +160,9 @@ beforeEach(() => {
 
 afterEach(() => {
   // Drain the global sink so each test starts from zero instances.
-  const sink = (globalThis as any).__spinePlayerInstances as MockSpinePlayerRecord[];
+  const sink = (globalThis as any).__spinePlayerInstances as
+    | MockSpinePlayerRecord[]
+    | undefined;
   if (sink) sink.length = 0;
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -240,13 +256,59 @@ function makeSummary(
   } as unknown as SkeletonSummary;
 }
 
-// Helper: lets a queued microtask flush so post-success state lands.
+// Error-path mock implementation — invokes config.error on a microtask with
+// the supplied reason. MUST be a function declaration (not an arrow) so it
+// can be invoked as a constructor via `new SpinePlayer(...)`. The reason is
+// captured via a module-scope variable rather than a closure so the same
+// function declaration can be reused across both error tests.
+let mockErrorReason: string = 'Mocked load failure';
+function errorSpinePlayerImpl(_container: HTMLElement, config: any) {
+  const player: any = {
+    dispose: vi.fn(),
+    play: vi.fn(),
+    pause: vi.fn(),
+    setAnimation: vi.fn(),
+    playTime: 0,
+    paused: false,
+    skeleton: {
+      data: { animations: [], skins: [] },
+      setSkinByName: vi.fn(),
+      setSlotsToSetupPose: vi.fn(),
+      update: vi.fn(),
+      updateWorldTransform: vi.fn(),
+    },
+    animationState: {
+      getCurrent: vi.fn(() => null),
+      update: vi.fn(),
+      apply: vi.fn(),
+    },
+  };
+  const record: MockSpinePlayerRecord = { config, player, disposed: false };
+  player.dispose.mockImplementation(() => {
+    record.disposed = true;
+  });
+  readInstances().push(record);
+  const reason = mockErrorReason;
+  Promise.resolve().then(() => config.error?.(player, reason));
+  return player;
+}
+
+// Helper: lets queued microtasks flush so post-success state lands. Wrapped
+// in `act` so React state updates triggered by the mock's success microtask
+// commit synchronously to the DOM (React 18 auto-batches state updates from
+// async callbacks; without `act`, the DOM reflects 'loading' state even
+// though the post-success effects ran).
 async function flushMicrotasks() {
-  // Two microtask hops cover (1) buildAssetFeed promise chain and (2) the
-  // config.success microtask scheduled inside the mock constructor.
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  await act(async () => {
+    // Three microtask hops cover (1) buildAssetFeed's awaited
+    // pathToImageUrl/getViewerAssetFeed promise chain, (2) the
+    // config.success microtask scheduled inside the mock constructor,
+    // (3) any post-success setState batching.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -593,37 +655,12 @@ describe('AnimationPlayerModal — playback transport (VIEWER-06)', () => {
 describe('AnimationPlayerModal — error state (VIEWER-09)', () => {
   it('renders role=alert with verbatim copy when config.error fires', async () => {
     // Override the mock for this test: instead of calling success on
-    // microtask, call error with a known reason.
+    // microtask, call error with a known reason. Uses the function-declaration
+    // helper so vi.fn can invoke it as a constructor (arrow functions throw
+    // "is not a constructor").
+    mockErrorReason = 'Mocked load failure';
     (SpinePlayer as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      (_container: HTMLElement, config: any) => {
-        const player: any = {
-          dispose: vi.fn(),
-          play: vi.fn(),
-          pause: vi.fn(),
-          setAnimation: vi.fn(),
-          playTime: 0,
-          paused: false,
-          skeleton: {
-            data: { animations: [], skins: [] },
-            setSkinByName: vi.fn(),
-            setSlotsToSetupPose: vi.fn(),
-            update: vi.fn(),
-            updateWorldTransform: vi.fn(),
-          },
-          animationState: {
-            getCurrent: vi.fn(() => null),
-            update: vi.fn(),
-            apply: vi.fn(),
-          },
-        };
-        const record: MockSpinePlayerRecord = { config, player, disposed: false };
-        player.dispose.mockImplementation(() => {
-          record.disposed = true;
-        });
-        readInstances().push(record);
-        Promise.resolve().then(() => config.error?.(player, 'Mocked load failure'));
-        return player;
-      },
+      errorSpinePlayerImpl,
     );
     render(
       <AnimationPlayerModal
@@ -643,36 +680,9 @@ describe('AnimationPlayerModal — error state (VIEWER-09)', () => {
   });
 
   it('clicking the Close button inside the error overlay calls onClose', async () => {
+    mockErrorReason = 'Some error';
     (SpinePlayer as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      (_container: HTMLElement, config: any) => {
-        const player: any = {
-          dispose: vi.fn(),
-          play: vi.fn(),
-          pause: vi.fn(),
-          setAnimation: vi.fn(),
-          playTime: 0,
-          paused: false,
-          skeleton: {
-            data: { animations: [], skins: [] },
-            setSkinByName: vi.fn(),
-            setSlotsToSetupPose: vi.fn(),
-            update: vi.fn(),
-            updateWorldTransform: vi.fn(),
-          },
-          animationState: {
-            getCurrent: vi.fn(() => null),
-            update: vi.fn(),
-            apply: vi.fn(),
-          },
-        };
-        const record: MockSpinePlayerRecord = { config, player, disposed: false };
-        player.dispose.mockImplementation(() => {
-          record.disposed = true;
-        });
-        readInstances().push(record);
-        Promise.resolve().then(() => config.error?.(player, 'Some error'));
-        return player;
-      },
+      errorSpinePlayerImpl,
     );
     const onClose = vi.fn();
     render(
@@ -692,36 +702,9 @@ describe('AnimationPlayerModal — error state (VIEWER-09)', () => {
   });
 
   it('error state disables animation + skin selects (or renders them empty)', async () => {
+    mockErrorReason = 'Err';
     (SpinePlayer as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
-      (_container: HTMLElement, config: any) => {
-        const player: any = {
-          dispose: vi.fn(),
-          play: vi.fn(),
-          pause: vi.fn(),
-          setAnimation: vi.fn(),
-          playTime: 0,
-          paused: false,
-          skeleton: {
-            data: { animations: [], skins: [] },
-            setSkinByName: vi.fn(),
-            setSlotsToSetupPose: vi.fn(),
-            update: vi.fn(),
-            updateWorldTransform: vi.fn(),
-          },
-          animationState: {
-            getCurrent: vi.fn(() => null),
-            update: vi.fn(),
-            apply: vi.fn(),
-          },
-        };
-        const record: MockSpinePlayerRecord = { config, player, disposed: false };
-        player.dispose.mockImplementation(() => {
-          record.disposed = true;
-        });
-        readInstances().push(record);
-        Promise.resolve().then(() => config.error?.(player, 'Err'));
-        return player;
-      },
+      errorSpinePlayerImpl,
     );
     render(
       <AnimationPlayerModal
