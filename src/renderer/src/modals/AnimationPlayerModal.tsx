@@ -182,7 +182,16 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
         rawDataURIs: feed.rawDataURIs,
         showControls: false, // We own the control bar (anti-pattern from RESEARCH).
         backgroundColor: '23273200', // D-02c #232732 panel-surface, 00 alpha.
-        premultipliedAlpha: true,
+        // Straight alpha (not PMA). Spine 4.x atlas PNGs may ship PMA-encoded
+        // on disk, but Chrome/Electron's PNG decoder UN-premultiplies during
+        // the `Image`-element decode path that spine-player uses
+        // (assetManager.loadTexture → `new Image()` → `texImage2D`), so the
+        // in-memory texture is always straight alpha here. Setting
+        // premultipliedAlpha:true makes spine-player's shader pick
+        // srcFunc=gl.ONE (Player.js:13167) and transparent-white border
+        // pixels (255,255,255,0) blend as opaque white — the artifact ring
+        // around mesh attachments the user reproduced on SIMPLE_TEST.
+        premultipliedAlpha: false,
         alpha: false,
         success: (p) => {
           if (cancelled) {
