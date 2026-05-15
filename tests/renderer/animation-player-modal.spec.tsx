@@ -71,7 +71,42 @@ vi.mock('@esotericsoftware/spine-player', () => {
   // shared sink via `(globalThis as any).__spinePlayerInstances` so the
   // spec body and the mock factory both reference the same array.
   const SpinePlayer = vi.fn();
-  return { SpinePlayer };
+  // The modal samples bounds on an ISOLATED skeleton (sampleAnimationBounds →
+  // makeProbe → new Skeleton). Provide minimal faithful stubs so that path
+  // runs for real in tests instead of only hitting the null fallback.
+  class Vector2 {
+    x: number;
+    y: number;
+    constructor(x = 0, y = 0) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  class Skeleton {
+    data: unknown;
+    skin: { name: string } | null = null;
+    constructor(data: unknown) {
+      this.data = data;
+    }
+    setSkinByName(): void {}
+    setSlotsToSetupPose(): void {}
+    setToSetupPose(): void {}
+    updateWorldTransform(): void {}
+    getBounds(off: { x: number; y: number }, size: { x: number; y: number }) {
+      off.x = 0;
+      off.y = 0;
+      size.x = 100;
+      size.y = 100;
+    }
+  }
+  return {
+    SpinePlayer,
+    Skeleton,
+    Vector2,
+    MixBlend: { setup: 0 },
+    MixDirection: { mixIn: 0 },
+    Physics: { update: 2 },
+  };
 });
 
 // Pull the global sink into a module-local alias for ergonomic test reads.
@@ -99,6 +134,11 @@ function defaultSpinePlayerImpl(_container: HTMLElement, config: any) {
       data: {
         animations: [{ name: 'idle' }, { name: 'walk' }],
         skins: [{ name: 'default' }, { name: 'red' }],
+        findAnimation: vi.fn((name: string) => ({
+          name,
+          duration: 1,
+          apply: vi.fn(),
+        })),
       },
       setSkinByName: vi.fn(),
       setSlotsToSetupPose: vi.fn(),

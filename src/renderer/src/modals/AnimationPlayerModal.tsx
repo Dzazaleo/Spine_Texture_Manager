@@ -43,7 +43,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
+  MixBlend,
+  MixDirection,
+  Physics,
+  Skeleton,
   SpinePlayer,
+  Vector2,
   type SpinePlayerConfig,
 } from '@esotericsoftware/spine-player';
 import type {
@@ -75,6 +80,248 @@ type ViewerFeed = {
   atlasUrl: string;
   rawDataURIs: Record<string, string>;
 };
+
+/**
+ * User-controlled camera state. spine-player recomputes camera.zoom /
+ * camera.position EVERY frame to fit the current animation's full motion
+ * bounding box (Player.js drawFrame → calculateAnimationViewport). In an app
+ * whose subject IS scale, that auto-fit is actively misleading: a tall jump
+ * zooms the whole rig down, and every animation renders at a different scale.
+ *
+ * We neutralize it via the PUBLIC `config.update(player, delta)` hook, which
+ * spine-player invokes AFTER it sets the auto-fit camera but BEFORE
+ * `renderer.begin()` / `drawSkeleton` (Player.js order, verified against the
+ * vendored 4.2.111 source). Overwriting camera.zoom / camera.position there
+ * makes our values the ones actually drawn — no vendored-source patching, no
+ * per-frame rAF fighting.
+ *
+ * `initialized` is the freeze latch: on the first frame where spine-player has
+ * a valid per-animation fit, we ADOPT that fit once (so the rig opens nicely
+ * framed, matching user expectation) and then lock. Setting it back to false
+ * (Fit button / double-click) re-adopts spine-player's fit for whatever
+ * animation is current, then re-locks.
+ */
+type CameraState = {
+  zoom: number;
+  x: number;
+  y: number;
+  initialized: boolean;
+};
+
+// Zoom % is anchored to TRUE actual size: 100% ⇒ one skeleton world unit maps
+// to one on-screen CSS pixel (DPI-corrected). Clamp keeps the field sane.
+const MIN_ZOOM_PCT = 5;
+const MAX_ZOOM_PCT = 4000;
+
+function clampPct(pct: number): number {
+  return Math.max(MIN_ZOOM_PCT, Math.min(MAX_ZOOM_PCT, pct));
+}
+
+/**
+ * Camera.zoom semantics (spine-webgl OrthoCamera.update):
+ *   projection.ortho(zoom·-vpW/2, zoom·vpW/2, …) ⇒ visible world width =
+ *   zoom · viewportWidth. spine-player runs renderer.resize(Expand) each
+ *   frame, so viewportWidth === canvas.width (device px). Therefore
+ *   device-px-per-world-unit = canvas.width / (zoom · viewportWidth) = 1/zoom.
+ *
+ * CSS px per world unit = that ÷ (canvas.width / clientWidth), the
+ * backing-store→CSS ratio (≈ devicePixelRatio, but measured so it stays
+ * correct even if spine-player caps the backing size). 100% ⇒ 1 CSS px / unit.
+ */
+function percentFromZoom(
+  canvasW: number,
+  vpW: number,
+  clientW: number,
+  zoom: number,
+): number {
+  const pxPerCss = clientW > 0 ? canvasW / clientW : 1;
+  const devicePerWorld = canvasW / (zoom * vpW);
+  const pct = (devicePerWorld / pxPerCss) * 100;
+  return Number.isFinite(pct) && pct > 0 ? pct : 100;
+}
+
+function zoomFromPercent(
+  canvasW: number,
+  vpW: number,
+  clientW: number,
+  pct: number,
+): number {
+  const pxPerCss = clientW > 0 ? canvasW / clientW : 1;
+  const devicePerWorld = (pct / 100) * pxPerCss;
+  const zoom = canvasW / (devicePerWorld * vpW);
+  return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+}
+
+// Breathing room around the rig when fitting. spine-player's own default is
+// 10% per side (×1.2); we keep it a touch tighter. Larger camera.zoom = more
+// world visible = zoomed out.
+const FIT_MARGIN = 1.15;
+
+type Bounds = { x: number; y: number; width: number; height: number };
+
+// Last-resort framing if even the setup pose has no measurable bounds (e.g. a
+// skeleton whose every attachment is hidden). Keeps the viewer usable.
+const FALLBACK_BOUNDS: Bounds = { x: -100, y: -100, width: 200, height: 200 };
+
+/**
+ * Replicates spine-player's own fit math (Player.js drawFrame) from a
+ * world-space bounding box and the live canvas size. We feed it OUR own
+ * sampled bounds (see sampleAnimationBounds) — spine-player's per-animation
+ * sampler is disabled (fixed config.viewport) because it calls a FATAL
+ * showError on any content-less animation. Hard-guards every input so a
+ * degenerate box can never lock a blank/NaN camera.
+ */
+function computeFit(
+  cv: Bounds,
+  canvasW: number,
+  canvasH: number,
+): { zoom: number; x: number; y: number } | null {
+  const { x, y, width, height } = cv;
+  if (
+    !(canvasW > 0) ||
+    !(canvasH > 0) ||
+    !(width > 0) ||
+    !(height > 0) ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y)
+  ) {
+    return null;
+  }
+  const zoom =
+    (canvasH / canvasW > height / width
+      ? width / canvasW
+      : height / canvasH) * FIT_MARGIN;
+  if (!Number.isFinite(zoom) || zoom <= 0) return null;
+  return { zoom, x: x + width / 2, y: y + height / 2 };
+}
+
+function finiteBox(off: Vector2, size: Vector2): boolean {
+  return (
+    Number.isFinite(off.x) &&
+    Number.isFinite(off.y) &&
+    Number.isFinite(size.x) &&
+    Number.isFinite(size.y) &&
+    size.x > 0 &&
+    size.y > 0
+  );
+}
+
+/**
+ * Build an ISOLATED skeleton from the live skeleton's data + current skin, so
+ * bounds sampling never disturbs on-screen playback (vs. spine-player's
+ * calculateAnimationViewport, which poses the live skeleton). Returns null if
+ * the player has no skeleton yet.
+ */
+function makeProbe(p: SpinePlayer): Skeleton | null {
+  const live = p.skeleton;
+  if (!live) return null;
+  const probe = new Skeleton(live.data);
+  const skinName = live.skin?.name;
+  if (skinName) probe.setSkinByName(skinName);
+  probe.setSlotsToSetupPose();
+  return probe;
+}
+
+/**
+ * Our replacement for spine-player's calculateAnimationViewport: samples the
+ * animation across its duration and unions skeleton.getBounds(). Same math,
+ * but returns null for a content-less animation (e.g. a "STOP" state that
+ * hides every attachment) instead of calling the fatal showError that kills
+ * the whole player. Any unexpected throw from the spine API also degrades to
+ * null (caller keeps the last good box) — resilience is the whole point of
+ * owning this path.
+ */
+function sampleAnimationBounds(
+  p: SpinePlayer,
+  animationName: string,
+): Bounds | null {
+  try {
+    const probe = makeProbe(p);
+    const anim = probe && p.skeleton?.data.findAnimation(animationName);
+    if (!probe || !anim) return null;
+    probe.setToSetupPose();
+    const steps = 64;
+    const dur = anim.duration || 0;
+    const dt = dur ? dur / steps : 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let any = false;
+    const off = new Vector2();
+    const size = new Vector2();
+    const temp: number[] = [];
+    for (let i = 0, t = 0; i < steps; i++, t += dt) {
+      anim.apply(probe, t, t, false, [], 1, MixBlend.setup, MixDirection.mixIn);
+      probe.updateWorldTransform(Physics.update);
+      probe.getBounds(off, size, temp);
+      if (finiteBox(off, size)) {
+        any = true;
+        minX = Math.min(minX, off.x);
+        maxX = Math.max(maxX, off.x + size.x);
+        minY = Math.min(minY, off.y);
+        maxY = Math.max(maxY, off.y + size.y);
+      }
+      if (dt === 0) break; // static pose — one sample is enough.
+    }
+    if (!any) return null;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (!(width > 0) || !(height > 0)) return null;
+    return { x: minX, y: minY, width, height };
+  } catch {
+    return null;
+  }
+}
+
+/** Setup-pose bounds — the graceful fallback for a content-less animation. */
+function sampleSetupBounds(p: SpinePlayer): Bounds | null {
+  try {
+    const probe = makeProbe(p);
+    if (!probe) return null;
+    probe.setToSetupPose();
+    probe.updateWorldTransform(Physics.update);
+    const off = new Vector2();
+    const size = new Vector2();
+    probe.getBounds(off, size, []);
+    if (!finiteBox(off, size)) return null;
+    return { x: off.x, y: off.y, width: size.x, height: size.y };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Live render metrics. Returns null until the player has a canvas + camera
+ * with a non-zero backing size (i.e. before the first renderer.resize).
+ */
+function readMetrics(
+  p: SpinePlayer,
+  container: HTMLDivElement | null,
+): {
+  cam: { zoom: number; position: { x: number; y: number }; update: () => void };
+  canvasW: number;
+  canvasH: number;
+  vpW: number;
+  vpH: number;
+  clientW: number;
+} | null {
+  const sr = p.sceneRenderer;
+  const canvas = p.canvas;
+  if (!sr || !canvas) return null;
+  const cam = sr.camera;
+  const canvasW = canvas.width;
+  const canvasH = canvas.height;
+  if (canvasW <= 0 || canvasH <= 0) return null;
+  return {
+    cam,
+    canvasW,
+    canvasH,
+    vpW: cam.viewportWidth || canvasW,
+    vpH: cam.viewportHeight || canvasH,
+    clientW: container?.clientWidth ?? 0,
+  };
+}
 
 /**
  * Build the spine-player asset feed for either loader mode.
@@ -138,6 +385,31 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [scrubPercent, setScrubPercent] = useState<number>(0);
 
+  // User-controlled camera (Phase 41+ — see CameraState doc). Lives in a ref
+  // so the per-frame config.update reads it WITHOUT triggering React renders.
+  const cameraRef = useRef<CameraState>({
+    zoom: 1,
+    x: 0,
+    y: 0,
+    initialized: false,
+  });
+  // In-flight drag. Pointer-captured on the container; null when not panning.
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    camX: number;
+    camY: number;
+  } | null>(null);
+  // The editable zoom field mirrors the live camera; kept as a string so the
+  // user can clear it / type freely before commit.
+  const [zoomField, setZoomField] = useState<string>('100');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  // Current-animation bounds: a preformatted label for the readout, plus the
+  // raw box driving Fit. Sampled on a throwaway skeleton (sampleAnimationBounds)
+  // on init / animation / skin change — NOT per frame.
+  const [boundsLabel, setBoundsLabel] = useState<string>('');
+  const boundsRef = useRef<Bounds | null>(null);
+
   // ARIA scaffold — pass props.onClose raw per Pattern S-1 + Pitfall 8 (no
   // wrapped callback that captures broader deps and re-runs the hook every
   // render).
@@ -162,6 +434,12 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
     setActiveSkin('');
     setIsPaused(false);
     setScrubPercent(0);
+    cameraRef.current = { zoom: 1, x: 0, y: 0, initialized: false };
+    dragRef.current = null;
+    boundsRef.current = null;
+    setIsDragging(false);
+    setZoomField('100');
+    setBoundsLabel('');
 
     void (async () => {
       let feed: ViewerFeed;
@@ -193,6 +471,71 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
         // around mesh attachments the user reproduced on SIMPLE_TEST.
         premultipliedAlpha: false,
         alpha: false,
+        // Auto-fit neutralizer (see CameraState doc). spine-player calls this
+        // every frame AFTER it sets ITS camera and BEFORE it draws — so
+        // overwriting camera here is what actually renders. We freeze to a
+        // user-controlled camera, defaulting to a self-computed Fit. (Our
+        // bounds come from sampleAnimationBounds, not spine-player's sampler,
+        // which is disabled via the fixed config.viewport below.)
+        update: (p) => {
+          const m = readMetrics(p, containerRef.current);
+          if (!m) return;
+          const cs = cameraRef.current;
+          if (!cs.initialized) {
+            if (!boundsRef.current) {
+              let b: Bounds | null = null;
+              const animName =
+                p.animationState?.getCurrent(0)?.animation?.name;
+              if (animName) b = sampleAnimationBounds(p, animName);
+              if (!b) b = sampleSetupBounds(p);
+              boundsRef.current = b ?? FALLBACK_BOUNDS;
+              setBoundsLabel(
+                b
+                  ? `${Math.round(b.width)} × ${Math.round(b.height)} u`
+                  : 'no visible content',
+              );
+            }
+            const fit = computeFit(boundsRef.current, m.canvasW, m.canvasH);
+            if (!fit) return;
+            cs.zoom = fit.zoom;
+            cs.x = fit.x;
+            cs.y = fit.y;
+            cs.initialized = true;
+            setZoomField(
+              String(
+                Math.round(
+                  clampPct(
+                    percentFromZoom(m.canvasW, m.vpW, m.clientW, cs.zoom),
+                  ),
+                ),
+              ),
+            );
+          }
+          m.cam.zoom = cs.zoom;
+          m.cam.position.x = cs.x;
+          m.cam.position.y = cs.y;
+          m.cam.update();
+        },
+        // Fixed dummy viewport. With x/y/width/height all present, spine-player
+        // uses these verbatim and SKIPS calculateAnimationViewport entirely —
+        // which is the whole point: that sampler calls a FATAL showError
+        // ("Animation bounds are invalid: …") on any content-less animation
+        // (e.g. a STOP state), permanently killing the player. The actual
+        // values are irrelevant because `update` above overwrites the camera
+        // every frame. `animations: {}` keeps the per-animation override
+        // lookup from throwing; transitionTime: 0 disables the viewport lerp.
+        viewport: {
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          padLeft: 0,
+          padRight: 0,
+          padTop: 0,
+          padBottom: 0,
+          transitionTime: 0,
+          animations: {},
+        },
         success: (p) => {
           if (cancelled) {
             try {
@@ -263,23 +606,49 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
     };
   }, [props.summary, props.loaderMode, props.open]);
 
-  // Animation change handler (Pattern 3 — VIEWER-05).
-  const onAnimationChange = useCallback((name: string) => {
-    const p = playerRef.current;
-    if (!p) return;
-    p.setAnimation(name, true); // loop on per D-04b
-    setActiveAnimation(name);
+  // Re-sample the current animation's bounds (live anim + skin read off the
+  // player) for the Fit target + readout. A content-less animation keeps the
+  // last good box so zoom/pan stay fixed across animations (the core ask) and
+  // the viewer never crashes.
+  const refreshBounds = useCallback((p: SpinePlayer) => {
+    const animName = p.animationState?.getCurrent(0)?.animation?.name;
+    const b = animName ? sampleAnimationBounds(p, animName) : null;
+    if (b) {
+      boundsRef.current = b;
+      setBoundsLabel(`${Math.round(b.width)} × ${Math.round(b.height)} u`);
+      return;
+    }
+    setBoundsLabel('no visible content');
+    if (!boundsRef.current) {
+      boundsRef.current = sampleSetupBounds(p) ?? FALLBACK_BOUNDS;
+    }
   }, []);
+
+  // Animation change handler (Pattern 3 — VIEWER-05).
+  const onAnimationChange = useCallback(
+    (name: string) => {
+      const p = playerRef.current;
+      if (!p) return;
+      p.setAnimation(name, true); // loop on per D-04b
+      setActiveAnimation(name);
+      refreshBounds(p);
+    },
+    [refreshBounds],
+  );
 
   // Skin change handler (Pattern 3 — VIEWER-05). Call order matters: name
   // first, then setSlotsToSetupPose to rebind the new skin's attachments.
-  const onSkinChange = useCallback((name: string) => {
-    const p = playerRef.current;
-    if (!p?.skeleton) return;
-    p.skeleton.setSkinByName(name);
-    p.skeleton.setSlotsToSetupPose();
-    setActiveSkin(name);
-  }, []);
+  const onSkinChange = useCallback(
+    (name: string) => {
+      const p = playerRef.current;
+      if (!p?.skeleton) return;
+      p.skeleton.setSkinByName(name);
+      p.skeleton.setSlotsToSetupPose();
+      setActiveSkin(name);
+      refreshBounds(p);
+    },
+    [refreshBounds],
+  );
 
   // Play / pause (Pattern 4 — VIEWER-06).
   const onPlay = useCallback(() => {
@@ -312,6 +681,122 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
     setScrubPercent(percentage);
     setIsPaused(true);
   }, []);
+
+  // Mouse-wheel zoom, anchored to the cursor (the world point under the
+  // pointer stays put). Native non-passive listener — React's onWheel is
+  // passive in many setups, so e.preventDefault() (stop page scroll) is
+  // unreliable there. Re-bound when the modal opens (the container div only
+  // exists while open).
+  useEffect(() => {
+    if (!props.open) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const p = playerRef.current;
+      if (!p) return;
+      const cs = cameraRef.current;
+      if (!cs.initialized) return;
+      const m = readMetrics(p, el);
+      if (!m) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) / rect.width; // 0..1
+      const sy = (e.clientY - rect.top) / rect.height; // 0..1
+      const worldW = cs.zoom * m.vpW;
+      const worldH = cs.zoom * m.vpH;
+      // World point currently under the cursor (y is flipped: screen-down =
+      // world-down here because position.y grows upward).
+      const wx = cs.x + (sx - 0.5) * worldW;
+      const wy = cs.y - (sy - 0.5) * worldH;
+      // deltaY > 0 = wheel toward user = zoom OUT = larger camera.zoom.
+      let nz = cs.zoom * (e.deltaY > 0 ? 1.1 : 1 / 1.1);
+      const pct = clampPct(percentFromZoom(m.canvasW, m.vpW, m.clientW, nz));
+      nz = zoomFromPercent(m.canvasW, m.vpW, m.clientW, pct);
+      const nWorldW = nz * m.vpW;
+      const nWorldH = nz * m.vpH;
+      cs.zoom = nz;
+      cs.x = wx - (sx - 0.5) * nWorldW;
+      cs.y = wy + (sy - 0.5) * nWorldH;
+      setZoomField(String(Math.round(pct)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [props.open]);
+
+  // Drag-to-pan. Pointer-captured on the container so a drag that leaves the
+  // canvas keeps panning. Pan is in viewport fractions → world units, so it's
+  // independent of the device-pixel basis.
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const cs = cameraRef.current;
+    if (!cs.initialized) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      camX: cs.x,
+      camY: cs.y,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+  }, []);
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const p = playerRef.current;
+      const el = containerRef.current;
+      if (!p || !el) return;
+      const m = readMetrics(p, el);
+      if (!m) return;
+      const rect = el.getBoundingClientRect();
+      const fx = (e.clientX - d.startX) / rect.width;
+      const fy = (e.clientY - d.startY) / rect.height;
+      const cs = cameraRef.current;
+      cs.x = d.camX - fx * cs.zoom * m.vpW;
+      cs.y = d.camY + fy * cs.zoom * m.vpH;
+    },
+    [],
+  );
+
+  const endDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* pointer already released — idempotent */
+    }
+    setIsDragging(false);
+  }, []);
+
+  // Fit / double-click: re-adopt spine-player's auto-fit for the CURRENT
+  // animation once, then re-freeze (the CameraState freeze latch).
+  const onFit = useCallback(() => {
+    cameraRef.current.initialized = false;
+  }, []);
+
+  // Commit the typed zoom %. Keeps the camera center fixed (zoom about the
+  // canvas center); only the scale changes.
+  const commitZoom = useCallback(() => {
+    const p = playerRef.current;
+    const cs = cameraRef.current;
+    if (!p || !cs.initialized) return;
+    const m = readMetrics(p, containerRef.current);
+    if (!m) return;
+    const raw = parseFloat(zoomField);
+    if (!Number.isFinite(raw)) {
+      setZoomField(
+        String(
+          Math.round(percentFromZoom(m.canvasW, m.vpW, m.clientW, cs.zoom)),
+        ),
+      );
+      return;
+    }
+    const pct = clampPct(raw);
+    cs.zoom = zoomFromPercent(m.canvasW, m.vpW, m.clientW, pct);
+    setZoomField(String(Math.round(pct)));
+  }, [zoomField]);
 
   // Open-gate early return AFTER hooks (React rules — hooks must run on every
   // render or the order changes). Mirrors AtlasPreviewModal.tsx:232.
@@ -360,7 +845,7 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
             value={activeAnimation}
             onChange={(e) => onAnimationChange(e.target.value)}
             disabled={controlsDisabled}
-            className="bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg disabled:opacity-50"
+            className="w-56 bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg disabled:opacity-50"
           >
             {availableAnimations.map((name) => (
               <option key={name} value={name}>
@@ -380,7 +865,7 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
             value={activeSkin}
             onChange={(e) => onSkinChange(e.target.value)}
             disabled={controlsDisabled}
-            className="bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg disabled:opacity-50"
+            className="w-56 bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg disabled:opacity-50"
           >
             {availableSkins.map((name) => (
               <option key={name} value={name}>
@@ -415,12 +900,67 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
           />
         </div>
 
+        {/* Zoom / pan control row. The viewer no longer auto-zooms per
+            animation — scale is fixed and user-driven. */}
+        <div className="flex items-center gap-3 pb-3 mb-1 text-xs text-fg-muted">
+          <label htmlFor="animation-viewer-zoom" className="text-fg-muted">
+            Zoom
+          </label>
+          <div className="flex items-center">
+            <input
+              id="animation-viewer-zoom"
+              type="text"
+              inputMode="numeric"
+              value={zoomField}
+              onChange={(e) => setZoomField(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  commitZoom();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              onBlur={commitZoom}
+              disabled={controlsDisabled}
+              className="bg-surface border border-border rounded-md px-2 py-1 text-xs text-fg w-16 text-right disabled:opacity-50"
+              aria-label="Zoom percentage (100 = actual size)"
+            />
+            <span className="ml-1">%</span>
+          </div>
+          <button
+            type="button"
+            onClick={onFit}
+            disabled={controlsDisabled}
+            className={clsx(
+              'border border-border rounded-md px-3 py-1 text-xs transition-colors hover:border-accent hover:text-accent disabled:hover:border-border disabled:hover:text-fg',
+              controlsDisabled && 'opacity-50',
+            )}
+          >
+            Fit
+          </button>
+          <span className="text-fg-muted/70">
+            scroll = zoom · drag = pan · double-click = fit
+          </span>
+          {boundsLabel && (
+            <span className="ml-auto text-fg-muted">
+              Rig bounds: {boundsLabel}
+            </span>
+          )}
+        </div>
+
         {/* Player container — Pitfall 8 (MUST have flex-1 AND inline minHeight).
             Without both, spine-player's inner canvas (`width:100%;height:100%`)
             collapses to 1×1 px and the modal looks blank. */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-hidden bg-[#232732] border border-border rounded-md"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onDoubleClick={onFit}
+          className={clsx(
+            'flex-1 overflow-hidden bg-[#232732] border border-border rounded-md',
+            isDragging ? 'cursor-grabbing' : 'cursor-grab',
+          )}
           style={{ minHeight: 400 }}
         />
 
