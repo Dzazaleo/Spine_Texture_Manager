@@ -9,6 +9,12 @@
  * Determinism contract (REPACK-02): cross-loaderMode parity (REPACK-08)
  * depends on this test passing. If `computeRepack` is non-deterministic,
  * Plan 08's cross-loaderMode SHA256 baseline cannot hold.
+ *
+ * 2026-05-15 update (debug session `atlas-repack-output-bugs`):
+ *   RepackedRegion now carries `origW`/`origH` (= the input RepackInput.packW/H,
+ *   the canonical PRE-rotation dims). Rotation tests assert both the
+ *   post-rotation page-rect dims (w/h) AND the pre-rotation canonical dims
+ *   (origW/origH) survive the fold.
  */
 import { describe, expect, it } from 'vitest';
 import { computeRepack } from '../../src/core/repack.js';
@@ -152,6 +158,30 @@ describe('computeRepack — REPACK-02 pack-math invariants', () => {
     expect(r.pages.length).toBeGreaterThan(1);
     expect(r.oversize).toHaveLength(0);
   });
+
+  it('origW/origH preserve canonical pre-rotation dims (non-rotated case: origW/H == w/h)', () => {
+    // 2026-05-15 regression sentinel (debug `atlas-repack-output-bugs`):
+    // RepackedRegion carries origW/origH = the input packW/packH. For
+    // non-rotated regions, the packer leaves rect.width/height unchanged,
+    // so origW === w and origH === h. The atlas-writer needs these to
+    // emit libgdx-conformant offsets: lines.
+    const inputs: RepackInput[] = [
+      makeInput('R_SQUARE', 500, 500),
+      makeInput('R_WIDE', 800, 300),
+      makeInput('R_TALL', 250, 700),
+    ];
+    const r = computeRepack(inputs, DEFAULT_OPTS);
+    for (const region of r.regions) {
+      const input = inputs.find((x) => x.regionName === region.regionName);
+      expect(input).toBeDefined();
+      expect(region.origW).toBe(input!.packW);
+      expect(region.origH).toBe(input!.packH);
+      // No rotation in this scenario → w/h match origW/origH.
+      expect(region.rotated).toBe(false);
+      expect(region.w).toBe(region.origW);
+      expect(region.h).toBe(region.origH);
+    }
+  });
 });
 
 describe('computeRepack — REPACK-06 rotation invariants', () => {
@@ -167,7 +197,7 @@ describe('computeRepack — REPACK-06 rotation invariants', () => {
     }
   });
 
-  it('rotation when allowRotation is true: rotated regions report swapped w/h', () => {
+  it('rotation when allowRotation is true: rotated regions report swapped w/h, origW/H stay canonical', () => {
     // Constrain to small page + force tall-skinny shapes to encourage rotation.
     const opts: RepackOptions = { maxPageSize: 1024, padding: 2, allowRotation: true };
     const inputs: RepackInput[] = [
@@ -180,12 +210,26 @@ describe('computeRepack — REPACK-06 rotation invariants', () => {
     // With allowRotation:true, the packer MAY rotate at least one region
     // to improve fit. The post-rotation dims are reported AS-IS (swapped):
     // a rotated 200×900 input appears as w=900, h=200 in the region entry.
+    // origW/H remain the canonical PRE-rotation dims (200, 900) regardless
+    // of rotation — that's the 2026-05-15 invariant the atlas-writer needs.
     const rotated = r.regions.filter((x) => x.rotated);
     if (rotated.length > 0) {
       for (const rot of rotated) {
         expect(rot.w).toBe(900);
         expect(rot.h).toBe(200);
+        // origW/H carry pre-rotation canonical dims — the atlas writer
+        // emits these as `bounds:` (post-2026-05-15 fix) and `offsets:`.
+        expect(rot.origW).toBe(200);
+        expect(rot.origH).toBe(900);
       }
+    }
+    // Non-rotated regions in the same run still satisfy origW === w + origH === h.
+    const notRotated = r.regions.filter((x) => !x.rotated);
+    for (const region of notRotated) {
+      expect(region.origW).toBe(200);
+      expect(region.origH).toBe(900);
+      expect(region.w).toBe(region.origW);
+      expect(region.h).toBe(region.origH);
     }
     // (Note: maxrects-packer is free to NOT rotate if the un-rotated
     // layout fits; this test allows for either outcome but locks the

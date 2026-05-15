@@ -617,8 +617,14 @@ describe('runRepack — UAT bug 2: atlas rotation direction round-trips through 
     const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
     // Find the `WIDE` block — empirically the packer rotates it under
     // the 2x TALL + 1x WIDE @ 1024 maxPage configuration.
+    //
+    // 2026-05-15 corrected semantics (debug `atlas-repack-output-bugs`):
+    // bounds: now carries PRE-rotation canonical dims (libgdx convention);
+    // the rotate:true line tells the parser the page bitmap is rotated 90°
+    // relative to canonical. The atlas now also emits `offsets:` BETWEEN
+    // bounds and rotate:true. Regex updated to skip the offsets: line.
     const rotatedBlock = atlasText.match(
-      /^WIDE\nbounds:(\d+),(\d+),(\d+),(\d+)\nrotate:true/m,
+      /^WIDE\nbounds:(\d+),(\d+),(\d+),(\d+)\noffsets:\d+,\d+,\d+,\d+\nrotate:true/m,
     );
     expect(
       rotatedBlock,
@@ -627,16 +633,23 @@ describe('runRepack — UAT bug 2: atlas rotation direction round-trips through 
         "packer heuristic changed and the test fixture needs adjustment",
     ).not.toBeNull();
     if (!rotatedBlock) return;
-    const x = parseInt(rotatedBlock[1], 10);
-    const y = parseInt(rotatedBlock[2], 10);
-    const w = parseInt(rotatedBlock[3], 10);
-    const h = parseInt(rotatedBlock[4], 10);
-    // Post-rotation dims on the page: w/h are SWAPPED from canonical.
-    // canonical WIDE is 900w x 200h => packed bounds emit 200w x 900h.
-    expect([w, h], 'packed bounds are post-rotation = (wideH, wideW)').toEqual([
-      wideH,
-      wideW,
-    ]);
+    const boundsX = parseInt(rotatedBlock[1], 10);
+    const boundsY = parseInt(rotatedBlock[2], 10);
+    const boundsW = parseInt(rotatedBlock[3], 10);
+    const boundsH = parseInt(rotatedBlock[4], 10);
+    // bounds: now carries PRE-rotation canonical dims (= origW/origH).
+    // canonical WIDE is 900w x 200h => bounds emit 900w x 200h.
+    expect(
+      [boundsW, boundsH],
+      'bounds carries PRE-rotation canonical dims (= origW, origH)',
+    ).toEqual([wideW, wideH]);
+    // For the .extract() call below we need the POST-rotation page-rect
+    // dims (the actual extent on the page bitmap). For a rotated region,
+    // page-rect (w, h) = (origH, origW) — swap of canonical.
+    const x = boundsX;
+    const y = boundsY;
+    const w = boundsH; // post-rotation page-rect width = pre-rotation height
+    const h = boundsW; // post-rotation page-rect height = pre-rotation width
 
     // Extract the rotated region bytes from the page.
     const pagePath = result.pageFiles[0];

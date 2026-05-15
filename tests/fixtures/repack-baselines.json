@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generatedAt": "2026-05-15T10:32:52.149Z",
+    "generatedAt": "2026-05-15T19:19:14.384Z",
     "sharpVersion": "PENDING",
     "maxrectsPackerVersion": "PENDING",
     "spineCoreVersion": "PENDING",
@@ -13,7 +13,7 @@
       "images/TRIANGLE.png": "3361a431e151e45f72fed27f8e69a536a3d95ff5eee812d4ab4554beb25148d9"
     },
     "atlas": {
-      "SIMPLE_TEST.atlas": "aad9dac420283913e0793e4a1b85ce3384dc7126865abcfe21c38fb13d6742ef",
+      "SIMPLE_TEST.atlas": "a51fda020007e04aae218a9e86c2a2d01213d038033948b5ec556fb1ef0662ed",
       "SIMPLE_TEST.png": "bb7fdcd702c79445332cc1643e585af3ebb09fbc51bf832cd32dfaa276bbe380"
     }
   }

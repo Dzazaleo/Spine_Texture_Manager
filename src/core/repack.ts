@@ -32,6 +32,14 @@
  *     `rect.width` / `rect.height` are ALREADY swapped (maxrects-packer
  *     .d.ts:97-98 — "after `rot` is set, `width/height` of this rectangle
  *     is swaped"). We emit `w/h` AS-IS from the packer (post-rotation).
+ *   - We ALSO carry the PRE-rotation canonical dims through as `origW/origH`
+ *     (= the `RepackInput.packW`/`packH` the caller supplied). The atlas
+ *     writer needs these to emit libgdx-conformant `bounds:` (pre-rotation)
+ *     and `offsets:` (canonical canvas) lines — the spine-runtime parser
+ *     auto-backfills `originalWidth = region.width` when no `offsets:` is
+ *     present (TextureAtlas.js:152-155), which corrupts downstream peak-
+ *     ratio math if we hand it post-rotation `bounds:` dims. See debug
+ *     session `atlas-repack-output-bugs` (2026-05-15).
  */
 import { MaxRectsPacker } from 'maxrects-packer';
 
@@ -52,8 +60,19 @@ export interface RepackedRegion {
   pageIndex: number;
   x: number;
   y: number;
+  /** POST-rotation page-rect width (matches the page bitmap's actual extent). */
   w: number;
+  /** POST-rotation page-rect height (matches the page bitmap's actual extent). */
   h: number;
+  /**
+   * PRE-rotation canonical width (= the RepackInput.packW the caller passed
+   * in). For non-rotated regions origW === w. For rotated regions origW === h
+   * (and origH === w). Carried so atlas-writer can emit libgdx-conformant
+   * pre-rotation `bounds:` + canonical `offsets:` lines.
+   */
+  origW: number;
+  /** PRE-rotation canonical height (= the RepackInput.packH). See origW. */
+  origH: number;
   rotated: boolean;
 }
 
@@ -137,6 +156,8 @@ export function computeRepack(inputs: RepackInput[], opts: RepackOptions): Repac
 
   // Step 5: Fold bins into pages + flat regions array. `rect.width` and
   //         `rect.height` are ALREADY post-rotation per .d.ts:97-98.
+  //         `origW`/`origH` recover the PRE-rotation canonical dims from the
+  //         carried RepackInput (the user-supplied packW/packH).
   const pages: RepackPage[] = [];
   const regions: RepackedRegion[] = [];
   packer.bins.forEach((bin, pageIndex) => {
@@ -150,6 +171,8 @@ export function computeRepack(inputs: RepackInput[], opts: RepackOptions): Repac
         y: rect.y,
         w: rect.width,
         h: rect.height,
+        origW: inp.packW,
+        origH: inp.packH,
         rotated: (rect as unknown as { rot?: boolean }).rot === true,
       });
     }

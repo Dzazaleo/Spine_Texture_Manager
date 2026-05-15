@@ -14,8 +14,10 @@
  *     TextureLoader callback required (matches usage in
  *     tests/core/synthetic-atlas.spec.ts:43, the in-repo precedent).
  *   - atlas.regions[i].name / x / y / width / height / degrees
- *     (width/height inherited from TextureRegion base; degrees=90
- *     when input had `rotate:true` per TextureAtlas.js:87-93).
+ *     / originalWidth / originalHeight (width/height inherited from
+ *     TextureRegion base; degrees=90 when input had `rotate:true` per
+ *     TextureAtlas.js:87-93; originalWidth/Height from offsets: line per
+ *     TextureAtlas.js:88-100).
  *
  * Plan 02 type-coupling deviation note:
  *   `RepackPage` / `RepackedRegion` are imported from the SAME
@@ -23,6 +25,12 @@
  *   pending Plan 02 merge (see atlas-writer.ts header). When Plan 02
  *   merges first, both this test and atlas-writer.ts switch their
  *   imports to `../../src/core/repack.js`.
+ *
+ * 2026-05-15 update (debug session `atlas-repack-output-bugs`):
+ *   bounds: w/h are now PRE-rotation canonical (= origW/origH); `offsets:`
+ *   is emitted UNCONDITIONALLY so spine-core does NOT auto-backfill
+ *   originalWidth from region.width. Rotated-region tests assert the new
+ *   semantics + verify originalWidth/Height round-trip through the parser.
  */
 import { describe, expect, it } from 'vitest';
 import { TextureAtlas } from '@esotericsoftware/spine-core';
@@ -40,8 +48,24 @@ function makeRegion(
   w: number,
   h: number,
   rotated = false,
+  origW?: number,
+  origH?: number,
 ): RepackedRegion {
-  return { regionName: name, pageIndex, x, y, w, h, rotated };
+  // For non-rotated regions, origW/origH default to w/h (no rotation swap).
+  // For rotated regions, callers should pass explicit origW/origH (= the
+  // pre-rotation canonical dims, which are SWAPPED relative to the
+  // post-rotation page-rect w/h).
+  return {
+    regionName: name,
+    pageIndex,
+    x,
+    y,
+    w,
+    h,
+    origW: origW ?? w,
+    origH: origH ?? h,
+    rotated,
+  };
 }
 
 function makePage(pageIndex: number, width = 4096, height = 4096): RepackPage {
@@ -92,6 +116,10 @@ describe('buildAtlasText — REPACK-04 round-trip + field parity', () => {
     // degrees defaults to 0 when no rotate line is present (parser sets
     // explicitly only when rotate: is read; TextureAtlas.js:87-93).
     expect(a!.degrees).toBe(0);
+    // originalWidth/Height parsed from emitted offsets: line (NOT
+    // auto-backfilled). For non-rotated regions origW/H == bounds W/H.
+    expect(a!.originalWidth).toBe(300);
+    expect(a!.originalHeight).toBe(400);
   });
 
   it('emits the locked whitespace style (key:value with no space after colon)', () => {
@@ -106,8 +134,30 @@ describe('buildAtlasText — REPACK-04 round-trip + field parity', () => {
     expect(text).toContain('format:RGBA8888');
     expect(text).toContain('repeat:none');
     expect(text).toContain('bounds:0,0,100,100');
+    expect(text).toContain('offsets:0,0,100,100');
     // No space after any of the canonical colon-separated keys.
-    expect(text).not.toMatch(/^(size|filter|format|repeat|bounds|rotate): /m);
+    expect(text).not.toMatch(/^(size|filter|format|repeat|bounds|offsets|rotate): /m);
+  });
+
+  it('emits offsets: unconditionally for every region (non-rotated case)', () => {
+    // 2026-05-15: spine-core's parser auto-backfills originalWidth from
+    // region.width when no offsets: line is present (TextureAtlas.js:152-
+    // 155). That backfill propagated post-rotation dims to the analyzer's
+    // actualSourceW/H map and produced asymmetric sourceRatio on the
+    // Global tab. We now emit offsets: for every region, even when there's
+    // no strip-whitespace.
+    const text = buildAtlasText({
+      projectName: 'X',
+      pages: [makePage(0)],
+      regions: [
+        makeRegion('A', 0, 0, 0, 100, 100),
+        makeRegion('B', 0, 110, 0, 200, 50),
+        makeRegion('C', 0, 0, 110, 75, 80),
+      ],
+    });
+    expect(text).toContain('offsets:0,0,100,100');
+    expect(text).toContain('offsets:0,0,200,50');
+    expect(text).toContain('offsets:0,0,75,80');
   });
 });
 
@@ -132,28 +182,96 @@ describe('buildAtlasText — REPACK-06 rotation invariants', () => {
     }
   });
 
-  it('rotated round-trip: rotated=true emits rotate:true with post-rotation bounds', () => {
+  it('rotated round-trip: rotate:true emits with PRE-rotation bounds + offsets', () => {
     // Input simulates packer's post-rotation dims: a 200×900 source that
-    // the packer rotated 90° on-page → bounds carry w=900, h=200 (matches
-    // maxrects-packer .d.ts:97-98 + RESEARCH §Landmines #3).
+    // the packer rotated 90° on-page. The packer's rect.width/height are
+    // ALREADY swapped (maxrects-packer .d.ts:97-98 + RESEARCH §Landmines #3),
+    // so post-rotation page-rect w=900, h=200. origW/origH carry the
+    // PRE-rotation canonical dims (= the input RepackInput.packW/packH),
+    // so origW=200, origH=900.
+    //
+    // 2026-05-15 corrected semantics (debug `atlas-repack-output-bugs`):
+    // bounds: emits PRE-rotation (origW, origH), NOT post-rotation (w, h).
+    // The libgdx-format convention (verified against Spine-exported
+    // `fixtures/SKINS/JOKERMAN_SPINE_ROT.atlas`) is that bounds:w/h are
+    // canonical pre-rotation; the rotate flag tells the parser the page
+    // bitmap is rotated 90° relative to canonical.
     const text = buildAtlasText({
       projectName: 'X',
       pages: [makePage(0)],
-      regions: [makeRegion('ROTATED', 0, 50, 60, 900, 200, true)],
+      regions: [
+        makeRegion(
+          'ROTATED',
+          0,
+          50,
+          60,
+          900, // w (post-rotation page-rect width)
+          200, // h (post-rotation page-rect height)
+          true,
+          200, // origW (pre-rotation canonical width)
+          900, // origH (pre-rotation canonical height)
+        ),
+      ],
     });
     expect(text).toContain('rotate:true');
-    expect(text).toContain('bounds:50,60,900,200');
+    // bounds: now carries PRE-rotation dims (origW, origH) per libgdx
+    // convention. The previous (now-fixed) post-rotation emission produced
+    // single-axis shrink on the Global tab by feeding the analyzer's
+    // actualSourceW/H map post-rotation dims.
+    expect(text).toContain('bounds:50,60,200,900');
+    // offsets: carries the canonical canvas dims, emitted unconditionally
+    // so spine-core does NOT auto-backfill originalWidth from region.width.
+    expect(text).toContain('offsets:0,0,200,900');
     // Round-trip through spine-core's parser.
     const atlas = new TextureAtlas(text);
     expect(atlas.regions.length).toBe(1);
     const r = atlas.regions[0];
     // TextureAtlas.js:87-93 normalises rotate:true to degrees=90.
     expect(r.degrees).toBe(90);
-    // Post-rotation dims survive the round-trip on the bounds slot.
+    // bounds: round-trip — parser reads pre-rotation dims into width/height.
     expect(r.x).toBe(50);
     expect(r.y).toBe(60);
-    expect(r.width).toBe(900);
-    expect(r.height).toBe(200);
+    expect(r.width).toBe(200);
+    expect(r.height).toBe(900);
+  });
+
+  it('regression: parsed originalWidth/Height equal pre-rotation canonical dims', () => {
+    // 2026-05-15 regression sentinel for debug session
+    // `atlas-repack-output-bugs`. The bug was: rotated regions emitted
+    // post-rotation bounds + omitted offsets, so spine-core auto-backfilled
+    // originalWidth = region.width (= post-rotation w). Our analyzer then
+    // read post-rotation dims into actualSourceW/H, asymmetric sourceRatio
+    // produced single-axis shrink on the Global tab. The fix emits offsets:
+    // pre-rotation unconditionally so originalWidth round-trips correctly.
+    //
+    // Test rect mirrors BEACHMAN/CARDS_L_HAND_1 from JOKERMAN_SPINE_ROT
+    // (canonical 140×216, packer rotated 90° on-page → page-rect 216×140).
+    const text = buildAtlasText({
+      projectName: 'X',
+      pages: [makePage(0)],
+      regions: [
+        makeRegion(
+          'CARDS',
+          0,
+          100,
+          200,
+          216, // w (post-rotation page-rect)
+          140, // h (post-rotation page-rect)
+          true,
+          140, // origW (canonical pre-rotation)
+          216, // origH (canonical pre-rotation)
+        ),
+      ],
+    });
+    const atlas = new TextureAtlas(text);
+    const r = atlas.regions.find((x) => x.name === 'CARDS');
+    expect(r).toBeDefined();
+    // The fix: originalWidth/Height equal pre-rotation canonical dims
+    // regardless of rotation, because we emit offsets: explicitly. Before
+    // the fix, both would have been post-rotation (216 / 140).
+    expect(r!.originalWidth).toBe(140);
+    expect(r!.originalHeight).toBe(216);
+    expect(r!.degrees).toBe(90);
   });
 });
 
