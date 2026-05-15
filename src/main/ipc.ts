@@ -832,6 +832,19 @@ export async function handleStartExport(
           cancelled: false,
         };
       }
+      console.log('[export:start] complete', {
+        outputMode,
+        looseSummary: looseSummary
+          ? { successes: looseSummary.successes, errors: looseSummary.errors.length }
+          : null,
+        repackSummary: repackSummary
+          ? { successes: repackSummary.successes, errors: repackSummary.errors.length }
+          : null,
+        finalSummary: {
+          successes: finalSummary.successes,
+          errors: finalSummary.errors.length,
+        },
+      });
       return { ok: true, summary: finalSummary };
     } catch (innerErr) {
       // Rollback: delete every recorded path. fs.rm with { force: true }

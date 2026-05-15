@@ -132,6 +132,15 @@ export async function runRepack(
   const projectName = deriveProjectName(plan, outDir);
   const resolvedOutDir = pathResolve(outDir);
 
+  // Diagnostic: input shape entering runRepack.
+  console.log('[runRepack] entry', {
+    planRows: plan.rows.length,
+    passthroughCopies: plan.passthroughCopies?.length ?? 0,
+    outDir: resolvedOutDir,
+    atlasOpts,
+    sharpenEnabled,
+  });
+
   // Ensure output dir exists (mirrors image-worker.ts mkdir behavior).
   await mkdir(resolvedOutDir, { recursive: true });
 
@@ -202,6 +211,13 @@ export async function runRepack(
   }
 
   const repackInputs: RepackInput[] = Array.from(repackInputsByName.values());
+
+  // Diagnostic: dedup outcome.
+  console.log('[runRepack] dedup', {
+    rowsIn: plan.rows.length,
+    uniqueRegions: repackInputs.length,
+    dedupedDuplicates: plan.rows.length - repackInputs.length,
+  });
 
   // -------- Step 3: Pack + oversize pre-flight --------
   const packResult = computeRepack(repackInputs, {
@@ -349,6 +365,15 @@ export async function runRepack(
     durationMs: Date.now() - startedAt,
     cancelled: isCancelled(),
   };
+
+  // Diagnostic: pack outcome + summary returned to IPC.
+  console.log('[runRepack] complete', {
+    pages: packResult.pages.length,
+    pageFiles: pageFiles.map((p) => p.split('/').pop()),
+    atlasFile: atlasPath.split('/').pop(),
+    rotatedRegions: packResult.regions.filter((r) => r.rotated).length,
+    summary,
+  });
 
   return { pageFiles, atlasFile: atlasPath, summary };
 }

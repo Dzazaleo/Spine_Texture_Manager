@@ -308,6 +308,12 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
       props.atlasOpts,       // Phase 40 D-04 — 6th positional arg
     );
     if (response.ok) {
+      console.log('[OptimizeDialog] export response', {
+        outputMode: props.outputMode,
+        atlasOpts: props.atlasOpts,
+        rendererTotal: total,
+        summary: response.summary,
+      });
       setSummary(response.summary);
     } else {
       // already-running / invalid-out-dir / overwrite-source / Unknown —
