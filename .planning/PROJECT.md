@@ -52,16 +52,33 @@ Animators ship atlases that are as small as they mathematically can be without v
 - ✓ Phase 31 Windows admin DnD release UAT todo — closed Phase 39
 - ✓ Window X-button / Cmd+W dirty-save guard — closed `ef38cd3` during Phase 36 UAT (pre-existing since Phase 8/18, surfaced + fixed in same cycle)
 
+## Current Milestone: v1.5.1 Spine Animation Viewer
+
+**Goal:** Close the optimize → pack → validate loop by adding an in-app Spine animation viewer so animators can confirm their exported `.atlas` + page PNG(s) render correctly without round-tripping through the Spine editor.
+
+**Target features:**
+- Read-only Spine animation viewer wrapping Esoteric's official `spine-player` library
+- Animation + skin selection controls; standard playback controls (play / pause / scrub)
+- Mounted as a sibling visual modal to AtlasPreviewModal / OptimizeDialog (final mount point and asset-feed routing deferred to `/gsd-discuss-phase`)
+- Standalone-modal scope (Medium per SEED-009); split-pane source-vs-exported comparison (VIEWER-07) is Future, conditional on D-02 outcome
+
+**Locked design facts (from SEED-009, do not relitigate):**
+1. Use Esoteric's official `@esotericsoftware/spine-player` library — no hand-rolled renderer.
+2. `spine-player` is a sibling package to the already-installed `spine-core`; both coexist.
+3. The viewer is read-only — validation surface, not authoring.
+4. The viewer does NOT replace `AtlasPreviewModal` (that shows static atlas layout; this shows animation playback).
+
+**Open decisions (deferred to `/gsd-discuss-phase`):** D-01 npm-dep vs vendored copy of `spine-player.js`; D-02 standalone-modal vs split-pane comparison; D-03 mount location (toolbar button / tab / both); D-04 asset feed (source / exported / user-selectable).
+
+**Scope explicitly excluded from v1.5.1 (deferred to v1.5.2 / v1.6):**
+- Phase 40 polish carry-forwards (WR-03, WR-04, WR-05, WR-07, IN-01, IN-02, IN-03, IN-04) — remain in the "Known deferred" list above; user chose viewer-only framing.
+- VIEWER-07 (split-pane source-vs-exported comparison) — Future, gated on D-02 picking option B or C.
+
+**Phase numbering:** Continues from v1.5. Starts at **Phase 41** (no `--reset-phase-numbers`). v1.5 phase directories `.planning/phases/36-..40-*/` remain in place per user choice at v1.5 close.
+
 ## Next Milestone: v1.6 (TBD)
 
-**Status:** unscoped. Run `/gsd-new-milestone` to start the v1.6 cycle (questioning → research → requirements → roadmap).
-
-**Likely scope candidates** (drawn from the v1.5 deferred / backlog list — re-validate during `/gsd-new-milestone`):
-
-- **Phase 40 polish carry-forward** — fold the 8 user-deferred items from `40-REVIEW.md` (4 WARN + 4 INFO) into a focused polish phase: WR-03/WR-04 atlas-field plumbing through `SkeletonNotFoundOnLoadError` envelope + `ResampleArgs`; WR-05 outDir-containment defense-in-depth on rollback; WR-07 non-null-assertion documentation; IN-01..IN-04 ergonomic fixes.
-- **SEED-006 readiness check** — `npm view @esotericsoftware/spine-core@latest`. If 4.3.x has shipped, full Spine 4.3 runtime port becomes load-bearing (PORT-01..04 from v1.5 REQUIREMENTS Future).
-- **Atlas Repack maturity pass** — REPACK-01..10 shipped with 3 rounds of human UAT against `JOKERMAN_SPINE.json`; subsequent paying-user feedback on real rigs may surface ergonomic gaps (output-dir layout, multi-page page-naming convention, performance on 100+ MB atlases per IN-02).
-- **Documentation refresh** — README, INSTALL, screenshots all predate v1.5 atlas-repack output. macOS + Windows only per `project_linux_deferred` memory.
+**Status:** unscoped. Likely scope draws from the v1.5 deferred / backlog list above — Phase 40 polish carry-forward (8 items: WR-03/04/05/07 + IN-01..04 from `40-REVIEW.md`), SEED-006 readiness check (`npm view @esotericsoftware/spine-core@latest` — full Spine 4.3 runtime port), atlas-repack maturity pass on real-user rigs, documentation refresh. Re-validate at `/gsd-new-milestone` time.
 
 **Out of scope (continued exclusions):**
 - Linux build/UAT (dropped at v1.3 ship; per `project_linux_deferred` memory)
@@ -146,7 +163,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-15 after v1.5 milestone close — Override Routing + Coverage Hardening + Atlas Repack SHIPPED. 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (folded into v1.5-REQUIREMENTS.md archive at close). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 all closed. Phase 36 surfaced + fixed an adjacent pre-existing window-close dirty-save gap (`ef38cd3`). 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user decision in `40-REVIEW.md` — backlog for v1.6+. Tag `v1.4.0` from prior milestone is also pending push (per STATE.md note from 2026-05-12). v1.5 milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 REQs satisfied + 10/10 REPACK reqs verified-in-code; cross-phase integration WIRED across all 5 areas; 7/7 E2E flows COMPLETE).*
+*Last updated: 2026-05-15 — v1.5.1 milestone STARTED (Spine Animation Viewer; viewer-only scope per user, polish items deferred). Continues phase numbering at Phase 41. Research skipped (scope locked by SEED-009 design facts 1–4). v1.5 phase directories 36–40 retained in `.planning/phases/`. Prior footer: 2026-05-15 — v1.5 SHIPPED (Override Routing + Coverage Hardening + Atlas Repack). 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (archived). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 closed. 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user — backlog for v1.5.2 / v1.6. Milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 + 10/10).*
 
 <details>
 <summary>Prior phase footer (v1.4 + v1.5 mid-flight detail)</summary>

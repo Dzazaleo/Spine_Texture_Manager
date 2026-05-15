@@ -1,25 +1,26 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Override Routing + Coverage Hardening + Atlas Repack
-status: completed
-last_updated: "2026-05-15T13:30:00.000Z"
-last_activity: 2026-05-15 -- v1.5 milestone closed; archives written; tag pending
+milestone: v1.5.1
+milestone_name: Spine Animation Viewer
+status: planning
+last_updated: "2026-05-15T13:52:42.169Z"
+last_activity: 2026-05-15
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 23
-  completed_plans: 23
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Milestone: **v1.5 SHIPPED 2026-05-15** — Override Routing + Coverage Hardening + Atlas Repack. 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs + 10 REPACK REQs. Tag `v1.5.0` pending push (along with carry-forward `v1.4.0` from prior milestone).
-
-Status: **awaiting `/gsd-new-milestone`** to define v1.6 scope.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-15 — Milestone v1.5.1 started
 
 ## Project Reference
 
@@ -27,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-15 after v1.5 milestone close).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Planning v1.6 (TBD) — run `/gsd-new-milestone`.
+**Current focus:** v1.5.1 — Spine Animation Viewer (defining requirements; viewer-only scope per user, Phase 40 polish items remain deferred to v1.5.2 / v1.6).
 
 ## Last Completed Milestone
 
