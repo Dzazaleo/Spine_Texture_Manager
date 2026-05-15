@@ -167,6 +167,10 @@ export async function runRepack(
   // insertion order.
   const regionBuffers = new Map<string, Buffer>();
   const repackInputsByName = new Map<string, RepackInput>();
+  // Hoisted so both the resize loop and the passthrough loop (below) can
+  // reference the same array — keeps progress-total math consistent across
+  // every onProgress emission in this function.
+  const passthroughCopies = plan.passthroughCopies ?? [];
 
   /**
    * Strip the `images/` prefix + `.png` suffix from an ExportRow.outPath
@@ -203,7 +207,7 @@ export async function runRepack(
       );
       onProgress({
         index: i,
-        total: plan.rows.length,
+        total: plan.rows.length + passthroughCopies.length,
         path: regionName,
         outPath: '',
         status: 'success',
@@ -231,7 +235,7 @@ export async function runRepack(
 
     onProgress({
       index: i,
-      total: plan.rows.length + (plan.passthroughCopies?.length ?? 0),
+      total: plan.rows.length + passthroughCopies.length,
       path: regionName,
       outPath: '',
       status: 'success',
@@ -254,8 +258,7 @@ export async function runRepack(
   //
   // Progress events fire in the absolute index space AFTER the resize loop
   // (offset by plan.rows.length); Task 3 widens denominators to include
-  // passthrough rows.
-  const passthroughCopies = plan.passthroughCopies ?? [];
+  // passthrough rows. `passthroughCopies` hoisted above the resize loop.
   for (let pi = 0; pi < passthroughCopies.length; pi++) {
     if (isCancelled()) {
       throw new Error('cancelled');
@@ -272,7 +275,7 @@ export async function runRepack(
       );
       onProgress({
         index: absIndex,
-        total: plan.rows.length,
+        total: plan.rows.length + passthroughCopies.length,
         path: regionName,
         outPath: '',
         status: 'success',
@@ -295,7 +298,7 @@ export async function runRepack(
 
     onProgress({
       index: absIndex,
-      total: plan.rows.length,
+      total: plan.rows.length + passthroughCopies.length,
       path: regionName,
       outPath: '',
       status: 'success',
@@ -413,13 +416,19 @@ export async function runRepack(
     pageFiles.push(pagePath);
 
     // UAT 2026-05-15 — emit composite events in the SAME absolute index
-    // space as the resize events (continue past plan.rows.length). Pre-fix
-    // these emitted (index=0, total=1) → the renderer (which uses a global
-    // plan.rows-based denominator) snapped progress back to ~0% on the
-    // last event. By offsetting we keep the bar monotonic.
+    // space as the resize events (continue past plan.rows.length +
+    // passthroughCopies.length). Pre-fix these emitted (index=0, total=1)
+    // → the renderer (which uses a global plan.rows-based denominator)
+    // snapped progress back to ~0% on the last event. By offsetting we
+    // keep the bar monotonic.
+    //
+    // UAT round 2 (2026-05-15): passthroughCopies are now packed too, so
+    // the resize-phase index space spans [0, rows + passthrough). The
+    // composite phase continues from there.
+    const resizeUnits = plan.rows.length + passthroughCopies.length;
     onProgress({
-      index: plan.rows.length + pi,
-      total: plan.rows.length + packResult.pages.length,
+      index: resizeUnits + pi,
+      total: resizeUnits + packResult.pages.length,
       path: pageFilename(projectName, page.pageIndex),
       outPath: pagePath,
       status: 'success',
