@@ -110,6 +110,7 @@ function buildPlan(
     row.atlasSource = { pagePath: srcPath, x: 0, y: 0, packW: 64, packH: 64, offsetX: 0, offsetY: 0, w: 64, h: 64, rotated: false };
   }
   return {
+    skeletonPath: '/proj/test.json',
     rows: [row],
     excludedUnused: [],
     passthroughCopies: [],

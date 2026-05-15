@@ -41,6 +41,7 @@ describe('runExport — real-bytes end-to-end (F8.2 + N3.1 + D-121)', () => {
     expect(fs.existsSync(sourcePath), `fixture missing: ${sourcePath}`).toBe(true);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath,
         outPath: 'images/CIRCLE.png',
@@ -135,6 +136,7 @@ describe('REPACK-01 — runExport within-run byte parity (post-Plan-04 helper ex
       attachmentNames: ['CIRCLE'],
     };
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [planRow],
       excludedUnused: [],
       passthroughCopies: [],

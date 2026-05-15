@@ -47,6 +47,7 @@ describe('runExport — Strip-Whitespace atlas-extract regression', () => {
     // that a fixtures/-relative path would suffer.
     const syntheticPerRegionPath = path.join(tmpDir, 'src', 'square.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath: syntheticPerRegionPath,
         outPath: 'images/square.png',
@@ -99,6 +100,7 @@ describe('runExport — Strip-Whitespace atlas-extract regression', () => {
     // extract → extend.
     const syntheticPerRegionPath = path.join(tmpDir, 'src', 'square.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{

@@ -54,6 +54,7 @@ afterEach(() => {
 });
 
 const PLAN: ExportPlan = {
+  skeletonPath: '/proj/test.json',
   rows: [
     {
       sourcePath: '/fake/A.png',

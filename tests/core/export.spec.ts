@@ -193,7 +193,7 @@ describe('buildExportPlan — case (a) baseline (D-108, D-110, D-111)', () => {
       regions: regionsFromSampled(sampled),
       orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
-    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: rows with outW===sourceW (e.g. TRIANGLE with peakScale≥1.0)
     // go to passthroughCopies[]; others stay in rows[]. Total must be 3.
     // Post-Plan 02-03 dedup-by-attachmentName: 3 unique names
@@ -233,7 +233,7 @@ describe('buildExportPlan — case (b) peak-anchored override on TRIANGLE (D-111
       orphanedFiles: [], // Phase 24 Plan 01: unused field replaced
     };
     const overrides = new Map<string, number>([['TRIANGLE', 25]]);
-    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, overrides);
+    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const triRow = plan.rows.find((r) => r.attachmentNames.includes('TRIANGLE'));
     expect(triRow).toBeDefined();
     if (triRow) {
@@ -280,7 +280,7 @@ describe('buildExportPlan — case (c) override 200% on SQUARE (peak-anchored, 2
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['SQUARE', 200]]);
-    const plan: ExportPlan = buildExportPlan(summary, overrides);
+    const plan: ExportPlan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows.length).toBe(1);
     expect(plan.passthroughCopies.length).toBe(0);
     const row = plan.rows[0];
@@ -316,7 +316,7 @@ describe('buildExportPlan — case (c) override 200% on SQUARE (peak-anchored, 2
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map([['SQUARE', 300]]));
+    const plan: ExportPlan = buildExportPlan(summary, new Map([['SQUARE', 300]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.passthroughCopies.length).toBe(1);
     expect(plan.rows.length).toBe(0);
     expect(plan.passthroughCopies[0].effectiveScale).toBeCloseTo(1.0, 6);
@@ -356,7 +356,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
     expect(plan.passthroughCopies.length).toBe(1);
     expect(plan.rows.length).toBe(0);
@@ -393,7 +393,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: outW=200=sourceW → passthroughCopies.
     expect(plan.passthroughCopies.length).toBe(1);
     expect(plan.rows.length).toBe(0);
@@ -450,7 +450,7 @@ describe('buildExportPlan — Gap-Fix #1 (2026-04-25) DOWNSCALE-ONLY invariant �
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: outW=100=sourceW → passthroughCopies (NOT rows).
     expect(plan.passthroughCopies.length).toBe(1);
     expect(plan.rows.length).toBe(0);
@@ -504,7 +504,7 @@ describe('buildExportPlan — case (d) two attachments share atlas region with d
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // D-108: one ExportRow per unique sourcePath
     expect(plan.rows.length).toBe(1);
     const row = plan.rows[0];
@@ -557,7 +557,7 @@ describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through',
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows.length).toBe(1);
     expect(plan.rows[0].atlasSource).toEqual({
       pagePath: '/fake/JOKERMAN_SPINE.png',
@@ -598,7 +598,7 @@ describe('buildExportPlan — Gap-Fix #2 (2026-04-25) atlasSource pass-through',
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows[0].atlasSource).toBeUndefined();
   });
 });
@@ -622,7 +622,7 @@ describe('buildExportPlan — case (e) ghost fixture (Phase 24 Plan 01 update)',
       regions: regionsFromSampled(sampled),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // GHOST is not in peaks → not in rows (sampler filter is the gate now).
     expect(plan.rows.find((r) => r.attachmentNames.includes('GHOST'))).toBeUndefined();
     // excludedUnused is now always empty (D-109 via unusedAttachments removed).
@@ -667,7 +667,7 @@ describe('buildExportPlan — case (f) Math.ceil sizing semantics (D-110, Round 
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows[0].outW).toBe(128);
     expect(plan.rows[0].outH).toBe(128);
   });
@@ -706,7 +706,7 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows.length).toBe(1);
     const row = plan.rows[0];
     // effScale rounded UP to nearest thousandth — display value matches.
@@ -747,7 +747,7 @@ describe('buildExportPlan — Round 5 ceil + ceil-thousandth (D-110 amendment)',
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const row = plan.rows[0];
     expect(row.effectiveScale).toBeCloseTo(0.362, 6);
     expect(row.outW).toBe(294); // ceil(811 × 0.362) = ceil(293.582) = 294
@@ -938,8 +938,8 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
       ['multiple overrides', new Map([['CIRCLE', 75], ['TRIANGLE', 30]])],
     ];
     for (const [label, ov] of cases) {
-      const corePlan = buildExportPlan(summary, ov);
-      const viewPlan = buildExportPlanView(summary, ov);
+      const corePlan = buildExportPlan(summary, ov, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
+      const viewPlan = buildExportPlanView(summary, ov, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
       expect(viewPlan, label).toEqual(corePlan);
     }
   });
@@ -973,8 +973,8 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const corePlan = buildExportPlan(summary, new Map());
-    const viewPlan = buildExportPlanView(summary, new Map());
+    const corePlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
+    const viewPlan = buildExportPlanView(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(viewPlan).toEqual(corePlan);
     // Phase 22.1 D-06: peakScale 1.5 clamps to 1.0 → outW=100=sourceW → passthroughCopies.
     // Both core and renderer must agree.
@@ -1065,8 +1065,8 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const corePlan = buildExportPlan(summary, new Map());
-    const viewPlan = buildExportPlanView(summary, new Map());
+    const corePlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
+    const viewPlan = buildExportPlanView(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Parity: both produce identical output (both now in rows[], not passthroughCopies).
     expect(viewPlan.passthroughCopies).toEqual(corePlan.passthroughCopies);
     expect(viewPlan.rows).toEqual(corePlan.rows);
@@ -1107,8 +1107,8 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const corePlan = buildExportPlan(summary, new Map());
-    const viewPlan = buildExportPlanView(summary, new Map());
+    const corePlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
+    const viewPlan = buildExportPlanView(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(viewPlan.passthroughCopies).toEqual(corePlan.passthroughCopies);
     expect(viewPlan.rows).toEqual(corePlan.rows);
   });
@@ -1265,8 +1265,8 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const planUndef = buildExportPlan(summary, new Map());
-    const planZero = buildExportPlan(summary, new Map(), { safetyBufferPercent: 0 });
+    const planUndef = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
+    const planZero = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 0 });
     // Deep-equal AND byte-equal serialization — locks the no-op contract per D-07.
     expect(planZero).toEqual(planUndef);
     expect(JSON.stringify(planZero)).toBe(JSON.stringify(planUndef));
@@ -1278,7 +1278,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // safeScale(0.525) = 0.525; downscaleClampedScale = min(0.525, 1) = 0.525.
     // outW = ceil(canonicalW × 0.525) = ceil(1000 × 0.525) = 525.
     const summary = makeCleanSummary(1000, 0.5, 'GROW');
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 5 });
     // Row goes to rows[] (outW=525 ≠ sourceW=1000).
     expect(plan.rows.length).toBe(1);
     expect(plan.passthroughCopies.length).toBe(0);
@@ -1297,7 +1297,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // (bufferedScale > sourceRatio) condition is FALSE since Infinity beats anything.
     // → bufferCapped MUST be undefined; flag does NOT fire on canonical-only clamp.
     const summary = makeCleanSummary(1000, 0.99, 'NEAR_TOP');
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 5 });
     // Both rows[] and passthroughCopies[] together must hold exactly 1 row.
     const all = [...plan.rows, ...plan.passthroughCopies];
     expect(all.length).toBe(1);
@@ -1323,7 +1323,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // and the partition correctly classifies the byte-copy. The bufferCapped
     // flag still rides through (it's set on the Acc before the emit-loop partition).
     const summary = makeDriftedSummary(1000, 1000, 700, 700, 0.6, 'CAP_BIND');
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 25 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 25 });
     const all = [...plan.rows, ...plan.passthroughCopies];
     expect(all.length).toBe(1);
     const r = all[0];
@@ -1340,7 +1340,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // (canonical clamp handles the buffer-induced overshoot; partition runs on
     // FINAL outW/outH at emit loop). bufferCapped is silent (NARROW; canonical only).
     const summary = makeCleanSummary(1000, 1.0, 'TRIANGLE_LIKE');
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 5 });
     expect(plan.rows.length).toBe(0);
     expect(plan.passthroughCopies.length).toBe(1);
     const r = plan.passthroughCopies[0];
@@ -1410,7 +1410,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 5 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 5 });
     // One deduped row from /fake/SHARED.png; winner = buffered max = 0.841 (post-safeScale).
     expect(plan.rows.length + plan.passthroughCopies.length).toBe(1);
     const r = (plan.rows[0] ?? plan.passthroughCopies[0]) as typeof plan.rows[number];
@@ -1429,7 +1429,7 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
     // BOTH axes use the SAME effScale (0.7); aspect of OUTPUT is 1:1 (canonical),
     // NOT 7:8 (per-axis would distort). This locks uniform-only under buffer.
     const summary = makeDriftedSummary(1000, 1000, 700, 800, 0.6, 'NONSQUARE');
-    const plan = buildExportPlan(summary, new Map(), { safetyBufferPercent: 25 });
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: 25 });
     expect(plan.rows.length).toBe(1);
     const r = plan.rows[0];
     expect(r.outW).toBe(700);
@@ -1492,8 +1492,8 @@ describe('buildExportPlan — Phase 30 BUFFER-01..03', () => {
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     for (const buf of [5, 25]) {
-      const corePlan = buildExportPlan(summary, new Map(), { safetyBufferPercent: buf });
-      const viewPlan = buildExportPlanView(summary, new Map(), { safetyBufferPercent: buf });
+      const corePlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: buf });
+      const viewPlan = buildExportPlanView(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json', safetyBufferPercent: buf });
       expect(viewPlan, `buffer=${buf}`).toEqual(corePlan);
     }
   });
@@ -1615,7 +1615,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // Phase 22.1 D-06: outW=811 ≠ sourceW=1628 → row goes to rows[] (resize), NOT passthroughCopies.
     // The new predicate `outW === sourceW` correctly identifies this as a resize operation.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.7);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
     expect(plan.passthroughCopies).toHaveLength(0);
     const row = plan.rows[0];
@@ -1628,7 +1628,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // 1000×1000 canonical, no actualSource, peakScale 0.5
     // sourceRatio = Infinity (dimsMismatch:false); cappedEffScale = 0.5
     const summary = makeNonDriftedSummary(1000, 1000, 0.5);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);
     expect(plan.passthroughCopies).toHaveLength(0);
     expect(plan.rows[0].outW).toBe(500); // ceil(1000 × 0.5)
@@ -1645,7 +1645,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     //
     // Phase 22.1 D-06: outW=500 ≠ sourceW=1000 → row goes to rows[] (resize), not passthrough.
     const summary = makeDriftedSummary(1000, 800, 500, 480, 0.9);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
     expect(plan.passthroughCopies).toHaveLength(0);
     const row = plan.rows[0];
@@ -1659,7 +1659,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // The old Phase 22 D-04 REVISED `dimsMismatch && (isCapped || peakAlreadyAtOrBelowSource)`
     // predicate has been superseded by the simpler `outW === sourceW` predicate.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.8);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);   // Phase 22.1 D-06: resize
     expect(plan.passthroughCopies).toHaveLength(0);
     // outW is still cap-clamped to actualSourceW (binding axis cap math preserved).
@@ -1674,7 +1674,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // The deleted `peakAlreadyAtOrBelowSource` branch previously sent this to passthrough;
     // the new predicate correctly identifies it as a resize.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.3);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize, not passthrough
     expect(plan.passthroughCopies).toHaveLength(0);
     // outW = ceil(1628 × 0.3) = 489 (peakScale < sourceRatio → effScale = peakScale, no cap)
@@ -1686,7 +1686,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // The binding axis (X) still ceils to actualSourceW by construction.
     // Row now goes to rows[] (resize) because outW=811 ≠ sourceW=1628.
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.9);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: now in rows[], not passthroughCopies.
     expect(plan.rows).toHaveLength(1);
     expect(plan.passthroughCopies).toHaveLength(0);
@@ -1706,7 +1706,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
     // Phase 22.1 D-06: cap-clamped row goes to resize, NOT passthrough.
     // (In the unified model where sourceW=actualSourceW=811, this would be passthrough.)
     const summary = makeDriftedSummary(1628, 1908, 811, 962, 0.5, 'OVERRIDE_DRIFTED');
-    const plan = buildExportPlan(summary, new Map([['OVERRIDE_DRIFTED', 100]]));
+    const plan = buildExportPlan(summary, new Map([['OVERRIDE_DRIFTED', 100]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);  // Phase 22.1 D-06: resize
     expect(plan.passthroughCopies).toHaveLength(0);
     expect(plan.rows[0].outW).toBe(811); // binding-axis cap, not canonicalW
@@ -1715,7 +1715,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
   it('atlas-extract path no cap: actualSourceW undefined → row in plan.rows[]', () => {
     // dimsMismatch:false, actualSourceW:undefined → sourceRatio=Infinity → no cap, no passthrough.
     const summary = makeNonDriftedSummary(1000, 1000, 0.7);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);
     expect(plan.passthroughCopies).toHaveLength(0);
   });
@@ -1801,7 +1801,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(2);         // A (drifted resize) + B (normal resize)
     expect(plan.passthroughCopies).toHaveLength(1);  // C (full-size, no resize needed)
     expect(plan.totals.count).toBe(plan.rows.length + plan.passthroughCopies.length);
@@ -1887,7 +1887,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // peakScale=0.9, no drift: outW = ceil(1000 * 0.9) = 900 ≠ 1000 -> resize rows[].
     const paths = plan.rows.map((r) => r.sourcePath);
     const sorted = [...paths].sort((a, b) => a.localeCompare(b));
@@ -1932,7 +1932,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const planND = buildExportPlan(nonDriftedSummary, new Map());
+    const planND = buildExportPlan(nonDriftedSummary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Non-drifted, peakScale=1.0 → effScale=1.0 → outW=811=sourceW → passthrough.
     expect(planND.passthroughCopies).toHaveLength(1);
     // actualSourceW/H carried to passthrough row.
@@ -1943,7 +1943,7 @@ describe('buildExportPlan — DIMS-03 cap formula + DIMS-04 passthrough partitio
   it('CHECKER FIX 2026-05-02 — non-passthrough ExportRow has undefined actualSourceW + actualSourceH', () => {
     // Non-drifted row → not passthrough → actualSource fields stay undefined.
     const summary = makeNonDriftedSummary(1000, 1000, 0.5);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);
     expect(plan.rows[0].actualSourceW).toBeUndefined();
     expect(plan.rows[0].actualSourceH).toBeUndefined();
@@ -2054,7 +2054,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     // outW = ceil(sourceW × 1.0) = sourceW → isPassthrough = true → passthroughCopies.
     // Phase 22 D-04 REVISED MISSED this case (dimsMismatch:false → isPassthrough:false).
     const summary = makeTriangleStyleSummary(833, 759, 1.0);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // G-04: generalized predicate catches peakScale=1.0× no-drift row as passthrough.
     expect(plan.passthroughCopies).toHaveLength(1);
     expect(plan.rows).toHaveLength(0);
@@ -2067,7 +2067,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
   it('G-04: peakScale < 1.0 non-drift row stays in rows[] (not passthrough)', () => {
     // peakScale = 0.5 → outW = ceil(833 × 0.5) = 417 ≠ 833 → NOT passthrough.
     const summary = makeTriangleStyleSummary(833, 759, 0.5);
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);
     expect(plan.passthroughCopies).toHaveLength(0);
   });
@@ -2083,12 +2083,12 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'BIGROW');
 
     // Baseline: no override → passthrough (peakScale 2.0 clamps to 1.0 → outW = sourceW).
-    const planNoOverride = buildExportPlan(summary, new Map());
+    const planNoOverride = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(planNoOverride.passthroughCopies).toHaveLength(1);
     expect(planNoOverride.rows).toHaveLength(0);
 
     // 25% override → effScale = 0.25 × 2.0 = 0.5 → outW = 500 ≠ sourceW → re-routes to rows[].
-    const plan25 = buildExportPlan(summary, new Map([['BIGROW', 25]]));
+    const plan25 = buildExportPlan(summary, new Map([['BIGROW', 25]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan25.rows, 'G-07: 25% override must route to rows[]').toHaveLength(1);
     expect(plan25.passthroughCopies, 'G-07: 25% override must leave passthroughCopies empty').toHaveLength(0);
     const resizedRow = plan25.rows[0];
@@ -2102,7 +2102,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     // clamped to 1.0 (canonical ceiling) → outW = ceil(1000 × 1.0) = 1000 = sourceW → passthrough.
     // 100% override is functionally equivalent to no-override under peak-anchored semantics.
     const summary = makeDriftedSummaryUnified(1000, 1000, 2.0, 'KEEPROW');
-    const plan = buildExportPlan(summary, new Map([['KEEPROW', 100]]));
+    const plan = buildExportPlan(summary, new Map([['KEEPROW', 100]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.passthroughCopies, 'G-07 reverse: 100% override keeps row in passthroughCopies').toHaveLength(1);
     expect(plan.rows).toHaveLength(0);
     expect(plan.passthroughCopies[0].outW).toBe(1000);
@@ -2120,17 +2120,17 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
     const summary = makeDriftedSummaryUnified(670, 670, 5.0, 'CAPROW');
 
     // Baseline (no override): passthrough.
-    const planBase = buildExportPlan(summary, new Map());
+    const planBase = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(planBase.passthroughCopies).toHaveLength(1);
     expect(planBase.rows).toHaveLength(0);
 
     // 100% override → passthrough preserved (clamps at canonical ceiling).
-    const plan100 = buildExportPlan(summary, new Map([['CAPROW', 100]]));
+    const plan100 = buildExportPlan(summary, new Map([['CAPROW', 100]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan100.passthroughCopies, 'G-07 cap+override: 100% override keeps passthrough').toHaveLength(1);
     expect(plan100.rows).toHaveLength(0);
 
     // 10% override → effScale = 0.5 → outW = 335 ≠ 670 → resize.
-    const plan10 = buildExportPlan(summary, new Map([['CAPROW', 10]]));
+    const plan10 = buildExportPlan(summary, new Map([['CAPROW', 10]]), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan10.rows, 'G-07 cap+override: 10% override routes to resize').toHaveLength(1);
     expect(plan10.passthroughCopies).toHaveLength(0);
   });
@@ -2169,7 +2169,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Phase 22.1 D-06: cap fires but outW=811 ≠ sourceW=1628 → rows[] (resize).
     expect(plan.rows).toHaveLength(1);
     expect(plan.passthroughCopies).toHaveLength(0);
@@ -2208,7 +2208,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
       regions: synthRegionsFromPeaks(peaks),
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     expect(plan.rows).toHaveLength(1);
     // isCapped must be absent (undefined) when cap doesn't fire.
     expect(plan.rows[0].isCapped).toBeUndefined();
@@ -2247,7 +2247,7 @@ describe('buildExportPlan — G-04 + G-07 partition restructure (Phase 22.1)', (
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const plan = buildExportPlan(summaryDrifted, new Map());
+    const plan = buildExportPlan(summaryDrifted, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     for (const row of allRows) {
       // effectiveScale is the SAME for both axes (D-110 invariant).
@@ -2394,7 +2394,7 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
 
     // POST-FLIP: override is keyed by regionName.
     const overrides = new Map<string, number>([['5/7', overridePct]]);
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     expect(allRows.length).toBe(1);
     const row = allRows[0];
@@ -2452,7 +2452,7 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
     // — regionName is '5/7', so this key does NOT bind, and the row exports
     // at peakScale (== 1.0 → passthrough at sourceW).
     const overrides = new Map<string, number>([['5/5/7/7', 1]]);
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     expect(allRows.length).toBe(1);
     const row = allRows[0];
@@ -2495,7 +2495,7 @@ describe('buildExportPlan — Phase 29 D-04 regionName-keyed override read', () 
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
     const overrides = new Map<string, number>([['CIRCLE', 25]]);
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     expect(allRows.length).toBe(1);
     const row = allRows[0];
@@ -2657,7 +2657,7 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
 
     // The cardinality lock: 4 region-keyed entries (not 2 attachment-name-deduped).
@@ -2704,7 +2704,7 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
     const overrides = new Map<string, number>([
       ['AVATAR/CARDS_L_HAND_1', 50],
     ]);
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
 
     // Cardinality unchanged — overrides don't change row count.
@@ -2835,7 +2835,7 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const plan = buildExportPlan(summary, new Map());
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
 
     // Single-skin cardinality matches both region count AND attachment count
@@ -2914,7 +2914,7 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
     // The Phase 35 contract: buildExportPlan produces ONE ExportRow per region.
     // Locks ROADMAP success criterion #1 (modal header 160; downstream of
     // plan.rows.length + plan.passthroughCopies.length).
-    const plan = buildExportPlan(summary, new Map(), undefined);
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const totalRows = plan.rows.length + plan.passthroughCopies.length;
     expect(totalRows).toBe(160);
 
@@ -2972,7 +2972,7 @@ describe('buildExportPlan — Phase 35 multi-skin region-keyed iteration (DEDUP-
     // loader mode. Atlas-less summaries have regions populated by analyzeRegions
     // identically to atlas-source — the iteration source in buildExportPlan
     // doesn't branch on mode.
-    const plan = buildExportPlan(summary, new Map(), undefined);
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const totalRows = plan.rows.length + plan.passthroughCopies.length;
     expect(totalRows).toBe(summary.regions.length);
 

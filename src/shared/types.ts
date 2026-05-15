@@ -476,6 +476,24 @@ export interface ExportRow {
  * (unused-by-sampler attachments are not exported).
  */
 export interface ExportPlan {
+  /**
+   * Absolute path of the loaded `.json` skeleton at plan-build time; the
+   * canonical source identity used to derive `{projectName}.atlas` +
+   * `{projectName}_N.png` filenames for atlas-mode output. Set by
+   * `buildExportPlan` from `BuildExportPlanOptions.skeletonPath`; required
+   * (not optional) so downstream consumers (`src/main/atlas-paths.ts`
+   * `deriveProjectName`) can rely on it without null checks.
+   *
+   * Added 2026-05-15 (debug session `atlas-repack-output-bugs` round 2)
+   * because the prior per-row `sourcePath`-basename heuristic in
+   * `deriveProjectName` was wrong in atlas-source mode: row 0's
+   * `sourcePath` carries a per-region PNG (e.g. `BEACHMAN/BODY.png`),
+   * not the skeleton's JSON path. That made the repacker name the output
+   * `BODY.atlas` instead of `JOKERMAN_SPINE_ROT.atlas`. The new field
+   * threads the skeleton identity from plan-build time straight through
+   * IPC to the atlas-writer without inference.
+   */
+  skeletonPath: string;
   rows: ExportRow[];
   excludedUnused: string[];
   /**

@@ -40,6 +40,11 @@ function makePlan(
   passthroughCopies: Array<Partial<ExportRow>> = [],
 ): ExportPlan {
   return {
+    // Round 2 (2026-05-15, debug `atlas-repack-output-bugs`): atlas-mode
+    // project naming now reads `plan.skeletonPath` basename as PRIMARY.
+    // Mirror FIXTURE_PNG's name (`SIMPLE_TEST`) onto a sibling .json so the
+    // existing `SIMPLE_TEST.atlas` + `SIMPLE_TEST*.png` sentinels stay valid.
+    skeletonPath: FIXTURE_PNG.replace(/\.png$/i, '.json'),
     rows: rows.map((r, i) => ({
       sourcePath: FIXTURE_PNG,
       // UAT round 2 (2026-05-15): the atlas region name is now derived
@@ -564,6 +569,7 @@ describe('runRepack — UAT bug 2: atlas rotation direction round-trips through 
     // WIDE because two 200-wide TALLs leave 624px on the row but WIDE's
     // un-rotated 900 doesn't fit; rotated to 200x900 it slots in beside.
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: sourceTallPath,
@@ -1142,7 +1148,7 @@ describeIfSkins('runRepack — UAT round 2: SKINS fixture sanity (gitignored)', 
       orphanedFiles: [],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
-    const plan = buildExportPlan(summary, new Map(), undefined);
+    const plan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const totalPlanned = plan.rows.length + plan.passthroughCopies.length;
     // Sanity: matches Test 4's expectation.
     expect(totalPlanned, 'plan.rows + passthroughCopies = total regions').toBe(160);
@@ -1270,6 +1276,7 @@ describe('runRepack — WR-06: passthrough preserves source-PNG pixel parity', (
     const sourceRgba = await sharp(sourcePath).raw().toBuffer();
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [
@@ -1362,6 +1369,7 @@ describe('runRepack — WR-02: rotation-prep loop honors cancellation', () => {
       },
     }).png().toFile(tallSourcePath);
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: tallSourcePath,
@@ -1522,6 +1530,7 @@ describe('runRepack — CR-01: atlas-source fallback (per-region PNG absent on d
     expect(fs.existsSync(ghostSourcePath)).toBe(false);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: ghostSourcePath,

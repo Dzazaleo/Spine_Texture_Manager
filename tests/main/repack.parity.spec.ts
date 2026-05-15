@@ -48,6 +48,7 @@ function makePlan(): ExportPlan {
   // same fixture + override set, so a single plan stands in for both runs
   // in the cross-loaderMode parity test.
   return {
+    skeletonPath: '/proj/test.json',
     rows: [
       {
         sourcePath: FIXTURE_PNG,
@@ -92,6 +93,7 @@ function makeDownscalePlan(): ExportPlan {
   // sharpen-on vs sharpen-off page PNGs would be SHA256-identical, making
   // the REPACK-09 "pixels differ" assertion vacuously fail.
   return {
+    skeletonPath: '/proj/test.json',
     rows: [
       {
         sourcePath: FIXTURE_PNG,
@@ -159,11 +161,14 @@ describe('REPACK-08 — cross-loaderMode parity', () => {
     rootA = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-parity-a-'));
     rootB = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-parity-b-'));
     // Stable per-run outDir basename so the test is self-documenting.
-    // After the 2026-05-15 deriveProjectName inversion (debug
-    // `atlas-repack-output-bugs`), the primary source is FIXTURE_PNG's
-    // basename (`SIMPLE_TEST.png` → `SIMPLE_TEST`) — outDir is only the
-    // fallback. Both runs see the same FIXTURE_PNG so they produce
-    // SIMPLE_TEST.atlas + SIMPLE_TEST.png on both sides regardless.
+    // After the 2026-05-15 round 2 refactor (debug
+    // `atlas-repack-output-bugs`), `deriveProjectName` reads
+    // `plan.skeletonPath` basename as PRIMARY; outDir is only the
+    // fallback. Both makePlan() calls share the same hard-coded
+    // skeletonPath (`/proj/test.json`) so both runs derive projectName
+    // `test` and produce byte-identical `test.atlas` + `test.png`
+    // outputs — the cross-loaderMode SHA256 parity assertion is
+    // therefore invariant of outDir basename.
     outA = path.join(rootA, 'SIMPLE_TEST');
     outB = path.join(rootB, 'SIMPLE_TEST');
     fs.mkdirSync(outA, { recursive: true });

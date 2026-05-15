@@ -111,7 +111,7 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     //   5. outH = ceil(canonicalH × 0.008) = ceil(428 × 0.008) = ceil(3.424) = 4
     const overrideFraction = 4 / canonicalW;
     const overrides = new Map<string, number>([['5/7', overrideFraction * 100]]);
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     const row = allRows.find((er) => er.attachmentNames.includes('5/7'));
     expect(row).toBeDefined();
@@ -361,7 +361,7 @@ describe('Phase 29 path-indirection regression — Chicken-Min fixture', () => {
     // Lock B.3: buildExportPlan reads overrides via row.regionName ?? row.attachmentName
     // (src/core/export.ts:187). Post-fix every selected region's ExportRow
     // gets the override applied; outW matches the canonical math.
-    const plan = buildExportPlan(synth, postBatchOverrides);
+    const plan = buildExportPlan(synth, postBatchOverrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
 
     for (const region of synth.regions) {

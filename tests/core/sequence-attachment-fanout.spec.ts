@@ -208,7 +208,7 @@ describeOrSkip('atlas-source mode — sequence fan-out via TEST_03.atlas', () =>
       regions,
       orphanedFiles: [],
     };
-    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     const p1ExportRows = allRows.filter((r) => /PARTICLES_1\/\d{2}\.png$/.test(r.sourcePath));
     const p2ExportRows = allRows.filter((r) => /PARTICLES_2\/\d{2}\.png$/.test(r.sourcePath));
@@ -261,7 +261,7 @@ describeOrSkip('atlas-less mode — sequence fan-out via fixture-local images sy
       regions,
       orphanedFiles: [],
     };
-    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     const p1Rows = allRows.filter((r) => /PARTICLES_1\/\d{2}\.png$/.test(r.sourcePath));
     const p2Rows = allRows.filter((r) => /PARTICLES_2\/\d{2}\.png$/.test(r.sourcePath));

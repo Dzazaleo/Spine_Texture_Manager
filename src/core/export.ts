@@ -74,6 +74,24 @@ import type {
 import { applyOverride } from './overrides.js';
 
 export interface BuildExportPlanOptions {
+  /**
+   * Absolute path of the loaded `.json` skeleton — threaded onto the
+   * returned `ExportPlan.skeletonPath` so atlas-mode output naming
+   * (`src/main/atlas-paths.ts` `deriveProjectName`) can read the
+   * canonical project identity without inferring it from a per-region
+   * row's sourcePath. REQUIRED (not optional): the renderer always knows
+   * the skeleton path at plan-build time (`summary.skeletonPath`), and
+   * making it required catches every call site at compile time so no
+   * pipeline silently falls back to the old broken heuristic.
+   *
+   * Added 2026-05-15 (debug `atlas-repack-output-bugs` round 2). The
+   * previous fix (commit `e82bc87`) attempted to read the JSON basename
+   * from `plan.rows[0].sourcePath`, but in atlas-source mode that row
+   * carries a per-attachment PNG path (e.g. `images/BEACHMAN/BODY.png`),
+   * not the skeleton JSON. Threading the path explicitly removes the
+   * ambiguity.
+   */
+  skeletonPath: string;
   /** Default false (D-109). Future Settings toggle path. */
   includeUnused?: boolean;
   /**
@@ -167,7 +185,7 @@ export function safeScale(s: number): number {
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  opts?: BuildExportPlanOptions,
+  opts: BuildExportPlanOptions,
 ): ExportPlan {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // The excluded set is now always empty — D-109 exclusion semantics are
@@ -242,7 +260,7 @@ export function buildExportPlan(
     // resolution + BEFORE the canonical ≤ 1.0 clamp. D-07 literal no-op when
     // bufferPct === 0 guarantees byte-identical pre-Phase-30 behavior.
     // Math order locked by CONTEXT D-09: raw → bufferedScale → clamp → cap.
-    const bufferPct = opts?.safetyBufferPercent ?? 0;
+    const bufferPct = opts.safetyBufferPercent ?? 0;
     const bufferedScale =
       bufferPct === 0 ? rawEffScale : rawEffScale * (1 + bufferPct / 100);
 
@@ -444,6 +462,7 @@ export function buildExportPlan(
   const excludedUnused = [...excluded].sort((a, b) => a.localeCompare(b));
 
   return {
+    skeletonPath: opts.skeletonPath,
     rows,
     excludedUnused,
     passthroughCopies,

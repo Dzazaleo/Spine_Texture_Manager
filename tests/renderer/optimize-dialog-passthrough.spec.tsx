@@ -70,6 +70,7 @@ function makePlan(opts: {
   passthroughCopies?: ExportRow[];
 }): ExportPlan {
   return {
+    skeletonPath: '/proj/test.json',
     rows: opts.rows ?? [],
     excludedUnused: [],
     passthroughCopies: opts.passthroughCopies ?? [],

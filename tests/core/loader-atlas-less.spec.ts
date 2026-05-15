@@ -158,7 +158,7 @@ describe('Phase 21 atlas-less round-trip (LOAD-01 + LOAD-04)', () => {
       regions,
       orphanedFiles: [], // Phase 24 Plan 01: unusedAttachments replaced
     };
-    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary as SkeletonSummary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
 
     // LOAD-04 assertions: plan is non-empty AND every row (in either partition)
     // references a real fixture PNG via sourcePath.

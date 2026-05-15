@@ -109,7 +109,7 @@ describe('buildExportPlan — rotated region canonical out dims (ATLAS-03)', () 
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     expect(allRows.length).toBe(1);
 
@@ -147,7 +147,7 @@ describe('buildExportPlan — rotated region canonical out dims (ATLAS-03)', () 
       orphanedFiles: [],
     } as unknown as SkeletonSummary;
 
-    const plan: ExportPlan = buildExportPlan(summary, new Map());
+    const plan: ExportPlan = buildExportPlan(summary, new Map(), { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const allRows = [...plan.rows, ...plan.passthroughCopies];
     const row = allRows[0];
     expect(row.atlasSource).toBeDefined();

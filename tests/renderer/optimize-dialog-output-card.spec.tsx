@@ -70,6 +70,7 @@ function makeRow(overrides: Partial<ExportRow> = {}): ExportRow {
 
 function makePlan(opts: { rows?: ExportRow[]; passthroughCopies?: ExportRow[] } = {}): ExportPlan {
   return {
+    skeletonPath: '/proj/test.json',
     rows: opts.rows ?? [makeRow()],
     excludedUnused: [],
     passthroughCopies: opts.passthroughCopies ?? [],

@@ -105,7 +105,7 @@ vi.mock('node:fs/promises', () => ({
 }));
 
 function buildEmptyPlan(): ExportPlan {
-  return { rows: [], excludedUnused: [], passthroughCopies: [], totals: { count: 0 } };
+  return { skeletonPath: '/proj/test.json', rows: [], excludedUnused: [], passthroughCopies: [], totals: { count: 0 } };
 }
 
 beforeEach(async () => {
@@ -229,6 +229,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
 
   it('rejects when outDir equals source images dir (F8.4)', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -267,6 +268,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
   // for the existence probe — so the export is permitted.
   it('Round 3: child-of-source-images-dir is now ALLOWED (folder-position-only guard relaxed)', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -314,6 +316,7 @@ describe('handleStartExport — D-115 / D-119 / D-122 / F8.4', () => {
     // Force an error on the first call (invalid out dir), then verify the
     // follow-up happy-path call is NOT rejected as 'already-running'.
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -387,6 +390,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -439,6 +443,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     });
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/proj/images/SAFE.png',
@@ -496,6 +501,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
     vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/proj/images/AVATAR/L_EYE.png',
@@ -545,6 +551,7 @@ describe('handleStartExport — Bug #4 source-vs-output collision (Gap-Fix Round
 
   it('does NOT false-reject a genuinely safe outDir (happy path stays GREEN)', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/proj/images/CIRCLE.png',
@@ -592,6 +599,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -629,6 +637,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
 
   it('probeExportConflicts returns empty list when no conflicts exist', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/proj/images/CIRCLE.png',
@@ -664,6 +673,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     vi.mocked(fsPromises.access).mockResolvedValueOnce(undefined as unknown as void);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/proj/images/CIRCLE.png',
@@ -695,6 +705,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     vi.mocked(fsPromises.access).mockResolvedValue(undefined as unknown as void);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -729,6 +740,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
 
   it('handleStartExport with overwrite=true AND conflicts → proceeds (per-row check bypassed)', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -758,6 +770,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
 
   it('handleStartExport rejects when outDir IS source-images-dir even with overwrite=true (hard-reject)', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -794,6 +807,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     // does not yet exist). Round-2 would have rejected for folder-position
     // alone; Round 3 must permit this case.
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/elsewhere/images/CIRCLE.png',
@@ -820,6 +834,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
 
   it('handleProbeExportConflicts hard-rejects when outDir IS source-images-dir', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/skel/images/CIRCLE.png',
@@ -864,6 +879,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
    */
   it('M-01: lastIndexOf parity — parent dir named "images" no longer false-positives the hard-reject', async () => {
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           // Parent layout: /Users/me/work/images/proj/images/CIRCLE.png.
@@ -931,6 +947,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     vi.mocked(fsPromises.access).mockRejectedValue(new Error('ENOENT'));
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           // sourcePath string would match resolvedOut (/skel/images/CIRCLE.png)
@@ -966,13 +983,19 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
    * against an outDir already containing those files skipped the
    * ConflictDialog and tripped runRepack's existence check at write time.
    *
-   * projectName is derived from the JSON / first-row sourcePath basename
+   * projectName is derived from `plan.skeletonPath` basename
    * (per `src/main/atlas-paths.ts:deriveProjectName`, precedence
-   * inverted 2026-05-15 — see debug session `atlas-repack-output-bugs`).
-   * These tests use sourcePath=`/proj/test_repack.json` so the derived
+   * refactored 2026-05-15 round 2 — see debug session
+   * `atlas-repack-output-bugs`). These tests set
+   * `plan.skeletonPath = '/proj/test_repack.json'` so the derived
    * projectName is `test_repack`, matching the canonical sentinels
    * /tmp/test_repack/test_repack.png + .atlas at outDir root.
    * Additional pages (2, 3, ...) are discovered via readdir.
+   *
+   * Pre-round-2 the test relied on the per-row `sourcePath` basename
+   * (commit `e82bc87`). Round 2 thread the skeleton path explicitly
+   * through the ExportPlan, which is more robust in atlas-source mode
+   * where row 0's sourcePath is a per-region PNG, not the JSON.
    */
   it('UAT Round 3 (atlas mode): surfaces {projectName}.png + .atlas at outDir root', async () => {
     const fsPromises = await import('node:fs/promises');
@@ -995,6 +1018,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     });
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test_repack.json',
       rows: [
         {
           sourcePath: '/proj/test_repack.json',
@@ -1056,6 +1080,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test_repack.json',
       rows: [
         {
           sourcePath: '/proj/test_repack.json',
@@ -1109,6 +1134,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
       throw new Error('ENOENT');
     });
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test_repack.json',
       rows: [
         {
           sourcePath: '/proj/test_repack.json',
@@ -1159,6 +1185,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
       throw new Error('ENOENT');
     });
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test_repack.json',
       rows: [
         {
           sourcePath: '/proj/test_repack.json',
@@ -1197,6 +1224,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     // Default access mock rejects with ENOENT; default readdir resolves
     // to []. No conflicts should surface.
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test_repack.json',
       rows: [
         {
           sourcePath: '/proj/test_repack.json',

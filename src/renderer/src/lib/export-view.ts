@@ -51,6 +51,19 @@ import type {
 import { applyOverride, clampOverride } from './overrides-view.js';
 
 export interface BuildExportPlanOptions {
+  /**
+   * Absolute path of the loaded `.json` skeleton — threaded onto the
+   * returned `ExportPlan.skeletonPath` so atlas-mode output naming
+   * (`src/main/atlas-paths.ts` `deriveProjectName`) can read the
+   * canonical project identity without inferring it from a per-region
+   * row's sourcePath. REQUIRED (not optional): the renderer always knows
+   * the skeleton path at plan-build time (`summary.skeletonPath`), and
+   * making it required catches every call site at compile time so no
+   * pipeline silently falls back to the old broken heuristic.
+   *
+   * Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
+   */
+  skeletonPath: string;
   /** Default false (D-109). Future Settings toggle path. */
   includeUnused?: boolean;
   /**
@@ -264,7 +277,7 @@ export function computeExportDims(
 export function buildExportPlan(
   summary: SkeletonSummary,
   overrides: ReadonlyMap<string, number>,
-  opts?: BuildExportPlanOptions,
+  opts: BuildExportPlanOptions,
 ): ExportPlan {
   // Phase 24 Plan 01: unusedAttachments removed from SkeletonSummary.
   // excluded set now always empty; Plan 02 wires new exclusion surface.
@@ -332,7 +345,7 @@ export function buildExportPlan(
     // bufferPct === 0 guarantees byte-identical pre-Phase-30 behavior.
     // Math order locked by CONTEXT D-09: raw → bufferedScale → clamp → cap.
     // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
-    const bufferPct = opts?.safetyBufferPercent ?? 0;
+    const bufferPct = opts.safetyBufferPercent ?? 0;
     const bufferedScale =
       bufferPct === 0 ? rawEffScale : rawEffScale * (1 + bufferPct / 100);
 
@@ -532,6 +545,7 @@ export function buildExportPlan(
   const excludedUnused = [...excluded].sort((a, b) => a.localeCompare(b));
 
   return {
+    skeletonPath: opts.skeletonPath,
     rows,
     excludedUnused,
     passthroughCopies,

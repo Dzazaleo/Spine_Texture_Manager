@@ -63,6 +63,7 @@ vi.mock('node:fs/promises', () => ({
 
 function buildPlan(rows: number): ExportPlan {
   return {
+    skeletonPath: '/proj/test.json',
     rows: Array.from({ length: rows }, (_, i) => ({
       sourcePath: `/src/img${i}.png`,
       outPath: `images/img${i}.png`,
@@ -397,6 +398,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
     });
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/elsewhere/SAFE0.png',
@@ -454,6 +456,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
     // pipeline (mocked to succeed). All 3 rows succeed; no errors.
     const collidingFile = path.join(tmpDir, 'images', 'COLLIDE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: '/elsewhere/SAFE0.png',
@@ -527,6 +530,7 @@ describe('runExport — Bug #4 defense-in-depth per-row overwrite-source (Gap-Fi
     });
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [
         {
           sourcePath: collidingFile,

@@ -59,6 +59,7 @@ describe('runExport — rotated atlas region extract (Phase 33 D-03)', () => {
     // the worker falls into the atlasSource extract path.
     const syntheticPerRegionPath = path.join(tmpDir, 'src', `${FIXTURE_REGION_NAME}.png`);
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{
@@ -105,6 +106,7 @@ describe('runExport — rotated atlas region extract (Phase 33 D-03)', () => {
 
     const syntheticPerRegionPath = path.join(tmpDir, 'src', `${FIXTURE_REGION_NAME}.png`);
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath: syntheticPerRegionPath,
         outPath: `images/${FIXTURE_REGION_NAME}.png`,
@@ -159,6 +161,7 @@ describe('runExport — rotated atlas region extract (Phase 33 D-03)', () => {
 
     const syntheticPerRegionPath = path.join(tmpDir, 'src', `${FIXTURE_REGION_NAME}.png`);
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{
@@ -243,6 +246,7 @@ describe('runExport — rotated atlas extract bounds (extract_area regression)',
 
     const syntheticPerRegionPath = path.join(tmpDir, 'src', 'rect.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath: syntheticPerRegionPath,
         outPath: 'images/rect.png',

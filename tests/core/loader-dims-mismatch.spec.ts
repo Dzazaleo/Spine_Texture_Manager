@@ -102,6 +102,7 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
     const plan: ExportPlan = buildExportPlan(
       summary as SkeletonSummary,
       new Map(),
+      { skeletonPath: '/tmp/SIMPLE_TEST.json' },
     );
 
     // R7 mitigation — read fixture file count dynamically; never hardcode.
@@ -143,6 +144,7 @@ describe('Phase 22 DIMS-05 round-trip — already-optimized images', () => {
     const plan: ExportPlan = buildExportPlan(
       summary as SkeletonSummary,
       new Map(),
+      { skeletonPath: '/tmp/SIMPLE_TEST.json' },
     );
     // Under Phase 22.1, all drifted-halved rows go to rows[].
     const allRows = [...plan.rows, ...plan.passthroughCopies];

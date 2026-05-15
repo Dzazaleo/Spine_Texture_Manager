@@ -785,6 +785,7 @@ export function AppShell({
     // dialog's summary tiles reflect the user's current setting on open.
     // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
     const plan = buildExportPlan(summary, activeOverrides, {
+      skeletonPath: summary.skeletonPath,
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState({ plan, outDir: lastOutDir });
@@ -934,6 +935,7 @@ export function AppShell({
     // pick-different reflects the user's current setting.
     // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
     const plan = buildExportPlan(summary, activeOverrides, {
+      skeletonPath: summary.skeletonPath,
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState({ plan, outDir: newOutDir });
@@ -1070,6 +1072,7 @@ export function AppShell({
     // reflects the user's current buffer setting reactively.
     // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
     const plan = buildExportPlan(effectiveSummary, activeOverrides, {
+      skeletonPath: effectiveSummary.skeletonPath,
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     if (plan.rows.length === 0) return null;
@@ -1203,6 +1206,7 @@ export function AppShell({
     if (exportDialogState === null) return;
     // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
     const plan = buildExportPlan(summary, activeOverrides, {
+      skeletonPath: summary.skeletonPath,
       safetyBufferPercent: safetyBufferPercentLocal,
     });
     setExportDialogState((prev) => (prev !== null ? { ...prev, plan } : null));

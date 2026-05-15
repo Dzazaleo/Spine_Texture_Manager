@@ -91,6 +91,11 @@ function makePlan(): ExportPlan {
   // single atlas page PNG to each row's outW×outH, which is the canonical
   // test idiom used by tests/main/repack-worker.spec.ts:28-78.
   return {
+    // Round 2 (2026-05-15, debug `atlas-repack-output-bugs`): atlas-mode
+    // project naming now reads `plan.skeletonPath` basename as PRIMARY.
+    // Mirror FIXTURE_PNG's name (`SIMPLE_TEST`) onto a sibling .json so the
+    // existing `SIMPLE_TEST.atlas` baseline byte-identity holds.
+    skeletonPath: FIXTURE_PNG.replace(/\.png$/i, '.json'),
     rows: [
       {
         sourcePath: FIXTURE_PNG,
@@ -135,11 +140,12 @@ describe('REPACK-01 — Loose-mode SHA256 byte-identity (strictest phase gate)',
   beforeAll(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-loose-parity-'));
     // Use a deterministic outDir name so the test is self-documenting; the
-    // actual projectName derivation (2026-05-15 inversion — debug
-    // `atlas-repack-output-bugs`) reads the FIXTURE_PNG basename
-    // (`SIMPLE_TEST.png`) first and falls back to outDir basename only if
-    // sourcePath is unusable. Either source yields `SIMPLE_TEST` here, so
-    // SHA256 baselines round-trip regardless of precedence.
+    // actual projectName derivation (2026-05-15 round 2 refactor — debug
+    // `atlas-repack-output-bugs`) reads `plan.skeletonPath` basename first
+    // and falls back to outDir basename only if skeletonPath is missing.
+    // makePlan above sets skeletonPath = FIXTURE_PNG.replace(/\.png$/, '.json')
+    // so both sources yield `SIMPLE_TEST` here and SHA256 baselines round-trip
+    // regardless of precedence.
     outDir = path.join(tmpRoot, 'SIMPLE_TEST');
     fs.mkdirSync(outDir, { recursive: true });
   });

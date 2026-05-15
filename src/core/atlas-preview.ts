@@ -203,7 +203,7 @@ function deriveInputs(
     //
     // Phase 30 BUFFER-01: thread the buffer into buildExportPlan so the
     // optimized-mode page count / tile dims reflect the current setting.
-    const plan = buildExportPlan(summary, overrides, { safetyBufferPercent });
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: summary.skeletonPath, safetyBufferPercent });
     const out: AtlasPreviewInput[] = [];
     for (const row of [...plan.rows, ...plan.passthroughCopies]) {
       // ExportRow is region-keyed via sourcePath. row.attachmentNames[] is the

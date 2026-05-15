@@ -43,6 +43,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
     const sourcePath = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     expect(fs.existsSync(sourcePath), `fixture missing: ${sourcePath}`).toBe(true);
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{
@@ -69,6 +70,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
   it('byte-identical: Buffer.compare returns 0 (no Lanczos pipeline ran)', async () => {
     const sourcePath = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{
@@ -93,6 +95,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
   it('R4 atomic-write: tmpPath does NOT exist after rename', async () => {
     const sourcePath = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [{
@@ -124,6 +127,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
     fs.copyFileSync(path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png'), sourcePath);
     try {
       const plan: ExportPlan = {
+        skeletonPath: '/proj/test.json',
         rows: [],
         excludedUnused: [],
         passthroughCopies: [{
@@ -154,6 +158,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
   it('mixed plan: passthroughCopies fire FIRST then rows; progress events carry absolute index', async () => {
     const sourcePath = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       // Resize row will produce a 350×350 file via Lanczos.
       rows: [{
         sourcePath,
@@ -193,6 +198,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
   it('cooperative cancel: isCancelled() between passthrough rows breaks the loop', async () => {
     const sourcePath = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [
@@ -220,6 +226,7 @@ describe('image-worker — DIMS-04 passthrough byte-copy (Phase 22)', () => {
   it('missing source PNG yields error; subsequent passthrough rows still process', async () => {
     const realSource = path.resolve('fixtures/EXPORT_PROJECT/images/CIRCLE.png');
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [],
       excludedUnused: [],
       passthroughCopies: [

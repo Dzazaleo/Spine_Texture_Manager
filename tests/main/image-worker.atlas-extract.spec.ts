@@ -59,6 +59,7 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
     ).toBe(false);
 
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath: syntheticPerRegionPath,
         outPath: 'images/AVATAR/L_EYE.png',
@@ -119,6 +120,7 @@ describe('runExport — Gap-Fix #2 atlas-extract integration (Jokerman fixture)'
     // the synthetic per-region path would mislead users into looking for a
     // file that was never supposed to exist.
     const plan: ExportPlan = {
+      skeletonPath: '/proj/test.json',
       rows: [{
         sourcePath: '/nonexistent/per-region.png',
         outPath: 'images/MISSING.png',

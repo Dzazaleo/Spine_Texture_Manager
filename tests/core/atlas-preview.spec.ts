@@ -191,7 +191,7 @@ describe('buildAtlasPreview — case (c) Override 25% on TRIANGLE (D-125 + D-111
       maxPageDim: 2048,
     });
     // The exact outW/outH come from buildExportPlan — that's the contract (D-125).
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     const planRow = plan.rows.find((r) => r.attachmentNames.includes('TRIANGLE'));
     expect(planRow).toBeDefined();
     const region = projection.pages
@@ -310,7 +310,7 @@ describe('buildAtlasPreview — case (g) Optimized dims match Phase 6 D-110 ceil
       mode: 'optimized',
       maxPageDim: 2048,
     });
-    const plan = buildExportPlan(summary, overrides);
+    const plan = buildExportPlan(summary, overrides, { skeletonPath: '/tmp/SIMPLE_TEST.json' });
     // Look up in BOTH rows and passthroughCopies — buildExportPlan partitions
     // scale=1.0× (no-resize) rows into passthroughCopies, but they still need
     // to appear in the optimized atlas preview so the user sees their atlas
