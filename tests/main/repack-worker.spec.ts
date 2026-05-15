@@ -468,6 +468,193 @@ describe('runRepack — REPACK-10 atomic-or-fail', () => {
   });
 });
 
+describe('runRepack — UAT bug 2: atlas rotation direction round-trips through spine READ', () => {
+  it('rotated region bytes on the page, after spine READ rotation (+90 CCW), restore canonical corners', async () => {
+    // UAT bug 2: user reported faces rendering upside-down (180 deg net) on
+    // atlas pages after Phase 40 was written. Root cause: repack-worker used
+    // sharp.rotate(+90) for the canonical->atlas WRITE direction. Phase 33
+    // empirically verified that sharp.rotate(+90) is the spine READ inverse
+    // (atlas->canonical), so applying it on WRITE produces bytes that the
+    // spine runtime then rotates AGAIN on read = 180 deg upside-down.
+    //
+    // The correct WRITE direction is sharp.rotate(-90). Verified empirically
+    // by scripts/probe-sharp-rotate-write.mjs:
+    //   WRITE rotate(-90) -> READ rotate(+90) = canonical restored.
+    //
+    // This test composites a distinguishable-corner source as a SINGLE
+    // rotated region into a page, then applies the spine runtime's READ
+    // rotation (rotate(+90)) and asserts the corners match canonical. If
+    // the worker ever regresses to the wrong WRITE direction the corner
+    // colors will scramble and this test fails.
+    //
+    // To force the packer to rotate ONE specific region, pack two TALL
+    // 200x900 regions THEN a WIDE 900x200 region into a 1024 cap. Empirically
+    // (probe in vitest dev shell): packer rotates the WIDE one because its
+    // un-rotated 900-wide footprint cannot fit beside two 200-wide TALLs
+    // (200+200+900 = 1300 > 1024-padding), but rotated to 200-wide it slots
+    // in. We dye WIDE corners distinctly; the TALLs are filler.
+    const sourceWidePath = path.join(tmpDir, 'WIDE.png');
+    const sourceTallPath = path.join(tmpDir, 'TALL.png');
+    // WIDE canonical: 900w x 200h with distinguishable corners.
+    const wideW = 900;
+    const wideH = 200;
+    const wideBuf = Buffer.alloc(wideW * wideH * 4, 0);
+    function setPx(buf: Buffer, w: number, x: number, y: number, rgba: number[]) {
+      const i = (y * w + x) * 4;
+      buf[i] = rgba[0];
+      buf[i + 1] = rgba[1];
+      buf[i + 2] = rgba[2];
+      buf[i + 3] = rgba[3];
+    }
+    // Fill WIDE with mid-gray; mark corners with distinct colors.
+    for (let i = 0; i < wideBuf.length; i += 4) {
+      wideBuf[i] = 128;
+      wideBuf[i + 1] = 128;
+      wideBuf[i + 2] = 128;
+      wideBuf[i + 3] = 255;
+    }
+    setPx(wideBuf, wideW, 0, 0, [255, 0, 0, 255]);
+    setPx(wideBuf, wideW, wideW - 1, 0, [0, 255, 0, 255]);
+    setPx(wideBuf, wideW, 0, wideH - 1, [0, 0, 255, 255]);
+    setPx(wideBuf, wideW, wideW - 1, wideH - 1, [255, 255, 255, 255]);
+    await sharp(wideBuf, {
+      raw: { width: wideW, height: wideH, channels: 4 },
+    })
+      .png()
+      .toFile(sourceWidePath);
+    // TALL filler: 200x900, no need for distinct corners (we only assert
+    // on the WIDE region's rotated bytes).
+    await sharp({
+      create: {
+        width: 200,
+        height: 900,
+        channels: 4,
+        background: { r: 60, g: 60, b: 60, alpha: 1 },
+      },
+    })
+      .png()
+      .toFile(sourceTallPath);
+    // Plan: 2x TALL filler (200x900) + 1x WIDE (900x200). Packer rotates
+    // WIDE because two 200-wide TALLs leave 624px on the row but WIDE's
+    // un-rotated 900 doesn't fit; rotated to 200x900 it slots in beside.
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: sourceTallPath,
+          outPath: 'images/TALL_A.png',
+          sourceW: 200,
+          sourceH: 900,
+          outW: 200,
+          outH: 900,
+          effectiveScale: 1.0,
+          attachmentNames: ['TALL_A'],
+        },
+        {
+          sourcePath: sourceTallPath,
+          outPath: 'images/TALL_B.png',
+          sourceW: 200,
+          sourceH: 900,
+          outW: 200,
+          outH: 900,
+          effectiveScale: 1.0,
+          attachmentNames: ['TALL_B'],
+        },
+        {
+          sourcePath: sourceWidePath,
+          outPath: 'images/WIDE.png',
+          sourceW: wideW,
+          sourceH: wideH,
+          outW: wideW,
+          outH: wideH,
+          effectiveScale: 1.0,
+          attachmentNames: ['WIDE'],
+        },
+      ] as ExportRow[],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 3 },
+    };
+    const opts: AtlasOpts = {
+      maxPageSize: 1024,
+      allowRotation: true,
+      padding: 2,
+    };
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      opts,
+      written,
+    );
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    // Find the `WIDE` block — empirically the packer rotates it under
+    // the 2x TALL + 1x WIDE @ 1024 maxPage configuration.
+    const rotatedBlock = atlasText.match(
+      /^WIDE\nbounds:(\d+),(\d+),(\d+),(\d+)\nrotate:true/m,
+    );
+    expect(
+      rotatedBlock,
+      'WIDE region must be rotated under maxPageSize=1024 + allowRotation=true ' +
+        '(probed empirically against maxrects-packer); if this is null the ' +
+        "packer heuristic changed and the test fixture needs adjustment",
+    ).not.toBeNull();
+    if (!rotatedBlock) return;
+    const x = parseInt(rotatedBlock[1], 10);
+    const y = parseInt(rotatedBlock[2], 10);
+    const w = parseInt(rotatedBlock[3], 10);
+    const h = parseInt(rotatedBlock[4], 10);
+    // Post-rotation dims on the page: w/h are SWAPPED from canonical.
+    // canonical WIDE is 900w x 200h => packed bounds emit 200w x 900h.
+    expect([w, h], 'packed bounds are post-rotation = (wideH, wideW)').toEqual([
+      wideH,
+      wideW,
+    ]);
+
+    // Extract the rotated region bytes from the page.
+    const pagePath = result.pageFiles[0];
+    const rotatedBytes = await sharp(pagePath)
+      .extract({ left: x, top: y, width: w, height: h })
+      .png()
+      .toBuffer();
+
+    // Apply spine runtime READ rotation: sharp.rotate(+90) restores canonical
+    // per scripts/probe-sharp-rotate.mjs (Phase 33 verdict). Dims after read:
+    // (wideW, wideH) restored.
+    const readBack = await sharp(rotatedBytes)
+      .rotate(90)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(readBack.info.width).toBe(wideW);
+    expect(readBack.info.height).toBe(wideH);
+    function getPx(buf: Buffer, ww: number, xx: number, yy: number): [number, number, number, number] {
+      const i = (yy * ww + xx) * 4;
+      return [buf[i], buf[i + 1], buf[i + 2], buf[i + 3]];
+    }
+    function nameOf(rgba: [number, number, number, number]): string {
+      const [r, g, b] = rgba;
+      if (r > 200 && g < 50 && b < 50) return 'RED';
+      if (r < 50 && g > 200 && b < 50) return 'GREEN';
+      if (r < 50 && g < 50 && b > 200) return 'BLUE';
+      if (r > 200 && g > 200 && b > 200) return 'WHITE';
+      return `rgba(${r},${g},${b})`;
+    }
+    const tl = nameOf(getPx(readBack.data, wideW, 0, 0));
+    const tr = nameOf(getPx(readBack.data, wideW, wideW - 1, 0));
+    const bl = nameOf(getPx(readBack.data, wideW, 0, wideH - 1));
+    const br = nameOf(getPx(readBack.data, wideW, wideW - 1, wideH - 1));
+    expect({ tl, tr, bl, br }).toEqual({
+      tl: 'RED',
+      tr: 'GREEN',
+      bl: 'BLUE',
+      br: 'WHITE',
+    });
+  });
+});
+
 describe('runRepack — UAT bug 1: dedup repackInputs by regionName', () => {
   it('emits ONE pack entry per unique regionName even when N skeletons share the same source PNG', async () => {
     // UAT repro: 6 skeletons each declaring AVATAR/BODY → 6 rows with the same

@@ -9,11 +9,16 @@
  *      non-empty, throw the locked REPACK-10 error string BEFORE any file
  *      write. Atomic-or-fail at the pre-flight gate.
  *   4. For each rotated region (region.rotated === true), apply materialize-
- *      then-reload sharp(buf).rotate(90).png().toBuffer() per RESEARCH §
+ *      then-reload sharp(buf).rotate(-90).png().toBuffer() per RESEARCH §
  *      "Pipeline fusion landmine" (libvips reorders extract→resize→extend→
  *      composite→post-extract regardless of chain order; rotation needs a
- *      buffer boundary). sharp.rotate(+90) is CCW per Phase 33 empirical
- *      verification (RESEARCH §Landmines #2 + image-worker.ts:308-315 docblock).
+ *      buffer boundary). UAT bug 2 (2026-05-15): the WRITE direction is
+ *      sharp.rotate(-90), NOT rotate(+90). Phase 33's empirical claim of
+ *      "+90 is CCW" was about the READ direction (atlas→canonical, applied
+ *      by spine runtime); the WRITE direction (canonical→atlas) is the
+ *      inverse. Empirically verified by scripts/probe-sharp-rotate-write.mjs
+ *      + tests/main/repack-worker.spec.ts "UAT bug 2: atlas rotation
+ *      direction round-trips through spine READ".
  *   5. For each page, sharp { create: ... }.composite(layers).png().toFile(
  *      pagePath.tmp), rename to pagePath. Both paths registered in
  *      writtenPaths BEFORE toFile per RESEARCH §Landmines #7+#8.
@@ -201,12 +206,19 @@ export async function runRepack(
   // extend → composite → post-extract). To rotate a region BEFORE compositing
   // it onto a page canvas we need a buffer boundary, otherwise libvips fuses
   // the rotation into the wrong slot and the page render is wrong.
-  // sharp.rotate(+90) is empirically CCW per Phase 33 (RESEARCH §Landmines #2).
+  //
+  // UAT bug 2 (2026-05-15): the WRITE direction is sharp.rotate(-90).
+  // Phase 33's "+90 is CCW" claim was about the READ direction the spine
+  // runtime applies (atlas→canonical); the WRITE direction is its inverse.
+  // Confirmed by scripts/probe-sharp-rotate-write.mjs:
+  //   WRITE rotate(-90) → READ rotate(+90) restores canonical corners.
+  // Pre-fix (rotate(+90) on WRITE): page bytes were rotated 90° in the same
+  // direction the runtime later rotates → 180° net → upside-down faces.
   for (const region of packResult.regions) {
     if (region.rotated) {
       const orig = regionBuffers.get(region.regionName);
       if (!orig) continue;
-      const rotated = await sharp(orig).rotate(90).png().toBuffer();
+      const rotated = await sharp(orig).rotate(-90).png().toBuffer();
       regionBuffers.set(region.regionName, rotated);
     }
   }
