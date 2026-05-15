@@ -96,6 +96,11 @@ vi.mock('../../src/main/repack-worker.js', () => ({
 vi.mock('node:fs/promises', () => ({
   access: vi.fn().mockRejectedValue(new Error('ENOENT')),
   rm: vi.fn().mockResolvedValue(undefined),
+  // UAT Round 3 (2026-05-15) — readdir is used by the atlas-mode probe to
+  // discover {projectName}_<N>.png pages (N >= 2). Default: empty
+  // directory (no multi-page entries). Tests that need multi-page
+  // conflicts override with vi.mocked(fsPromises.readdir).mockResolvedValueOnce.
+  readdir: vi.fn().mockResolvedValue([]),
   constants: { F_OK: 0, R_OK: 4 },
 }));
 
@@ -117,6 +122,9 @@ beforeEach(async () => {
   // Phase 40 D-04a — reset rm + runRepack + runExport impls so REPACK-10
   // throw-rigging in one test does not leak into a subsequent test.
   vi.mocked(fsPromises.rm).mockReset().mockResolvedValue(undefined);
+  // UAT Round 3 (2026-05-15) — reset readdir to empty-directory default
+  // so multi-page atlas tests do not bleed into adjacent tests.
+  vi.mocked(fsPromises.readdir).mockReset().mockResolvedValue([]);
   const imageWorker = await import('../../src/main/image-worker.js');
   vi.mocked(imageWorker.runExport).mockReset().mockResolvedValue({
     successes: 0,
@@ -948,6 +956,271 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     expect(probe.ok).toBe(true);
     if (probe.ok) {
       expect(probe.conflicts).toEqual([]);
+    }
+  });
+
+  /**
+   * UAT Round 3 (2026-05-15) — atlas-mode probe targets `{projectName}.png`
+   * + `{projectName}_<N>.png` + `{projectName}.atlas` at outDir root.
+   * Pre-Round-3 the probe was loose-only blind: re-running an atlas export
+   * against an outDir already containing those files skipped the
+   * ConflictDialog and tripped runRepack's existence check at write time.
+   *
+   * projectName is derived from `basename(resolve(outDir))` (per
+   * `src/main/atlas-paths.ts:deriveProjectName`), so for outDir
+   * `/tmp/test_repack` the canonical sentinels are:
+   *   /tmp/test_repack/test_repack.png
+   *   /tmp/test_repack/test_repack.atlas
+   * Additional pages (2, 3, ...) are discovered via readdir.
+   */
+  it('UAT Round 3 (atlas mode): surfaces {projectName}.png + .atlas at outDir root', async () => {
+    const fsPromises = await import('node:fs/promises');
+    // Atlas mode: only the outDir-root atlas targets exist on disk; the
+    // per-row loose paths are NOT probed in atlas-only mode, so they
+    // never need to be mocked.
+    //
+    // The probe checks 3 paths (page 0 PNG + atlas text + per-row loose,
+    // but per-row is skipped in atlas mode). Use a default impl that
+    // resolves for atlas sentinels and rejects for anything else.
+    vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
+      const pathStr = typeof p === 'string' ? p : String(p);
+      if (
+        pathStr.endsWith('test_repack/test_repack.png') ||
+        pathStr.endsWith('test_repack/test_repack.atlas')
+      ) {
+        return undefined as unknown as void;
+      }
+      throw new Error('ENOENT');
+    });
+
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+
+    const result = await handleProbeExportConflicts(
+      plan,
+      '/tmp/test_repack',
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Both atlas-mode sentinels appear in the conflicts list.
+      expect(result.conflicts).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('test_repack.png'),
+          expect.stringContaining('test_repack.atlas'),
+        ]),
+      );
+      // Loose-mode per-row paths must NOT appear (atlas-only mode).
+      expect(
+        result.conflicts.some((c) => c.endsWith('images/CIRCLE.png')),
+      ).toBe(false);
+    }
+  });
+
+  it('UAT Round 3 (atlas mode): discovers multi-page {projectName}_<N>.png via readdir', async () => {
+    const fsPromises = await import('node:fs/promises');
+    // Atlas page 0 sentinel + 2 multi-page entries on disk.
+    vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
+      const pathStr = typeof p === 'string' ? p : String(p);
+      if (pathStr.endsWith('test_repack.png')) {
+        return undefined as unknown as void;
+      }
+      // .atlas not present in this test — exercise the partial-collision case.
+      throw new Error('ENOENT');
+    });
+    // readdir returns page 2 + page 3 entries, plus an unrelated file
+    // (skipped — does not match the {projectName}_<N>.png pattern).
+    vi.mocked(fsPromises.readdir).mockResolvedValueOnce([
+      'test_repack.png',
+      'test_repack_2.png',
+      'test_repack_3.png',
+      'README.txt',
+      'other_project_5.png',
+    ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
+
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+
+    const result = await handleProbeExportConflicts(
+      plan,
+      '/tmp/test_repack',
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // page 0 + page 2 + page 3 surfaced; unrelated files filtered out.
+      expect(result.conflicts.some((c) => c.endsWith('test_repack.png'))).toBe(true);
+      expect(result.conflicts.some((c) => c.endsWith('test_repack_2.png'))).toBe(true);
+      expect(result.conflicts.some((c) => c.endsWith('test_repack_3.png'))).toBe(true);
+      // Unrelated multi-page file under a different basename MUST NOT match.
+      expect(result.conflicts.some((c) => c.endsWith('other_project_5.png'))).toBe(false);
+      // Non-PNG file MUST NOT match.
+      expect(result.conflicts.some((c) => c.endsWith('README.txt'))).toBe(false);
+    }
+  });
+
+  it('UAT Round 3 (loose mode): atlas-root sentinels NOT surfaced when outputMode=loose', async () => {
+    const fsPromises = await import('node:fs/promises');
+    // Pretend BOTH the atlas sentinels exist on disk, but outputMode=loose.
+    // The probe must skip atlas-mode derivation entirely; loose-mode per-row
+    // paths under outDir/images/ are the only thing checked.
+    vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
+      const pathStr = typeof p === 'string' ? p : String(p);
+      if (
+        pathStr.endsWith('test_repack/test_repack.png') ||
+        pathStr.endsWith('test_repack/test_repack.atlas')
+      ) {
+        return undefined as unknown as void;
+      }
+      // Per-row loose path does not exist → no conflict.
+      throw new Error('ENOENT');
+    });
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+
+    const result = await handleProbeExportConflicts(
+      plan,
+      '/tmp/test_repack',
+      'loose',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Atlas sentinels MUST NOT appear in loose-mode probe.
+      expect(
+        result.conflicts.some(
+          (c) => c.endsWith('test_repack.png') || c.endsWith('test_repack.atlas'),
+        ),
+      ).toBe(false);
+      expect(result.conflicts).toEqual([]);
+    }
+  });
+
+  it('UAT Round 3 (both mode): surfaces atlas sentinels AND loose per-row collisions', async () => {
+    const fsPromises = await import('node:fs/promises');
+    // BOTH the atlas sentinels AND the loose per-row path exist on disk.
+    vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
+      const pathStr = typeof p === 'string' ? p : String(p);
+      if (
+        pathStr.endsWith('test_repack/test_repack.png') ||
+        pathStr.endsWith('test_repack/test_repack.atlas') ||
+        pathStr.endsWith('test_repack/images/CIRCLE.png')
+      ) {
+        return undefined as unknown as void;
+      }
+      throw new Error('ENOENT');
+    });
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+
+    const result = await handleProbeExportConflicts(
+      plan,
+      '/tmp/test_repack',
+      'both',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // All three present.
+      expect(result.conflicts.some((c) => c.endsWith('test_repack.png'))).toBe(true);
+      expect(result.conflicts.some((c) => c.endsWith('test_repack.atlas'))).toBe(true);
+      expect(result.conflicts.some((c) => c.endsWith('images/CIRCLE.png'))).toBe(
+        true,
+      );
+    }
+  });
+
+  it('UAT Round 3 (atlas mode): empty outDir → empty conflicts (no false positives)', async () => {
+    // Default access mock rejects with ENOENT; default readdir resolves
+    // to []. No conflicts should surface.
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: '/proj/images/CIRCLE.png',
+          outPath: 'images/CIRCLE.png',
+          sourceW: 64,
+          sourceH: 64,
+          outW: 32,
+          outH: 32,
+          effectiveScale: 0.5,
+          attachmentNames: ['CIRCLE'],
+        },
+      ],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 1 },
+    };
+    const result = await handleProbeExportConflicts(
+      plan,
+      '/tmp/test_repack',
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.conflicts).toEqual([]);
     }
   });
 });

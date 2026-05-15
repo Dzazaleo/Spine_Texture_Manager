@@ -361,4 +361,123 @@ describe('OptimizeDialog — Phase 40 Output card (D-01)', () => {
     expect(src.includes("'Composite'")).toBe(true);
     expect(src.includes("'Resize'")).toBe(true);
   });
+
+  /**
+   * UAT Round 3 (2026-05-15) Bug B — in-progress header denominator follows
+   * the IPC-reported `event.total`, not the static local total.
+   *
+   * Pre-fix the header read `${progress.current} of ${total}` where
+   * total = `plan.rows + passthroughCopies` (160 for the SKINS fixture).
+   * Composite-phase events emit `total: resizeUnits + pages.length` (163
+   * for SKINS, 3 pages). progress.current pushed to 163 while the
+   * displayed denominator stayed at 160 → user saw "163 of 160".
+   *
+   * Fix: progress state gains a `total` field; onExportProgress writes
+   * event.total verbatim; in-progress header uses progress.total when > 0.
+   */
+  it('UAT Round 3 Bug B: header denominator follows event.total (atlas composite phase)', async () => {
+    // Plan with 160 rows (matches SKINS fixture cadence: 158 rows + 2
+    // passthroughCopies = 160 local total). Atlas mode's composite phase
+    // emits total=163 (160 resizeUnits + 3 page composites). Expect the
+    // header to read "X of 163" after the IPC event arrives, NOT "X of 160".
+    const rows: ExportRow[] = Array.from({ length: 158 }, (_, i) =>
+      makeRow({ outPath: `images/r${i}.png`, sourcePath: `/fake/r${i}.png` }),
+    );
+    const passthrough: ExportRow[] = [
+      makeRow({ outPath: 'images/p1.png', sourcePath: '/fake/p1.png' }),
+      makeRow({ outPath: 'images/p2.png', sourcePath: '/fake/p2.png' }),
+    ];
+    const plan = makePlan({ rows, passthroughCopies: passthrough });
+
+    // startExport pending forever so the dialog stays in `in-progress`
+    // state — we want to observe the header AFTER the progress event
+    // updates progress.total, without races against the complete-state flip.
+    vi.stubGlobal('api', {
+      onExportProgress: vi.fn((handler: (e: ExportProgressEvent) => void) => {
+        lastProgressHandler = handler;
+        return () => undefined;
+      }),
+      startExport: vi.fn(() => new Promise(() => {})), // never resolves
+      cancelExport: vi.fn(),
+      openOutputFolder: vi.fn(),
+    });
+
+    render(
+      <OptimizeDialog
+        {...buildProps({
+          plan,
+          outputMode: 'atlas',
+          atlasOpts: { maxPageSize: 4096, allowRotation: false, padding: 2 },
+        })}
+      />,
+    );
+
+    // Pre-flight header reflects the local total (160 images).
+    expect(screen.getByText(/Optimize Assets — 160 images/i)).toBeTruthy();
+
+    const startBtn = screen.getByRole('button', { name: /^Start$/i });
+    fireEvent.click(startBtn);
+    await waitFor(() => expect(lastProgressHandler).not.toBeNull());
+
+    // Emit a composite-phase event with the widened total (163). The
+    // header must update its denominator to 163, NOT remain at 160.
+    act(() => {
+      lastProgressHandler!({
+        index: 162, // last composite event (page index 2 + resizeUnits 160)
+        total: 163,
+        path: 'project_3.png',
+        outPath: '/tmp/out/project_3.png',
+        status: 'success',
+        phase: 'composite',
+      } as ExportProgressEvent);
+    });
+
+    // Header reads "163 of 163" — denominator is event.total, NOT static 160.
+    await waitFor(() => {
+      expect(screen.getByText(/Optimize Assets — 163 of 163/i)).toBeTruthy();
+    });
+    // Confirm the buggy framing "of 160" does NOT appear in the header.
+    expect(screen.queryByText(/Optimize Assets — \d+ of 160/i)).toBeNull();
+  });
+
+  it('UAT Round 3 Bug B: loose-mode header unchanged when event.total === local total', async () => {
+    // Loose mode: image-worker emits total = plan.rows.length, which matches
+    // the local total. Header must continue to read "X of N" correctly —
+    // the new IPC-tracked total path must not regress loose-mode UX.
+    const rows: ExportRow[] = Array.from({ length: 5 }, (_, i) =>
+      makeRow({ outPath: `images/r${i}.png`, sourcePath: `/fake/r${i}.png` }),
+    );
+    const plan = makePlan({ rows, passthroughCopies: [] });
+
+    vi.stubGlobal('api', {
+      onExportProgress: vi.fn((handler: (e: ExportProgressEvent) => void) => {
+        lastProgressHandler = handler;
+        return () => undefined;
+      }),
+      startExport: vi.fn(() => new Promise(() => {})),
+      cancelExport: vi.fn(),
+      openOutputFolder: vi.fn(),
+    });
+
+    render(<OptimizeDialog {...buildProps({ plan, outputMode: 'loose' })} />);
+
+    const startBtn = screen.getByRole('button', { name: /^Start$/i });
+    fireEvent.click(startBtn);
+    await waitFor(() => expect(lastProgressHandler).not.toBeNull());
+
+    // Loose-mode event total = plan.rows.length = 5; matches local total.
+    act(() => {
+      lastProgressHandler!({
+        index: 0,
+        total: 5,
+        path: 'images/r0.png',
+        outPath: '/tmp/out/images/r0.png',
+        status: 'success',
+      } as ExportProgressEvent);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Optimize Assets — 1 of 5/i)).toBeTruthy();
+    });
+  });
 });
