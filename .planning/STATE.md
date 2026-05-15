@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Override Routing + Coverage Hardening + Atlas Repack
-status: executing
+status: milestone_complete
 last_updated: "2026-05-15T12:00:00.000Z"
 last_activity: 2026-05-15 -- Phase 40 complete (atlas-repack-output); v1.5 milestone closure pending
 progress:
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 40 (complete)
+Phase: 40 (complete) — final phase of v1.5
 Plan: All 9 plans complete (40-01..40-09)
-Status: Phase 40 complete (Atlas Repack Output); SEED-008 closed; v1.5 milestone closure pending — run `/gsd-complete-milestone v1.5` next.
-Last activity: 2026-05-15 -- Phase 40 complete (atlas-repack-output); v1.5 milestone closure pending
+Status: Milestone v1.5 complete; SEED-008 closed. Run `/gsd-complete-milestone v1.5` to archive.
+Last activity: 2026-05-15 -- Phase 40 verified passed (10/10 must-haves); 5 code-review fixes applied
 
 ## Project Reference
 

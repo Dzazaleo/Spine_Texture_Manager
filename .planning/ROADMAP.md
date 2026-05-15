@@ -104,7 +104,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
 | 39. Windows Host-Blocked UAT Burndown | 3/3 | Complete    | 2026-05-13 |
-| 40. Atlas Repack Output | 9/9 | Complete   | 2026-05-15 |
+| 40. Atlas Repack Output | 9/9 | Complete    | 2026-05-15 |
 
 ### Phase 40: Atlas Repack Output
 **Goal**: Optimize Dialog gains an additive `loose | atlas | both` output mode (default `loose`) that emits a libgdx-format `.atlas` + composite page PNG(s), letting animators ship packed atlases directly from optimized regions without round-tripping through the Spine editor.
