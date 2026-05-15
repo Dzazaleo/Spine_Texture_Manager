@@ -74,12 +74,20 @@ describe('Phase 41 — AppShell Animation Viewer wiring', () => {
 
   it('(8) Animation Viewer button is positioned BETWEEN Atlas Preview and Documentation (D-03a)', () => {
     const src = appShellSource();
-    const atlasPreviewIdx = src.indexOf('>Atlas Preview<');
-    const animationViewerIdx = src.indexOf('>Animation Viewer<');
-    const documentationIdx = src.indexOf('>Documentation<');
-    expect(atlasPreviewIdx).toBeGreaterThan(-1);
-    expect(animationViewerIdx).toBeGreaterThan(-1);
-    expect(documentationIdx).toBeGreaterThan(-1);
+    // JSX label rendering wraps the text with whitespace between `>` and `<`
+    // (e.g. `>\n            Atlas Preview\n          </button>`); search the
+    // button-label-text-followed-by-closing-button-tag pattern instead of
+    // a tight `>X<` literal. The match `.index` is the byte offset of the
+    // label-line within the source.
+    const atlasMatch = src.match(/>\s*Atlas Preview\s*<\/button>/);
+    const animationMatch = src.match(/>\s*Animation Viewer\s*<\/button>/);
+    const documentationMatch = src.match(/>\s*Documentation\s*<\/button>/);
+    expect(atlasMatch).not.toBeNull();
+    expect(animationMatch).not.toBeNull();
+    expect(documentationMatch).not.toBeNull();
+    const atlasPreviewIdx = atlasMatch!.index!;
+    const animationViewerIdx = animationMatch!.index!;
+    const documentationIdx = documentationMatch!.index!;
     expect(animationViewerIdx).toBeGreaterThan(atlasPreviewIdx);
     expect(animationViewerIdx).toBeLessThan(documentationIdx);
   });
@@ -105,9 +113,20 @@ describe('Phase 41 — AppShell Animation Viewer wiring', () => {
 
   it('(11) modalOpen derivation OR-chain BODY includes animationViewerOpen || (Pitfall 7)', () => {
     const src = appShellSource();
-    const modalOpenBlock = src.match(/const\s+modalOpen\s*=[\s\S]{0,1000}?;/);
-    expect(modalOpenBlock).not.toBeNull();
-    expect(/animationViewerOpen\s*\|\|/.test(modalOpenBlock![0])).toBe(true);
+    // Locate the modalOpen const declaration; from that anchor scan forward
+    // until the OR-chain terminator (a line of the form `<word>(Open|State);`)
+    // appears, capturing the full block. Earlier `;` chars inside comments
+    // ("08.2 D-184;") do NOT terminate the chain — only a `;` immediately
+    // following an identifier at end-of-line does.
+    const declIdx = src.search(/const\s+modalOpen\s*=/);
+    expect(declIdx).toBeGreaterThan(-1);
+    const tail = src.slice(declIdx);
+    const termMatch = tail.match(/^[\s\S]*?(?:Open|State|null);\s*$/m);
+    expect(termMatch).not.toBeNull();
+    const block = termMatch![0];
+    // The block must contain `animationViewerOpen ||` (not at end-of-chain;
+    // some other entry must terminate so AVO is followed by `||`).
+    expect(/animationViewerOpen\s*\|\|/.test(block)).toBe(true);
   });
 
   it('(12) modalOpen useEffect DEP ARRAY contains animationViewerOpen (Pitfall 7)', () => {
