@@ -35,11 +35,23 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-function makePlan(rows: Array<Partial<ExportRow>>): ExportPlan {
+function makePlan(
+  rows: Array<Partial<ExportRow>>,
+  passthroughCopies: Array<Partial<ExportRow>> = [],
+): ExportPlan {
   return {
     rows: rows.map((r, i) => ({
       sourcePath: FIXTURE_PNG,
-      outPath: r.outPath ?? `images/region_${i}.png`,
+      // UAT round 2 (2026-05-15): the atlas region name is now derived
+      // from outPath (stripped of `.png` + leading `images/`), NOT from
+      // attachmentNames[0]. Default outPath honors the test's
+      // attachmentNames[0] when provided so the legacy tests' atlas
+      // assertions (e.g. `bounds:.../SQUARE`) still hit predictable
+      // region names. Falls back to `region_${i}` when no
+      // attachmentNames[0] was supplied.
+      outPath:
+        r.outPath ??
+        `images/${r.attachmentNames?.[0] ?? `region_${i}`}.png`,
       sourceW: r.sourceW ?? 100,
       sourceH: r.sourceH ?? 100,
       outW: r.outW ?? 100,
@@ -49,8 +61,20 @@ function makePlan(rows: Array<Partial<ExportRow>>): ExportPlan {
       ...r,
     })) as ExportRow[],
     excludedUnused: [],
-    passthroughCopies: [],
-    totals: { count: rows.length },
+    passthroughCopies: passthroughCopies.map((r, i) => ({
+      sourcePath: FIXTURE_PNG,
+      outPath:
+        r.outPath ??
+        `images/${r.attachmentNames?.[0] ?? `passthrough_${i}`}.png`,
+      sourceW: r.sourceW ?? 100,
+      sourceH: r.sourceH ?? 100,
+      outW: r.outW ?? (r.sourceW ?? 100),
+      outH: r.outH ?? (r.sourceH ?? 100),
+      effectiveScale: r.effectiveScale ?? 1.0,
+      attachmentNames: r.attachmentNames ?? [`P_${i}`],
+      ...r,
+    })) as ExportRow[],
+    totals: { count: rows.length + passthroughCopies.length },
   };
 }
 
@@ -690,49 +714,129 @@ describe('runRepack — UAT bug 3: returns a real ExportSummary', () => {
     expect(result.summary.durationMs).toBeGreaterThanOrEqual(0);
   });
 
-  it('summary.successes counts unique regionNames AFTER dedup (UAT bug 1 + 3 interplay)', async () => {
+  it('summary.successes counts UNIQUE outPaths even when defensive-dedup fires (UAT round 2)', async () => {
     // The summary must reflect what was actually packed (post-dedup count),
-    // NOT the input row count. With 6 rows declaring 2 unique regionNames,
-    // successes must be 2 (not 6).
-    const plan = makePlan([
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
-    ]);
-    const written = new Set<string>();
-    const result = await runRepack(
-      plan,
-      tmpDir,
-      () => {},
-      () => false,
-      true,
-      false,
-      DEFAULT_OPTS,
-      written,
-    );
-    expect(result.summary.successes).toBe(2);
+    // NOT the input row count. UAT round 2 (2026-05-15) changed the dedup
+    // key from attachmentNames[0] to outPath. Per D-108 plan.rows is
+    // upstream-deduped per source PNG path, so duplicate outPath would be
+    // an upstream regression — but the worker handles it defensively
+    // (first-occurrence-wins + console.warn). With 6 rows collapsing to 2
+    // unique outPaths via the defensive branch, successes must be 2.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const plan = makePlan([
+        // 3 rows with the same outPath → 1 atlas entry.
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/BODY'],
+          outPath: 'images/AVATAR/BODY.png',
+        },
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/BODY'],
+          outPath: 'images/AVATAR/BODY.png',
+        },
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/BODY'],
+          outPath: 'images/AVATAR/BODY.png',
+        },
+        // 3 rows with a different shared outPath → another 1 atlas entry.
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/HEAD'],
+          outPath: 'images/AVATAR/HEAD.png',
+        },
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/HEAD'],
+          outPath: 'images/AVATAR/HEAD.png',
+        },
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['AVATAR/HEAD'],
+          outPath: 'images/AVATAR/HEAD.png',
+        },
+      ]);
+      const written = new Set<string>();
+      const result = await runRepack(
+        plan,
+        tmpDir,
+        () => {},
+        () => false,
+        true,
+        false,
+        DEFAULT_OPTS,
+        written,
+      );
+      expect(result.summary.successes).toBe(2);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
 
-describe('runRepack — UAT bug 1: dedup repackInputs by regionName', () => {
-  it('emits ONE pack entry per unique regionName even when N skeletons share the same source PNG', async () => {
-    // UAT repro: 6 skeletons each declaring AVATAR/BODY → 6 rows with the same
-    // attachmentNames[0]. Pre-fix the packer received 6 entries for "AVATAR/BODY"
-    // and laid it out at 6 different positions → atlas grew to 161 entries for
-    // 26 unique names → overlapping regions on the page PNG. The dedup-by-
-    // regionName invariant (project_strict_loadermode_separation + Phase 29
-    // memo) must hold: first occurrence per regionName wins; subsequent rows
-    // are dropped from the pack-inputs array.
+describe('runRepack — UAT round 2: dedup by outPath, NOT attachmentNames[0]', () => {
+  it('skin-aliased slot bindings — same attachmentNames[0] but DIFFERENT outPath produce DISTINCT atlas entries', async () => {
+    // UAT round 2 repro: in the multi-skin workflow Spine emits N skin-
+    // namespaced source PNGs (e.g. `images/JOKER/BODY.png`, `images/
+    // BEACHMAN/BODY.png`) all bound to a single SLOT whose
+    // attachmentNames[0] is `AVATAR/BODY` (skin 0). The previous fix
+    // keyed dedup by attachmentNames[0] and collapsed all of them into
+    // ONE atlas entry, silently dropping ~135 of the 158 legitimate
+    // plan.rows from the JOKERMAN_SPINE fixture.
+    //
+    // Correct contract: dedup is keyed by `row.outPath` (stripped of
+    // `.png` + leading `images/`), which matches the Spine JSON `path:`
+    // attribute. Distinct outPaths → distinct atlas entries, regardless
+    // of whether attachmentNames[0] happens to collide.
     const plan = makePlan([
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/BODY'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
-      { outW: 100, outH: 100, attachmentNames: ['AVATAR/HEAD'] },
+      // 3 skins each declaring BODY — slot binding is the same
+      // (`AVATAR/BODY`), but each row has its own skin-namespaced
+      // sourcePath/outPath (= the JSON `path:` field).
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/BODY'],
+        outPath: 'images/AVATAR/BODY.png',
+      },
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/BODY'],
+        outPath: 'images/BEACHMAN/BODY.png',
+      },
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/BODY'],
+        outPath: 'images/JOKER/BODY.png',
+      },
+      // 3 skins each declaring HEAD.
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/HEAD'],
+        outPath: 'images/AVATAR/HEAD.png',
+      },
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/HEAD'],
+        outPath: 'images/BEACHMAN/HEAD.png',
+      },
+      {
+        outW: 100,
+        outH: 100,
+        attachmentNames: ['AVATAR/HEAD'],
+        outPath: 'images/JOKER/HEAD.png',
+      },
     ]);
     const written = new Set<string>();
     const result = await runRepack(
@@ -745,19 +849,339 @@ describe('runRepack — UAT bug 1: dedup repackInputs by regionName', () => {
       DEFAULT_OPTS,
       written,
     );
-    // .atlas region count must equal the number of UNIQUE regionNames (2),
-    // NOT the number of plan rows (6). The repack-worker dedups inputs by
-    // regionName; the packer + atlas-writer downstream are byte-equivalent
-    // when they receive the deduplicated input set.
     const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
-    const bodyOccurrences = (atlasText.match(/^AVATAR\/BODY$/gm) ?? []).length;
-    const headOccurrences = (atlasText.match(/^AVATAR\/HEAD$/gm) ?? []).length;
-    expect(bodyOccurrences, 'AVATAR/BODY appears exactly once in atlas').toBe(1);
-    expect(headOccurrences, 'AVATAR/HEAD appears exactly once in atlas').toBe(1);
-    // bounds lines: one per unique region.
+    // Every distinct outPath becomes a distinct atlas region — no dropping.
+    // bounds lines: 6 (one per row).
     const boundsLines = (atlasText.match(/^bounds:/gm) ?? []).length;
-    expect(boundsLines, 'bounds line count equals unique region count').toBe(2);
+    expect(
+      boundsLines,
+      'bounds line count equals total distinct outPaths',
+    ).toBe(6);
+    // Skin-namespaced region names appear unaltered in the atlas (= what a
+    // Spine runtime looks up via the JSON `path:` field at load time).
+    expect(atlasText).toMatch(/^AVATAR\/BODY$/m);
+    expect(atlasText).toMatch(/^BEACHMAN\/BODY$/m);
+    expect(atlasText).toMatch(/^JOKER\/BODY$/m);
+    expect(atlasText).toMatch(/^AVATAR\/HEAD$/m);
+    expect(atlasText).toMatch(/^BEACHMAN\/HEAD$/m);
+    expect(atlasText).toMatch(/^JOKER\/HEAD$/m);
+    // And: no skin is dropped — total atlas entries equal total rows.
+    expect(result.summary.successes).toBe(6);
   });
+
+  it('defensive: rows with DUPLICATE outPath (= D-108 violation) collapse to ONE entry with a console.warn', async () => {
+    // Per D-108 (src/shared/types.ts L361), plan.rows is upstream-deduped
+    // per source PNG path. Duplicate outPath in plan.rows would indicate
+    // an upstream regression — the worker preserves atomic-or-fail by
+    // dedup'ing defensively and emitting console.warn so the bug is loud
+    // rather than silently dropping rows.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const plan = makePlan([
+        // Two rows with the same outPath — would only happen if D-108 was
+        // violated upstream. Defensive dedup: first occurrence wins.
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['A'],
+          outPath: 'images/SAME.png',
+        },
+        {
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['B'],
+          outPath: 'images/SAME.png',
+        },
+      ]);
+      const written = new Set<string>();
+      const result = await runRepack(
+        plan,
+        tmpDir,
+        () => {},
+        () => false,
+        true,
+        false,
+        DEFAULT_OPTS,
+        written,
+      );
+      const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+      // Exactly 1 atlas entry (first-occurrence-wins).
+      const boundsLines = (atlasText.match(/^bounds:/gm) ?? []).length;
+      expect(boundsLines).toBe(1);
+      expect(atlasText).toMatch(/^SAME$/m);
+      // Summary reports the deduplicated count (1), not the input count (2).
+      expect(result.summary.successes).toBe(1);
+      // The defensive warn fired — surfaced for upstream-bug diagnosis.
+      const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
+      expect(
+        warnCalls.some((m) => m.includes('duplicate outPath in plan.rows')),
+        `expected a console.warn matching /duplicate outPath in plan.rows/ — got: ${JSON.stringify(warnCalls)}`,
+      ).toBe(true);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe('runRepack — UAT round 2: passthroughCopies are packed into atlas mode', () => {
+  it('emits an atlas entry for every passthroughCopies row at native dims', async () => {
+    // UAT round 2 (2026-05-15): pre-fix runRepack iterated only plan.rows.
+    // plan.passthroughCopies are rows where outW === sourceW (no resize
+    // needed); image-worker.ts handles them via copyFile in loose mode.
+    // For atlas mode they must STILL appear in the .atlas because a Spine
+    // runtime looks up every region declared in the .json `path:` field,
+    // regardless of resize vs copy.
+    //
+    // The fixture SIMPLE_TEST.png is 1839x1464 in native dims. Passthrough
+    // rows use outW === sourceW so the bytes are loaded verbatim through
+    // sharp().png().toBuffer() and packed at their native size.
+    const fixtureMeta = await sharp(FIXTURE_PNG).metadata();
+    const nativeW = fixtureMeta.width!;
+    const nativeH = fixtureMeta.height!;
+    const plan = makePlan(
+      // One resize row at 200x200.
+      [
+        {
+          outW: 200,
+          outH: 200,
+          attachmentNames: ['RESIZE_A'],
+          outPath: 'images/RESIZE_A.png',
+        },
+      ],
+      // Two passthrough rows, packed at native dims.
+      [
+        {
+          sourceW: nativeW,
+          sourceH: nativeH,
+          outW: nativeW,
+          outH: nativeH,
+          attachmentNames: ['PASS_A'],
+          outPath: 'images/PASS_A.png',
+        },
+        {
+          sourceW: nativeW,
+          sourceH: nativeH,
+          outW: nativeW,
+          outH: nativeH,
+          attachmentNames: ['PASS_B'],
+          outPath: 'images/PASS_B.png',
+        },
+      ],
+    );
+    const opts: AtlasOpts = {
+      maxPageSize: 8192,
+      allowRotation: false,
+      padding: 2,
+    };
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      opts,
+      written,
+    );
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    // All 3 regions in the atlas (1 resize + 2 passthrough).
+    expect(atlasText).toMatch(/^RESIZE_A$/m);
+    expect(atlasText).toMatch(/^PASS_A$/m);
+    expect(atlasText).toMatch(/^PASS_B$/m);
+    const boundsLines = (atlasText.match(/^bounds:/gm) ?? []).length;
+    expect(boundsLines, 'atlas contains 1 resize + 2 passthrough = 3 entries').toBe(3);
+    // Passthrough rows pack at native dims — bounds should match nativeW×nativeH.
+    const passA = atlasText.match(/^PASS_A\nbounds:\d+,\d+,(\d+),(\d+)/m);
+    expect(passA, 'PASS_A bounds line present').not.toBeNull();
+    if (passA) {
+      expect([parseInt(passA[1], 10), parseInt(passA[2], 10)]).toEqual([
+        nativeW,
+        nativeH,
+      ]);
+    }
+    // Summary reports successes for all 3 (resize + passthrough).
+    expect(result.summary.successes).toBe(3);
+  });
+
+  it('emits progress events for passthrough rows in the absolute index space (resize first, then passthrough)', async () => {
+    // Progress events must span the COMBINED work-unit space:
+    //   total = rows.length + passthroughCopies.length + packResult.pages.length
+    // Resize events: index in [0, rows.length)
+    // Passthrough events: index in [rows.length, rows.length + passthrough.length)
+    // Composite events: index in [resizeUnits, resizeUnits + pages.length)
+    const plan = makePlan(
+      [
+        {
+          outW: 200,
+          outH: 200,
+          attachmentNames: ['R0'],
+          outPath: 'images/R0.png',
+        },
+        {
+          outW: 200,
+          outH: 200,
+          attachmentNames: ['R1'],
+          outPath: 'images/R1.png',
+        },
+      ],
+      [
+        {
+          sourceW: 100,
+          sourceH: 100,
+          outW: 100,
+          outH: 100,
+          attachmentNames: ['P0'],
+          outPath: 'images/P0.png',
+        },
+      ],
+    );
+    const events: ExportProgressEvent[] = [];
+    const written = new Set<string>();
+    await runRepack(
+      plan,
+      tmpDir,
+      (e) => events.push(e),
+      () => false,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    const resizeEvents = events.filter((e) => e.phase === 'resize');
+    const compositeEvents = events.filter((e) => e.phase === 'composite');
+    // 2 resize + 1 passthrough = 3 phase=resize events.
+    expect(resizeEvents.length).toBe(3);
+    // Every resize-phase event reports the SAME combined denominator.
+    for (const e of resizeEvents) {
+      expect(
+        e.total,
+        `resize event total should be rows + passthrough = 3 (got ${e.total})`,
+      ).toBe(3);
+    }
+    // The indices in the resize phase span [0, 2], with passthrough at 2.
+    expect(resizeEvents.map((e) => e.index).sort()).toEqual([0, 1, 2]);
+    // Composite events use the COMBINED total = 3 (resize+pass) + page count.
+    for (const e of compositeEvents) {
+      expect(
+        e.total,
+        `composite event total should be combined work units (got ${e.total})`,
+      ).toBeGreaterThanOrEqual(3 + 1);
+      // Composite indices continue from the resize-phase tail (>= 3).
+      expect(e.index).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+// UAT round 2 (2026-05-15) — sanity-check the fix against the real SKINS
+// fixture. Pattern mirrors tests/core/export.spec.ts:2872-2881
+// (TEST_4_FIXTURE_PRESENT + describeOrSkip): when the heavy SKINS fixture
+// is absent from a clone (it is gitignored — `fixtures/SKINS/` in
+// .gitignore), the suite emits a visible vitest skip rather than silently
+// passing on absent inputs. The fixture has 7 skins and ~161 unique
+// `path:` attributes per skin-namespaced source PNG; the bug-1 collapse
+// dropped the atlas from ~161 entries to 23.
+const SKINS_FIXTURE_PATH = path.resolve('fixtures/SKINS/JOKERMAN_SPINE.json');
+const SKINS_FIXTURE_PRESENT = fs.existsSync(SKINS_FIXTURE_PATH);
+const describeIfSkins = SKINS_FIXTURE_PRESENT ? describe : describe.skip;
+
+describeIfSkins('runRepack — UAT round 2: SKINS fixture sanity (gitignored)', () => {
+  it('atlas region count ≈ unique-paths in JSON (per-skin namespaces preserved, NOT collapsed to 23)', async () => {
+    // This test builds an ExportPlan from the real SKINS fixture via the
+    // same buildSummary-equivalent helper used by tests/core/export.spec.ts
+    // Test 4 (JOKERMAN_SPINE → buildExportPlan returns 160 entries). The
+    // sanity assertion: after the UAT-round-2 fix, runRepack emits one
+    // atlas entry per row.outPath — so the .atlas region count equals
+    // plan.rows.length + plan.passthroughCopies.length (modulo passthrough
+    // dims that might exceed maxPageSize, but for our fixture none do at
+    // 8192). Pre-fix: only ~23 entries (collapsed to skin 0's bindings).
+    //
+    // This test runs heavy (full sampler + analyze + buildExportPlan) and
+    // is gated on the fixture's presence — CI without the SKINS fixture
+    // skips it via describeIfSkins.
+    const { loadSkeleton } = await import('../../src/core/loader.js');
+    const { sampleSkeleton } = await import('../../src/core/sampler.js');
+    const { analyze, analyzeRegions } = await import('../../src/core/analyzer.js');
+    const { buildExportPlan } = await import('../../src/core/export.js');
+
+    const load = loadSkeleton(SKINS_FIXTURE_PATH);
+    const sampled = sampleSkeleton(load);
+    const peaks = analyze(sampled.globalPeaks);
+    const fixtureImagesDir = path.resolve('fixtures/SKINS/images');
+    const peaksWithPath = peaks.map((r) => ({
+      ...r,
+      sourcePath: path.join(fixtureImagesDir, (r.regionName ?? r.attachmentName) + '.png'),
+    }));
+    const sourcePaths = new Map<string, string>();
+    for (const p of sampled.globalPeaks.values()) {
+      const regionName = p.regionName ?? p.attachmentName;
+      sourcePaths.set(regionName, path.join(fixtureImagesDir, regionName + '.png'));
+    }
+    const regions = analyzeRegions(sampled.globalPeaks, sourcePaths);
+    // Lock the count from tests/core/export.spec.ts Test 4: 160 unique regions.
+    const totalRegions = regions.length;
+    expect(totalRegions, 'JOKERMAN_SPINE has 160 unique regions per Test 4').toBe(160);
+    const summary = {
+      peaks: peaksWithPath,
+      regions,
+      orphanedFiles: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+    const plan = buildExportPlan(summary, new Map(), undefined);
+    const totalPlanned = plan.rows.length + plan.passthroughCopies.length;
+    // Sanity: matches Test 4's expectation.
+    expect(totalPlanned, 'plan.rows + passthroughCopies = total regions').toBe(160);
+
+    // Pre-flight: ensure every source PNG referenced exists on disk so the
+    // worker's sharp(sourcePath) calls succeed. If any are missing, skip the
+    // assertion with a clear message (the fixture is heavy and might be
+    // partial in some clones).
+    const missing: string[] = [];
+    for (const row of [...plan.rows, ...plan.passthroughCopies]) {
+      if (!fs.existsSync(row.sourcePath)) missing.push(row.sourcePath);
+    }
+    if (missing.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[SKINS sanity] ${missing.length}/${totalPlanned} source PNGs missing — skipping pack assertion.`,
+      );
+      return;
+    }
+
+    const opts: AtlasOpts = {
+      maxPageSize: 8192,
+      allowRotation: true,
+      padding: 2,
+    };
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => false,
+      true,
+      false,
+      opts,
+      written,
+    );
+    const atlasText = fs.readFileSync(result.atlasFile, 'utf8');
+    const boundsLines = (atlasText.match(/^bounds:/gm) ?? []).length;
+    // Post-fix: every row.outPath becomes a distinct atlas entry. The
+    // user's pre-fix atlas had 23 entries; the post-fix atlas must have
+    // EXACTLY 160 (= plan.rows + passthroughCopies, no upstream-D-108
+    // duplicates expected).
+    expect(
+      boundsLines,
+      `atlas region count must equal planned region count (160). Got ${boundsLines}. ` +
+        `If 23, the regression returned (collapsed by slot-binding name). If 0, packer pre-flight aborted.`,
+    ).toBe(160);
+    // Spot-check: a known skin-namespaced region appears under its own name.
+    expect(atlasText, 'JOKER/BODY appears as its own atlas region').toMatch(/^JOKER\/BODY$/m);
+    expect(atlasText, 'BEACHMAN/BODY appears as its own atlas region').toMatch(/^BEACHMAN\/BODY$/m);
+    expect(atlasText, 'IRONMAN/BODY appears as its own atlas region').toMatch(/^IRONMAN\/BODY$/m);
+    // result.summary.successes should equal the deduplicated input count.
+    expect(result.summary.successes).toBe(160);
+  }, 120_000); // 2-min timeout — heavy sampler + analyze + 160-region sharp pipeline.
 });
 
 describe('runRepack — cancellation cooperation', () => {
