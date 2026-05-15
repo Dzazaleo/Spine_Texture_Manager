@@ -187,6 +187,24 @@ describe('OptimizeDialog — Phase 40 Output card (D-01)', () => {
     expect(checkbox.title).toBe('Packer may rotate regions 90° for tighter packing.');
   });
 
+  it('UAT bug 4: Allow rotation LABEL also has the tooltip so hover-on-row works', () => {
+    // Pre-fix the title= attribute was only on the <input type="checkbox">,
+    // not the wrapping <label>. The visible "Allow rotation" text in the
+    // label was therefore tooltipless — users had to hover the tiny
+    // checkbox square to see the explanation. Defense-in-depth: keep the
+    // title on the input too (matches existing test above) AND mirror it
+    // onto the label so hovering anywhere on the row surfaces it.
+    render(<OptimizeDialog {...buildProps({ outputMode: 'atlas' })} />);
+    const checkbox = screen.getByLabelText(/Allow rotation/i) as HTMLInputElement;
+    // The wrapping label is the parent (or nearby ancestor) of the checkbox.
+    // Walk up to the closest <label> element and assert title= matches.
+    const labelEl = checkbox.closest('label');
+    expect(labelEl, 'Allow rotation checkbox must be wrapped in a <label>').not.toBeNull();
+    expect(labelEl?.getAttribute('title')).toBe(
+      'Packer may rotate regions 90° for tighter packing.',
+    );
+  });
+
   it('toggling Allow rotation fires onAtlasOptsChange with allowRotation=true', () => {
     const onAtlasOptsChange = vi.fn();
     render(
