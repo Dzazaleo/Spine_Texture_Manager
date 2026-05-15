@@ -158,9 +158,12 @@ export interface AtlasOpts {
  *                errors are not currently emitted by the repack worker)
  *   outputDir  = pathResolve(outDir), matching runExport's contract
  *   durationMs = wall-time of the run (Date.now delta)
- *   cancelled  = isCancelled() at completion (true if we threw 'cancelled'
- *                — but in that case runRepack throws before returning, so
- *                in practice this is always false on the success path)
+ *   cancelled  = bailedOnCancel sentinel (CR-02 fix). True ONLY when one
+ *                of the cooperative pre-iteration checks fired and threw
+ *                'cancelled' — but in that case runRepack throws before
+ *                returning, so in practice this is always false on the
+ *                success path. Pre-fix read isCancelled() at return time,
+ *                which raced post-success cancel-flag flips.
  */
 export interface RepackResultPaths {
   pageFiles: string[];
@@ -181,6 +184,16 @@ export async function runRepack(
   const startedAt = Date.now();
   const projectName = deriveProjectName(plan, outDir);
   const resolvedOutDir = pathResolve(outDir);
+
+  // CR-02 (BLOCKER) — `cancelled: isCancelled()` at return time conflated
+  // "user clicked Cancel mid-run and we skipped work" (true cancel) with
+  // "user clicked Cancel after the last region already succeeded but before
+  // the function returned" (race — every region completed; nothing was
+  // skipped). The latter incorrectly poisoned the summary's caption even
+  // though no work was skipped. Set this flag ONLY at the cooperative
+  // pre-iteration checks below — that is the unambiguous "we stopped
+  // because of cancel" signal. Pattern mirrors image-worker.ts:139.
+  let bailedOnCancel = false;
 
   // Ensure output dir exists (mirrors image-worker.ts mkdir behavior).
   await mkdir(resolvedOutDir, { recursive: true });
@@ -231,6 +244,10 @@ export async function runRepack(
 
   for (let i = 0; i < plan.rows.length; i++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw so summary.cancelled is true
+      // only when we ACTUALLY stopped because of cancel (mirrors image-
+      // worker.ts:139 pattern).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const row = plan.rows[i];
@@ -306,6 +323,8 @@ export async function runRepack(
   // passthrough rows. `passthroughCopies` hoisted above the resize loop.
   for (let pi = 0; pi < passthroughCopies.length; pi++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw (see resize-loop comment).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const row = passthroughCopies[pi];
@@ -406,6 +425,8 @@ export async function runRepack(
   const pageFiles: string[] = [];
   for (let pi = 0; pi < packResult.pages.length; pi++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw (see resize-loop comment).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const page = packResult.pages[pi];
@@ -514,7 +535,13 @@ export async function runRepack(
     errors: [],
     outputDir: resolvedOutDir,
     durationMs: Date.now() - startedAt,
-    cancelled: isCancelled(),
+    // CR-02: bailedOnCancel is true ONLY when one of the cooperative pre-
+    // iteration checks above fired and threw 'cancelled'. On the success
+    // path runRepack reaches here, so `cancelled: false` regardless of
+    // post-success cancel-flag flips. Pre-fix `isCancelled()` read the
+    // live flag → a race where the user clicked Cancel between the last
+    // composite and this summary literal poisoned the caption.
+    cancelled: bailedOnCancel,
   };
 
   return { pageFiles, atlasFile: atlasPath, summary };

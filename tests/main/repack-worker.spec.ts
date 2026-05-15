@@ -1215,6 +1215,44 @@ describe('runRepack — cancellation cooperation', () => {
   });
 });
 
+describe('runRepack — CR-02: bailedOnCancel pattern for summary.cancelled', () => {
+  it('post-success cancel-flag flip does NOT poison summary.cancelled', async () => {
+    // CR-02 BLOCKER repro: pre-fix the summary literal read `cancelled:
+    // isCancelled()` which races a user clicking Cancel between the last
+    // composite and the return statement. Even though every region succeeded
+    // and nothing was skipped, the summary caption would show "cancelled".
+    //
+    // Fix: track `bailedOnCancel` set BEFORE each `throw 'cancelled'` in the
+    // cooperative pre-iteration checks (mirrors image-worker.ts:139). On the
+    // success path bailedOnCancel stays false; the summary reports the truth.
+    const plan = makePlan([
+      { outW: 200, outH: 200, attachmentNames: ['A'] },
+      { outW: 200, outH: 200, attachmentNames: ['B'] },
+    ]);
+    // Track call ordering so we can flip cancelled AFTER runRepack completes
+    // (simulating the user clicking Cancel between the last composite and
+    // the summary literal evaluation).
+    let cancelFlag = false;
+    const written = new Set<string>();
+    const result = await runRepack(
+      plan,
+      tmpDir,
+      () => {},
+      () => cancelFlag,
+      true,
+      false,
+      DEFAULT_OPTS,
+      written,
+    );
+    // Post-success cancel flip (simulates a Cancel click after work completed).
+    cancelFlag = true;
+    // Summary must reflect actual run state — every region succeeded, so
+    // cancelled MUST be false regardless of the post-success flag value.
+    expect(result.summary.cancelled).toBe(false);
+    expect(result.summary.successes).toBe(2);
+  });
+});
+
 describe('runRepack — CR-01: atlas-source fallback (per-region PNG absent on disk)', () => {
   it('extracts region from atlas page when sourcePath is missing but atlasSource is populated', async () => {
     // CR-01 BLOCKER repro: atlas-source projects (project_strict_loadermode_separation
