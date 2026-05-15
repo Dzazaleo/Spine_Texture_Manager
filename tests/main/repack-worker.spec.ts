@@ -1215,6 +1215,113 @@ describe('runRepack — cancellation cooperation', () => {
   });
 });
 
+describe('runRepack — WR-02: rotation-prep loop honors cancellation', () => {
+  it('cancellation between rotation iterations throws and writes no .atlas', async () => {
+    // WR-02: the rotation prep loop is the third phase of work (after
+    // resize + pack but before composite). Pre-fix it had no cooperative
+    // cancel check, so a Cancel click during rotation prep would block
+    // until ALL rotations finished, then drop through to composite (still
+    // doing work the user asked to stop). Add a pre-iteration check
+    // mirroring the resize loop.
+    //
+    // Force ≥ 1 rotation: pack 2 tall regions (200×900) + 1 wide region
+    // (900×200) into maxPageSize 1024 with allowRotation=true; the packer
+    // rotates the wide one (same setup as UAT bug 2 test above). Cancel
+    // after the resize phase (allow 4+ probe calls — 3 for resize loop,
+    // 1 for composite preflight) so the rotation loop is what trips.
+    const sourcePath = path.join(tmpDir, 'WR02_WIDE.png');
+    await sharp({
+      create: {
+        width: 900,
+        height: 200,
+        channels: 4,
+        background: { r: 200, g: 50, b: 50, alpha: 1 },
+      },
+    }).png().toFile(sourcePath);
+    const tallSourcePath = path.join(tmpDir, 'WR02_TALL.png');
+    await sharp({
+      create: {
+        width: 200,
+        height: 900,
+        channels: 4,
+        background: { r: 50, g: 50, b: 200, alpha: 1 },
+      },
+    }).png().toFile(tallSourcePath);
+    const plan: ExportPlan = {
+      rows: [
+        {
+          sourcePath: tallSourcePath,
+          outPath: 'images/WR02_TALL_A.png',
+          sourceW: 200,
+          sourceH: 900,
+          outW: 200,
+          outH: 900,
+          effectiveScale: 1.0,
+          attachmentNames: ['WR02_TALL_A'],
+        },
+        {
+          sourcePath: tallSourcePath,
+          outPath: 'images/WR02_TALL_B.png',
+          sourceW: 200,
+          sourceH: 900,
+          outW: 200,
+          outH: 900,
+          effectiveScale: 1.0,
+          attachmentNames: ['WR02_TALL_B'],
+        },
+        {
+          sourcePath,
+          outPath: 'images/WR02_WIDE.png',
+          sourceW: 900,
+          sourceH: 200,
+          outW: 900,
+          outH: 200,
+          effectiveScale: 1.0,
+          attachmentNames: ['WR02_WIDE'],
+        },
+      ] as ExportRow[],
+      excludedUnused: [],
+      passthroughCopies: [],
+      totals: { count: 3 },
+    };
+    const opts: AtlasOpts = {
+      maxPageSize: 1024,
+      allowRotation: true,
+      padding: 2,
+    };
+    // Probe call sequence (cooperative checks in runRepack):
+    //   resize loop:    3 calls (one per row)
+    //   passthrough:    0 calls (no passthroughCopies)
+    //   rotation prep:  1+ calls (one per packed region — at least the
+    //                   rotated one trips first when we flip)
+    //   composite:      not reached
+    // Strategy: let the first 3 (resize) return false, then cancel.
+    let calls = 0;
+    const isCancelled = () => {
+      calls++;
+      return calls > 3;
+    };
+    const written = new Set<string>();
+    await expect(
+      runRepack(
+        plan,
+        tmpDir,
+        () => {},
+        isCancelled,
+        true,
+        false,
+        opts,
+        written,
+      ),
+    ).rejects.toThrow(/cancelled/);
+    // No final .atlas exists (we threw before the atlas-write step).
+    const atlasFiles = fs
+      .readdirSync(tmpDir)
+      .filter((n) => n.endsWith('.atlas'));
+    expect(atlasFiles.length).toBe(0);
+  });
+});
+
 describe('runRepack — CR-02: bailedOnCancel pattern for summary.cancelled', () => {
   it('post-success cancel-flag flip does NOT poison summary.cancelled', async () => {
     // CR-02 BLOCKER repro: pre-fix the summary literal read `cancelled:

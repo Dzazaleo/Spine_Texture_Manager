@@ -413,6 +413,15 @@ export async function runRepack(
   // Pre-fix (rotate(+90) on WRITE): page bytes were rotated 90° in the same
   // direction the runtime later rotates → 180° net → upside-down faces.
   for (const region of packResult.regions) {
+    // WR-02: cooperative cancellation in the rotation prep loop. Mirrors
+    // the resize/passthrough/composite loops + image-worker.ts runExport's
+    // rotation step. Each rotation is its own libvips sharp() call, so the
+    // pre-iteration check is the same lifecycle the rest of the worker
+    // uses.
+    if (isCancelled()) {
+      bailedOnCancel = true;
+      throw new Error('cancelled');
+    }
     if (region.rotated) {
       const orig = regionBuffers.get(region.regionName);
       if (!orig) continue;
