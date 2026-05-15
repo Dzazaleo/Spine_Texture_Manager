@@ -317,9 +317,14 @@ export async function runRepack(
     await rename(tmpPath, pagePath);
     pageFiles.push(pagePath);
 
+    // UAT 2026-05-15 — emit composite events in the SAME absolute index
+    // space as the resize events (continue past plan.rows.length). Pre-fix
+    // these emitted (index=0, total=1) → the renderer (which uses a global
+    // plan.rows-based denominator) snapped progress back to ~0% on the
+    // last event. By offsetting we keep the bar monotonic.
     onProgress({
-      index: pi,
-      total: packResult.pages.length,
+      index: plan.rows.length + pi,
+      total: plan.rows.length + packResult.pages.length,
       path: pageFilename(projectName, page.pageIndex),
       outPath: pagePath,
       status: 'success',

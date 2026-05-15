@@ -419,9 +419,18 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
     sumSourcePixels > 0
       ? (1 - sumOutPixels / sumSourcePixels) * 100
       : 0;
+  // Atlas mode collapses 160 attachment rows to N unique regions (dedup by
+  // regionName); using `total = plan.rows + passthrough` as the denominator
+  // misreads as "23 of 160 succeeded". Phase 40 UAT fix — derive the
+  // denominator from the summary itself so the framing matches the actual
+  // work attempted: "23 of 23" for atlas, "160 of 160" for loose, "183 of
+  // 183" for both.
+  const completionTotal = summary
+    ? summary.successes + summary.errors.length
+    : total;
   const headerTitle =
     state === 'complete'
-      ? `Export complete — ${summary?.successes ?? 0} of ${total} succeeded`
+      ? `Export complete — ${summary?.successes ?? 0} of ${completionTotal} succeeded`
       : state === 'in-progress'
         ? `Optimize Assets — ${progress.current} of ${total} → ${props.outDir}`
         : props.outDir !== null
