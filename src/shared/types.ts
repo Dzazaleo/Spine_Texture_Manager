@@ -1390,6 +1390,29 @@ export interface Api {
   probeExportConflicts: (
     plan: ExportPlan,
     outDir: string,
+    /**
+     * UAT Round 3 (2026-05-15) — atlas-mode-aware probing. When
+     * `outputMode` is 'atlas' or 'both', the probe checks the outDir-root
+     * atlas targets (`{projectName}.png`, `{projectName}_N.png`,
+     * `{projectName}.atlas`) in addition to / instead of the loose-mode
+     * per-region paths. Defaults to 'loose' in main when omitted —
+     * preserves byte-stable behavior for any legacy caller. Renderer
+     * always passes the .stmproj-hydrated value.
+     */
+    outputMode?: 'loose' | 'atlas' | 'both',
+    /**
+     * UAT Round 3 (2026-05-15) — accepted for symmetry with `startExport`
+     * and to allow future probe extensions (e.g. pack-plan-derived page
+     * count). The current probe is page-count-agnostic and uses the
+     * canonical sentinels (`{projectName}.png` + `{projectName}.atlas`)
+     * plus a readdir-based scan for additional `{projectName}_N.png`
+     * pages. Renderer always passes the .stmproj-hydrated value.
+     */
+    atlasOpts?: {
+      maxPageSize: 1024 | 2048 | 4096 | 8192;
+      allowRotation: boolean;
+      padding: number;
+    },
   ) => Promise<ProbeConflictsResponse>;
   /**
    * Phase 6 Plan 05 — One-way cancel signal. Fire-and-forget. The next
