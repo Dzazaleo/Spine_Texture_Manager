@@ -64,6 +64,7 @@ import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
+import { AnimationPlayerModal } from '../modals/AnimationPlayerModal';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { SettingsDialog } from '../modals/SettingsDialog';
 import { HelpDialog } from '../modals/HelpDialog';
@@ -207,6 +208,12 @@ export function AppShell({
   // snapshot state — the modal reads summary + overrides directly (D-131).
   const [atlasPreviewOpen, setAtlasPreviewOpen] = useState(false);
 
+  // Phase 41 VIEWER-04 — Animation Viewer modal lifecycle. Plain boolean
+  // mirroring atlasPreviewOpen above (D-03). No snapshot state — the viewer
+  // reads effectiveSummary + loaderMode directly on mount and disposes
+  // its WebGL context in useEffect cleanup (D-04b: no persistence).
+  const [animationViewerOpen, setAnimationViewerOpen] = useState(false);
+
   // Phase 20 D-01 — Documentation Builder modal lifecycle. Plain boolean
   // mirroring atlasPreviewOpen above. The documentation state itself is
   // hoisted further down so its lazy initializer can intersect against the
@@ -280,6 +287,25 @@ export function AppShell({
   // change would still show the previous skeleton's peaks.
   useEffect(() => {
     setLocalSummary(null);
+  }, [summary]);
+
+  // Phase 41 VIEWER-08 — close the Animation Viewer when a new summary
+  // identity arrives (resample, Settings-driven re-sample, locate-skeleton
+  // recovery, drop/Open of a different project). Mirrors the localSummary
+  // reset above on the same [summary] trigger.
+  //
+  // RESEARCH Pitfall 6: AppShell does NOT unmount on summary-only changes
+  // (status stays 'loaded'). Without this reset, switching projects with
+  // the viewer open would leave the modal pointing at the OLD player tied
+  // to the OLD summary's assets — user would see stale animation/skin
+  // dropdowns or stale playback on the new project.
+  //
+  // The modal's own useEffect cleanup (Plan 02) disposes the player when
+  // the modal unmounts. This reset is the AppShell-level trigger that
+  // CAUSES that unmount (animationViewerOpen flips to false -> conditional
+  // mount unmounts the modal -> useEffect cleanup runs -> dispose).
+  useEffect(() => {
+    setAnimationViewerOpen(false);
   }, [summary]);
 
   // Phase 20 D-01 / D-09 / D-10 / D-11 — Documentation slot lifted into
@@ -585,6 +611,13 @@ export function AppShell({
   // Phase 7 D-134 — NEW: toolbar button click handler.
   const onClickAtlasPreview = useCallback(() => {
     setAtlasPreviewOpen(true);
+  }, []);
+
+  // Phase 41 VIEWER-04 — Animation Viewer toolbar button click handler.
+  // Mirrors onClickAtlasPreview above. Sets the boolean; the modal mounts
+  // conditionally on animationViewerOpen at the JSX mount site below.
+  const onClickAnimationViewer = useCallback(() => {
+    setAnimationViewerOpen(true);
   }, []);
 
   const onOpenOverrideDialog = useCallback(
@@ -1644,6 +1677,13 @@ export function AppShell({
       // alone would auto-suppress via 08.2 D-184, but explicit inclusion
       // keeps the derivation list parallel with the other 5 modal slots.
       helpOpen ||
+      // Phase 41 VIEWER-04 — AnimationPlayerModal joins the derivation.
+      // role="dialog" + aria-modal="true" already auto-suppress File menu
+      // via 08.2 D-184; explicit inclusion keeps the audit list parallel.
+      // Pitfall 7 — both this OR-chain BODY entry AND the dep array entry
+      // below are required; missing either causes Cmd-S to work while the
+      // viewer is open OR causes modalOpen to drift stale on viewer toggle.
+      animationViewerOpen ||
       // Phase 20 D-01 — DocumentationBuilderDialog joins the derivation.
       // role="dialog" + aria-modal="true" already auto-suppresses File menu
       // via 08.2 D-184; explicit inclusion keeps the audit list parallel
@@ -1672,6 +1712,7 @@ export function AppShell({
     settingsOpen,
     helpOpen,
     documentationBuilderOpen,
+    animationViewerOpen, // Phase 41 — Pitfall 7 dep-array parity with OR-chain above
   ]);
 
   /**
@@ -2097,6 +2138,23 @@ export function AppShell({
           >
             Atlas Preview
           </button>
+          {/* Phase 41 VIEWER-04 — Animation Viewer toolbar button.
+              Position locked between Atlas Preview and Documentation per
+              D-03a (groups the two visual-validation surfaces — static
+              atlas layout + animated playback — adjacent). Class string
+              byte-identical to Atlas Preview above for Tailwind v4
+              literal-class scanner discipline (Pitfall 3). Disabled
+              predicate mirrors Atlas Preview per D-03c (no-peaks gate
+              only; stays enabled during sampler/export in-flight since
+              the viewer owns its own spine-core instance). */}
+          <button
+            type="button"
+            onClick={onClickAnimationViewer}
+            disabled={effectiveSummary.peaks.length === 0}
+            className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
+          >
+            Animation Viewer
+          </button>
           {/* Phase 20 D-01 — Documentation Builder modal trigger. The
               `disabled`, `aria-disabled`, and `title` placeholder attributes
               from Phase 19 D-03 are removed; onClick opens the
@@ -2472,6 +2530,20 @@ export function AppShell({
           onClose={() => setAtlasPreviewOpen(false)}
           onOpenOptimizeDialog={onClickOptimize}
           safetyBufferPercent={safetyBufferPercentLocal}
+        />
+      )}
+      {/* Phase 41 VIEWER-04 — Animation Viewer modal. Reads effectiveSummary +
+          loaderMode at mount; disposes WebGL on close (VIEWER-08 via
+          AnimationPlayerModal's useEffect cleanup). Mirrors atlasPreviewOpen
+          conditional-mount pattern at the AtlasPreviewModal block above.
+          Project-change cleanup (VIEWER-08 — Pitfall 6) is handled by the
+          [summary]-keyed useEffect inserted near the localSummary reset. */}
+      {animationViewerOpen && (
+        <AnimationPlayerModal
+          open={true}
+          summary={effectiveSummary}
+          loaderMode={loaderMode}
+          onClose={() => setAnimationViewerOpen(false)}
         />
       )}
       {/* Phase 20 D-01 — Documentation Builder modal. Mounted alongside
