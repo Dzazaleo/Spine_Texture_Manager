@@ -26,7 +26,7 @@ v1.5 continues phase numbering from v1.4 (which closed at Phase 35).
 - [x] **Phase 37: Spine 4.2 Timeline Coverage Hardening** — Source-audit RGBA2Timeline + InheritTimeline in spine-core 4.2 + InheritTimeline fixture + RGBA2 geometry-invariance test (SEED-005 Level B) (completed 2026-05-13)
 - [x] **Phase 38: Phase 4 Code-Review Polish Pass** — Audit IN-01..06 against current code, apply still-applicable findings, resolve long-lived v1.0-era todo (completed 2026-05-13)
 - [x] **Phase 39: Windows Host-Blocked UAT Burndown** — Run Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT on real Windows host if available, degrade to `human_needed` if host unavailable (completed 2026-05-13)
-- [ ] **Phase 40: Atlas Repack Output** — Optimize Dialog gains additive `loose | atlas | both` output mode (default loose); emits libgdx-format `.atlas` + composite page PNG(s) via `maxrects-packer` (already in deps) + sharp per-region trim/rotate/composition; both atlas-source + atlas-less input loaderModes supported; JSON invariant under repack (source-confirmed spine-ts 4.2.111); 7 additive `.stmproj` fields (no schema bump); `safetyBufferPercent` / `sharpenOnExport` / D-91 cap apply pre-pack per-region (SEED-008)
+- [x] **Phase 40: Atlas Repack Output** — Optimize Dialog gains additive `loose | atlas | both` output mode (default loose); emits libgdx-format `.atlas` + composite page PNG(s) via `maxrects-packer` (already in deps) + sharp per-region trim/rotate/composition; both atlas-source + atlas-less input loaderModes supported; JSON invariant under repack (source-confirmed spine-ts 4.2.111); 7 additive `.stmproj` fields (no schema bump); `safetyBufferPercent` / `sharpenOnExport` / D-91 cap apply pre-pack per-region (SEED-008) (completed 2026-05-15)
 
 ## Phase Details
 
@@ -104,7 +104,7 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 | 37. Spine 4.2 Timeline Coverage Hardening | 3/3 | Complete    | 2026-05-13 |
 | 38. Phase 4 Code-Review Polish Pass | 3/3 | Complete    | 2026-05-13 |
 | 39. Windows Host-Blocked UAT Burndown | 3/3 | Complete    | 2026-05-13 |
-| 40. Atlas Repack Output | 7/9 | In Progress|  |
+| 40. Atlas Repack Output | 9/9 | Complete   | 2026-05-15 |
 
 ### Phase 40: Atlas Repack Output
 **Goal**: Optimize Dialog gains an additive `loose | atlas | both` output mode (default `loose`) that emits a libgdx-format `.atlas` + composite page PNG(s), letting animators ship packed atlases directly from optimized regions without round-tripping through the Spine editor.
@@ -127,8 +127,8 @@ Phases are mutually independent — any ordering is correct. Default sequential 
 - [x] 40-05-PLAN.md — `main/repack-worker.ts` sharp orchestration (REPACK-03, REPACK-05, REPACK-10): emit-truth, materialize-rotate, atomic-or-fail, locked error string
 - [x] 40-06-PLAN.md — IPC extension (REPACK-01, REPACK-10, D-04, D-04a, D-05): export:start outputMode + atlasOpts; validateExportOpts; shared writtenPaths rollback
 - [x] 40-07-PLAN.md — OptimizeDialog Output card UI (REPACK-01, D-01..D-01e): radio + 3 conditional knobs; AppShell threading; preload bridge
-- [ ] 40-08-PLAN.md — SHA256 baselines + regression sentinel (REPACK-01, REPACK-08, REPACK-09): loose-parity gate + cross-loaderMode parity + sharpen-invariant + refresh script
-- [ ] 40-09-PLAN.md — SEED-008 closure breadcrumb (REPACK-01..10): status flip dormant→closed; STATE.md update
+- [x] 40-08-PLAN.md — SHA256 baselines + regression sentinel (REPACK-01, REPACK-08, REPACK-09): loose-parity gate + cross-loaderMode parity + sharpen-invariant + refresh script
+- [x] 40-09-PLAN.md — SEED-008 closure breadcrumb (REPACK-01..10): status flip dormant→closed; STATE.md update
 **UI hint**: yes
 
 ---
