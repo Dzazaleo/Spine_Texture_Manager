@@ -44,9 +44,15 @@ import {
   constants as fsConstants,
   rm as fsRm,
   readdir,
+  readFile,
 } from 'node:fs/promises';
 import { loadSkeleton } from '../core/loader.js';
 import { sampleSkeleton } from '../core/sampler.js';
+// Phase 41 VIEWER-03 — atlas-less synth-atlas materialization for the
+// Animation Viewer. The renderer is forbidden from importing core/*
+// (tests/arch.spec.ts:19-34); main re-runs the synthesizer on demand and
+// ships the result via the new viewer:get-asset-feed IPC handler below.
+import { synthesizeAtlasText } from '../core/synthetic-atlas.js';
 import { SpineLoaderError, SpineVersionUnsupportedError } from '../core/errors.js';
 import { buildSummary } from './summary.js';
 import { runExport } from './image-worker.js';
@@ -122,6 +128,7 @@ import type {
   LoadResponse,
   ProbeConflictsResponse,
   SerializableError,
+  ViewerAssetFeedResponse,
 } from '../shared/types.js';
 
 // Phase 8.1 D-158 — handleSkeletonLoad's SpineLoaderError forwarder produces
@@ -1246,6 +1253,53 @@ export function registerIpcHandlers(): void {
       return '';
     }
   });
+
+  // Phase 41 VIEWER-03 — atlas-less synth-atlas materialization for the
+  // Animation Viewer. The renderer cannot run synthesizeAtlasText
+  // (`fs`-bound, lives in `core/`); main re-runs it on demand. Returns
+  // the synth atlas text as a base64 `data:` URI plus the per-region PNG
+  // absolute-path map; renderer converts absolute paths to
+  // `app-image://` URLs via the `pathToImageUrl` bridge.
+  //
+  // Trust boundary (T-41-01): `typeof` check on skeletonPath + `.json`
+  // extension check mirror handleSkeletonLoad's validation shape. No
+  // fs read happens before the type guard returns.
+  //
+  // Errors NEVER throw across the IPC boundary — synth failure is
+  // surfaced as `{ ok: false, error: { kind: 'Unknown', message } }`
+  // and the viewer renders the terminal-Close error overlay (CONTEXT D-04c).
+  ipcMain.handle(
+    'viewer:get-asset-feed',
+    async (_evt, skeletonPath: unknown): Promise<ViewerAssetFeedResponse> => {
+      if (typeof skeletonPath !== 'string' || skeletonPath.length === 0) {
+        return { ok: false, error: { kind: 'Unknown', message: 'Invalid skeleton path' } };
+      }
+      if (!skeletonPath.toLowerCase().endsWith('.json')) {
+        return {
+          ok: false,
+          error: { kind: 'Unknown', message: 'Skeleton path must end in .json' },
+        };
+      }
+      try {
+        const parsedJson = JSON.parse(await readFile(skeletonPath, 'utf8'));
+        const imagesDir = path.join(path.dirname(skeletonPath), 'images');
+        const synth = synthesizeAtlasText(parsedJson, imagesDir, skeletonPath);
+        const atlasTextDataUri =
+          'data:text/plain;base64,' +
+          Buffer.from(synth.atlasText, 'utf8').toString('base64');
+        const regionPaths: Record<string, string> = {};
+        for (const [regionName, absPath] of synth.pngPathsByRegionName) {
+          regionPaths[regionName] = absPath;
+        }
+        return { ok: true, atlasTextDataUri, regionPaths };
+      } catch (err) {
+        return {
+          ok: false,
+          error: { kind: 'Unknown', message: (err as Error).message ?? String(err) },
+        };
+      }
+    },
+  );
 
   // Phase 8 — project file IPC channels (D-140..D-156). Six invoke channels
   // routing to src/main/project-io.ts. Trust-boundary validation lives inside
