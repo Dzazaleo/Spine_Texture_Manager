@@ -71,7 +71,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 
 ### 🟢 v1.5.1 Spine Animation Viewer (Phase 41)
 
-- [ ] **Phase 41: Spine Animation Viewer** — In-app read-only Spine animation player wrapping Esoteric's `spine-player`, validates exported atlases without round-tripping through the Spine editor
+- [x] **Phase 41: Spine Animation Viewer** — In-app read-only Spine animation player wrapping Esoteric's `spine-player`, validates exported atlases without round-tripping through the Spine editor (completed 2026-05-15)
 
 ## Phase Details
 
@@ -121,7 +121,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 | 38    | v1.5      | 3/3            | Complete    | 2026-05-13 |
 | 39    | v1.5      | 3/3            | Complete    | 2026-05-13 |
 | 40    | v1.5      | 9/9            | Complete    | 2026-05-15 |
-| 41    | v1.5.1    | 1/3 | In Progress|  |
+| 41    | v1.5.1    | 3/3 | Complete   | 2026-05-15 |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 
