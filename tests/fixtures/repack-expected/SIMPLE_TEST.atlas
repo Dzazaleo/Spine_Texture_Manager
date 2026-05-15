@@ -1,0 +1,11 @@
+SIMPLE_TEST.png
+size:1701,1761
+format:RGBA8888
+filter:Linear,Linear
+repeat:none
+CIRCLE
+bounds:0,0,699,699
+SQUARE
+bounds:701,0,1000,1000
+TRIANGLE
+bounds:0,1002,833,759
