@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-05-15T13:52:42.169Z"
 last_activity: 2026-05-15
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap created — awaiting `/gsd-plan-phase 41`)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-15 — Milestone v1.5.1 started
+Status: Roadmap created — ready for `/gsd-discuss-phase 41` (resolves D-01..D-04) then `/gsd-plan-phase 41`
+Last activity: 2026-05-15 — Milestone v1.5.1 started; ROADMAP.md created (single phase: Phase 41 — Spine Animation Viewer; 8 active VIEWER reqs mapped)
 
 ## Project Reference
 
@@ -28,7 +28,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-15 after v1.5 milestone close).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** v1.5.1 — Spine Animation Viewer (defining requirements; viewer-only scope per user, Phase 40 polish items remain deferred to v1.5.2 / v1.6).
+**Current focus:** v1.5.1 — Spine Animation Viewer (Phase 41; viewer-only scope per user, Phase 40 polish items remain deferred to v1.5.2 / v1.6).
 
 ## Last Completed Milestone
 
@@ -104,14 +104,24 @@ All explicitly deferred per user decision in `40-REVIEW.md`. Backlog candidates 
 - **WINUAT-01..03 host-blocked graceful degradation:** Phase 39 `human_needed` outcome was first-class non-failure; in this cycle, `host_available: yes` so both UATs ran live. [SHIPPED Phase 39]
 - **SEED-008 (Phase 40) locked design facts:** Output mode is additive (loose default unchanged); JSON invariant under repack (source-confirmed spine-ts 4.2.111); both atlas-source + atlas-less input loaderModes supported on output; 4 additive `.stmproj` fields with no schema bump (NOT 7 as originally documented; spec collapsed at /gsd-spec-phase 40); `core/` stays pure-TS for pack math; sharp + `.atlas` writing in `main/`; `safetyBufferPercent` / `sharpenOnExport` / D-91 cap apply pre-pack per-region. [LOCKED + SHIPPED Phase 40]
 
+### v1.5.1 Locked Design Facts (from SEED-009 — do not relitigate)
+
+1. **Use Esoteric's official `@esotericsoftware/spine-player` library** — no hand-rolled renderer.
+2. **`spine-player` is a sibling package to the already-installed `spine-core`** — both coexist; no API drift expected within 4.2.x.
+3. **The viewer is read-only** — validation surface, not authoring surface.
+4. **The viewer does NOT replace `AtlasPreviewModal`** — static atlas layout vs animation playback; different jobs, both stay.
+
+Open decisions D-01 (npm vs vendor) / D-02 (modal vs split-pane vs tab) / D-03 (mount location) / D-04 (asset feed) are deferred to `/gsd-discuss-phase 41` per SEED-009.
+
 ### Roadmap Evolution
 
 - 2026-05-14 — Phase 40 added (`atlas-repack-output`) post-hoc after v1.5 marked `milestone_complete`. v1.5 reopened (`status: in_progress`, `total_phases: 4 → 5`). Phase 40 became the v1.5 milestone-close phase; planted as SEED-008 immediately prior. Branch `experiment/phase-40-atlas-repack` was used.
 - 2026-05-15 — v1.5 SHIPPED with all 5 phases verified, milestone audit passed, archives written. Tag `v1.5.0` pending push.
+- 2026-05-15 — v1.5.1 STARTED; ROADMAP.md created with single Phase 41 (Spine Animation Viewer) covering all 8 active VIEWER reqs. Continues phase numbering from v1.5 (no `--reset-phase-numbers`). v1.5 phase directories 36–40 retained at `.planning/phases/`.
 
 ---
 
 *This file is authored fresh at milestone start. v1.5 phases preserved at `.planning/phases/36-*..40-*/` (per user choice — not archived to `milestones/v1.5-phases/`).*
 
 **Last Milestone:** v1.5 (Override Routing + Coverage Hardening + Atlas Repack) — COMPLETE — 2026-05-15 (5 phases, 23 plans, 18 + 10 REQs; tag `v1.5.0` pending push).
-**Current Milestone:** none (awaiting `/gsd-new-milestone` to define v1.6 scope).
+**Current Milestone:** v1.5.1 (Spine Animation Viewer) — PLANNING — Phase 41 roadmapped 2026-05-15; awaiting `/gsd-discuss-phase 41` → `/gsd-plan-phase 41`.

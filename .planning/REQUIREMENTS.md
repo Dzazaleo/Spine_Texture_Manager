@@ -87,25 +87,25 @@ These influence the shape of VIEWER-01, 03, 04 but do not change the requirement
 
 ## Traceability
 
-Populated by `gsd-roadmapper` during roadmap creation.
+Populated by `gsd-roadmapper` during roadmap creation 2026-05-15.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VIEWER-01 | TBD | Pending |
-| VIEWER-02 | TBD | Pending |
-| VIEWER-03 | TBD | Pending |
-| VIEWER-04 | TBD | Pending |
-| VIEWER-05 | TBD | Pending |
-| VIEWER-06 | TBD | Pending |
-| VIEWER-08 | TBD | Pending |
-| VIEWER-09 | TBD | Pending |
+| VIEWER-01 | Phase 41 | Pending |
+| VIEWER-02 | Phase 41 | Pending |
+| VIEWER-03 | Phase 41 | Pending |
+| VIEWER-04 | Phase 41 | Pending |
+| VIEWER-05 | Phase 41 | Pending |
+| VIEWER-06 | Phase 41 | Pending |
+| VIEWER-08 | Phase 41 | Pending |
+| VIEWER-09 | Phase 41 | Pending |
 
 **Coverage:**
 - v1.5.1 requirements: 8 total (VIEWER-01..06, VIEWER-08, VIEWER-09 — VIEWER-07 is Future)
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 8 ⚠️ (resolved at roadmap step)
+- Mapped to phases: 8 ✓
+- Unmapped: 0 ✓
 
 ---
 
 *Requirements defined: 2026-05-15*
-*Last updated: 2026-05-15 — v1.5.1 milestone start, requirements drafted from SEED-009.*
+*Last updated: 2026-05-15 — v1.5.1 roadmap created (single phase: Phase 41 — Spine Animation Viewer; all 8 active VIEWER reqs mapped). VIEWER-07 + POLISH-* + PORT-* remain Future, unchanged.*
