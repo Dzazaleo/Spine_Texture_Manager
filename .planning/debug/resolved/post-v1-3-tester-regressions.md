@@ -1,9 +1,10 @@
 ---
 slug: post-v1-3-tester-regressions
-status: diagnosed
+status: resolved
 trigger: tester-feedback
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-14
+resolved: 2026-05-14
 ---
 
 ## CYCLE 2 RESOLUTION — root cause found (cluster 1, bugs a/b/c)
@@ -312,3 +313,9 @@ For bug d's exact failure mode: need the literal error text from tester. If the 
 - **(F2, narrow)** Patch only the prefill at AppShell.tsx:504-520 to detect "no cap binds" (peak.peakScale * overrideFrac ≤ sourceRatio AND ≤ 1) and surface 100% directly. Lower risk; doesn't touch sampler math.
 
 Recommend F1 — aligned with the locked invariant `project_peak_anchored_invariants.md`.
+
+---
+
+## Resolved at v1.5 milestone close — 2026-05-14
+
+Closed during `/gsd-complete-milestone v1.5`. The Cluster-1 root cause (`analyzer.ts` looking up atlas-region maps by `peak.attachmentName` instead of region name) was fixed in commit `792af3f fix(analyzer): resolve atlas-region maps via regionName for path-indirected attachments`. Current code at [analyzer.ts:231](../../../src/core/analyzer.ts#L231): `const lookupKey = p.regionName ?? p.attachmentName;` — exactly the fix described here. The Cluster-2 work is subsumed by Phase 29's region-keyed dedup migration (see sibling debug session `path-indirected-duplicate-rows.md`).

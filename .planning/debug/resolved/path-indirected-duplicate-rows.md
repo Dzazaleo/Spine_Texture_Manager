@@ -1,9 +1,10 @@
 ---
 slug: path-indirected-duplicate-rows
-status: pending_phase_plan
+status: resolved
 trigger: "User reports attachment table lists multiple rows whose names share a common prefix (`5/5/5/7/7`, `5/5/7/7`, `5/7`) but appear to resolve to the same source PNG (`5/7.png`). Looks like either accidental path concatenation in row keys, or duplicate counting of the same logical attachment under name variants."
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-14
+resolved: 2026-05-14
 ---
 
 # Debug: Possible duplicate / path-concatenated rows in Global Max Render Scale table
@@ -245,3 +246,11 @@ Memories that constrain the decision:
 - `project_sampler_visibility_invariant.md` — sampler must measure all skin-declared attachments. Any merge happens in the analyzer/UI layer, not by dropping records upstream.
 - `project_strict_loadermode_separation.md` — regionName lookup already tolerates atlas-source vs atlas-less symmetry; merging by regionName is safe in both modes.
 - `feedback_narrow_before_fixing.md` — diagnostic done; design choice belongs to the user.
+
+---
+
+## Resolved at v1.5 milestone close — 2026-05-14
+
+Closed during `/gsd-complete-milestone v1.5`. The locked decision in this file ("Option B + 4-surface invariant — dedup by source PNG (`regionName`) across the entire app") was implemented by **Phase 29 (v1.3.1)** with `analyzeRegions` + `dedupByRegionName` + REGION-05 lex tiebreak (commit `bc758c6 feat(29-01)`). The `contributingAttachments` dedup follow-up landed in `a5b5ee9 fix(29-06)`. All 4 surfaces (Global panel, Atlas Preview, Optimize Assets, exported folder) now consume region-keyed data — completion of `skins-optimize-undercount` via Phase 35 (v1.4) closed the last non-conforming surface.
+
+Current code: [analyzer.ts:248-350](../../../src/core/analyzer.ts) (`analyzeRegions`); [export.ts:198-201](../../../src/core/export.ts) (`buildExportPlan` iterates `summary.regions`).

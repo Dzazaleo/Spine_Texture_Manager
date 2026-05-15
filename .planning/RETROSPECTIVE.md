@@ -208,6 +208,58 @@
 
 ---
 
+## Milestone: v1.5 — Override Routing + Coverage Hardening + Atlas Repack
+
+**Shipped:** 2026-05-15
+**Phases:** 5 (36, 37, 38, 39, 40) | **Plans:** 23 | **Tasks:** 50 | **REQs:** 18 documented + 10 REPACK (post-hoc)
+
+### What Was Built
+
+1. **Phase 36 (Split Overrides Per Loader Mode, OVR-01..07)** — `overridesAtlasLess` field added additively to `ProjectFileV1` / `AppSessionState` / `MaterializedProject`; legacy v1.3.x/v1.4.x `.stmproj` routes by saved `loaderMode` at the Open seam (Decision 2-A); per-bucket `migrateOverrides` at all 3 IPC seams; AppShell `activeOverrides` memo flows to all 4 `buildExportPlan` sites; one-shot mode-toggle toast (D-04 verbatim copy + localStorage suppression). CR-01 resample-handler routing bug + WR-01 drag-drop recovery field-loss bug surfaced + fixed in code-review-fix cycle. SEED-007 closed.
+2. **Phase 37 (Spine 4.2 Timeline Coverage Hardening, TIMELINE-01..05)** — RGBA2Timeline + InheritTimeline source-audited with citations to `Animation.js:755` (writer) + `Bone.js:144` (reader); `fixtures/INHERIT_TIMELINE/` JSON+atlas+PNG; TIMELINE-03 strict `peak(detached) > peak(baseline)` per TRIGGERED escalation clause (observed 2.5× ratio, BASELINE=0.4 vs INHERIT_DETACH=1.0); TIMELINE-04 byte-equal RGBA2 invariance via synthetic injection on SQUARE2 (only `dark`-bearing slot in SIMPLE_TEST). SEED-005 closed.
+3. **Phase 38 (Phase 4 Code-Review Polish Pass, POLISH-01..03)** — `38-POLISH-AUDIT.md` enumerates IN-01..IN-06 + WR-03 with verdicts: 1 applies (IN-02 drag-to-cancel `onMouseDown` + `e.target === e.currentTarget` guard in `OverrideDialog.tsx`), 5 no-op swept by Phase 6 Gap-Fix R6 + Phase 27 QA-01..04, 1 skip (IN-04 `highlightMatch` panel duplication, intentional per Phase 2/3 self-contained-panel pattern). v1.0-era pending todo retired.
+4. **Phase 39 (Windows Host-Blocked UAT Burndown, WINUAT-01..03)** — `host_available: yes`; Phase 20 DocBuilder DnD UAT + Phase 31 admin DnD UAT both executed live and flipped `passed`; both pending todos (`2026-05-01-phase-20-*`, `2026-05-08-phase-31-*`) retired to `resolved/`. Two upstream path inaccuracies pre-discovered in 39-CONTRACT.md (Phase 20 UAT deleted in `0787fe1`; Phase 31 UAT at archived v1.3.1-phases path).
+5. **Phase 40 (Atlas Repack Output, REPACK-01..10)** — additive `loose | atlas | both` output mode in OptimizeDialog Output card emits libgdx `.atlas` + composite page PNG(s) via `maxrects-packer@2.7.3` + `sharp` per-region trim/rotate/composition. `core/repack.ts` pure-TS pack planner with deterministic regionName sort + oversize pre-flight; `main/atlas-writer.ts` libgdx text serializer with TextureAtlas round-trip parity; `main/repack-worker.ts` sharp orchestration with REPACK-10 atomic-or-fail rollback via shared `writtenPaths: Set<string>` (loose + atlas pipelines share one rollback set so a mid-write failure rolls back EVERY artifact); `main/sharp-resize.ts` shared helper extracted with terminal-action split (D-03a). 4 additive `.stmproj` fields with no schema bump. SHA256 baseline + cross-loaderMode parity + sharpen-invariant tests. Rotation default off; `sharp.rotate(-90)` for WRITE direction inverse of v1.4 +90 READ direction. 3 rounds of human UAT against `JOKERMAN_SPINE.json` caught + fixed 8 bugs. SEED-008 closed.
+
+Plus an adjacent regression caught + fixed during Phase 36 UAT: window X-button / Cmd+W path skipped the dirty-save prompt (pre-existing since Phase 8/18) — fixed in `ef38cd3 fix(36-followup)` by mirroring the `before-quit` IPC dirty-check on `mainWindow.on('close')`.
+
+### What Worked
+
+1. **Locked-decision pre-loading at milestone start.** STATE.md `v1.5 Locked Constraints` section recorded SEED-007 D-1/D-2-A/D-3-A, TIMELINE-02 conditional escalation, WINUAT-01..03 graceful-degradation contract, and SEED-008 design facts BEFORE phase planning began. Discuss-phase runs were short — none of the locked decisions were relitigated. Confirmed pattern from v1.4 (4.3-detect-and-warn) — "lock the constraint at seed plant, not at plan kickoff" saved discuss-phase rounds in 4 of 5 phases.
+2. **Conditional escalation as a planning checkpoint, not a deferred risk.** TIMELINE-02 escalation clause was explicitly documented at planning time with the trigger (`if InheritTimeline mutates a Bone field that affects updateWorldTransform`) and the consequent (TIMELINE-03 becomes load-bearing). When the audit confirmed TRIGGERED, the test naturally hardened from precautionary to load-bearing without re-discussion. Reusable pattern: surface conditional-escalation contracts at plan time so they don't surprise execute-phase.
+3. **Verifier flagging documentation gaps as carry-forwards, not failures.** Phase 40 verifier called out REPACK-01..10 missing from REQUIREMENTS.md as a "documentation-bookkeeping carry-forward, NOT a goal-achievement gap" — it correctly distinguished verified-in-code-but-undocumented from unverified. /gsd-complete-milestone closure handled the fold-in via the milestone archive seam. Cleaner than blocking the verifier on a documentation race.
+4. **Three-round human UAT against a real animator rig (JOKERMAN_SPINE.json) caught 8 bugs the test suite missed.** Rounds 1+2+3 each surfaced new failure modes (dedup-by-attachmentNames vs outPath, rotation direction, success-count-on-dropped-row, tooltip-on-row, passthrough-bypassing-sharp, overwrite-probe blind to atlas targets, progress overshoot). All 8 fixed atomically with regression sentinels. **The rig that broke v1.4's region-keyed export plan also broke Phase 40 in 3 distinct ways** — JOKERMAN_SPINE.json is now the de-facto smoke fixture for any export-pipeline change.
+5. **Cross-phase integration check decoupled from phase-level verification.** /gsd-audit-milestone spawned `gsd-integration-checker` after all 5 phases self-verified, finding zero CRITICAL or WARNING issues across 5 cross-phase touchpoints (override-bucket pipeline, E2E export flow, schema additivity, AppShell coexistence, test suite). Confirms Phase 36 + Phase 40 — both touch AppShell state in major ways — coexist cleanly.
+
+### What Was Inefficient
+
+1. **Phase 40 added post-hoc to v1.5 created REQUIREMENTS.md drift.** v1.5 was originally scoped at 4 phases (36–39) with REQUIREMENTS.md frozen 2026-05-13. Phase 40 (Atlas Repack) was added 2026-05-14 after Phase 36–39 completed; STATE.md correctly reopened the milestone but REQUIREMENTS.md was never amended with REPACK-01..10. The Phase 40 verifier had to call out the gap as a milestone-close handoff. **Lesson:** when a phase is inserted post-milestone-start, either (a) update REQUIREMENTS.md as part of that phase's spec, or (b) add a note in REQUIREMENTS.md that REQ-IDs are tracked in the inserted phase's PLAN/SUMMARY/VERIFICATION until the next milestone close.
+2. **Pre-close audit scanner had 2 false positives.** `gsd-sdk query audit-open` flagged Phase 36 36-HUMAN-UAT.md as `[unknown]` and quick-task `260505-lk0` as `[missing]`. Both files showed clear `passed`/`shipped` status in their own frontmatter — the scanner reads a different field shape. Cost ~10 minutes of investigation to confirm both were false positives. **Lesson:** the scanner's frontmatter expectations should match the writer's frontmatter conventions; when they drift, flagging is noisy.
+3. **8 Phase 40 polish items deferred per user decision rather than landing in v1.5.** WR-03..WR-07 + IN-01..IN-04 from `40-REVIEW.md` were all explicitly user-deferred. None block goal achievement, but each represents a small backlog accumulation. Phase 40 already shipped CR-01 + CR-02 + WR-01 + WR-02 + WR-06 fixes inline — the deferred items are the long-tail of code review. **Lesson:** consider a "polish-pass" capacity reservation as part of milestone scope when shipping a complex new pipeline; v1.5's Phase 38 was retroactive Phase-4 polish, suggesting we trail polish by ~5 milestones.
+
+### Patterns Established
+
+1. **Source-audit + fixture-lock as a coverage-hardening pattern (Phase 37, SEED-005 Level B).** When a runtime feature is "likely irrelevant but unverified," cite source files (`Animation.js:NNN` + `Bone.js:NNN`) in an audit doc, then commit a minimal fixture + test that locks the contract empirically. The audit citation gives the test author a precise "what to assert" target; the fixture survives spine-core upgrades as a regression sentinel. Reused for both RGBA2Timeline (geometry-invariance) and InheritTimeline (escalation-triggered).
+2. **Shared rollback Set across multiple workers (Phase 40, REPACK-10 D-04a).** When a single user action dispatches multiple parallel pipelines (loose + atlas in `both` mode), wrap them in one shared `Set<string>` writtenPaths; an inner-catch `fs.rm` sweep on throw cleans every registered artifact. Both workers register tmp + final paths BEFORE writing. Generalizes to any future multi-worker dispatch.
+3. **Sharp-emits-truth: read back actual emitted dims via `metadata()` (Phase 40).** Plan-target dims and sharp-emitted dims can drift on edge cases (1px rounding, format conversion). When downstream pipelines (packer, atlas writer) consume those dims, they must read sharp's reality not the plan's intent. Codified at `repack-worker.ts:292-294`. Generalizes to any pipeline that combines `buildExportPlan` outputs with sharp transformations.
+4. **Pre-discovered file-path corrections in CONTRACT documents (Phase 39).** 39-CONTRACT.md surfaced TWO upstream path inaccuracies (Phase 20 UAT deleted in `0787fe1`; Phase 31 UAT at archived v1.3.1-phases path) before plans 39-02 and 39-03 attempted to edit those files. Without the contract's pre-discovery step, both plans would have failed at execute time. Pattern: when a phase depends on artifacts in older milestones' archives, audit the artifact paths in a CONTRACT.md before writing the plans.
+
+### Key Lessons
+
+1. **Memory constraints (`project_strict_loadermode_separation`, `project_phase6_default_scaling`, `project_compute_export_dims_canonical_base`) made cross-phase integration trivial.** The integration checker found zero conflicts because Phase 36 (override buckets) and Phase 40 (atlas repack) both honored the same loaderMode separation discipline. Memory-locked invariants pay compounding interest across phases that touch overlapping subsystems.
+2. **Three rounds of human UAT > one round of code review for pipeline ergonomics.** The 5 fixed code-review findings (CR-01..CR-02 + WR-01..WR-02 + WR-06) were all defensive correctness fixes; the 8 UAT-found bugs were all *user-visible* ergonomic gaps. Code review and UAT are complementary, not redundant. For pipelines, prioritize UAT.
+3. **Don't relitigate post-hoc-added phase requirements during milestone close.** Phase 40 was added 2026-05-14; its 10 REPACK requirements lived in PLAN frontmatter + SUMMARY + VERIFICATION but not in REQUIREMENTS.md. The audit honored the verified-in-code reality and folded the documentation in during /gsd-complete-milestone — that's correct. The alternative (block the close on REQUIREMENTS.md drift) would be process-over-substance.
+
+### Cost Observations
+
+- 5 phases / 23 plans / 3 days execution time (2026-05-13 → 2026-05-15) — second-fastest milestone close after v1.3.1 (3 phases / 16 plans / 3 days).
+- Phase 40 dominated commit count (185 commits in v1.5 range; ~120 attributable to Phase 40's 9 plans + 3 UAT rounds + 5 code-review fixes).
+- 32,417 insertions / 216 deletions across 143 files — heavily additive (atlas-repack pipeline is net-new code; minimal refactor).
+- Test suite grew from ~1051 (Phase 36 close) to 1181 (v1.5 close) — +130 tests across phases 37/38/39/40.
+- Zero source files touched by Phase 39 (purely procedural UAT close-out).
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -218,6 +270,9 @@
 | v1.2 | ~5 | 8 executed | SEED promotion via backlog review, Phase 17 skip via discuss-phase, POST-override partition pattern locked. |
 | v1.3 | ~6 | 7 | Empirical falsification before scope (Phase 28 same-day pivot), strict loaderMode separation lock-in, screenshots-first for layout bugs, Linux dropped from release CI as untested target. |
 | v1.3.1 | ~3 | 3 | Sibling-fold extension over rip-out (region-keyed dedup), tester-found correctness bugs handled via dedicated debug-session phases, late tester-regression triage stayed surgical (3 atomic pre-tag commits). |
+| v1.5 | ~6 | 5 | Locked-decision pre-loading at milestone start (4 of 5 phases skipped relitigation); conditional-escalation as planning checkpoint (TIMELINE-02 → TIMELINE-03 hardening); 3-round human UAT against real animator rig caught 8 pipeline-ergonomic bugs the test suite missed; verifier-flagged documentation gaps handled at milestone-close fold-in instead of blocking phase verification. |
+
+(v1.4 milestone retrospective skipped at close; backfill TBD if needed.)
 
 ### Cumulative Quality
 
@@ -227,10 +282,15 @@
 | v1.2 | ~700+ (vitest) | (untracked) | No new deps. PNG IHDR byte-parser in pure TS; synthetic atlas builder in pure TS. |
 | v1.3 | ~720+ (vitest) | (untracked) | No new deps. `WarningTriangleIcon` shared SVG component; `pma-probe.mjs` regression sentinel. |
 | v1.3.1 | ~720+ (vitest) | (untracked) | No new deps. `RegionRow` interface + `analyzeRegions()` sibling fold; `ExtrapolationIcon` tooltip primitive port. |
+| v1.5 | 1181 pass / 2 skip / 2 todo (108 files) | (untracked) | No new runtime deps (`maxrects-packer` was already in `package.json` from v1.0 preview pipeline; Phase 40 simply consumed it for output as well as preview). New dev infrastructure: SHA256 baselines + `repack:refresh-baselines` script (D-07). New shared modules: `src/main/sharp-resize.ts`, `src/main/atlas-writer.ts`, `src/main/atlas-paths.ts`, `src/core/repack.ts`. New regression sentinels: `scripts/probe-sharp-rotate-write.mjs`, `tests/main/repack.loose-parity.spec.ts`, `tests/main/repack.parity.spec.ts`. |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. **Layer 3 invariant** (arch.spec grep guard) held across all 22+ phases without a single violation. Confirmed essential.
+1. **Layer 3 invariant** (arch.spec grep guard) held across all 40+ phases without a single violation. Confirmed essential. Phase 40 explicitly tested: `core/repack.ts` imports ONLY `maxrects-packer` — no DOM, no sharp, no fs, no electron.
 2. **Decimal phase insertions** (08.1, 08.2, 22.1) absorb UAT-found gaps without polluting sequence or requiring renumbering. Pattern confirmed.
-3. **Human UAT should cover visual-surface + interaction-layer issues** that test suites can't reach — badge mode-awareness, tooltip reliability, override interaction with partition logic. Budget 1 UAT day per phase with significant UI/UX surface.
+3. **Human UAT should cover visual-surface + interaction-layer issues** that test suites can't reach — badge mode-awareness, tooltip reliability, override interaction with partition logic, atlas-pack ergonomics on real animator rigs. Budget 1 UAT day per phase with significant UI/UX surface; budget 3 UAT rounds for new pipelines (Phase 40 confirmation).
 4. **POST-override passthrough partition** is a new invariant: evaluate passthrough AFTER all overrides and caps are resolved, never against pre-override natural peakScale.
+5. **Locked-constraint pre-loading at milestone start saves discuss-phase rounds** (v1.5 confirmation across SEED-007, TIMELINE-02 escalation, WINUAT-01..03 graceful-degradation, SEED-008 design facts). When the seed has decisions worth locking, lock them at plant time — don't wait for /gsd-plan-phase to relitigate.
+6. **Memory-locked invariants pay compounding interest across phases that touch overlapping subsystems** (v1.5 confirmation: `project_strict_loadermode_separation` made Phase 36 ↔ Phase 40 cross-phase integration trivially sound).
+7. **Sharp-emits-truth: when downstream pipelines consume sharp dims, read them via `metadata()` post-emit, not from `buildExportPlan` plan-target dims** (Phase 40 invariant; reused at packer + atlas-writer).
+8. **Shared rollback Set across multiple workers** (Phase 40 D-04a — `both` mode shares one `writtenPaths: Set<string>` between `runExport` and `runRepack`).

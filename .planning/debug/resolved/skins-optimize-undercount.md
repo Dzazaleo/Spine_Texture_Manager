@@ -1,9 +1,10 @@
 ---
 slug: skins-optimize-undercount
-status: root_cause_found
+status: resolved
 trigger: "User reports that loading fixtures/SKINS/JOKERMAN_SPINE.json (multi-skin atlas-source project with 7 skins — AVATAR, BEACHMAN, BEACHMAN2, BUSINESS, IRONMAN, JOKER, JOKERMAN — and 160 regions in the Global table) produces an Optimize Assets modal showing only 23 images. The Atlas Preview optimized-mode tile expansion exhibits the same undercount."
 created: 2026-05-12
-updated: 2026-05-12
+updated: 2026-05-14
+resolved: 2026-05-14
 ---
 
 # Debug: Optimize Assets modal + Atlas Preview optimized-mode undercount on multi-skin atlas-source fixture
@@ -83,3 +84,18 @@ Either of the following is internally consistent, but the current 23 is neither:
   - "Global table surface is correctly fixed (consumes summary.regions); no regression."
   - "Atlas-less mode is structurally unaffected — strict loaderMode separation memory holds."
   - "Phase 29 'per-region dedup across all 4 surfaces' invariant is the locked design contract; this fix completes it."
+
+---
+
+## Resolved at v1.5 milestone close — 2026-05-14
+
+Closed during `/gsd-complete-milestone v1.5`. The recommended fix in the Resolution section ("migrate `buildExportPlan` to iterate `summary.regions` (RegionRow[]) instead of `summary.peaks` (DisplayRow[])") was implemented by **Phase 35 (v1.4)**. Current code at [export.ts:198-201](../../../src/core/export.ts#L198-L201):
+
+```ts
+// Phase 35 — iterate summary.regions (RegionRow[]) so per-region dedup is
+// preserved end-to-end. summary.peaks is attachment-name-deduped and would
+// undercount on multi-skin / path-indirected atlas-source projects.
+for (const region of summary.regions) { ... }
+```
+
+The docblock at [export.ts:7-8](../../../src/core/export.ts#L7-L8) explicitly says: *"Pre-Phase-35 the iteration source was `summary.peaks` (attachment-name-deduped DisplayRow[]); the swap to `summary.regions` closes the multi-skin atlas-source [undercount]."* — direct citation of this bug. The path-indirected-duplicate-rows "per-region dedup across all 4 surfaces" invariant is now complete.
