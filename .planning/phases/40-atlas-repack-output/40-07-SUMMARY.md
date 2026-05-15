@@ -327,6 +327,172 @@ too (defense in depth + preserves existing test asserting checkbox.title).
 - No STATE.md / ROADMAP.md modifications (re-verification owns these).
 
 ---
+
+## UAT-Fix Round 2 Appendix (2026-05-15)
+
+A second UAT iteration against `fixtures/SKINS/JOKERMAN_SPINE.json`
+surfaced that the Round 1 dedup fix (commit `b41e009`) used the WRONG
+KEY. The user's freshly produced atlas (`fixtures/SKINS/test_repack/
+test_repack.atlas`) contained only **23 entries** when the export plan
+declared **160** (158 rows + 2 passthroughCopies). Every skin except
+skin 0 (`AVATAR/*`) was silently dropped from the atlas page PNG.
+
+### Round-1 fix was wrong: `attachmentNames[0]` is shared across skins
+
+The Round-1 dedup keyed by `row.attachmentNames?.[0] ?? row.outPath`.
+But `attachmentNames[0]` is the **slot-binding name** in Spine — it is
+SHARED across skins. The JOKERMAN_SPINE fixture demonstrates the
+collision:
+
+| Skin     | Slot binding `attachmentNames[0]` | JSON `path:`      | Source PNG                        |
+| -------- | --------------------------------- | ----------------- | --------------------------------- |
+| AVATAR   | `AVATAR/BODY`                     | `AVATAR/BODY`     | `images/AVATAR/BODY.png`          |
+| BEACHMAN | `AVATAR/BODY`                     | `BEACHMAN/BODY`   | `images/BEACHMAN/BODY.png`        |
+| JOKER    | `AVATAR/BODY`                     | `JOKER/BODY`      | `images/JOKER/BODY.png`           |
+| IRONMAN  | `AVATAR/BODY`                     | `IRONMAN/BODY`    | `images/IRONMAN/BODY.png`         |
+
+Keying by `attachmentNames[0]` collapsed all 4 BODY rows into ONE atlas
+entry. Across 7 skins × ~23 attachments, this dropped ~135 legitimate
+plan.rows from the .atlas. The page PNG was missing every non-AVATAR
+skin's textures entirely.
+
+### Round-2 fix: dedup by `row.outPath` stripped of extension + `images/`
+
+`row.outPath` is unique per source PNG (D-108 — `src/shared/types.ts`
+L361: plan.rows is ALREADY deduped per source PNG path upstream). The
+correct atlas region name is `row.outPath` with `images/` prefix and
+`.png` suffix stripped — matching the Spine JSON `path:` attribute
+(`JOKER/BODY`, `BEACHMAN/BODY`, ...) which the spine runtime uses to
+look up regions in the atlas at load time.
+
+- **Commit:** `a34cdda` — `fix(40-07): use outPath as atlas region key (UAT 2 bug — dropped skins)`
+- **Files:** `src/main/repack-worker.ts`
+- **Defensive net:** since D-108 already deduplicates upstream, the
+  Map-based dedup branch in runRepack should be unreachable for well-
+  formed plans. Replaced silent dedup with `console.warn` so an
+  upstream regression surfaces loudly rather than silently dropping
+  rows.
+- **Verified via SKINS fixture:** atlas region count goes from 23 →
+  160; per-skin names (`JOKER/BODY`, `BEACHMAN/BODY`, `IRONMAN/BODY`,
+  ...) all present.
+
+### `passthroughCopies` were not packed into atlas mode
+
+`runRepack` iterated only `plan.rows`, ignoring `plan.passthroughCopies`
+entirely. In atlas mode this dropped every "no resize needed" row from
+the .atlas — the spine runtime looks up every region declared in the
+.json `path:` field regardless of resize vs. byte-copy.
+
+Fix: a second loop after the resize loop iterates `passthroughCopies`,
+reads source bytes verbatim via `sharp(srcPath).png().toBuffer()` (no
+resize chain), reads back native dims via `sharp(buf).metadata()`
+(sharp-emits-truth invariant per REPACK-03), and feeds the result into
+the same `regionBuffers + repackInputsByName` Maps with the same
+regionName-key discipline.
+
+- **Commit:** `a20f80c` — `feat(40-07): pack passthroughCopies into atlas mode`
+- **Files:** `src/main/repack-worker.ts`
+
+### Progress-event index-space widened to include passthroughCopies
+
+With passthroughCopies now packed, the progress-event totals had to
+widen so the renderer's progress bar stays monotonic [0, 100%]:
+
+- Resize loop: `total = plan.rows.length + passthroughCopies.length`
+- Passthrough loop: `index = rows + pi`, same `total`
+- Composite loop: `index = (rows + passthrough) + pi`,
+  `total = (rows + passthrough) + packResult.pages.length`
+
+`passthroughCopies` is hoisted to the top of `runRepack` so every
+`onProgress` call references the same array (uniform denominator
+across phases).
+
+- **Commit:** `bf97402` — `fix(40-07): include passthroughCopies in progress-event totals`
+- **Files:** `src/main/repack-worker.ts`
+
+### Regression tests
+
+- **Skin-aliased slot bindings (new):** 6 rows with the same
+  `attachmentNames[0]` but distinct `outPath` produce 6 distinct atlas
+  entries (replaces the OLD test that asserted they collapsed to 1 —
+  the OLD test was verifying the bug).
+- **Defensive duplicate outPath (new):** rows with the SAME outPath
+  (= D-108 violation) collapse to 1 entry AND emit a `console.warn`,
+  asserted via `vi.spyOn(console, 'warn')`.
+- **passthroughCopies in atlas (new):** plan with 1 resize + 2
+  passthrough rows produces 3 atlas entries; passthrough entries land
+  at native dims; `summary.successes === 3`.
+- **passthroughCopies in progress events (new):** resize-phase events
+  all carry `total = rows + passthrough`; composite events use the
+  combined work-unit denominator and indices >= resizeUnits.
+- **SKINS fixture sanity (new, gated):** when
+  `fixtures/SKINS/JOKERMAN_SPINE.json` is present, builds the full
+  ExportPlan via `loadSkeleton → sampleSkeleton → analyze →
+  analyzeRegions → buildExportPlan` and asserts the resulting atlas
+  contains exactly 160 entries (= plan.rows + passthroughCopies),
+  including `JOKER/BODY`, `BEACHMAN/BODY`, `IRONMAN/BODY` as distinct
+  region names. Gated on `fs.existsSync` → `describe.skip` when fixture
+  is absent (CI / fresh clones).
+- **Updated:** the OLD `summary.successes counts unique regionNames
+  AFTER dedup` test was rewritten to use shared outPaths + warn spy
+  (the same defensive dedup path).
+- **Updated:** the `makePlan()` helper auto-derives `outPath` from
+  `attachmentNames[0]` so existing tests asserting on region names
+  like `SQUARE` / `HUGE` still hit predictable names.
+
+- **Commit:** `7d72be7` — `test(40-07): cover skin-aliased dedup + passthroughCopies in repack-worker`
+- **Files:** `tests/main/repack-worker.spec.ts`
+
+### Manual UAT step (SKINS fixture is gitignored)
+
+Because `fixtures/SKINS/` is gitignored (heavy, 358M), the fixture-
+driven sanity test is gated on `fs.existsSync(JOKERMAN_SPINE.json)`
+and skipped in CI clones. To run it manually on a clone that has the
+fixture:
+
+```bash
+# Verify fixture exists, then run the gated test
+test -f fixtures/SKINS/JOKERMAN_SPINE.json && \
+  npx vitest run tests/main/repack-worker.spec.ts -t "SKINS fixture sanity"
+```
+
+Expected: 1 passed, 16 skipped. Atlas region count = 160. If the count
+is 23, the Round-1 regression returned. If the count is 0, the packer
+pre-flight aborted (oversize).
+
+Verified locally via symlink (the worktree was not initialized with the
+heavy fixture): the SKINS sanity test PASSES post-fix — 160 entries,
+`JOKER/BODY` / `BEACHMAN/BODY` / `IRONMAN/BODY` all present.
+
+### UAT-fix Round 2 verification
+
+- `npx tsc --noEmit` — clean.
+- `npx vitest run tests/core/ tests/main/ tests/preload/` — 783 passed
+  / 21 skipped / 1 todo / **2 pre-existing failures** unrelated to
+  this fix (sampler-worker-girl + sampler-skin-defined-unbound-
+  attachment, both missing fixtures per
+  `.planning/phases/40-atlas-repack-output/deferred-items.md`).
+- `npx vitest run tests/main/repack-worker.spec.ts` — 16 passed / 1
+  skipped (SKINS fixture-gated, expected in worktree clones).
+- All 4 Round-2 commits on `worktree-agent-a4bcf4d9df6e973b9`.
+- No file deletions across the 4 fix commits.
+- No STATE.md / ROADMAP.md modifications (re-verification owns those).
+
+### Self-Check (UAT Round 2 appendix): PASSED
+
+- All 4 fix commits exist on `worktree-agent-a4bcf4d9df6e973b9`
+  (`a34cdda`, `a20f80c`, `bf97402`, `7d72be7`).
+- `src/main/repack-worker.ts` contains the new `outPathToRegionName`
+  helper + passthrough loop + widened progress totals.
+- `tests/main/repack-worker.spec.ts` contains the 5 new test cases +
+  the SKINS fixture-gated sanity check.
+- The Round-1 SUMMARY appendix (commit `c09cb26` and earlier) is
+  preserved unchanged — Round 2 is purely additive.
+- HEAD on `worktree-agent-a4bcf4d9df6e973b9` (worktree-agent namespace
+  preserved).
+
+---
 *Phase: 40-atlas-repack-output*
 *Completed: 2026-05-14*
 *UAT-fix appendix: 2026-05-15*
+*UAT-fix Round 2 appendix: 2026-05-15*
