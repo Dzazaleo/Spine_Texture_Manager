@@ -492,7 +492,174 @@ heavy fixture): the SKINS sanity test PASSES post-fix — 160 entries,
   preserved).
 
 ---
+
+## UAT-Fix Round 3 Appendix (2026-05-15)
+
+A third UAT iteration surfaced two regressions in the atlas-mode export
+flow. Both were fixed in this worktree on top of the Round-2 deliverables;
+per-bug fix → test → atomic commit. STATE.md and ROADMAP.md were NOT
+modified (re-verification pass owns those).
+
+### Bug A — Overwrite probe blind to atlas targets
+
+**Symptom (user-reported):** Re-running atlas-mode export against the same
+outDir failed with:
+```
+repack-worker: page PNG already exists at .../{projectName}.png;
+pass allowOverwrite=true to overwrite.
+```
+The ConflictDialog never appeared even though the page PNG + .atlas were
+clearly present in outDir.
+
+**Root cause:** `probeExportConflicts` (src/main/ipc.ts L398) only iterated
+`plan.rows[].outPath` — the loose-mode per-region paths under
+`outDir/images/`. It never derived the atlas-mode targets at outDir root
+(`{projectName}.png`, `{projectName}_N.png`, `{projectName}.atlas`). For an
+atlas-only re-export the loose paths didn't exist, so the probe returned
+zero conflicts; the renderer skipped the ConflictDialog and called
+`startExport(overwrite=false)`; `runRepack` hit its defensive existence
+check at write time and threw.
+
+The probe + the worker were also using two independently-defined
+`deriveProjectName` helpers — by good luck they agreed today, but any
+future drift in one would silently break the probe.
+
+**Fix:**
+1. **Extract shared helpers.** Pulled `deriveProjectName` + `pageFilename`
+   out of `repack-worker.ts` into a new `src/main/atlas-paths.ts`. Both the
+   probe AND the worker import from the same source — the agreement is now
+   structural.
+2. **Widen `probeExportConflicts` signature** with `outputMode` +
+   `atlasOpts` (defaults preserve pre-Round-3 loose-only behavior).
+3. **Atlas-mode probe:** for `outputMode === 'atlas' | 'both'`, derive the
+   canonical sentinels (`{projectName}.png` + `{projectName}.atlas`) via
+   the shared helpers and probe disk for each via `fs.access(F_OK)`.
+   Multi-page exports are discovered via `readdir(outDir)` + a regex match
+   on `{projectName}_<N>.png` (N >= 2).
+4. **Gate loose-mode per-row check** on `outputMode === 'loose' | 'both'`
+   so atlas-only exports don't surface stale `images/foo.png` paths as
+   conflicts.
+5. **Forward through the layers:** preload bridge `probeExportConflicts`
+   accepts 4 args; `Api.probeExportConflicts` in `src/shared/types.ts`
+   widened with optional `outputMode` + `atlasOpts`; AppShell's
+   `onConfirmStart` threads `atlasOutputMode` + the 3 atlas knobs through.
+6. **Defense-in-depth:** the probe inside `handleStartExport` (run when
+   `overwrite=false`) forwards the validated `outputMode` + `atlasOpts` so
+   bypass callers still get the precise mode-aware conflict list.
+
+- **Commits:**
+  - `cce08ae` — `refactor(40-07): extract deriveProjectName + pageFilename to shared atlas-paths util`
+  - `4eebaf6` — `fix(40-07): extend probeExportConflicts to atlas-mode targets (UAT 3 bug A)`
+- **Files:**
+  - NEW `src/main/atlas-paths.ts`
+  - `src/main/repack-worker.ts` (imports from shared util)
+  - `src/main/ipc.ts` (widened probe + handler + channel forwarding)
+  - `src/preload/index.ts` (bridge accepts 4 args)
+  - `src/shared/types.ts` (Api type widened)
+  - `src/renderer/src/components/AppShell.tsx` (call site threads atlas state)
+
+### Bug B — Progress counter overshoots local total
+
+**Symptom (user-reported):** In-progress header read literally
+"Optimize Assets — 163 of 160 → /tmp/test_repack" at the last composite
+event of a SKINS-fixture atlas export.
+
+**Root cause:** The in-progress header used a static local denominator
+computed at render time: `total = plan.rows.length + passthroughCopies.length`
+(160 for SKINS). The composite-phase progress events emit
+`total: resizeUnits + pages.length` (163 for SKINS — 158 rows + 2
+passthrough + 3 pages). `setProgress({ current: event.index + 1 })` pushed
+`progress.current` to 163 while the displayed denominator stayed at 160.
+
+The IPC was already reporting the correct total — the renderer was simply
+ignoring it.
+
+**Fix:**
+1. Add `total` to the progress state — `{ current, total, lastPath }`.
+2. `onExportProgress` writes `event.total` to `progress.total` on every
+   event so the IPC stays the source of truth.
+3. In-progress header reads `progress.total` when > 0, falls back to local
+   `total` during the brief window between in-progress flip and the first
+   IPC event (so the header never displays a literal `of 0`).
+4. `InProgressBody` receives the same IPC-sourced total (renamed at the
+   call site to `inProgressTotal`) so the progress bar denominator stays
+   in lockstep with the header.
+
+- **Commit:** `a1c2f3d` — `fix(40-07): track IPC-reported total in renderer progress state (UAT 3 bug B)`
+- **File:** `src/renderer/src/modals/OptimizeDialog.tsx`
+
+### Regression tests
+
+- **Atlas-mode probe surfaces {projectName}.png + .atlas (new):** outDir
+  populated with the canonical sentinels; probe returns both paths as
+  conflicts; loose-mode per-row path NOT in result.
+- **Atlas-mode probe discovers multi-page pages via readdir (new):**
+  readdir returns `test_repack.png`, `test_repack_2.png`,
+  `test_repack_3.png`, `README.txt`, `other_project_5.png`; probe returns
+  pages 0/2/3 only; unrelated basename `other_project_5.png` and non-PNG
+  `README.txt` filtered out.
+- **Loose mode does NOT surface atlas sentinels (new):** even when the
+  atlas sentinels exist on disk, `outputMode='loose'` returns an empty
+  conflict list — mode-aware probing.
+- **Both mode surfaces atlas sentinels AND loose per-row collisions
+  (new):** mixed atlas + loose collisions all appear in the result.
+- **Empty outDir → empty conflicts (new):** default mocks (access ENOENT,
+  readdir []) produce no false positives.
+- **Header denominator follows event.total in atlas mode (new):**
+  composite event with `total=163` against a 160-row plan; header reads
+  "163 of 163"; the buggy "of 160" framing is absent.
+- **Loose-mode header unchanged when event.total === local total (new):**
+  regression-lock against accidental loose-mode breakage.
+
+The `vi.mock('node:fs/promises', ...)` factory + `beforeEach` reset were
+extended with `readdir` (default: empty array) so the new atlas-mode
+probe paths can override per-test via
+`vi.mocked(fsPromises.readdir).mockResolvedValueOnce(...)`.
+
+- **Commit:** `ea57f95` — `test(40-07): cover atlas-mode probe + progress-overshoot regressions`
+- **Files:**
+  - `tests/main/ipc-export.spec.ts` (+5 tests, 37 → 42 total)
+  - `tests/renderer/optimize-dialog-output-card.spec.tsx` (+2 tests, 18 → 20)
+
+### UAT-fix Round 3 verification
+
+- `npx tsc --noEmit` — clean.
+- `npx vitest run tests/main tests/renderer tests/preload` —
+  571 passed / 3 skipped / **1 pre-existing failure** unrelated to this
+  fix: `tests/main/sampler-worker-girl.spec.ts` (missing `fixtures/Girl/`
+  per `.planning/phases/40-atlas-repack-output/deferred-items.md`).
+- All 42 `tests/main/ipc-export.spec.ts` cases pass (37 pre-existing +
+  5 new atlas-mode probe).
+- All 20 `tests/renderer/optimize-dialog-output-card.spec.tsx` cases
+  pass (18 pre-existing + 2 new IPC-sourced progress total).
+- All 4 Round-3 commits on `worktree-agent-aba58f713ee8eaaff`.
+- No file deletions across the 4 fix commits.
+- No STATE.md / ROADMAP.md modifications (re-verification owns those).
+
+### Self-Check (UAT Round 3 appendix): PASSED
+
+- All 4 fix commits exist on `worktree-agent-aba58f713ee8eaaff`
+  (`cce08ae`, `4eebaf6`, `a1c2f3d`, `ea57f95`).
+- `src/main/atlas-paths.ts` exists on disk and exports `deriveProjectName`
+  + `pageFilename`.
+- `src/main/repack-worker.ts` imports from `./atlas-paths.js` (no
+  duplicate helper definitions).
+- `src/main/ipc.ts` `probeExportConflicts` signature includes
+  `outputMode` + `atlasOpts` positional args; channel registration
+  forwards both.
+- `src/shared/types.ts` `Api.probeExportConflicts` declaration includes
+  optional `outputMode` + `atlasOpts`.
+- `src/renderer/src/modals/OptimizeDialog.tsx` `progress` state shape
+  includes `total: number`; in-progress header reads `progress.total`
+  with local-total fallback.
+- Earlier UAT appendices (Round 1 + Round 2) preserved unchanged — Round
+  3 is purely additive.
+- HEAD on `worktree-agent-aba58f713ee8eaaff` (worktree-agent namespace
+  preserved).
+
+---
 *Phase: 40-atlas-repack-output*
 *Completed: 2026-05-14*
 *UAT-fix appendix: 2026-05-15*
 *UAT-fix Round 2 appendix: 2026-05-15*
+*UAT-fix Round 3 appendix: 2026-05-15*
