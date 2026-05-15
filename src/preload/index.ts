@@ -45,7 +45,12 @@
  * dep would break the preload load with "module not found" at runtime.
  */
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { Api, ExportProgressEvent, LoadResponse } from '../shared/types.js';
+import type {
+  Api,
+  ExportProgressEvent,
+  LoadResponse,
+  ViewerAssetFeedResponse,
+} from '../shared/types.js';
 // Phase 20 D-21 — Documentation HTML export. Type-only import: the actual
 // renderDocumentationHtml + handleExportDocumentationHtml run in main; preload
 // only forwards the structured-clone payload through ipcRenderer.invoke.
@@ -647,6 +652,25 @@ const api: Api = {
   // -------------------------------------------------------------------------
   pathToImageUrl: (absolutePath: string): Promise<string> =>
     ipcRenderer.invoke('atlas:resolve-image-url', absolutePath),
+
+  // -------------------------------------------------------------------------
+  // Phase 41 VIEWER-03 — atlas-less synth-atlas materialization bridge.
+  //
+  // For atlas-less projects, the renderer cannot run synthesizeAtlasText
+  // (`core/` is `fs`-bound; renderer is forbidden from importing `core/*`
+  // per tests/arch.spec.ts:19-34). This bridge invokes the main-side
+  // handler that re-runs synthesis on demand and returns the synth atlas
+  // text + per-region absolute PNG path map. The renderer transforms
+  // absolute paths into `app-image://` URLs via `pathToImageUrl` above.
+  //
+  // Atlas-source projects do NOT use this bridge — spine-player resolves
+  // page PNGs via `parent + page.name` from the `.atlas` URL automatically
+  // (RESEARCH Pitfall 4 + Architecture Diagram).
+  //
+  // Mirrors the `pathToImageUrl` shape (single-arg invoke, Promise return).
+  // -------------------------------------------------------------------------
+  getViewerAssetFeed: (skeletonPath: string): Promise<ViewerAssetFeedResponse> =>
+    ipcRenderer.invoke('viewer:get-asset-feed', skeletonPath),
 
   // -------------------------------------------------------------------------
   // Phase 31 PLATFORM-01 — read the cached Windows-elevation flag from main.
