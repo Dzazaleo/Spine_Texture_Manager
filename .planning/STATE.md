@@ -2,25 +2,24 @@
 gsd_state_version: 1.0
 milestone: v1.5.1
 milestone_name: Spine Animation Viewer
-status: planning
-last_updated: "2026-05-15T13:52:42.169Z"
-last_activity: 2026-05-15
+status: CONTEXT.md written (D-01..D-04 resolved); ready for `/gsd-plan-phase 41`
+last_updated: "2026-05-15T15:30:00.000Z"
+last_activity: "2026-05-15 — `/gsd-discuss-phase 41` complete. D-01 delegated to Claude (npm spine-player). D-02 standalone modal. D-03 toolbar button between Atlas Preview + Documentation. D-04 source-only feed. VIEWER-07 Future."
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: Not started (roadmap created — awaiting `/gsd-plan-phase 41`)
+Phase: 41 — Spine Animation Viewer (context gathered)
 Plan: —
-Status: Roadmap created — ready for `/gsd-discuss-phase 41` (resolves D-01..D-04) then `/gsd-plan-phase 41`
-Last activity: 2026-05-15 — Milestone v1.5.1 started; ROADMAP.md created (single phase: Phase 41 — Spine Animation Viewer; 8 active VIEWER reqs mapped)
+Status: CONTEXT.md written (D-01..D-04 resolved). Ready for `/gsd-plan-phase 41`.
+Last activity: 2026-05-15 — `/gsd-discuss-phase 41` complete. D-01 delegated to Claude (npm install @esotericsoftware/spine-player). D-02 = standalone AnimationPlayerModal (near-fullscreen, top control bar, #232732 bg). D-03 = toolbar button between Atlas Preview + Documentation, label "Animation Viewer", disabled only when no skeleton loaded. D-04 = source-project asset feed (atlas-source + atlas-less via Phase 21 synthetic atlas); first animation + first skin on every open; terminal Close-only error state. VIEWER-07 locked Future.
 
 ## Project Reference
 
