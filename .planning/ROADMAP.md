@@ -91,7 +91,11 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 4. **The viewer works in both atlas-source and atlas-less loaderModes.** A project loaded with `.json + .atlas + page PNG(s)` and a project loaded with `.json + images/ folder` (synthetic-atlas path from Phase 21) both feed the viewer correctly, with no cross-mode bleed and no second mode-specific code path the user has to think about. *(VIEWER-03 — loaderMode-agnostic asset feed; respects `project_strict_loadermode_separation`.)*
 5. **The viewer disposes cleanly on close, survives re-open and project-change without leaking, and surfaces clear in-modal error states for malformed or missing assets.** Closing the viewer releases its GL context and frees memory; reopening works without residual state; switching to a different project closes any prior viewer instance. When the project is malformed, the atlas is missing, or page PNGs are unreadable, the viewer renders a verbatim in-modal error state (final copy resolved during phase planning) instead of a blank canvas, an unhandled DevTools error, or a hard crash. *(VIEWER-08, VIEWER-09)*
 
-**Plans**: TBD (defined by `/gsd-plan-phase 41`)
+**Plans**: 3 plans (2 waves)
+
+- [ ] `41-01-PLAN.md` — Foundation: install spine-player@4.2.111 dep + viewer:get-asset-feed IPC for atlas-less branch (Wave 1, autonomous)
+- [ ] `41-02-PLAN.md` — AnimationPlayerModal component: mount/dispose, asset feed, animation+skin switching, play/pause/scrub transport, terminal error overlay (Wave 2, depends on 41-01, autonomous)
+- [ ] `41-03-PLAN.md` — AppShell wiring: toolbar button, state slot, JSX mount, modalOpen derivation, project-change cleanup (Wave 2, depends on 41-01, autonomous, parallel with 41-02)
 **UI hint**: yes
 
 **Open decisions deferred to `/gsd-discuss-phase 41`** (do not relitigate during roadmap):
@@ -117,7 +121,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 | 38    | v1.5      | 3/3            | Complete    | 2026-05-13 |
 | 39    | v1.5      | 3/3            | Complete    | 2026-05-13 |
 | 40    | v1.5      | 9/9            | Complete    | 2026-05-15 |
-| 41    | v1.5.1    | 0/0            | Not started | —          |
+| 41    | v1.5.1    | 0/3            | Planned     | —          |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 
