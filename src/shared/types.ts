@@ -940,6 +940,36 @@ export type SerializableError =
       detectedVersion: string;
     };
 
+/**
+ * Phase 41 VIEWER-03 — IPC envelope for the atlas-less synth-atlas feed
+ * delivered to the Animation Viewer modal.
+ *
+ * structuredClone-safe: only primitives + plain object/array + Record.
+ * No Maps (spine-player's AssetManager reads via `Record<string, string>`
+ * keys, and the IPC boundary must be cloneable).
+ *
+ * Success branch carries the synthesized libgdx atlas text encoded as a
+ * `data:text/plain;base64,...` URI (renderer feeds this to spine-player
+ * via `rawDataURIs['synthetic.atlas']`) plus a map from regionName →
+ * absolute PNG path on disk (renderer converts each abs-path to
+ * `app-image://` via the existing `pathToImageUrl` bridge).
+ *
+ * Failure branch is a generic envelope; the viewer surfaces the message
+ * verbatim in the terminal error overlay (CONTEXT D-04c).
+ */
+export type ViewerAssetFeedResponse =
+  | {
+      ok: true;
+      /** Synthesized libgdx atlas text encoded as `data:text/plain;base64,...`. */
+      atlasTextDataUri: string;
+      /** Map from region name → absolute PNG path on disk (renderer converts to app-image:// via pathToImageUrl). */
+      regionPaths: Record<string, string>;
+    }
+  | {
+      ok: false;
+      error: { kind: string; message: string };
+    };
+
 /** Discriminated-union result returned from `ipcMain.handle('skeleton:load', ...)`. */
 export type LoadResponse =
   | { ok: true; summary: SkeletonSummary }
@@ -1724,6 +1754,24 @@ export interface Api {
   // bug-prone concat; that call site is rewritten to await this bridge).
   // -------------------------------------------------------------------------
   pathToImageUrl: (absolutePath: string) => Promise<string>;
+
+  // -------------------------------------------------------------------------
+  // Phase 41 VIEWER-03 — atlas-less synth-atlas materialization bridge.
+  //
+  // Returns the synthesized libgdx atlas text encoded as a base64
+  // `data:text/plain;base64,...` URI plus a per-region map of absolute PNG
+  // paths. Renderer transforms the abs-paths into `app-image://` URLs via
+  // `pathToImageUrl` above, then assembles a `rawDataURIs` Record for
+  // `spine-player`'s `SpinePlayerConfig`.
+  //
+  // Atlas-source projects do NOT use this bridge — spine-player resolves
+  // page PNGs via `parent + page.name` from the `.atlas` URL automatically.
+  //
+  // Renderer-side `core/` purity invariant prevents calling `synthesizeAtlasText`
+  // directly (tests/arch.spec.ts:19-34); main runs the synth on demand and
+  // ships the result via this channel.
+  // -------------------------------------------------------------------------
+  getViewerAssetFeed: (skeletonPath: string) => Promise<ViewerAssetFeedResponse>;
 
   // -------------------------------------------------------------------------
   // Phase 31 PLATFORM-01 — read the cached Windows-elevation flag.
