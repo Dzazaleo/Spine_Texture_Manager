@@ -9,11 +9,16 @@
  *      non-empty, throw the locked REPACK-10 error string BEFORE any file
  *      write. Atomic-or-fail at the pre-flight gate.
  *   4. For each rotated region (region.rotated === true), apply materialize-
- *      then-reload sharp(buf).rotate(90).png().toBuffer() per RESEARCH §
+ *      then-reload sharp(buf).rotate(-90).png().toBuffer() per RESEARCH §
  *      "Pipeline fusion landmine" (libvips reorders extract→resize→extend→
  *      composite→post-extract regardless of chain order; rotation needs a
- *      buffer boundary). sharp.rotate(+90) is CCW per Phase 33 empirical
- *      verification (RESEARCH §Landmines #2 + image-worker.ts:308-315 docblock).
+ *      buffer boundary). UAT bug 2 (2026-05-15): the WRITE direction is
+ *      sharp.rotate(-90), NOT rotate(+90). Phase 33's empirical claim of
+ *      "+90 is CCW" was about the READ direction (atlas→canonical, applied
+ *      by spine runtime); the WRITE direction (canonical→atlas) is the
+ *      inverse. Empirically verified by scripts/probe-sharp-rotate-write.mjs
+ *      + tests/main/repack-worker.spec.ts "UAT bug 2: atlas rotation
+ *      direction round-trips through spine READ".
  *   5. For each page, sharp { create: ... }.composite(layers).png().toFile(
  *      pagePath.tmp), rename to pagePath. Both paths registered in
  *      writtenPaths BEFORE toFile per RESEARCH §Landmines #7+#8.
@@ -41,7 +46,11 @@ import { computeRepack } from '../core/repack.js';
 import type { RepackInput } from '../core/repack.js';
 import { buildAtlasText } from './atlas-writer.js';
 import { resizeToBuffer } from './sharp-resize.js';
-import type { ExportPlan, ExportProgressEvent } from '../shared/types.js';
+import type {
+  ExportPlan,
+  ExportProgressEvent,
+  ExportSummary,
+} from '../shared/types.js';
 
 export interface AtlasOpts {
   maxPageSize: 1024 | 2048 | 4096 | 8192;
@@ -49,9 +58,27 @@ export interface AtlasOpts {
   padding: number;
 }
 
+/**
+ * UAT bug 3 (2026-05-15) — widened with `summary: ExportSummary`. Pre-fix
+ * the IPC handler synthesized successes=0 for atlas mode because the
+ * worker returned only file paths; the renderer's progress card read
+ * literally "0 of N succeeded" despite files being written. The summary
+ * carries the real counts so the IPC handler can return them verbatim
+ * (atlas mode) or merge them with runExport's summary (both mode).
+ *
+ *   successes  = unique regionNames packed + composited (= dedup'd input set)
+ *   errors     = empty for happy path (oversize aborts atomically; per-row
+ *                errors are not currently emitted by the repack worker)
+ *   outputDir  = pathResolve(outDir), matching runExport's contract
+ *   durationMs = wall-time of the run (Date.now delta)
+ *   cancelled  = isCancelled() at completion (true if we threw 'cancelled'
+ *                — but in that case runRepack throws before returning, so
+ *                in practice this is always false on the success path)
+ */
 export interface RepackResultPaths {
   pageFiles: string[];
   atlasFile: string;
+  summary: ExportSummary;
 }
 
 /**
@@ -101,6 +128,7 @@ export async function runRepack(
   atlasOpts: AtlasOpts,
   writtenPaths: Set<string>,
 ): Promise<RepackResultPaths> {
+  const startedAt = Date.now();
   const projectName = deriveProjectName(plan, outDir);
   const resolvedOutDir = pathResolve(outDir);
 
@@ -111,8 +139,19 @@ export async function runRepack(
   // Map keyed by regionName (= attachmentNames[0]) — the loader-mode-invariant
   // identifier per project_strict_loadermode_separation memory + RESEARCH
   // §Landmines #9. computeRepack uses the SAME key for its sort.
+  //
+  // UAT bug 1 (2026-05-15): when N skeletons share source PNGs (the SKINS
+  // workflow), plan.rows can contain N entries with the same
+  // attachmentNames[0]. WITHOUT dedup the packer received N copies of the
+  // same regionName and laid them out at N different positions → the .atlas
+  // contained duplicate entries (e.g. AVATAR/BODY × 7) and the page PNG
+  // had overlapping regions. Fix: dedup repackInputs by regionName, FIRST
+  // OCCURRENCE WINS (deterministic — preserves row-0's resize result). The
+  // regionBuffers Map already deduped naturally (Map by key); we mirror the
+  // same key discipline on the inputs array. computeRepack's localeCompare
+  // sort guarantees pack-order determinism regardless of insertion order.
   const regionBuffers = new Map<string, Buffer>();
-  const repackInputs: RepackInput[] = [];
+  const repackInputsByName = new Map<string, RepackInput>();
 
   for (let i = 0; i < plan.rows.length; i++) {
     if (isCancelled()) {
@@ -120,6 +159,20 @@ export async function runRepack(
     }
     const row = plan.rows[i];
     const regionName = row.attachmentNames?.[0] ?? row.outPath;
+
+    // Dedup: skip subsequent rows for the same regionName. First occurrence
+    // wins (its resized buffer + packW/H is what lands in the atlas).
+    if (repackInputsByName.has(regionName)) {
+      onProgress({
+        index: i,
+        total: plan.rows.length,
+        path: regionName,
+        outPath: '',
+        status: 'success',
+        phase: 'resize',
+      });
+      continue;
+    }
 
     const resized = await resizeToBuffer(
       sharp(row.sourcePath),
@@ -136,7 +189,7 @@ export async function runRepack(
     const packH = meta.height ?? row.outH;
 
     regionBuffers.set(regionName, resized);
-    repackInputs.push({ regionName, packW, packH });
+    repackInputsByName.set(regionName, { regionName, packW, packH });
 
     onProgress({
       index: i,
@@ -147,6 +200,8 @@ export async function runRepack(
       phase: 'resize',
     });
   }
+
+  const repackInputs: RepackInput[] = Array.from(repackInputsByName.values());
 
   // -------- Step 3: Pack + oversize pre-flight --------
   const packResult = computeRepack(repackInputs, {
@@ -174,12 +229,19 @@ export async function runRepack(
   // extend → composite → post-extract). To rotate a region BEFORE compositing
   // it onto a page canvas we need a buffer boundary, otherwise libvips fuses
   // the rotation into the wrong slot and the page render is wrong.
-  // sharp.rotate(+90) is empirically CCW per Phase 33 (RESEARCH §Landmines #2).
+  //
+  // UAT bug 2 (2026-05-15): the WRITE direction is sharp.rotate(-90).
+  // Phase 33's "+90 is CCW" claim was about the READ direction the spine
+  // runtime applies (atlas→canonical); the WRITE direction is its inverse.
+  // Confirmed by scripts/probe-sharp-rotate-write.mjs:
+  //   WRITE rotate(-90) → READ rotate(+90) restores canonical corners.
+  // Pre-fix (rotate(+90) on WRITE): page bytes were rotated 90° in the same
+  // direction the runtime later rotates → 180° net → upside-down faces.
   for (const region of packResult.regions) {
     if (region.rotated) {
       const orig = regionBuffers.get(region.regionName);
       if (!orig) continue;
-      const rotated = await sharp(orig).rotate(90).png().toBuffer();
+      const rotated = await sharp(orig).rotate(-90).png().toBuffer();
       regionBuffers.set(region.regionName, rotated);
     }
   }
@@ -276,5 +338,17 @@ export async function runRepack(
   await writeFile(atlasTmpPath, atlasText, 'utf8');
   await rename(atlasTmpPath, atlasPath);
 
-  return { pageFiles, atlasFile: atlasPath };
+  // UAT bug 3 (2026-05-15) — surface a real ExportSummary so the IPC
+  // handler doesn't fabricate "0 of N succeeded" for atlas mode. Successes
+  // count is the number of unique regionNames packed; this is the same
+  // count the .atlas file reports (one entry per unique region).
+  const summary: ExportSummary = {
+    successes: repackInputs.length,
+    errors: [],
+    outputDir: resolvedOutDir,
+    durationMs: Date.now() - startedAt,
+    cancelled: isCancelled(),
+  };
+
+  return { pageFiles, atlasFile: atlasPath, summary };
 }

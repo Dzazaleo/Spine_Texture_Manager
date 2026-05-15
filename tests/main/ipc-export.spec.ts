@@ -65,10 +65,21 @@ vi.mock('../../src/main/image-worker.js', () => ({
 // worker the handler called, and simulate the REPACK-10 throw without
 // touching real sharp/libvips. Default impl resolves with empty paths so
 // happy-path 'atlas' / 'both' dispatch returns ok=true.
+// UAT bug 3 (2026-05-15): runRepack must return a real ExportSummary so
+// the IPC handler doesn't fabricate successes=0 for atlas mode. Default
+// impl resolves with successes=3 + empty errors so atlas/both dispatch
+// tests can assert merge semantics without rigging individual cases.
 vi.mock('../../src/main/repack-worker.js', () => ({
   runRepack: vi.fn().mockResolvedValue({
     pageFiles: [],
     atlasFile: '/tmp/out/SIMPLE_TEST.atlas',
+    summary: {
+      successes: 3,
+      errors: [],
+      outputDir: '/tmp/out',
+      durationMs: 5,
+      cancelled: false,
+    },
   }),
 }));
 
@@ -118,6 +129,13 @@ beforeEach(async () => {
   vi.mocked(repackWorker.runRepack).mockReset().mockResolvedValue({
     pageFiles: [],
     atlasFile: '/tmp/out/SIMPLE_TEST.atlas',
+    summary: {
+      successes: 3,
+      errors: [],
+      outputDir: '/tmp/out',
+      durationMs: 5,
+      cancelled: false,
+    },
   });
 });
 
@@ -1220,5 +1238,136 @@ describe('handleStartExport — Phase 40 REPACK-01 outputMode dispatch + validat
     expect(rmPaths).toContain('/tmp/out/images/OK.png');
     expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png.tmp');
     expect(rmPaths).toContain('/tmp/out/SIMPLE_TEST.png');
+  });
+});
+
+/**
+ * UAT bug 3 (2026-05-15) — atlas-mode "0 of N succeeded" regression-lock.
+ *
+ * Pre-fix: handleStartExport synthesized `{ successes: 0, ... }` for
+ * outputMode === 'atlas' because runRepack returned only file paths.
+ * Renderer's progress card read literally "0 of 160 succeeded" despite
+ * files being written.
+ *
+ * Post-fix: runRepack returns a real ExportSummary that the IPC handler
+ * uses directly for atlas mode and MERGES with runExport's summary for
+ * both mode (sum successes; concat errors; outputDir same; durationMs =
+ * sum; cancelled = either).
+ */
+describe('handleStartExport — UAT bug 3: atlas-mode + both-mode return real summaries', () => {
+  it('atlas mode: returned summary.successes equals runRepack mock successes (NOT 0)', async () => {
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    vi.mocked(repackWorker.runRepack).mockResolvedValueOnce({
+      pageFiles: ['/tmp/out/project.png'],
+      atlasFile: '/tmp/out/project.atlas',
+      summary: {
+        successes: 42,
+        errors: [],
+        outputDir: '/tmp/out',
+        durationMs: 1234,
+        cancelled: false,
+      },
+    });
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'atlas',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // CRITICAL: must be > 0 (the regression: was 0 pre-fix).
+      expect(result.summary.successes).toBe(42);
+      expect(result.summary.errors).toEqual([]);
+      expect(result.summary.durationMs).toBe(1234);
+      expect(result.summary.cancelled).toBe(false);
+    }
+  });
+
+  it('both mode: merges runExport + runRepack summaries (sum successes; concat errors)', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    vi.mocked(imageWorker.runExport).mockResolvedValueOnce({
+      successes: 10,
+      errors: [
+        { kind: 'sharp-error', path: '/tmp/out/images/X.png', message: 'broken' },
+      ],
+      outputDir: '/tmp/out',
+      durationMs: 100,
+      cancelled: false,
+    });
+    vi.mocked(repackWorker.runRepack).mockResolvedValueOnce({
+      pageFiles: ['/tmp/out/project.png'],
+      atlasFile: '/tmp/out/project.atlas',
+      summary: {
+        successes: 7,
+        errors: [],
+        outputDir: '/tmp/out',
+        durationMs: 50,
+        cancelled: false,
+      },
+    });
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'both',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // successes summed across both stages.
+      expect(result.summary.successes).toBe(17);
+      // errors concatenated (loose stage's error makes it through).
+      expect(result.summary.errors).toHaveLength(1);
+      expect(result.summary.errors[0].path).toBe('/tmp/out/images/X.png');
+      // durationMs = sum of both stages.
+      expect(result.summary.durationMs).toBe(150);
+      // cancelled = OR of both stages (neither cancelled => false).
+      expect(result.summary.cancelled).toBe(false);
+      // outputDir identical (single export).
+      expect(result.summary.outputDir).toBe('/tmp/out');
+    }
+  });
+
+  it('both mode: cancelled flag is OR of both summaries', async () => {
+    const imageWorker = await import('../../src/main/image-worker.js');
+    const repackWorker = await import('../../src/main/repack-worker.js');
+    vi.mocked(imageWorker.runExport).mockResolvedValueOnce({
+      successes: 5,
+      errors: [],
+      outputDir: '/tmp/out',
+      durationMs: 10,
+      cancelled: false,
+    });
+    vi.mocked(repackWorker.runRepack).mockResolvedValueOnce({
+      pageFiles: [],
+      atlasFile: '/tmp/out/project.atlas',
+      summary: {
+        successes: 2,
+        errors: [],
+        outputDir: '/tmp/out',
+        durationMs: 5,
+        cancelled: true,
+      },
+    });
+    const result = await handleStartExport(
+      { sender: { send: vi.fn() } } as unknown as Electron.IpcMainInvokeEvent,
+      buildEmptyPlan(),
+      '/tmp/out',
+      true,
+      false,
+      'both',
+      { maxPageSize: 4096, allowRotation: false, padding: 2 },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.summary.cancelled).toBe(true);
+    }
   });
 });

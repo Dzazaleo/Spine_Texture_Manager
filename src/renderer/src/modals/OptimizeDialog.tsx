@@ -536,8 +536,16 @@ export function OptimizeDialog(props: OptimizeDialogProps) {
                 <span className="text-fg-muted">px</span>
               </label>
 
+              {/*
+                UAT bug 4 (2026-05-15): mirror the title= tooltip onto the
+                wrapping <label> so hovering anywhere on the row (not just
+                the tiny checkbox square) surfaces the explanation. The
+                title remains on the <input> too (defense in depth + keeps
+                the existing test assertion intact).
+              */}
               <label
                 htmlFor="atlas-allow-rotation-toggle"
+                title="Packer may rotate regions 90° for tighter packing."
                 className="flex items-center gap-2 text-xs text-fg cursor-pointer"
               >
                 <input

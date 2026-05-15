@@ -767,9 +767,10 @@ export async function handleStartExport(
       try { evt.sender.send('export:progress', e); } catch { /* webContents gone */ }
     };
     try {
-      let summary: ExportSummary | undefined;
+      let looseSummary: ExportSummary | undefined;
+      let repackSummary: ExportSummary | undefined;
       if (outputMode === 'loose' || outputMode === 'both') {
-        summary = await runExport(
+        looseSummary = await runExport(
           validPlan,
           outDir,
           sendProgress,
@@ -780,7 +781,7 @@ export async function handleStartExport(
         );
       }
       if (outputMode === 'atlas' || outputMode === 'both') {
-        await runRepack(
+        const repackResult = await runRepack(
           validPlan as ExportPlan,
           outDir,
           sendProgress,
@@ -790,21 +791,47 @@ export async function handleStartExport(
           atlasOpts,
           written,
         );
+        repackSummary = repackResult.summary;
       }
-      // If outputMode was 'atlas' (no loose summary), synthesize a minimal
-      // success summary so the renderer's existing happy-path UI works.
-      // The atlas-mode result paths (pageFiles + atlasFile) are not
-      // surfaced through ExportResponse in this plan — Plan 07 (UI) will
-      // either add a new envelope arm or the renderer can list outDir
-      // contents post-success. Keeping the envelope shape unchanged here
-      // means existing renderer code paths remain green.
-      const finalSummary: ExportSummary = summary ?? {
-        successes: 0,
-        errors: [],
-        outputDir: path.resolve(outDir),
-        durationMs: 0,
-        cancelled: false,
-      };
+      // UAT bug 3 (2026-05-15) — replaced placeholder synth with real
+      // summaries from each worker. Pre-fix the atlas path returned
+      // `{ successes: 0, durationMs: 0, ... }` → renderer reported
+      // "0 of N succeeded" despite files being written.
+      //
+      // Merge contract for 'both' mode:
+      //   successes  = sum (loose + atlas counts)
+      //   errors     = concat (loose stage's per-file errors carry through;
+      //                repack worker currently emits none, but the concat
+      //                shape is future-proof for when it does)
+      //   outputDir  = the looseSummary value (both stages write into the
+      //                SAME resolved outDir by IPC contract)
+      //   durationMs = sum (sequential — loose first, atlas second)
+      //   cancelled  = OR (either stage's cancel propagates upward)
+      let finalSummary: ExportSummary;
+      if (looseSummary && repackSummary) {
+        finalSummary = {
+          successes: looseSummary.successes + repackSummary.successes,
+          errors: [...looseSummary.errors, ...repackSummary.errors],
+          outputDir: looseSummary.outputDir,
+          durationMs: looseSummary.durationMs + repackSummary.durationMs,
+          cancelled: looseSummary.cancelled || repackSummary.cancelled,
+        };
+      } else if (repackSummary) {
+        finalSummary = repackSummary;
+      } else if (looseSummary) {
+        finalSummary = looseSummary;
+      } else {
+        // Defensive: outputMode must be one of loose/atlas/both, so at
+        // least one summary is always set. This branch is unreachable
+        // under the validator-gated input contract.
+        finalSummary = {
+          successes: 0,
+          errors: [],
+          outputDir: path.resolve(outDir),
+          durationMs: 0,
+          cancelled: false,
+        };
+      }
       return { ok: true, summary: finalSummary };
     } catch (innerErr) {
       // Rollback: delete every recorded path. fs.rm with { force: true }
