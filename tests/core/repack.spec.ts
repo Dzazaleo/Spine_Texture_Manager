@@ -54,6 +54,47 @@ describe('computeRepack — REPACK-02 pack-math invariants', () => {
     expect(JSON.stringify(r1)).toBe(JSON.stringify(r2));
   });
 
+  it('WR-01: sort uses codepoint compare so result is host-locale-invariant', () => {
+    // WR-01: localeCompare() without an explicit locale uses the host's
+    // default collation; macOS / Windows / Linux defaults can flip case-
+    // folding and diacritic order. REPACK-08 SHA256 parity needs the sort
+    // to be byte-identical across hosts. Codepoint compare (a<b/a>b) is
+    // invariant to LC_ALL / LANG / process.env locale.
+    //
+    // Test strategy: build inputs whose codepoint order DIFFERS from a
+    // common locale-aware order. Lowercase 'a' (U+0061) has a higher
+    // codepoint than uppercase 'Z' (U+005A), so codepoint sort yields
+    // ['Z_X', 'a_y'] while a common case-insensitive locale collation
+    // yields ['a_y', 'Z_X']. Names are short and otherwise unique so the
+    // pack layout is fully deterministic.
+    const inputs: RepackInput[] = [
+      makeInput('a_lower', 200, 200),
+      makeInput('Z_upper', 200, 200),
+      makeInput('B_upper', 200, 200),
+    ];
+    const r = computeRepack(inputs, DEFAULT_OPTS);
+    // Read back order by tracing pack output. With codepoint sort the
+    // first-packed region is `B_upper` (U+0042), then `Z_upper` (U+005A),
+    // then `a_lower` (U+0061). With case-insensitive locale collation we'd
+    // see [`a_lower`, `B_upper`, `Z_upper`] — DIFFERENT byte ordering.
+    const namesInPackOrder = r.regions.map((x) => x.regionName);
+    expect(
+      namesInPackOrder,
+      'codepoint sort produces uppercase-first ordering; locale collation would interleave',
+    ).toEqual(['B_upper', 'Z_upper', 'a_lower']);
+
+    // Re-run with a different input array order; pack layout must be
+    // identical (the internal sort canonicalizes input order regardless of
+    // host locale).
+    const shuffled: RepackInput[] = [
+      makeInput('Z_upper', 200, 200),
+      makeInput('a_lower', 200, 200),
+      makeInput('B_upper', 200, 200),
+    ];
+    const r2 = computeRepack(shuffled, DEFAULT_OPTS);
+    expect(JSON.stringify(r)).toBe(JSON.stringify(r2));
+  });
+
   it('preserves count: regions.length + oversize.length === inputs.length', () => {
     const inputs: RepackInput[] = [
       makeInput('A', 400, 400),

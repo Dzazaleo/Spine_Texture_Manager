@@ -8,11 +8,13 @@
  * src/core/**.ts).
  *
  * Determinism contract (REPACK-02 / REPACK-08):
- *   - Inputs are sorted by `regionName.localeCompare(...)` BEFORE adding to
+ *   - Inputs are sorted by codepoint comparison (a<b/a>b) BEFORE adding to
  *     the packer (RESEARCH §Landmines #9). regionName is loader-mode-invariant
  *     (atlas-source and atlas-less produce identical regionName sets per
  *     project_strict_loadermode_separation memory). This guarantees byte-identical
- *     SHA256 layouts across loaderMode for REPACK-08 cross-mode parity.
+ *     SHA256 layouts across loaderMode for REPACK-08 cross-mode parity AND
+ *     across hosts (WR-01 fix: localeCompare respects process locale, which
+ *     varies across macOS/Windows/Linux defaults).
  *
  * Sharp-emits-truth invariant (REPACK-03 prerequisite):
  *   - `packW` and `packH` are the dims sharp ACTUALLY emits via metadata()
@@ -94,13 +96,21 @@ export function computeRepack(inputs: RepackInput[], opts: RepackOptions): Repac
       packable.push(inp);
     }
   }
-  oversize.sort((a, b) => a.localeCompare(b));
+  // WR-01: codepoint compare for host-independent ordering. localeCompare()
+  // without an explicit locale uses the host's default collation — macOS
+  // (Apple), Windows (ICU), and Linux glibc can flip case-folding /
+  // diacritic order, breaking REPACK-08 SHA256 parity across hosts.
+  oversize.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   // Step 2: Deterministic sort by regionName (loader-mode-invariant key per
   //         RESEARCH §Landmines #9). This guarantees identical pack output
   //         across atlas-source vs atlas-less inputs for REPACK-08 parity.
+  //         WR-01 fix: codepoint compare (a<b/a>b) is byte-equivalent on
+  //         every host; localeCompare() respects process locale and can
+  //         reorder under different LC_COLLATE / LANG values, defeating
+  //         the REPACK-08 cross-host parity contract.
   const sortedInputs = packable.slice().sort((a, b) =>
-    a.regionName.localeCompare(b.regionName),
+    a.regionName < b.regionName ? -1 : a.regionName > b.regionName ? 1 : 0,
   );
 
   // Step 3: Construct packer. pot:false + square:false per RESEARCH (the

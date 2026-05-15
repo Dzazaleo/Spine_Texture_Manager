@@ -35,6 +35,7 @@
 import sharp from 'sharp';
 import {
   writeFile,
+  readFile,
   rename,
   mkdir,
   access,
@@ -46,6 +47,88 @@ import { computeRepack } from '../core/repack.js';
 import type { RepackInput } from '../core/repack.js';
 import { buildAtlasText } from './atlas-writer.js';
 import { resizeToBuffer } from './sharp-resize.js';
+
+/**
+ * Phase 40 CR-01 (BLOCKER) — atlas-source fallback. Mirrors the loose-export
+ * path's pre-flight at src/main/image-worker.ts:444-606: if `row.sourcePath`
+ * is absent on disk but `row.atlasSource` is populated, extract the region
+ * from the atlas page PNG and return a sharp pipeline pre-positioned on
+ * those pixels (un-rotated to canonical orientation if the source region
+ * was packed rotated). Strip-Whitespace `extend()` reconstitution is NOT
+ * applied here — the resize loop below targets `outW/outH` directly, so the
+ * resize chain naturally rescales the trimmed region to the requested dims.
+ * (Loose mode needs SW extend because it writes a canonical-canvas PNG; the
+ * repack-worker writes packed bytes only.)
+ *
+ * Returns `{ pipeline, isFromAtlasSource }`. The boolean is consumed by the
+ * passthrough WR-06 path so it can decide between `readFile(sourcePath)`
+ * (loose on-disk source ⇒ byte-parity-to-source) and the atlas-extract
+ * fallback (no on-disk loose PNG ⇒ sharp-extract-then-buffer).
+ *
+ * Inputs: any ExportRow-ish shape carrying `sourcePath` and (optionally)
+ * `atlasSource`. Callers narrow to ExportRow at the call site.
+ */
+type AtlasSourceMeta = {
+  pagePath: string;
+  x: number;
+  y: number;
+  packW: number;
+  packH: number;
+  offsetX: number;
+  offsetY: number;
+  w: number;
+  h: number;
+  rotated: boolean;
+};
+
+async function loadRegionSource(row: {
+  sourcePath: string;
+  atlasSource?: AtlasSourceMeta;
+}): Promise<{ pipeline: sharp.Sharp; isFromAtlasSource: boolean }> {
+  // Prefer the per-region PNG if it exists on disk. This is the common case
+  // in atlas-less mode (and in atlas-source mode when the user kept the
+  // pre-export images/ folder alongside the .atlas).
+  const looseExists = await access(row.sourcePath, fsConstants.F_OK)
+    .then(() => true)
+    .catch(() => false);
+  if (looseExists) {
+    return { pipeline: sharp(row.sourcePath), isFromAtlasSource: false };
+  }
+  // Fallback: atlas-source projects (no per-region PNGs). Extract the
+  // trimmed rect from the page PNG. Mirrors image-worker.ts:582-606 — for
+  // rotated regions we un-rotate via .rotate(+90) BEFORE the extract is
+  // materialized, then re-open from the buffer so libvips cannot fuse the
+  // rotation into a downstream resize/composite step (RESEARCH §"Pipeline
+  // fusion landmine").
+  if (!row.atlasSource) {
+    throw new Error(
+      `repack-worker: source PNG missing and no atlasSource fallback available: ${row.sourcePath}`,
+    );
+  }
+  const a = row.atlasSource;
+  if (a.rotated) {
+    // Materialize the un-rotated trimmed rect so the returned pipeline is
+    // pre-positioned on a canonical-orientation buffer. Direction (+90)
+    // matches image-worker.ts:588 + scripts/probe-sharp-rotate.mjs (Phase 33
+    // empirically verified — the WRITE inverse the repack-worker step 4
+    // rotate uses is -90, but this is the READ direction).
+    const rotated = await sharp(a.pagePath)
+      .extract({ left: a.x, top: a.y, width: a.packW, height: a.packH })
+      .rotate(90)
+      .png()
+      .toBuffer();
+    return { pipeline: sharp(rotated), isFromAtlasSource: true };
+  }
+  return {
+    pipeline: sharp(a.pagePath).extract({
+      left: a.x,
+      top: a.y,
+      width: a.packW,
+      height: a.packH,
+    }),
+    isFromAtlasSource: true,
+  };
+}
 // UAT Round 3 (2026-05-15) — deriveProjectName + pageFilename extracted
 // to atlas-paths.ts so probeExportConflicts (src/main/ipc.ts) can derive
 // the same atlas-mode targets. The two call sites MUST agree byte-for-byte
@@ -76,9 +159,12 @@ export interface AtlasOpts {
  *                errors are not currently emitted by the repack worker)
  *   outputDir  = pathResolve(outDir), matching runExport's contract
  *   durationMs = wall-time of the run (Date.now delta)
- *   cancelled  = isCancelled() at completion (true if we threw 'cancelled'
- *                — but in that case runRepack throws before returning, so
- *                in practice this is always false on the success path)
+ *   cancelled  = bailedOnCancel sentinel (CR-02 fix). True ONLY when one
+ *                of the cooperative pre-iteration checks fired and threw
+ *                'cancelled' — but in that case runRepack throws before
+ *                returning, so in practice this is always false on the
+ *                success path. Pre-fix read isCancelled() at return time,
+ *                which raced post-success cancel-flag flips.
  */
 export interface RepackResultPaths {
   pageFiles: string[];
@@ -99,6 +185,16 @@ export async function runRepack(
   const startedAt = Date.now();
   const projectName = deriveProjectName(plan, outDir);
   const resolvedOutDir = pathResolve(outDir);
+
+  // CR-02 (BLOCKER) — `cancelled: isCancelled()` at return time conflated
+  // "user clicked Cancel mid-run and we skipped work" (true cancel) with
+  // "user clicked Cancel after the last region already succeeded but before
+  // the function returned" (race — every region completed; nothing was
+  // skipped). The latter incorrectly poisoned the summary's caption even
+  // though no work was skipped. Set this flag ONLY at the cooperative
+  // pre-iteration checks below — that is the unambiguous "we stopped
+  // because of cancel" signal. Pattern mirrors image-worker.ts:139.
+  let bailedOnCancel = false;
 
   // Ensure output dir exists (mirrors image-worker.ts mkdir behavior).
   await mkdir(resolvedOutDir, { recursive: true });
@@ -149,6 +245,10 @@ export async function runRepack(
 
   for (let i = 0; i < plan.rows.length; i++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw so summary.cancelled is true
+      // only when we ACTUALLY stopped because of cancel (mirrors image-
+      // worker.ts:139 pattern).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const row = plan.rows[i];
@@ -175,8 +275,12 @@ export async function runRepack(
       continue;
     }
 
+    // CR-01: atlas-source fallback. If the per-region PNG is missing on
+    // disk, extract from the atlas page (un-rotated to canonical if packed
+    // rotated). Mirrors image-worker.ts:444-606.
+    const { pipeline: sourcePipeline } = await loadRegionSource(row);
     const resized = await resizeToBuffer(
-      sharp(row.sourcePath),
+      sourcePipeline,
       row.outW,
       row.outH,
       row.effectiveScale,
@@ -220,6 +324,8 @@ export async function runRepack(
   // passthrough rows. `passthroughCopies` hoisted above the resize loop.
   for (let pi = 0; pi < passthroughCopies.length; pi++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw (see resize-loop comment).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const row = passthroughCopies[pi];
@@ -243,11 +349,32 @@ export async function runRepack(
       continue;
     }
 
-    // No resize: load source bytes verbatim. Re-encoding via sharp().png()
-    // .toBuffer() (no resize chain) normalizes the bytes through libvips so
-    // downstream composite/rotate/extract see the same pixel layout as
-    // resized rows.
-    const passthroughBuf = await sharp(row.sourcePath).png().toBuffer();
+    // CR-01 + WR-06: passthrough region bytes.
+    //
+    // WR-06: loose-mode preserves byte-parity-to-source by `copyFile`
+    // (image-worker.ts:337). Atlas-mode pre-fix re-encoded via sharp(...)
+    // .png().toBuffer() — a libvips round-trip that drops byte-parity (the
+    // emitted PNG has different compression headers, possibly slightly
+    // different pixel encoding under PMA paths). When the source PNG is on
+    // disk we read it verbatim with readFile and feed those bytes into the
+    // composite layer's `input`. Sharp's composite step accepts PNG buffers
+    // natively, so this is the byte-parity path.
+    //
+    // CR-01: when source is NOT on disk (atlas-source mode), there is no
+    // "source bytes" to copy verbatim — fall back to sharp-extract-then-
+    // buffer (via loadRegionSource). The isFromAtlasSource flag gates this.
+    let passthroughBuf: Buffer;
+    const loaded = await loadRegionSource(row);
+    if (loaded.isFromAtlasSource) {
+      // No on-disk loose PNG to verbatim-copy; materialize the extracted
+      // region as a PNG buffer (libvips round-trip is unavoidable here).
+      passthroughBuf = await loaded.pipeline.png().toBuffer();
+    } else {
+      // Loose-on-disk source — preserve byte parity by reading PNG bytes
+      // verbatim. The packer's packW/packH still comes from sharp metadata
+      // on the same buffer (sharp-emits-truth invariant preserved).
+      passthroughBuf = await readFile(row.sourcePath);
+    }
     const meta = await sharp(passthroughBuf).metadata();
     const packW = meta.width ?? row.sourceW;
     const packH = meta.height ?? row.sourceH;
@@ -302,6 +429,15 @@ export async function runRepack(
   // Pre-fix (rotate(+90) on WRITE): page bytes were rotated 90° in the same
   // direction the runtime later rotates → 180° net → upside-down faces.
   for (const region of packResult.regions) {
+    // WR-02: cooperative cancellation in the rotation prep loop. Mirrors
+    // the resize/passthrough/composite loops + image-worker.ts runExport's
+    // rotation step. Each rotation is its own libvips sharp() call, so the
+    // pre-iteration check is the same lifecycle the rest of the worker
+    // uses.
+    if (isCancelled()) {
+      bailedOnCancel = true;
+      throw new Error('cancelled');
+    }
     if (region.rotated) {
       const orig = regionBuffers.get(region.regionName);
       if (!orig) continue;
@@ -314,6 +450,8 @@ export async function runRepack(
   const pageFiles: string[] = [];
   for (let pi = 0; pi < packResult.pages.length; pi++) {
     if (isCancelled()) {
+      // CR-02: set bailedOnCancel BEFORE throw (see resize-loop comment).
+      bailedOnCancel = true;
       throw new Error('cancelled');
     }
     const page = packResult.pages[pi];
@@ -422,7 +560,13 @@ export async function runRepack(
     errors: [],
     outputDir: resolvedOutDir,
     durationMs: Date.now() - startedAt,
-    cancelled: isCancelled(),
+    // CR-02: bailedOnCancel is true ONLY when one of the cooperative pre-
+    // iteration checks above fired and threw 'cancelled'. On the success
+    // path runRepack reaches here, so `cancelled: false` regardless of
+    // post-success cancel-flag flips. Pre-fix `isCancelled()` read the
+    // live flag → a race where the user clicked Cancel between the last
+    // composite and this summary literal poisoned the caption.
+    cancelled: bailedOnCancel,
   };
 
   return { pageFiles, atlasFile: atlasPath, summary };
