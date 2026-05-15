@@ -1,8 +1,11 @@
 ---
 id: SEED-008
-status: dormant
+status: closed
 planted: 2026-05-14
+closed: 2026-05-15
 planted_during: v1.5 / pre-Phase 40 (branch experiment/phase-40-atlas-repack)
+closed_during: v1.5 / Phase 40 (Atlas Repack Output)
+closing_phase: 40-atlas-repack-output
 trigger_when: Phase 40 (Atlas Repack Output) — unblocks /gsd-complete-milestone v1.5
 scope: Medium
 ---
@@ -110,3 +113,62 @@ Code already in place that this phase will extend:
   is being inserted before `/gsd-complete-milestone v1.5` runs; expect STATE.md
   counters to need a manual nudge (precedent: [[project_gsd_phase_complete_state_miscount]]).
 - Next concrete step: `/gsd-spec-phase 40` to lock REPACK-01..09.
+
+## Closure (2026-05-15 — Phase 40)
+
+**Closed by**: Phase 40 — Atlas Repack Output.
+
+**Requirements delivered**: REPACK-01 through REPACK-10 — see `.planning/phases/40-atlas-repack-output/40-SPEC.md` for the locked specification.
+
+**Phase artifacts**:
+- `40-SPEC.md` — locked 10 requirements (ambiguity score 0.087)
+- `40-CONTEXT.md` — 7 user-locked decisions (D-01 through D-07 series)
+- `40-RESEARCH.md` — libgdx format reference, maxrects-packer API, sharp composite pipeline, 16 landmines
+- `40-PATTERNS.md` — 11 new-file analogs + 7 modified-file splice sites
+- `40-VALIDATION.md` — per-task verification map + Wave 0 test list
+- 9 PLAN.md files (40-01 through 40-09)
+- Per-plan SUMMARY.md files recording execution outcomes
+
+**Source code landed**:
+- `src/core/repack.ts` — pure-TS pack-planning (REPACK-02, REPACK-06)
+- `src/main/atlas-writer.ts` — libgdx `.atlas` text serializer (REPACK-04)
+- `src/main/repack-worker.ts` — sharp orchestration + atomic-or-fail (REPACK-03, REPACK-05, REPACK-10)
+- `src/main/atlas-paths.ts` — shared `deriveProjectName` + `pageFilename` between probe and worker
+- `src/main/sharp-resize.ts` — shared resize+sharpen helper (D-03a)
+- `src/main/ipc.ts` — `export:start` channel extended with `outputMode` + `atlasOpts`; `probeExportConflicts` extended to atlas-mode targets (REPACK-01, D-04)
+- `src/main/image-worker.ts` — `runExport` widened with `writtenPaths` accumulator (D-04a)
+- `src/renderer/src/modals/OptimizeDialog.tsx` — Output card + 3 atlas knobs (REPACK-01, D-01..D-01e)
+- `src/renderer/src/components/AppShell.tsx` — atlas state threading + atlas-aware probe
+- `src/preload/index.ts` + `index.d.ts` — IPC bridge widening
+- `src/shared/types.ts` — 4 additive `ProjectFileV1` fields + `ExportProgressEvent.phase` (REPACK-07, D-05)
+- `src/core/project-file.ts` — 4 validator pre-massage blocks (REPACK-07)
+
+**Test coverage**:
+- `tests/core/repack.spec.ts` — determinism, count preservation, page bounds, oversize pre-flight, rotation read-back
+- `tests/main/atlas-writer.spec.ts` — libgdx round-trip via spine-core, field parity, rotation flag, blank-line discipline, defensive colon-check
+- `tests/main/repack-worker.spec.ts` — atlas mode, both mode, sharp-emits-truth, pixel preservation, page count/bounds, oversize abort, atomic rollback contract, skin-aliased dedup, passthroughCopies packing
+- `tests/main/ipc-export.spec.ts` — dispatch on each outputMode, validator rejection, both-mode rollback, atlas-mode probe coverage
+- `tests/main/repack.loose-parity.spec.ts` — REPACK-01 SHA256 regression sentinel
+- `tests/main/repack.parity.spec.ts` — REPACK-08 cross-loaderMode parity + REPACK-09 sharpen-invariant
+- `tests/core/project-file.spec.ts` — extended for 4 new atlas fields
+- `tests/renderer/optimize-dialog-output-card.spec.tsx` — Output card UI + UAT round 1/2/3 regression cases
+- `tests/renderer/app-shell-atlas-state.spec.tsx` — AppShell atlas state threading
+- `tests/preload/start-export-atlas-args.spec.ts` — widened preload bridge
+- `tests/arch.spec.ts` — `core/repack.ts` auto-covered by existing core-purity grep
+
+**UAT iterations**:
+3 rounds of human verification surfaced and resolved:
+- Round 1: dedup of duplicate region entries (initial overlap bug); rotation direction `+90` → `-90` (upside-down faces); atlas-mode summary count (0/N → real count); tooltip moved to label.
+- Round 2: dedup key changed from `attachmentNames[0]` (slot-binding, shared across skins) → `outPath` (path-attribute, unique per source PNG); passthroughCopies now packed into atlas.
+- Round 3: `probeExportConflicts` extended to atlas-mode targets; progress counter follows IPC `event.total` instead of static loose-mode local total.
+
+**Locked invariants honored**:
+- Skeleton JSON is invariant under repack (memory `project_spine_4_2_atlas_json_precedence`).
+- atlas-source and atlas-less loaderModes produce SHA256-identical output (memory `project_strict_loadermode_separation`).
+- No `project_format_version` bump (additive precedent).
+- Sharp-emits-truth: packer receives the dims sharp actually emits, not buildExportPlan targets.
+- Atomic-or-fail: oversize pre-flight + mid-write rollback via shared `Set<string>` accumulator.
+- Locked REPACK-10 error string preserved verbatim across worker, IPC, and UI surfaces.
+- `core/` purity preserved — `core/repack.ts` clean of sharp/fs/electron imports.
+
+**Status flip rationale**: Per `40-SPEC.md` §Acceptance Criteria item 17 ("SEED-008 frontmatter `status:` flips from `dormant` to `closed` at phase close with breadcrumb to Phase 40") and SEED-008's own design contract ("This seed should be presented (or referenced) during: ... /gsd-complete-milestone v1.5 — final milestone gate"), this seed is closed concurrently with Phase 40's completion.
