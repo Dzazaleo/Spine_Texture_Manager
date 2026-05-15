@@ -145,33 +145,62 @@ export async function runRepack(
   await mkdir(resolvedOutDir, { recursive: true });
 
   // -------- Step 1+2: Resize phase + sharp-emits-truth read-back --------
-  // Map keyed by regionName (= attachmentNames[0]) — the loader-mode-invariant
-  // identifier per project_strict_loadermode_separation memory + RESEARCH
-  // §Landmines #9. computeRepack uses the SAME key for its sort.
+  // Map keyed by regionName = `row.outPath` stripped of `.png` and leading
+  // `images/`. This matches the Spine JSON `path:` attribute, which is what
+  // the spine runtime uses to look up a region in the atlas.
   //
-  // UAT bug 1 (2026-05-15): when N skeletons share source PNGs (the SKINS
-  // workflow), plan.rows can contain N entries with the same
-  // attachmentNames[0]. WITHOUT dedup the packer received N copies of the
-  // same regionName and laid them out at N different positions → the .atlas
-  // contained duplicate entries (e.g. AVATAR/BODY × 7) and the page PNG
-  // had overlapping regions. Fix: dedup repackInputs by regionName, FIRST
-  // OCCURRENCE WINS (deterministic — preserves row-0's resize result). The
-  // regionBuffers Map already deduped naturally (Map by key); we mirror the
-  // same key discipline on the inputs array. computeRepack's localeCompare
-  // sort guarantees pack-order determinism regardless of insertion order.
+  // UAT round 2 (2026-05-15): the previous fix used `attachmentNames[0]` as
+  // the dedup key. That field is the SLOT-BINDING name, which is SHARED
+  // across skins. In the multi-skin (SKINS) workflow Spine emits N skin-
+  // namespaced source PNGs (e.g. `images/JOKER/BODY.png`, `images/BEACHMAN/
+  // BODY.png`) all bound to a single slot whose attachmentNames[0] is
+  // `AVATAR/BODY` (skin 0's name). Keying by attachmentNames[0] collapsed
+  // all skins' BODY regions into ONE entry — dropping ~135 of the 158
+  // legitimate plan.rows. The corrected key (outPath without extension)
+  // is unique per source PNG and matches the JSON `path:` field a Spine
+  // runtime will read at load time. Per D-108 (src/shared/types.ts L361),
+  // plan.rows is ALREADY deduped per atlas-region source PNG path
+  // upstream — so duplicate-outPath entries should be IMPOSSIBLE here.
+  // We keep a Map-based safety net + console.warn so an upstream regression
+  // is surfaced loudly rather than silently dropping rows. computeRepack's
+  // localeCompare sort guarantees pack-order determinism regardless of
+  // insertion order.
   const regionBuffers = new Map<string, Buffer>();
   const repackInputsByName = new Map<string, RepackInput>();
+
+  /**
+   * Strip the `images/` prefix + `.png` suffix from an ExportRow.outPath
+   * to produce the atlas region name. Matches the Spine JSON `path:`
+   * attribute (skin-namespaced, e.g. `JOKER/BODY`). Forward slashes are
+   * preserved — Spine's atlas format uses `/` for nested region names.
+   *
+   * Examples:
+   *   `images/JOKER/BODY.png`    → `JOKER/BODY`
+   *   `images/CIRCLE.png`        → `CIRCLE`
+   *   `images/sub/dir/foo.PNG`   → `sub/dir/foo`  (case-insensitive .png)
+   */
+  function outPathToRegionName(outPath: string): string {
+    const stripped = outPath.replace(/\.png$/i, '');
+    return stripped.startsWith('images/') ? stripped.slice('images/'.length) : stripped;
+  }
 
   for (let i = 0; i < plan.rows.length; i++) {
     if (isCancelled()) {
       throw new Error('cancelled');
     }
     const row = plan.rows[i];
-    const regionName = row.attachmentNames?.[0] ?? row.outPath;
+    const regionName = outPathToRegionName(row.outPath);
 
-    // Dedup: skip subsequent rows for the same regionName. First occurrence
-    // wins (its resized buffer + packW/H is what lands in the atlas).
+    // Defensive dedup: D-108 (src/shared/types.ts L361) guarantees plan.rows
+    // is already deduped per source PNG path — duplicate outPaths would
+    // indicate an upstream regression. Warn loudly so the bug surfaces, but
+    // do not crash: first occurrence wins to preserve atomic-or-fail.
     if (repackInputsByName.has(regionName)) {
+      console.warn(
+        `[runRepack] duplicate outPath in plan.rows (upstream bug — D-108 violated): ` +
+          `regionName=${regionName}, row index=${i}, outPath=${row.outPath}. ` +
+          `First occurrence wins; subsequent rows dropped from atlas.`,
+      );
       onProgress({
         index: i,
         total: plan.rows.length,
@@ -202,7 +231,7 @@ export async function runRepack(
 
     onProgress({
       index: i,
-      total: plan.rows.length,
+      total: plan.rows.length + (plan.passthroughCopies?.length ?? 0),
       path: regionName,
       outPath: '',
       status: 'success',
