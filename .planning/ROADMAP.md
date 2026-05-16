@@ -109,11 +109,12 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   3. A 4.2 runtime object reaching a 4.3 boundary (or vice-versa) is a **compile-time** error: opaque branded handles carry an explicit required runtime tag, and no source file imports both alias specifiers (arch-spec enforced). *(RT-03)*
   4. The new `core/runtime/` module imports no DOM, Electron, or `sharp`; the Layer-3 purity invariant is green under `tests/arch.spec.ts` after the scaffolding lands. *(RT-04)*
   5. CI runs from a fresh clone against both 4.2.x and 4.3.x fixture slots, the npm alias resolves reproducibly under `npm ci`, electron-builder packages both spine-core copies, and a production-bundle smoke job runs the built worker against a 4.2 and a 4.3 fixture (not from `src/`). *(CI-01)*
-**Plans**: 4 plans (strict linear waves — the 4-commit ordering A->B->C->D is the acceptance test)
+**Plans**: 5 plans (4 frozen waves + 1 gap-closure follow-up; the 4-commit ordering A->B->C->D is the acceptance test)
 - [x] 42-01-PLAN.md — COMMIT A: SAFE-01 byte-equal 4.2 baseline (canonical serializer + auto-discovery + enumeration + freeze-guard) captured BEFORE the alias *(SAFE-01)*
 - [x] 42-02-PLAN.md — COMMIT B: RT-01 dual-install (4.3.0 canonical + `spine-core-42` exact-pinned alias) + resolution/distinctness tests; git descendant of COMMIT A *(RT-01)*
 - [x] 42-03-PLAN.md — COMMIT C: RT-03/RT-04 opaque-handle scaffolding (branded handles + SpineRuntime signatures + LoadResult.runtime? + arch anchors + compile-negative fixture) *(RT-03, RT-04)*
 - [x] 42-04-PLAN.md — COMMIT D: CI-01 `ci.yml` dual-runtime gate + D-13 4.3 load-smoke + Phase-44 owner-fixture guard + `42-OWNER-EXPORT-SPEC.md` *(CI-01)*
+- [ ] 42-05-PLAN.md — GAP-CLOSURE (additive descendant of D): restore the RT-01 ROADMAP-SC-#2 runtime-distinctness regression test (collaterally dropped by the Option-1 re-plan) + harden the CR-01 D-09 SAFE-01 ancestry resolution (user-decided HARDEN NOW) *(RT-01, SAFE-01)*
 
 ### Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping
 **Goal**: Introduce the `SpineRuntime` adapter facade with the 4.2 path proven behavior-neutral (byte-green — the hard phase-exit gate), then implement the 4.3 adapter against the research-verified stable Pose API so the ~750-line sampler/bounds algorithm is never forked.
