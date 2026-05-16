@@ -1,0 +1,225 @@
+# Spine Texture Manager — continuous integration (v1.6 dual-runtime gate)
+#
+# This is the DUAL-RUNTIME GATE for the v1.6 Spine 4.3 port (CI-01 / D-09 /
+# D-10 / D-11 / D-12 / D-13). It is a SEPARATE file from release.yml on
+# purpose:
+#   - release.yml owns tags + the auto-update delivery path and stays
+#     BYTE-UNTOUCHED. ci.yml NEVER triggers on tags (no `tags:` anywhere) so
+#     the standing "don't push v1.6 tags / tags trigger auto-update" guard is
+#     never perturbed.
+#   - ci.yml needs full git history (`fetch-depth: 0`) for the D-09
+#     git-ancestry assertion; release.yml does not. Keeping them separate
+#     keeps each file's contract clean.
+#
+# Typecheck scope (LOCKED — 42-REPLAN-NOTE.md v2 §3; Option 1, user-selected
+# 2026-05-16): the CI typecheck step is the BARE typecheck:node script
+# (the dual-runtime gate scope — src/main + src/core + tests), and ONLY that
+# script — the combined node+web typecheck is deliberately NOT invoked. CI
+# runs on a fresh `npm ci` clone, so the gitignored local scratch files
+# (the gitignored debug/trace globs) are NATURALLY ABSENT on the CI checkout
+# -> typecheck:node is genuinely exit 0 there with nothing to exclude; no
+# baseline-hedge and no scratch-exclusion shim is needed or permitted. The
+# web typecheck script is RED via spine-player's own bare Player.d.ts 4.3
+# hoist into AnimationPlayerModal.tsx — a KNOWN, EXPECTED, Phase-47-OWNED
+# leak (documented in 42-02-SUMMARY.md). CI does NOT run or assert the web
+# typecheck and adds NO shim for it; Phase 47 owns and resolves it.
+#
+# Action SHAs pinned for supply-chain hygiene (copied verbatim from
+# release.yml's pinned-SHA convention); bump deliberately, not floating.
+
+name: ci
+
+on:
+  push:
+    branches: ['**']            # any branch
+    paths-ignore:
+      - '.planning/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'            # gitignore-only edits don't affect runtime
+  pull_request:
+    branches: [main]            # PR -> main only
+    paths-ignore:
+      - '.planning/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+  # NEVER `tags:` — release.yml owns tags (D-10/D-11). A pure docs/.planning
+  # commit stays quiet; a commit that ALSO touches code still runs (GitHub
+  # paths-ignore skips a push only if EVERY changed file matches an ignore
+  # glob).
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        # 3-OS matrix mirrors release.yml exactly. Linux is retained in the
+        # CI *test* matrix even though it is dropped as a *release* target
+        # (project_linux_deferred) — subtle dual-runtime drift can still
+        # surface on Linux during development.
+        os:
+          - ubuntu-latest
+          - windows-2022
+          - macos-14
+    steps:
+      # fetch-depth: 0 is CRITICAL — `git merge-base --is-ancestor` and
+      # `git log --diff-filter=A` need FULL history. actions/checkout
+      # defaults to a depth-1 shallow clone, which works locally (full
+      # history on the dev box) but breaks the D-09 ancestry gate in CI
+      # (research Pitfall 5).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+
+      # The dual-runtime gate scope. Bare typecheck:node script
+      # (src/main + src/core + tests) asserting a clean exit 0 — with NO
+      # baseline-hedge, NO ignore-list, NO scratch-skip wrapper of any kind.
+      # A fresh `npm ci` clone does not contain the gitignored local
+      # debug/trace files at all, so this is genuinely exit 0 here. The
+      # combined node+web typecheck is intentionally NOT invoked — the web
+      # typecheck is the Phase-47-OWNED spine-player Player.d.ts leak, not
+      # a Phase-42 defect.
+      - run: npm run typecheck:node
+
+      # Full vitest suite — includes the SAFE-01 byte-equal regression gate,
+      # the fixture enumeration, the safe01-freeze-guard git-ancestry
+      # assertion (the vitest-side D-09 enforcement), the runtime-distinctness
+      # checks, the arch anchors, and the D-13 4.3 load-smoke.
+      - run: npm run test
+
+      # Explicit, visible-in-log D-09 belt-and-suspenders. The vitest
+      # freeze-guard ALSO enforces this inside `npm run test` — both are
+      # intentionally redundant per D-09 "machine-checked, not reviewer
+      # memory". The SAFE-01 baseline (_manifest.json, added in COMMIT A
+      # 1b5327d) MUST be a git ancestor of the npm-alias commit (the
+      # `spine-core-42` key first appears in package.json at the frozen
+      # COMMIT B cc5783f). If A is not an ancestor of B the baseline was
+      # captured AFTER the refactor and the whole regression gate is void
+      # (research Pitfall 1 — the existential ordering invariant).
+      - name: Assert SAFE-01 baseline predates the npm-alias commit (D-09)
+        shell: bash
+        run: |
+          BASE_COMMIT="$(git log --diff-filter=A --format=%H -- tests/safe01/baselines/_manifest.json | tail -1)"
+          ALIAS_COMMIT="$(git log -S 'spine-core-42' --format=%H -- package.json | tail -1)"
+          echo "SAFE-01 baseline (_manifest.json added) : $BASE_COMMIT"
+          echo "npm-alias commit (spine-core-42 in pkg) : $ALIAS_COMMIT"
+          if [ -z "$BASE_COMMIT" ] || [ -z "$ALIAS_COMMIT" ]; then
+            echo "::error::D-09 ancestry inputs unresolved — shallow clone? (need fetch-depth: 0)"
+            exit 1
+          fi
+          if git merge-base --is-ancestor "$BASE_COMMIT" "$ALIAS_COMMIT"; then
+            echo "D-09 OK: SAFE-01 baseline $BASE_COMMIT is a git ancestor of the npm-alias commit $ALIAS_COMMIT"
+          else
+            echo "::error::D-09 VIOLATION: SAFE-01 baseline $BASE_COMMIT is NOT an ancestor of the npm-alias commit $ALIAS_COMMIT — the 4.2 baseline was captured AFTER the refactor; the regression gate is void."
+            exit 1
+          fi
+
+  bundle-smoke:
+    name: Production-bundle smoke (PR -> main)
+    if: github.event_name == 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+
+      # electron-vite build emits the bundled main process (incl. the
+      # sampler worker) into out/. electron-builder packages it. `--dir`
+      # is enough for a packaging-integrity smoke (no installer needed).
+      - name: Build production bundle
+        run: npm run build -- --dir
+
+      # Pitfall 8 defense: assert BOTH spine-core copies survive `npm ci`
+      # / packaging — the 4.3.0 canonical AND the 4.2.111 spine-core-42
+      # alias. A tree-shake/packaging drop of the dynamically-dispatched
+      # runtime works in dev but breaks in the packaged app
+      # (feedback_platform_divergent_check_stale_build class).
+      - name: Assert BOTH spine-core copies survived packaging
+        shell: bash
+        run: |
+          CANON="node_modules/@esotericsoftware/spine-core/package.json"
+          ALIAS="node_modules/spine-core-42/package.json"
+          [ -f "$CANON" ] || { echo "::error::canonical @esotericsoftware/spine-core missing"; exit 1; }
+          [ -f "$ALIAS" ] || { echo "::error::spine-core-42 alias missing"; exit 1; }
+          CV="$(node -p "require('./$CANON').version")"
+          AV="$(node -p "require('./$ALIAS').version")"
+          echo "@esotericsoftware/spine-core = $CV (expect 4.3.0)"
+          echo "spine-core-42                = $AV (expect 4.2.111)"
+          [ "$CV" = "4.3.0" ]   || { echo "::error::canonical spine-core is $CV, expected 4.3.0"; exit 1; }
+          [ "$AV" = "4.2.111" ] || { echo "::error::spine-core-42 is $AV, expected 4.2.111"; exit 1; }
+          [ -f out/main/sampler-worker.cjs ] || { echo "::error::built worker out/main/sampler-worker.cjs missing"; exit 1; }
+          echo "OK: both spine-core copies packaged + built worker present"
+
+      # Run the BUILT worker (out/main/sampler-worker.cjs — NOT src/)
+      # against a committed 4.2 fixture AND the in-repo 4.3 JSON. Proves
+      # tree-shaking/packaging did not drop the dynamically-dispatched
+      # runtime (Pitfall 8). The 4.2 fixture must sample to completion; the
+      # 4.3 fixture is driven directly through the 4.3 SkeletonJson (the
+      # D-13 bypass — the gated loader still rejects 4.3 in Phase 42).
+      - name: Smoke the BUILT worker against a 4.2 fixture + the in-repo 4.3 JSON
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { Worker } from "node:worker_threads";
+            import { existsSync } from "node:fs";
+            import { SkeletonJson, AtlasAttachmentLoader, TextureAtlas } from "@esotericsoftware/spine-core";
+            import { readFileSync } from "node:fs";
+
+            const WORKER = "out/main/sampler-worker.cjs";
+            if (!existsSync(WORKER)) { console.error("built worker missing:", WORKER); process.exit(1); }
+
+            // 4.2 arm — the BUILT worker samples a committed 4.2 fixture to completion.
+            const SIMPLE = "fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json";
+            const finalMsg = await new Promise((resolve, reject) => {
+              const w = new Worker(WORKER, { workerData: { skeletonPath: SIMPLE, samplingHz: 120 } });
+              w.on("message", (m) => {
+                if (m && (m.type === "complete" || m.type === "error" || m.type === "cancelled")) {
+                  w.terminate(); resolve(m);
+                }
+              });
+              w.on("error", reject);
+            });
+            if (!finalMsg || finalMsg.type !== "complete") {
+              console.error("4.2 BUILT-worker smoke did not complete:", JSON.stringify(finalMsg));
+              process.exit(1);
+            }
+            console.log("4.2 BUILT-worker smoke: complete OK");
+
+            // 4.3 arm — drive the canonical 4.3.0 SkeletonJson DIRECTLY over
+            // the in-repo 4.3 JSON (the D-13 bypass; the gated loader still
+            // rejects 4.3 in Phase 42). Integrity only, not value.
+            let j = "fixtures/SPINE_4_3_TEST/SPINE_4_3_TEST.json";
+            let a = "fixtures/SPINE_4_3_TEST/SPINE_4_3_TEST.atlas";
+            if (!existsSync(j) && existsSync("fixtures/SPINE_4_3_MIN/SPINE_4_3_MIN.json")) {
+              j = "fixtures/SPINE_4_3_MIN/SPINE_4_3_MIN.json";
+              a = "fixtures/SPINE_4_3_MIN/SPINE_4_3_MIN.atlas";
+            }
+            const atlas = new TextureAtlas(readFileSync(a, "utf8"));
+            const sj = new SkeletonJson(new AtlasAttachmentLoader(atlas));
+            const sd = sj.readSkeletonData(JSON.parse(readFileSync(j, "utf8")));
+            if (!sd || !Array.isArray(sd.bones) || sd.bones.length < 1) {
+              console.error("4.3 direct-SkeletonJson smoke failed to parse:", j);
+              process.exit(1);
+            }
+            console.log("4.3 direct-SkeletonJson smoke: parsed OK (" + sd.bones.length + " bones)");
+          '
