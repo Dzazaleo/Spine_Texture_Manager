@@ -126,7 +126,12 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   3. A regression test proves each loaded skeleton's attachments resolve `instanceof` (Region / Vertex / Mesh) against the same runtime instance that loaded it — cross-runtime `instanceof` mixing is caught, not silently mis-branched. *(SAFE-03)*
   4. A 4.3 skeleton samples through the 4.3 adapter using the verified-stable API (`setupPose`/`setupPoseSlots`/`setupPoseBones`, overloaded `setAnimation`, `slot.pose.attachment`, `slot.pose.color`, AnimationState `setTrack`/`getTrack`), reading the post-constraint `appliedPose` for all world-transform-relevant state. *(PORT-01)*
   5. `core/bounds.ts` (via the adapter) computes world vertices for 4.3 `RegionAttachment` (`vertexOffsets` as the 2nd arg via `getOffsets(slot.pose)`) and `VertexAttachment` (`skeleton` as the 1st arg), reads bone world scale via `bone.appliedPose.getWorldScaleX/Y()`, and the v1.4 Phase 33 rotated-atlas offset mechanism is re-expressed for 4.3 (no mutable `offset[]`) with the 4.2 rotated-atlas path unchanged and regression-locked. *(PORT-02, PORT-03)*
-**Plans**: TBD
+**Plans**: 5 plans (4 waves; Wave 0 test seams + Q1 additive method -> Wave 1 the two adapter bodies in parallel -> Wave 2 consumer rewire + SAFE-02 byte-equal exit gate -> Wave 3 4.3 own-baseline + A1 empirical rotated-region validation + D-04 heavy-rig close gate)
+- [ ] 43-01-PLAN.md -- Wave 0: RT-02 arch anchor (RED by design) + Q1 strictly-additive `attachmentTimelineNames` interface method + the 4 ENOENT-tolerant 4.3 test seams *(RT-02, SAFE-03, PORT-01, PORT-03)*
+- [ ] 43-02-PLAN.md -- Wave 1: `runtime-42.ts` byte-faithful verbatim relocation (SAFE-02-by-construction) + Phase-33 patch relocation + the `pickRuntime` lazy-require body *(RT-02, SAFE-02, PORT-03)*
+- [ ] 43-04-PLAN.md -- Wave 1: `runtime-43.ts` verified 4.3.0 Pose-API port + D-03 appliedPose-only structural defense + `.region`/`.uvs`->`sequence` routing *(RT-02, PORT-01, PORT-02, PORT-03)*
+- [ ] 43-03-PLAN.md -- Wave 2: rewire loader/sampler/bounds to `load.runtime.*` (RT-02 anchor -> GREEN; D-02 hard-pick 4.2) + SAFE-02 byte-equal HARD exit gate + SAFE-03 *(RT-02, SAFE-02, SAFE-03)*
+- [ ] 43-05-PLAN.md -- Wave 3: capture the SEPARATE 4.3 own-baseline + EMPIRICALLY validate A1 rotated-region vs the 4.2-sibling known-good + 4.3-only fixture commit + D-04 documented local heavy-rig SAFE-02 close gate *(PORT-01, PORT-02, PORT-03, SAFE-02)*
 
 ### Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring
 **Goal**: Repurpose the loader from rejecter to version dispatcher, acquire the owner-blocked in-repo 4.3 fixtures (scheduled early, off the critical path), and stand up the layered equivalence oracle that gates every 4.3-feature claim before any user-facing flip.
@@ -184,7 +189,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
-| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 0/TBD | Not started | - |
+| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 0/5 | Not started | - |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
