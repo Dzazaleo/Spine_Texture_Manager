@@ -3,26 +3,26 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-16T16:52:00.000Z"
-last_activity: 2026-05-16 -- Phase 42 execution HALTED at Wave 2 — cross-plan defect; 42-01/COMMIT A complete; re-plan required
+last_updated: "2026-05-16T17:12:33.799Z"
+last_activity: 2026-05-16 -- Phase 42 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 4
   completed_plans: 1
-  percent: 0
+  percent: 25
 ---
 
 # State
 
 ## Current Position
 
-Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — EXECUTION HALTED (re-plan required)
+Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — RE-PLAN COMPLETE (resume at Wave 2)
 Plan: 1 of 4 complete (42-01 / COMMIT A — SAFE-01 baseline, landed + verified + frozen)
-Status: Wave 2 (42-02 RT-01) blocked by a confirmed cross-plan planning defect. User chose the clean GSD path: re-plan 42-02/03/04. Authoritative hand-off: `.planning/phases/42-pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding/42-REPLAN-NOTE.md`. Next: `/gsd-plan-phase 42`.
-Last activity: 2026-05-16 -- Phase 42 execution HALTED at Wave 2 (cross-plan defect: RT-01's locked 4.3-canonical bare specifier orphans 7 src/core 4.2 consumers → typecheck red; no plan repoints them. 42-01/COMMIT A complete + frozen.)
+Status: Ready to execute (42-02/03/04 re-planned + plan-checker VERIFICATION PASSED — coherence defect closed)
+Last activity: 2026-05-16 -- Phase 42 planning complete
 
-Progress: [██░░░░░░░░] Phase 42: 1/4 plans (42-01 done; 42-02/03/04 awaiting re-plan)
+Progress: [██░░░░░░░░] Phase 42: 1/4 plans (42-01 done+frozen; 42-02/03/04 re-planned+verified — resume Wave 2)
 
 ## Project Reference
 
