@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-16T19:11:07.232Z"
-last_activity: 2026-05-16 -- Phase 42 execution started
+last_updated: "2026-05-16T20:42:38.448Z"
+last_activity: 2026-05-16 -- Phase 42 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 4
-  completed_plans: 1
-  percent: 25
+  total_plans: 5
+  completed_plans: 4
+  percent: 80
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — EXECUTING
 Plan: 1 of 4
-Status: Executing Phase 42
-Last activity: 2026-05-16 -- Phase 42 execution started
+Status: Ready to execute
+Last activity: 2026-05-16 -- Phase 42 planning complete
 
 Next: `/gsd-execute-phase 42` — resume Wave 2 on top of the frozen COMMIT B `cc5783f`. The amended plans narrow the gate to `typecheck:node` (fresh-clone); `typecheck:web` spine-player `.d.ts` 4.3-leak is a KNOWN Phase-47-owned item. COMMIT A `1b5327d` + COMMIT B `cc5783f` are FROZEN ancestry anchors — execute-phase must detect-and-skip COMMIT B; do NOT regenerate/reorder/amend.
 
