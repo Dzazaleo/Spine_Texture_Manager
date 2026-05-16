@@ -16,6 +16,10 @@ import type {
   SkeletonData,
   TextureAtlas,
 } from 'spine-core-42';
+// Phase 42 (RT-03) — the runtime-adapter facade type. `core/runtime/` is
+// Layer-3 pure (signatures only in Phase 42, no spine-core import). This is a
+// type-only import; it adds no runtime dependency and no spine-core coupling.
+import type { SpineRuntime } from './runtime/runtime.js';
 
 export interface LoaderOptions {
   /** Override the atlas path. Defaults to sibling `.atlas` next to the JSON. */
@@ -180,6 +184,10 @@ export interface LoadResult {
    * it from the main panels and lists it here for explicit user visibility).
    */
   skippedAttachments?: { name: string; expectedPngPath: string }[];
+  /** Phase 42 (RT-03): the runtime adapter that parsed this skeleton.
+   *  Declared in Phase 42; populated by loader.ts and consumed by
+   *  sampler.ts/bounds.ts in Phase 43 (RT-02). Optional until then. */
+  runtime?: SpineRuntime;
 }
 
 export interface AABB {

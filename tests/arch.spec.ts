@@ -285,3 +285,41 @@ describe('Phase 18 Layer 3: src/renderer/src/components/AppShell.tsx must not su
     ).not.toMatch(/onCheckDirtyBeforeQuit/);
   });
 });
+
+// Phase 42 RT-04 + RT-03 backstop — appended (RESEARCH §Code Examples).
+// The existing src/core/** fs/sharp scanner above already covers
+// core/runtime/*.ts with NO carve-out (Phase 42 adds no fs/sharp/DOM there).
+// These two named anchors add: (1) the Phase-42 "no spine-core in runtime/
+// either" purity (RT-04) and (2) the no-co-mingled-imports backstop BEHIND
+// the unique-symbol brand (RT-03 defense-in-depth — brand FIRST, grep SECOND).
+// globSync self-handles a missing/empty dir → zero files = empty offenders =
+// green, so no ENOENT guard is needed (the dir lands in this same commit).
+describe('Phase 42 RT-04: src/core/runtime/ is Layer-3 pure (no DOM/Electron/sharp/spine-core in Phase 42)', () => {
+  it('core/runtime/*.ts import neither sharp/node:fs/electron NOR a spine-core package (signatures only in Phase 42)', () => {
+    const files = globSync('src/core/runtime/**/*.ts');
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      // Phase 42: runtime/ is signatures only — NO spine-core import yet
+      // (the two adapter impls that import it are Phase 43 / RT-02).
+      if (/from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]electron['"]|from ['"]@esotericsoftware\/spine-core['"]|from ['"]spine-core-42['"]/.test(text)) {
+        offenders.push(file);
+      }
+    }
+    expect(offenders, `core/runtime Phase-42 purity violation: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
+
+describe('Phase 42 RT-03 backstop: no source file imports BOTH spine-core alias specifiers', () => {
+  it('no src/**/*.ts imports @esotericsoftware/spine-core AND spine-core-42 in the same file', () => {
+    const files = globSync('src/**/*.{ts,tsx}');
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      const has43 = /from ['"]@esotericsoftware\/spine-core['"]/.test(text);
+      const has42 = /from ['"]spine-core-42['"]/.test(text);
+      if (has43 && has42) offenders.push(file);
+    }
+    expect(offenders, `Files co-mingling both spine-core runtimes: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
