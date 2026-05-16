@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "fixture": "fixtures/INHERIT_TIMELINE/INHERIT_TEST.json",
+    "generatedAt": "2026-05-16T15:35:13.841Z",
+    "generatedCommit": "c5ef3584459e6545ed659bd1c86fd93e0b0b58f7",
+    "samplerHz": 120,
+    "schema": "safe01/v1",
+    "spineCoreVersion": "4.2.111"
+  },
+  "globalPeaks": {
+    "default/CHILD_SLOT/REGION": {
+      "animationName": "INHERIT_DETACH",
+      "attachmentKey": "default/CHILD_SLOT/REGION",
+      "attachmentName": "REGION",
+      "frame": 15,
+      "isSetupPosePeak": false,
+      "peakScale": 1,
+      "peakScaleX": 1,
+      "peakScaleY": 1,
+      "regionName": "REGION",
+      "skinName": "default",
+      "slotName": "CHILD_SLOT",
+      "sourceH": 100,
+      "sourceW": 100,
+      "time": 0.491666666666667,
+      "worldH": 100,
+      "worldW": 100
+    }
+  },
+  "perAnimation": {
+    "BASELINE/default/CHILD_SLOT/REGION": {
+      "animationName": "BASELINE",
+      "attachmentKey": "default/CHILD_SLOT/REGION",
+      "attachmentName": "REGION",
+      "frame": 0,
+      "isSetupPosePeak": false,
+      "peakScale": 0.160000002384186,
+      "peakScaleX": 0.160000002384186,
+      "peakScaleY": 0.160000002384186,
+      "regionName": "REGION",
+      "skinName": "default",
+      "slotName": "CHILD_SLOT",
+      "sourceH": 100,
+      "sourceW": 100,
+      "time": 0,
+      "worldH": 16,
+      "worldW": 16.0000005569225
+    },
+    "INHERIT_DETACH/default/CHILD_SLOT/REGION": {
+      "animationName": "INHERIT_DETACH",
+      "attachmentKey": "default/CHILD_SLOT/REGION",
+      "attachmentName": "REGION",
+      "frame": 15,
+      "isSetupPosePeak": false,
+      "peakScale": 1,
+      "peakScaleX": 1,
+      "peakScaleY": 1,
+      "regionName": "REGION",
+      "skinName": "default",
+      "slotName": "CHILD_SLOT",
+      "sourceH": 100,
+      "sourceW": 100,
+      "time": 0.491666666666667,
+      "worldH": 100,
+      "worldW": 100
+    }
+  },
+  "setupPosePeaks": {
+    "default/CHILD_SLOT/REGION": {
+      "animationName": "Setup Pose (Default)",
+      "attachmentKey": "default/CHILD_SLOT/REGION",
+      "attachmentName": "REGION",
+      "frame": 0,
+      "isSetupPosePeak": true,
+      "peakScale": 0.400000000000001,
+      "peakScaleX": 0.4,
+      "peakScaleY": 0.400000000000001,
+      "regionName": "REGION",
+      "skinName": "default",
+      "slotName": "CHILD_SLOT",
+      "sourceH": 100,
+      "sourceW": 100,
+      "time": 0,
+      "worldH": 40,
+      "worldW": 40.0000013923062
+    }
+  }
+}

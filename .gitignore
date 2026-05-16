@@ -92,3 +92,23 @@ tests/_trace_tmp/
 
 # Manual UAT save artifacts in fixtures
 fixtures/SIMPLE_PROJECT/temp.stmproj
+
+# SAFE-01 (Phase 42, D-08-R Option A): deny-by-default for per-fixture baseline
+# files, then explicitly RE-INCLUDE only the git-tracked redistributable subset
+# + the enumeration manifest. A heavy/proprietary rig auto-discovered LOCALLY
+# still gets a baseline written into this dir for local drift coverage, but the
+# deny-by-default rule guarantees it can NEVER be committed (T-42-03). Adding a
+# new redistributable fixture's baseline is a deliberate reviewed edit HERE.
+tests/safe01/baselines/*.json
+!tests/safe01/baselines/_manifest.json
+!tests/safe01/baselines/Chicken-Min__Chicken-Min.json
+!tests/safe01/baselines/EXPORT_PROJECT__EXPORT.json
+!tests/safe01/baselines/INHERIT_TIMELINE__INHERIT_TEST.json
+!tests/safe01/baselines/SIMPLE_PROJECT_NO_ATLAS_MESH__MeshOnly_TEST.json
+!tests/safe01/baselines/SIMPLE_PROJECT_NO_ATLAS__SIMPLE_TEST.json
+!tests/safe01/baselines/SIMPLE_PROJECT__SIMPLE_TEST_GHOST.json
+!tests/safe01/baselines/SIMPLE_PROJECT__SIMPLE_TEST.json
+!tests/safe01/baselines/SIMPLE_PROJECT__skeleton.json
+!tests/safe01/baselines/SIMPLE_PROJECT__skeleton2.json
+!tests/safe01/baselines/spine_rotated__EXPORT__skeleton.json
+!tests/safe01/baselines/spine_stripWS__EXPORT__skeleton.json

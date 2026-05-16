@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "fixture": "fixtures/spine_stripWS/EXPORT/skeleton.json",
+    "generatedAt": "2026-05-16T15:35:13.841Z",
+    "generatedCommit": "c5ef3584459e6545ed659bd1c86fd93e0b0b58f7",
+    "samplerHz": 120,
+    "schema": "safe01/v1",
+    "spineCoreVersion": "4.2.111"
+  },
+  "globalPeaks": {
+    "default/square/square": {
+      "animationName": "1",
+      "attachmentKey": "default/square/square",
+      "attachmentName": "square",
+      "frame": 11,
+      "isSetupPosePeak": false,
+      "peakScale": 0.190100002014957,
+      "peakScaleX": 0.190100002014957,
+      "peakScaleY": 0.190099997985043,
+      "regionName": "square",
+      "skinName": "default",
+      "slotName": "square",
+      "sourceH": 500,
+      "sourceW": 500,
+      "time": 0.358333333333334,
+      "worldH": 16.8298988342285,
+      "worldW": 16.8298969268799
+    }
+  },
+  "perAnimation": {
+    "2/default/square/square": {
+      "animationName": "2",
+      "attachmentKey": "default/square/square",
+      "attachmentName": "square",
+      "frame": 0,
+      "isSetupPosePeak": false,
+      "peakScale": 0.189106727551015,
+      "peakScaleX": 0.189106727551015,
+      "peakScaleY": 0.189106727436144,
+      "regionName": "square",
+      "skinName": "default",
+      "slotName": "square",
+      "sourceH": 500,
+      "sourceW": 500,
+      "time": 0,
+      "worldH": 12.260214805603,
+      "worldW": 12.2602138519287
+    }
+  },
+  "setupPosePeaks": {
+    "default/square/square": {
+      "animationName": "Setup Pose (Default)",
+      "attachmentKey": "default/square/square",
+      "attachmentName": "square",
+      "frame": 0,
+      "isSetupPosePeak": true,
+      "peakScale": 0.1901,
+      "peakScaleX": 0.1901,
+      "peakScaleY": 0.1901,
+      "regionName": "square",
+      "skinName": "default",
+      "slotName": "square",
+      "sourceH": 500,
+      "sourceW": 500,
+      "time": 0,
+      "worldH": 12.1663999557495,
+      "worldW": 12.1664009094238
+    }
+  }
+}

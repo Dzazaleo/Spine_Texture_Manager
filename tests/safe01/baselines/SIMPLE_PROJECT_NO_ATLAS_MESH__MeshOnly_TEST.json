@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "fixture": "fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH/MeshOnly_TEST.json",
+    "generatedAt": "2026-05-16T15:35:13.841Z",
+    "generatedCommit": "c5ef3584459e6545ed659bd1c86fd93e0b0b58f7",
+    "samplerHz": 120,
+    "schema": "safe01/v1",
+    "spineCoreVersion": "4.2.111"
+  },
+  "globalPeaks": {
+    "default/MESH_SLOT/MESH_REGION": {
+      "animationName": "wiggle",
+      "attachmentKey": "default/MESH_SLOT/MESH_REGION",
+      "attachmentName": "MESH_REGION",
+      "frame": 15,
+      "isSetupPosePeak": false,
+      "peakScale": 1.05,
+      "peakScaleX": 1.05,
+      "peakScaleY": 1.05,
+      "regionName": "MESH_REGION",
+      "skinName": "default",
+      "slotName": "MESH_SLOT",
+      "sourceH": 250,
+      "sourceW": 250,
+      "time": 0.491666666666667,
+      "worldH": 105,
+      "worldW": 105
+    }
+  },
+  "perAnimation": {
+    "wiggle/default/MESH_SLOT/MESH_REGION": {
+      "animationName": "wiggle",
+      "attachmentKey": "default/MESH_SLOT/MESH_REGION",
+      "attachmentName": "MESH_REGION",
+      "frame": 15,
+      "isSetupPosePeak": false,
+      "peakScale": 1.05,
+      "peakScaleX": 1.05,
+      "peakScaleY": 1.05,
+      "regionName": "MESH_REGION",
+      "skinName": "default",
+      "slotName": "MESH_SLOT",
+      "sourceH": 250,
+      "sourceW": 250,
+      "time": 0.491666666666667,
+      "worldH": 105,
+      "worldW": 105
+    }
+  },
+  "setupPosePeaks": {
+    "default/MESH_SLOT/MESH_REGION": {
+      "animationName": "Setup Pose (Default)",
+      "attachmentKey": "default/MESH_SLOT/MESH_REGION",
+      "attachmentName": "MESH_REGION",
+      "frame": 0,
+      "isSetupPosePeak": true,
+      "peakScale": 1,
+      "peakScaleX": 1,
+      "peakScaleY": 1,
+      "regionName": "MESH_REGION",
+      "skinName": "default",
+      "slotName": "MESH_SLOT",
+      "sourceH": 250,
+      "sourceW": 250,
+      "time": 0,
+      "worldH": 100,
+      "worldW": 100
+    }
+  }
+}
