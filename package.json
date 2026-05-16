@@ -23,7 +23,7 @@
     "preview": "electron-vite preview"
   },
   "dependencies": {
-    "@esotericsoftware/spine-core": "4.2.111",
+    "@esotericsoftware/spine-core": "4.3.0",
     "@esotericsoftware/spine-player": "4.2.111",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@tanstack/react-virtual": "^3.13.24",
@@ -31,7 +31,8 @@
     "maxrects-packer": "^2.7.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "spine-core-42": "npm:@esotericsoftware/spine-core@4.2.111"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
