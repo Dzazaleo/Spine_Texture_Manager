@@ -1,38 +1,40 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5.1
-milestone_name: Spine Animation Viewer
-status: milestone_complete
-last_updated: "2026-05-15T15:29:49.827Z"
-last_activity: 2026-05-15 -- Phase 41 execution started
+milestone: v1.6
+milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
+status: planning
+last_updated: "2026-05-16T12:58:10.703Z"
+last_activity: 2026-05-16
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 3
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
   completed_plans: 0
-  percent: 100
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 41
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-15
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-16 — Milestone v1.6 started
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-05-15 after v1.5 milestone close).
+See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 41 — spine-animation-viewer
+**Current focus:** v1.6 Spine 4.3 Runtime Port (Dual-Runtime) — defining requirements (SEED-006 trigger fired; phases start at Phase 42).
 
 ## Last Completed Milestone
 
-**Milestone v1.5 — Override Routing + Coverage Hardening + Atlas Repack — SHIPPED 2026-05-15.** 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs + 10 REPACK REQs (folded into v1.5-REQUIREMENTS.md archive). Full record in `.planning/MILESTONES.md`; archive at `.planning/milestones/v1.5-ROADMAP.md` + `.planning/milestones/v1.5-REQUIREMENTS.md` + `.planning/milestones/v1.5-MILESTONE-AUDIT.md`. Tag `v1.5.0` pending push.
+**Milestone v1.5.1 — Spine Animation Viewer — functionally complete 2026-05-15.** Phase 41 (3 plans, all green; basic-render VIEWER-04 live-confirmed). 5 visual/host-blocked HUMAN-UAT items remain pending in `41-HUMAN-UAT.md` — carried into v1.6 Deferred Items (not code-blocking). Phase numbering continued from v1.5 (no reset).
+
+**Prior: Milestone v1.5 — Override Routing + Coverage Hardening + Atlas Repack — SHIPPED 2026-05-15.** 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs + 10 REPACK REQs (folded into v1.5-REQUIREMENTS.md archive). Full record in `.planning/MILESTONES.md`; archive at `.planning/milestones/v1.5-ROADMAP.md` + `.planning/milestones/v1.5-REQUIREMENTS.md` + `.planning/milestones/v1.5-MILESTONE-AUDIT.md`. Tag `v1.5.0` pending push.
 
 **v1.5 closures (resolved this milestone):**
 
@@ -82,7 +84,8 @@ All explicitly deferred per user decision in `40-REVIEW.md`. Backlog candidates 
 | verification_gaps | Phase 30 30-VERIFICATION.md | human_needed — pre-release verification (visual + integration) |
 | uat_gaps | Phase 34 34-HUMAN-UAT.md | partial — 1 open scenario: macOS/Windows picker rendering parity; host-blocked |
 | verification_gaps | Phase 34 34-VERIFICATION.md | human_needed — same root as above |
-| seed | SEED-006 (Full Spine 4.3 runtime port) | dormant — trigger: `npm view @esotericsoftware/spine-core@latest` returns 4.3.x OR paying user reports re-export failure |
+| uat_gaps | Phase 41 41-HUMAN-UAT.md | partial — 5 open visual/host scenarios (anim/skin switch + scrub synchrony, GL leak cycles, real-fs error UX, atlas-less parity, File-menu suppression); v1.5.1-era carry-forward, re-checked against spine-player@4.3.0 in v1.6 viewer regression pass |
+| seed | SEED-006 (Full Spine 4.3 runtime port) | **ACTIVATED v1.6** — trigger fired 2026-05-16 (`npm view @esotericsoftware/spine-core@latest` → `4.3.0`). This is the v1.6 milestone driver; close when v1.6 requirements satisfied. |
 
 **Audit-acknowledged at v1.5 close (scanner false-positives, kept for paper trail):**
 
@@ -118,10 +121,12 @@ Open decisions D-01 (npm vs vendor) / D-02 (modal vs split-pane vs tab) / D-03 (
 - 2026-05-14 — Phase 40 added (`atlas-repack-output`) post-hoc after v1.5 marked `milestone_complete`. v1.5 reopened (`status: in_progress`, `total_phases: 4 → 5`). Phase 40 became the v1.5 milestone-close phase; planted as SEED-008 immediately prior. Branch `experiment/phase-40-atlas-repack` was used.
 - 2026-05-15 — v1.5 SHIPPED with all 5 phases verified, milestone audit passed, archives written. Tag `v1.5.0` pending push.
 - 2026-05-15 — v1.5.1 STARTED; ROADMAP.md created with single Phase 41 (Spine Animation Viewer) covering all 8 active VIEWER reqs. Continues phase numbering from v1.5 (no `--reset-phase-numbers`). v1.5 phase directories 36–40 retained at `.planning/phases/`.
+- 2026-05-15 — v1.5.1 Phase 41 COMPLETE (functionally); 5 visual/host HUMAN-UAT items left pending. Milestone treated as shipped for versioning purposes.
+- 2026-05-16 — v1.6 STARTED (Spine 4.3 Runtime Port — Dual-Runtime). SEED-006 trigger fired (`spine-core@4.3.0` + `spine-player@4.3.0` on npm). User decisions: v1.6 (not v2.0); dual-runtime (4.2 + 4.3 side-by-side); bump spine-player → 4.3.0. Continues phase numbering at **Phase 42** (no `--reset-phase-numbers`). Prior phase directories retained at `.planning/phases/`. Requirements + roadmap pending.
 
 ---
 
-*This file is authored fresh at milestone start. v1.5 phases preserved at `.planning/phases/36-*..40-*/` (per user choice — not archived to `milestones/v1.5-phases/`).*
+*This file is authored fresh at milestone start. Prior-milestone phases preserved at `.planning/phases/` (per user choice — not archived to `milestones/*-phases/`).*
 
-**Last Milestone:** v1.5 (Override Routing + Coverage Hardening + Atlas Repack) — COMPLETE — 2026-05-15 (5 phases, 23 plans, 18 + 10 REQs; tag `v1.5.0` pending push).
-**Current Milestone:** v1.5.1 (Spine Animation Viewer) — PLANNING — Phase 41 roadmapped 2026-05-15; awaiting `/gsd-discuss-phase 41` → `/gsd-plan-phase 41`.
+**Last Milestone:** v1.5.1 (Spine Animation Viewer) — functionally COMPLETE — 2026-05-15 (Phase 41; 3 plans; 5 visual/host UATs pending, carried to v1.6 Deferred). Prior: v1.5 — SHIPPED 2026-05-15 (5 phases, 23 plans; tag `v1.5.0` pending push).
+**Current Milestone:** v1.6 (Spine 4.3 Runtime Port — Dual-Runtime) — PLANNING — SEED-006 activated 2026-05-16; awaiting research → requirements → roadmap. Phases start at **Phase 42**.

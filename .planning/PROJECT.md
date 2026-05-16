@@ -8,9 +8,11 @@ A desktop app (Electron + React + TypeScript) that reads Spine 4.2+ skeleton JSO
 
 Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-## Current State (post v1.5, v1.5.1 in progress)
+## Current State (post v1.5.1; v1.6 planning)
 
-**In progress:** v1.5.1 Spine Animation Viewer — Phase 41 complete (3 plans, all green; basic-render VIEWER-04 live-confirmed on SIMPLE_TEST + JOKERMAN_SPINE_ROT after 3 gap fixes landed during UAT: CSP `connect-src 'app-image:'`, CORS ACAO on protocol handler, straight-alpha SpinePlayer config). 5 HUMAN-UAT items remain pending (anim/skin switch + scrub synchrony, GL leak cycles, real-fs error UX, atlas-less parity, File menu suppression) and are tracked in `41-HUMAN-UAT.md`.
+**v1.6 planning:** Spine 4.3 Runtime Port (Dual-Runtime) — see `## Current Milestone` below. SEED-006 trigger fired 2026-05-16 (`npm view @esotericsoftware/spine-core@latest` → `4.3.0`; `@esotericsoftware/spine-player@latest` → `4.3.0`; both installed pins still `4.2.111`).
+
+**v1.5.1 shipped (functionally complete):** Spine Animation Viewer — Phase 41 complete (3 plans, all green; basic-render VIEWER-04 live-confirmed on SIMPLE_TEST + JOKERMAN_SPINE_ROT after 3 gap fixes landed during UAT: CSP `connect-src 'app-image:'`, CORS ACAO on protocol handler, straight-alpha SpinePlayer config). 5 HUMAN-UAT items remain pending (anim/skin switch + scrub synchrony, GL leak cycles, real-fs error UX, atlas-less parity, File menu suppression), tracked in `41-HUMAN-UAT.md` — carried forward as v1.6 Deferred Items (visual/host-blocked, not code-blocking).
 
 **Shipped:** v1.5 Override Routing + Coverage Hardening + Atlas Repack — 2026-05-15 (5 phases, 23 plans, 18 documented REQs + 10 REPACK REQs). Tag: `v1.5.0` (pending push). Full record in `.planning/MILESTONES.md`. Prior: v1.4 (2026-05-12), v1.3.1 (2026-05-09), v1.3.0 (2026-05-07), v1.2.0 (2026-05-03), v1.1.3 hotfix (2026-04-29), v1.1.1 (2026-04-29), v1.1.0 (2026-04-28), v1.0 (2026-04-26).
 
@@ -54,38 +56,40 @@ Animators ship atlases that are as small as they mathematically can be without v
 - ✓ Phase 31 Windows admin DnD release UAT todo — closed Phase 39
 - ✓ Window X-button / Cmd+W dirty-save guard — closed `ef38cd3` during Phase 36 UAT (pre-existing since Phase 8/18, surfaced + fixed in same cycle)
 
-## Current Milestone: v1.5.1 Spine Animation Viewer
+## Current Milestone: v1.6 Spine 4.3 Runtime Port (Dual-Runtime)
 
-**Goal:** Close the optimize → pack → validate loop by adding an in-app Spine animation viewer so animators can confirm their exported `.atlas` + page PNG(s) render correctly without round-tripping through the Spine editor.
+**Goal:** Port the skeleton/animation math from a single spine-core 4.2 runtime to a dual-runtime architecture that loads and correctly samples both Spine 4.2 and Spine 4.3 skeleton JSON, routed by detected skeleton version. Activates SEED-006 (trigger fired 2026-05-16: `npm view @esotericsoftware/spine-core@latest` → `4.3.0`).
 
 **Target features:**
-- Read-only Spine animation viewer wrapping Esoteric's official `spine-player` library
-- Animation + skin selection controls; standard playback controls (play / pause / scrub)
-- Mounted as a sibling visual modal to AtlasPreviewModal / OptimizeDialog (final mount point and asset-feed routing deferred to `/gsd-discuss-phase`)
-- Standalone-modal scope (Medium per SEED-009); split-pane source-vs-exported comparison (VIEWER-07) is Future, conditional on D-02 outcome
+- Add `@esotericsoftware/spine-core@4.3.0` alongside the existing `@4.2.111` via npm package aliasing (same package name, two pinned versions)
+- Version-detection router: repurpose the existing `checkSpine43Schema` predicate (v1.4 Phase 32) from a **rejecter** into a **dispatcher** — 4.3 JSON routes to the 4.3 runtime instead of throwing `SpineVersionUnsupportedError`
+- Port the diverging call sites behind a runtime-abstraction layer: `core/sampler.ts` (5 API renames + Pose API threading), `core/bounds.ts` (2 `computeWorldVertices` signature changes) — `core/` Layer-3 purity preserved
+- New 4.3-only `slider` constraint type — validate timeline propagation via a dedicated fixture
+- Bump `@esotericsoftware/spine-player` 4.2.111 → 4.3.0 (sibling-aligned with spine-core) + viewer regression pass
+- Update the v1.4 drop-zone / error copy that tells users to "re-export as Version 4.2" — that advisory is wrong for the now-supported 4.3 path
+- CI matrix tests 4.2.x and 4.3.x rigs side-by-side
 
-**Locked design facts (from SEED-009, do not relitigate):**
-1. Use Esoteric's official `@esotericsoftware/spine-player` library — no hand-rolled renderer.
-2. `spine-player` is a sibling package to the already-installed `spine-core`; both coexist.
-3. The viewer is read-only — validation surface, not authoring.
-4. The viewer does NOT replace `AtlasPreviewModal` (that shows static atlas layout; this shows animation playback).
+**Locked design facts (from SEED-006 + 2026-05-16 milestone decisions, do not relitigate):**
+1. **Dual-runtime, not single-runtime.** Keep spine-core@4.2.111; add @4.3.0 side-by-side; route by detected version. (User decision 2026-05-16 — overrides SEED-006's single-port assumption.)
+2. **4.2 support is retained and regression-gated.** The in-repo `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` 4.2 fixture stays green; existing 4.2-rig users are protected.
+3. **PORT-04 (vendoring) collapses to a `package.json` alias bump** — npm 4.3.0 published, so SEED-006 Option (a) is satisfied; no submodule/fork.
+4. **`core/` stays pure-TS (Layer-3 invariant).** The runtime-dispatch abstraction must remain DOM/Electron/sharp-free (locked by `tests/arch.spec.ts`).
 
-**Open decisions (deferred to `/gsd-discuss-phase`):** D-01 npm-dep vs vendored copy of `spine-player.js`; D-02 standalone-modal vs split-pane comparison; D-03 mount location (toolbar button / tab / both); D-04 asset feed (source / exported / user-selectable).
+**Scope flags:**
+- ⚠ Dual-runtime expands SEED-006's single-port costed inventory (PORT-01..04): adds npm aliasing + a runtime-dispatch abstraction + a doubled test matrix. SEED-006's "~2-3 weeks / 4-task" estimate is low for this shape.
+- ⚠ SEED-006's inventory was built against 4.3-**beta**; stable 4.3.0 had mid-beta churn (`uniform`→`scaleY` @ 4.3.73-beta). Research re-verifies the stable surface before planning.
 
-**Scope explicitly excluded from v1.5.1 (deferred to v1.5.2 / v1.6):**
-- Phase 40 polish carry-forwards (WR-03, WR-04, WR-05, WR-07, IN-01, IN-02, IN-03, IN-04) — remain in the "Known deferred" list above; user chose viewer-only framing.
-- VIEWER-07 (split-pane source-vs-exported comparison) — Future, gated on D-02 picking option B or C.
+**Phase numbering:** Continues from v1.5.1. Starts at **Phase 42** (no `--reset-phase-numbers`). Prior phase directories retained in `.planning/phases/`.
 
-**Phase numbering:** Continues from v1.5. Starts at **Phase 41** (no `--reset-phase-numbers`). v1.5 phase directories `.planning/phases/36-..40-*/` remain in place per user choice at v1.5 close.
+## Next Milestone: v1.7 (TBD)
 
-## Next Milestone: v1.6 (TBD)
-
-**Status:** unscoped. Likely scope draws from the v1.5 deferred / backlog list above — Phase 40 polish carry-forward (8 items: WR-03/04/05/07 + IN-01..04 from `40-REVIEW.md`), SEED-006 readiness check (`npm view @esotericsoftware/spine-core@latest` — full Spine 4.3 runtime port), atlas-repack maturity pass on real-user rigs, documentation refresh. Re-validate at `/gsd-new-milestone` time.
+**Status:** unscoped. Likely scope draws from the deferred / backlog list — Phase 40 polish carry-forward (8 items: WR-03/04/05/07 + IN-01..04 from `40-REVIEW.md`), 5 open Phase 41 viewer HUMAN-UATs, atlas-repack maturity pass on real-user rigs, a 4.2 deprecation decision (post-v1.6 dual-runtime maturity), documentation refresh. Re-validate at `/gsd-new-milestone` time.
 
 **Out of scope (continued exclusions):**
 - Linux build/UAT (dropped at v1.3 ship; per `project_linux_deferred` memory)
 - `.skel` binary loader (carried since v1.0)
 - Cross-mode override copy/sync (deliberately rejected at SEED-007 capture per `project_strict_loadermode_separation`)
+- Spine 4.3 schema-shim (SEED-003 Option B — HIGH trap risk; superseded by this milestone's real dual-runtime port)
 
 ## Primary user
 
@@ -127,7 +131,7 @@ Spine animators exporting rigs for performance-sensitive runtimes (mobile games,
 
 ## Constraints (still valid)
 
-- Spine 4.2 only (4.3-beta detected and rejected with re-export advisory in v1.4; full 4.3 port deferred until 4.3.0 stable hits npm — see SEED-006).
+- Spine 4.2 (validated through v1.5.1). Spine 4.3 dual-runtime support is **in progress in v1.6** (SEED-006 trigger fired — `spine-core@4.3.0` on npm). Until v1.6 ships, the v1.4 detect-and-reject advisory remains the live behavior for 4.3 JSON; this constraint is superseded on v1.6 completion.
 - JSON skeletons only (`.skel` binary deferred to next milestone).
 - Per-individual-skin sampling (combined-skin compositing out of scope).
 - `core/` cannot import DOM, Electron, or `sharp` (Layer 3 invariant — locked by `tests/arch.spec.ts`).
@@ -165,7 +169,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-05-15 — Phase 41 COMPLETE (Spine Animation Viewer; 3 plans landed; basic-render UAT confirmed live after 3 follow-up fixes for CSP/CORS/PMA). 5 HUMAN-UAT items remain partial. Prior footer: 2026-05-15 — v1.5.1 milestone STARTED (Spine Animation Viewer; viewer-only scope per user, polish items deferred). Continues phase numbering at Phase 41. Research skipped (scope locked by SEED-009 design facts 1–4). v1.5 phase directories 36–40 retained in `.planning/phases/`. Prior footer: 2026-05-15 — v1.5 SHIPPED (Override Routing + Coverage Hardening + Atlas Repack). 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (archived). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 closed. 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user — backlog for v1.5.2 / v1.6. Milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 + 10/10).*
+*Last updated: 2026-05-16 — v1.6 milestone STARTED (Spine 4.3 Runtime Port — Dual-Runtime). SEED-006 trigger fired (`npm view @esotericsoftware/spine-core@latest` → `4.3.0`; spine-player@4.3.0 also published). User decisions 2026-05-16: v1.6 (not v2.0); dual-runtime (4.2 + 4.3 side-by-side, not single-port); bump spine-player → 4.3.0. Continues phase numbering at Phase 42 (no --reset-phase-numbers). Research → requirements → roadmap cycle pending. Prior footer: 2026-05-15 — Phase 41 COMPLETE (Spine Animation Viewer; 3 plans landed; basic-render UAT confirmed live after 3 follow-up fixes for CSP/CORS/PMA). 5 HUMAN-UAT items remain partial. Prior footer: 2026-05-15 — v1.5.1 milestone STARTED (Spine Animation Viewer; viewer-only scope per user, polish items deferred). Continues phase numbering at Phase 41. Research skipped (scope locked by SEED-009 design facts 1–4). v1.5 phase directories 36–40 retained in `.planning/phases/`. Prior footer: 2026-05-15 — v1.5 SHIPPED (Override Routing + Coverage Hardening + Atlas Repack). 5 phases (36, 37, 38, 39, 40), 23 plans, 18 documented REQs (OVR-01..07, TIMELINE-01..05, POLISH-01..03, WINUAT-01..03) + 10 REPACK REQs (archived). Tag `v1.5.0` pending push. Test suite at close: 1181 passed / 2 skipped / 2 todo / 0 failures (108 files); `tsc --noEmit` clean. SEED-005 + SEED-007 + SEED-008 closed. 8 Phase 40 polish items (4 WARN + 4 INFO) explicitly deferred per user — backlog for v1.5.2 / v1.6. Milestone audit at `milestones/v1.5-MILESTONE-AUDIT.md` (passed; 18/18 + 10/10).*
 
 <details>
 <summary>Prior phase footer (v1.4 + v1.5 mid-flight detail)</summary>
