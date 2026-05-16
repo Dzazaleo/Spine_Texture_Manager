@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-16T17:12:33.799Z"
-last_activity: 2026-05-16 -- Phase 42 planning complete
+last_updated: "2026-05-16T19:30:00.000Z"
+last_activity: 2026-05-16 -- Phase 42 HALTED at Wave 2 (2nd cross-plan defect — spine-player .d.ts 4.3-leak); re-plan required
 progress:
   total_phases: 6
   completed_phases: 0
@@ -17,12 +17,14 @@ progress:
 
 ## Current Position
 
-Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — RE-PLAN COMPLETE (resume at Wave 2)
-Plan: 1 of 4 complete (42-01 / COMMIT A — SAFE-01 baseline, landed + verified + frozen)
-Status: Ready to execute (42-02/03/04 re-planned + plan-checker VERIFICATION PASSED — coherence defect closed)
-Last activity: 2026-05-16 -- Phase 42 planning complete
+Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — HALTED at Wave 2 (2nd cross-plan defect); RE-PLAN REQUIRED
+Plan: 42-01 done+frozen (COMMIT A `1b5327d`); 42-02 Task 1 done+frozen (COMMIT B `cc5783f`, pure, A→B ancestry verified); 42-02 Task 2+ / 42-03 / 42-04 NOT done
+Status: Halted — `npm run typecheck:web` red via spine-player@4.2.111 `Player.d.ts` BARE `@esotericsoftware/spine-core` import resolving to 4.3.0 after COMMIT B → 22 errors in tracked `AnimationPlayerModal.tsx`. `typecheck:node` (CI gate scope) clean on fresh clone. User-selected resolution = Option 1 (narrow gate to typecheck:node; typecheck:web spine-player leak handed to Phase 47). Authoritative hand-off: `42-REPLAN-NOTE.md` v2.
+Last activity: 2026-05-16 -- Phase 42 HALTED at Wave 2 (2nd defect); re-plan required
 
-Progress: [██░░░░░░░░] Phase 42: 1/4 plans (42-01 done+frozen; 42-02/03/04 re-planned+verified — resume Wave 2)
+Next: `/gsd-plan-phase 42` — re-plan 42-02 (Task 2+) / 42-03 / 42-04 per `42-REPLAN-NOTE.md` v2; plan-checker re-pass on 02 + 04. COMMIT A + COMMIT B are FROZEN ancestry anchors — do NOT regenerate/reorder/amend.
+
+Progress: [██░░░░░░░░] Phase 42: 1/4 plans complete + COMMIT B landed (42-01 frozen; 42-02 Task1/COMMIT B frozen; 02 Task2+/03/04 await re-plan)
 
 ## Project Reference
 
@@ -126,6 +128,7 @@ Open decisions D-01 (npm vs vendor) / D-02 (modal vs split-pane vs tab) / D-03 (
 - 2026-05-15 — v1.5.1 Phase 41 COMPLETE (functionally); 5 visual/host HUMAN-UAT items left pending. Milestone treated as shipped for versioning purposes.
 - 2026-05-16 — v1.6 STARTED (Spine 4.3 Runtime Port — Dual-Runtime). SEED-006 trigger fired (`spine-core@4.3.0` + `spine-player@4.3.0` on npm). User decisions: v1.6 (not v2.0); dual-runtime (4.2 + 4.3 side-by-side); bump spine-player → 4.3.0. Continues phase numbering at **Phase 42** (no `--reset-phase-numbers`). Prior phase directories retained at `.planning/phases/`. Requirements + roadmap pending.
 - 2026-05-16 — v1.6 ROADMAP.md created (6 phases, 42–47) from `.planning/research/SUMMARY.md` + ARCHITECTURE.md + PITFALLS.md (HIGH confidence; SEED-006 beta inventory falsified and NOT used). All 26 v1.6 requirements mapped, 0 unmapped — REQUIREMENTS.md Traceability populated. Adopted the research-converged 6-phase shape: 42 (baseline+alias+scaffolding) → 43 (adapter facade + 4.3 API) → 44 (dispatch + oracle + 4.3/XTRA fixtures) → 45 (user-facing flip + copy sweep) → 46 (slider + 4.3 perf budget) → 47 (spine-player bump + viewer regression, last+revertible). Order-critical constraint encoded: SAFE-01 baseline commit MUST predate the RT-01 alias commit (both Phase 42). Phase 47 depends only on Phase 42 (decoupled, parallelizable, sequenced last). Status: planning → roadmapped. Next: `/gsd-plan-phase 42`.
+- 2026-05-16 — Phase 42 executed: Wave 1 (42-01 / COMMIT A SAFE-01 baseline) landed+frozen. First re-plan (4ab6b1c) closed cross-plan defect #1 (bare-`spine-core` consumer orphan). Wave 2 re-executed: 42-02 Task 1 / COMMIT B (`cc5783f`, dual spine-core install) landed pure + A→B ancestry verified, then **HALTED at Task 2 by confirmed cross-plan defect #2**: spine-player@4.2.111's own `Player.d.ts` imports BARE `@esotericsoftware/spine-core` → after the 4.3-canonical flip it hoists 4.3 types into the tracked `AnimationPlayerModal.tsx` → `typecheck:web` 22 errors (`typecheck:node`, the CI dual-runtime gate scope, is clean on a fresh clone). v1 re-plan note never modeled this dimension. User-selected **Option 1**: narrow Phase 42's typecheck assertion to `typecheck:node`; the `typecheck:web` spine-player `.d.ts` 4.3-leak is handed to Phase 47 (which owns that surface by roadmap design — sequenced last + revertible). COMMIT A + COMMIT B frozen. Authoritative hand-off: `42-REPLAN-NOTE.md` v2. Status: executing → HALTED (re-plan #2). Next: `/gsd-plan-phase 42`.
 
 ---
 
