@@ -53,7 +53,7 @@
  *                       animation name as emitted by the sampler)
  *   frameLabel        = String(frame)
  */
-import type { SkeletonData, Slot } from '@esotericsoftware/spine-core';
+import type { SkeletonData, Slot } from 'spine-core-42';
 import type { PeakRecord } from './sampler.js';
 import type {
   DisplayRow,

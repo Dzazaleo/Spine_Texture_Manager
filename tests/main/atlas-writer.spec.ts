@@ -33,7 +33,7 @@
  *   semantics + verify originalWidth/Height round-trip through the parser.
  */
 import { describe, expect, it } from 'vitest';
-import { TextureAtlas } from '@esotericsoftware/spine-core';
+import { TextureAtlas } from 'spine-core-42';
 import {
   buildAtlasText,
   type RepackPage,

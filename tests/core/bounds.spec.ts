@@ -28,7 +28,7 @@ import {
   Physics,
   RegionAttachment,
   PathAttachment,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import { loadSkeleton } from '../../src/core/loader.js';
 import {
   attachmentWorldAABB,
@@ -191,7 +191,7 @@ describe('attachmentWorldAABB (F2.3)', () => {
     // SIMPLE_TEST contains at least one mesh attachment (CIRCLE per fixture inventory).
     let mesh: {
       slot: ReturnType<Skeleton['findSlot']>;
-      att: import('@esotericsoftware/spine-core').MeshAttachment;
+      att: import('spine-core-42').MeshAttachment;
     } | null = null;
     for (const slot of skeleton.slots) {
       const att = slot.getAttachment();
@@ -200,7 +200,7 @@ describe('attachmentWorldAABB (F2.3)', () => {
         att.constructor &&
         att.constructor.name === 'MeshAttachment'
       ) {
-        mesh = { slot, att: att as import('@esotericsoftware/spine-core').MeshAttachment };
+        mesh = { slot, att: att as import('spine-core-42').MeshAttachment };
         break;
       }
     }

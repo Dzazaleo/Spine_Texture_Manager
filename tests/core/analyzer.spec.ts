@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { Skeleton } from '@esotericsoftware/spine-core';
+import { Skeleton } from 'spine-core-42';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton, type PeakRecord } from '../../src/core/sampler.js';
 import { analyze, analyzeBreakdown, analyzeRegions } from '../../src/core/analyzer.js';

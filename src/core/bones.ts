@@ -20,7 +20,7 @@
  *   - slot SQUARE2 (pre-scaled bone SQUARE2) + attachment SQUARE:
  *       ['root', 'SQUARE2', 'SQUARE2', 'SQUARE']
  */
-import type { Slot } from '@esotericsoftware/spine-core';
+import type { Slot } from 'spine-core-42';
 
 export function boneChainPath(slot: Slot, attachmentName: string): string[] {
   // Walk the parent chain from slot.bone up to the root, collecting names.

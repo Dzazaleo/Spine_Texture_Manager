@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { TextureAtlas, Skin } from '@esotericsoftware/spine-core';
+import { TextureAtlas, Skin } from 'spine-core-42';
 import {
   synthesizeAtlasText,
   SilentSkipAttachmentLoader,

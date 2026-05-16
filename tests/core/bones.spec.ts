@@ -17,7 +17,7 @@ import {
   AnimationState,
   AnimationStateData,
   Physics,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import { loadSkeleton } from '../../src/core/loader.js';
 import { boneChainPath } from '../../src/core/bones.js';
 
