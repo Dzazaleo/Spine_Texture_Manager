@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
-status: planning
-last_updated: "2026-05-16T12:58:10.703Z"
+status: roadmapped
+last_updated: "2026-05-16T14:10:00.000Z"
 last_activity: 2026-05-16
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,10 +17,12 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 42 of 47 (Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-16 — Milestone v1.6 started
+Status: Roadmapped — ready to plan Phase 42
+Last activity: 2026-05-16 — ROADMAP.md created (6 phases 42–47; 26/26 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Project Reference
 
@@ -28,7 +30,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** v1.6 Spine 4.3 Runtime Port (Dual-Runtime) — defining requirements (SEED-006 trigger fired; phases start at Phase 42).
+**Current focus:** v1.6 Spine 4.3 Runtime Port (Dual-Runtime) — roadmapped (6 phases 42–47; SEED-006 trigger fired). Next: `/gsd-plan-phase 42`.
 
 ## Last Completed Milestone
 
@@ -123,10 +125,11 @@ Open decisions D-01 (npm vs vendor) / D-02 (modal vs split-pane vs tab) / D-03 (
 - 2026-05-15 — v1.5.1 STARTED; ROADMAP.md created with single Phase 41 (Spine Animation Viewer) covering all 8 active VIEWER reqs. Continues phase numbering from v1.5 (no `--reset-phase-numbers`). v1.5 phase directories 36–40 retained at `.planning/phases/`.
 - 2026-05-15 — v1.5.1 Phase 41 COMPLETE (functionally); 5 visual/host HUMAN-UAT items left pending. Milestone treated as shipped for versioning purposes.
 - 2026-05-16 — v1.6 STARTED (Spine 4.3 Runtime Port — Dual-Runtime). SEED-006 trigger fired (`spine-core@4.3.0` + `spine-player@4.3.0` on npm). User decisions: v1.6 (not v2.0); dual-runtime (4.2 + 4.3 side-by-side); bump spine-player → 4.3.0. Continues phase numbering at **Phase 42** (no `--reset-phase-numbers`). Prior phase directories retained at `.planning/phases/`. Requirements + roadmap pending.
+- 2026-05-16 — v1.6 ROADMAP.md created (6 phases, 42–47) from `.planning/research/SUMMARY.md` + ARCHITECTURE.md + PITFALLS.md (HIGH confidence; SEED-006 beta inventory falsified and NOT used). All 26 v1.6 requirements mapped, 0 unmapped — REQUIREMENTS.md Traceability populated. Adopted the research-converged 6-phase shape: 42 (baseline+alias+scaffolding) → 43 (adapter facade + 4.3 API) → 44 (dispatch + oracle + 4.3/XTRA fixtures) → 45 (user-facing flip + copy sweep) → 46 (slider + 4.3 perf budget) → 47 (spine-player bump + viewer regression, last+revertible). Order-critical constraint encoded: SAFE-01 baseline commit MUST predate the RT-01 alias commit (both Phase 42). Phase 47 depends only on Phase 42 (decoupled, parallelizable, sequenced last). Status: planning → roadmapped. Next: `/gsd-plan-phase 42`.
 
 ---
 
 *This file is authored fresh at milestone start. Prior-milestone phases preserved at `.planning/phases/` (per user choice — not archived to `milestones/*-phases/`).*
 
 **Last Milestone:** v1.5.1 (Spine Animation Viewer) — functionally COMPLETE — 2026-05-15 (Phase 41; 3 plans; 5 visual/host UATs pending, carried to v1.6 Deferred). Prior: v1.5 — SHIPPED 2026-05-15 (5 phases, 23 plans; tag `v1.5.0` pending push).
-**Current Milestone:** v1.6 (Spine 4.3 Runtime Port — Dual-Runtime) — PLANNING — SEED-006 activated 2026-05-16; awaiting research → requirements → roadmap. Phases start at **Phase 42**.
+**Current Milestone:** v1.6 (Spine 4.3 Runtime Port — Dual-Runtime) — ROADMAPPED — 6 phases (42–47), 26/26 requirements mapped. ROADMAP.md + REQUIREMENTS.md Traceability written 2026-05-16. Next: `/gsd-plan-phase 42`.

@@ -121,38 +121,49 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RT-01 | TBD | Pending |
-| RT-02 | TBD | Pending |
-| RT-03 | TBD | Pending |
-| RT-04 | TBD | Pending |
-| SAFE-01 | TBD | Pending |
-| SAFE-02 | TBD | Pending |
-| SAFE-03 | TBD | Pending |
-| PORT-01 | TBD | Pending |
-| PORT-02 | TBD | Pending |
-| PORT-03 | TBD | Pending |
-| DISP-01 | TBD | Pending |
-| DISP-02 | TBD | Pending |
-| DISP-03 | TBD | Pending |
-| ORCL-01 | TBD | Pending |
-| ORCL-02 | TBD | Pending |
-| ORCL-03 | TBD | Pending |
-| SLIDER-01 | TBD | Pending |
-| SLIDER-02 | TBD | Pending |
-| XTRA-01 | TBD | Pending |
-| XTRA-02 | TBD | Pending |
-| UX-01 | TBD | Pending |
-| UX-02 | TBD | Pending |
-| PLAYER-01 | TBD | Pending |
-| PLAYER-02 | TBD | Pending |
-| CI-01 | TBD | Pending |
-| PERF-01 | TBD | Pending |
+| RT-01 | Phase 42 | Pending |
+| RT-02 | Phase 43 | Pending |
+| RT-03 | Phase 42 | Pending |
+| RT-04 | Phase 42 | Pending |
+| SAFE-01 | Phase 42 | Pending |
+| SAFE-02 | Phase 43 | Pending |
+| SAFE-03 | Phase 43 | Pending |
+| PORT-01 | Phase 43 | Pending |
+| PORT-02 | Phase 43 | Pending |
+| PORT-03 | Phase 43 | Pending |
+| DISP-01 | Phase 44 | Pending |
+| DISP-02 | Phase 44 | Pending |
+| DISP-03 | Phase 44 | Pending |
+| ORCL-01 | Phase 44 | Pending |
+| ORCL-02 | Phase 44 | Pending |
+| ORCL-03 | Phase 44 | Pending |
+| SLIDER-01 | Phase 46 | Pending |
+| SLIDER-02 | Phase 46 | Pending |
+| XTRA-01 | Phase 44 | Pending |
+| XTRA-02 | Phase 44 | Pending |
+| UX-01 | Phase 45 | Pending |
+| UX-02 | Phase 45 | Pending |
+| PLAYER-01 | Phase 47 | Pending |
+| PLAYER-02 | Phase 47 | Pending |
+| CI-01 | Phase 42 | Pending |
+| PERF-01 | Phase 46 | Pending |
 
 **Coverage:**
 - v1.6 requirements: 26 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 26 ⚠️ (resolved by gsd-roadmapper)
+- Mapped to phases: 26 ✓
+- Unmapped: 0 ✓
+
+**Per-phase distribution:**
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| Phase 42 — Pre-v1.6 Baseline + Alias + Scaffolding | SAFE-01, RT-01, RT-03, RT-04, CI-01 | 5 |
+| Phase 43 — Runtime-Adapter Facade + 4.3 API Mapping | RT-02, SAFE-02, SAFE-03, PORT-01, PORT-02, PORT-03 | 6 |
+| Phase 44 — Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | DISP-01, DISP-02, DISP-03, ORCL-01, ORCL-02, ORCL-03, XTRA-01, XTRA-02 | 8 |
+| Phase 45 — Dispatcher Flip + Copy/Docs Sweep | UX-01, UX-02 | 2 |
+| Phase 46 — Slider Validation + 4.3 Perf Budget | SLIDER-01, SLIDER-02, PERF-01 | 3 |
+| Phase 47 — spine-player 4.3.0 Bump + Viewer Regression | PLAYER-01, PLAYER-02 | 2 |
 
 ---
 *Requirements defined: 2026-05-16 — after research synthesis (`.planning/research/SUMMARY.md`, HIGH confidence); SEED-006 beta inventory superseded by verified 4.3.0-stable facts.*
-*Last updated: 2026-05-16 after initial definition.*
+*Last updated: 2026-05-16 — traceability populated by gsd-roadmapper; 26/26 mapped, 0 unmapped. Phases 42–47 per the research-verified 6-phase shape. Order-critical: SAFE-01 baseline commit predates RT-01 alias commit (both Phase 42, baseline-first).*
