@@ -794,22 +794,25 @@ export interface LoadResult {
 | A4 | The Phase-44 owner-fixture-absence guard can read the current phase from `.planning/STATE.md` (`Phase: N of 47`) or a committed constant. | CI Architecture / D-13 | LOW — small mechanism choice; STATE.md is committed and machine-parseable, but the planner should pick the exact marker (a committed `CURRENT_PHASE` constant is the most robust; STATE.md parsing is brittle to format drift). Flagged. |
 | A5 | electron-builder's `node_modules` prune keeps both `@esotericsoftware/spine-core` and `spine-core-42` (pure JS, no native deps, no `asarUnpack` needed). | Production-Bundle Smoke | LOW — STACK.md asserts this; the PR-only bundle-smoke is precisely the verification that turns this assumption into a checked fact at merge. The assumption only affects whether the smoke is *needed* (it is — that's its purpose). |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **D-08 "heavy rigs included" vs gitignored proprietary rigs (the one genuine scope tension).**
    - What we know: D-08 names `Girl/`, `SKINS/JOKERMAN`, `CHJ/`, `3Queens/`, `Jokerman/` as must-baseline "subtle drift hides exactly there." `[VERIFIED]` all are gitignored as licensed/proprietary (Jokerman explicitly "proprietary, kept local only"); they do NOT exist on a fresh clone / in CI.
    - What's unclear: whether the owner accepts Option A (committed enumeration covers the git-tracked set; heavy-rig baselines are gitignored + `it.skipIf`-guarded → drift coverage *for whoever has the rigs*, fresh-clone CI green) — OR wants hard CI coverage of heavy-rig drift (which needs redistributable heavy fixtures = owner-action, out of Phase 42 scope) — OR accepts Option C (drop "heavy rigs included" for v1.6).
    - Recommendation: **Option A** (the only one honoring D-08 + CI-01 + the redistributability `.gitignore` policy simultaneously). Surface explicitly to the planner / a discuss-phase touch-up; it is a scope decision research cannot unilaterally make. Does NOT block planning the other 4 deliverables.
+   - **RESOLVED: D-08-R Option A two-tier discovery (user-confirmed 2026-05-16); committed manifest covers the git-tracked redistributable subset only, heavy-rig baselines gitignored + it.skipIf-guarded — implemented in 42-01-PLAN.md Task 2**
 
 2. **Phase-44 owner-fixture-absence guard — exact marker mechanism (A4).**
    - What we know: D-13 requires a guard that FAILS CI if ORCL-01/SLIDER-01 fixtures are absent *by Phase 44*. The guard must be Phase-aware.
    - What's unclear: the cleanest Phase marker — a committed `CURRENT_PHASE` constant the roadmapper flips, vs parsing `.planning/STATE.md`, vs the existence of a Phase-44 artifact.
    - Recommendation: a committed `tests/safe01/phase-gate.ts` exporting a `CURRENT_PHASE` integer (robust, explicit, no format-drift risk). Small design choice — flag for the planner to lock; not a research unknown.
+   - **RESOLVED: committed tests/safe01/phase-gate.ts CURRENT_PHASE constant (NOT STATE.md parsing) — 42-04-PLAN.md Task 2**
 
 3. **`SPINE_4_3_TEST.json` is beta (`4.3.91-beta`) — stable-4.3.0 parse confidence (A2).**
    - What we know: D-13 uses an in-repo 4.3 JSON for the load-smoke; the only committed one is this beta export.
    - What's unclear: whether stable 4.3.0 `SkeletonJson` parses a `4.3.91-beta` constraints schema cleanly.
    - Recommendation: attempt it; D-13 asserts integrity only (parses without throwing, past the v1.4 reject) so minor drift that still parses is fine. Fallback: a tiny hand-authored stable-4.3 JSON as the smoke input. Flag for the planner; low risk.
+   - **RESOLVED: attempt the beta 4.3 parse; guarded fallback to hand-authored fixtures/SPINE_4_3_MIN/ stable-4.3 JSON — 42-04-PLAN.md Task 1**
 
 ## Environment Availability
 

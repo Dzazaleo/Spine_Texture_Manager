@@ -1,8 +1,8 @@
 ---
 phase: 42
 slug: pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-16
 ---
@@ -38,28 +38,28 @@ created: 2026-05-16
 
 ## Per-Task Verification Map
 
-> Task IDs (`42-PP-TT`) are assigned by the planner. Until then this is the requirement→behavior→test scaffold from RESEARCH.md; the planner/executor maps each row onto its concrete task. `File Exists ❌ W0` = the test file is a Wave 0 gap (must be created before it can gate).
+> Task IDs (`42-PP-TT`) are the concrete plan/task each row maps onto (`42-PP-TT` = phase 42, plan PP, task TT). `File Exists ❌ W0` = the test file is a Wave 0 gap (the seam is PLANNED in the named plan/task but not yet BUILT — it is created when that task executes).
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | SAFE-01 | — | Every discovered 4.2 fixture's full `SamplerOutput` byte-identical to committed canonical baseline (strict `toEqual`) | golden | `npx vitest run tests/safe01/safe01-baseline.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | SAFE-01 | — | Discovered fixture set == committed enumeration manifest (silent dropout = failure, D-08) | unit | `npx vitest run tests/safe01/safe01-enumeration.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | SAFE-01 | T-supply-chain | SAFE-01 baseline commit is a git ancestor of the npm-alias commit (D-09; skip-with-reason until alias exists, hard-assert after) | integration | `npx vitest run tests/safe01/safe01-freeze-guard.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | SAFE-01 | — | Canonical serializer deterministic; surfaces (not hides) `NaN`/`Infinity`/`-0` as string sentinels | unit | `npx vitest run tests/safe01/canonical-json.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | SAFE-01 | — | No `UPDATE_FIXTURES`/`process.env` regen branch in the SAFE-01 baseline spec (D-09 no-escape-hatch) | unit (meta) | `npx vitest run tests/safe01/safe01-freeze-guard.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RT-01 | T-supply-chain | `@esotericsoftware/spine-core` and `spine-core-42` resolve to distinct versions under vitest/Node | unit | `npx vitest run tests/runtime/alias-resolution.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RT-01 | — | Dual-type isolation: 4.2 and 4.3 `Skeleton` types non-overlapping under `tsc moduleResolution:bundler` | typecheck | `npm run typecheck` | ✅ (cmd exists) | ⬜ pending |
-| TBD | TBD | TBD | RT-01 | T-supply-chain | `npm ci` from committed lockfile reproduces both copies (no churn) | CI step | `npm ci` in `ci.yml` `test` job | ❌ W0 (ci.yml) | ⬜ pending |
-| TBD | TBD | TBD | RT-01 | — | Vite renderer + Vite main both build with the alias resolvable | CI step | `npm run build` in `ci.yml` `bundle-smoke` | ❌ W0 (ci.yml) | ⬜ pending |
-| TBD | TBD | TBD | RT-03 | — | `adapter42.version !== adapter43.version`; `Slider`/`BonePose`/`Pose`/`Posed`/`SlotPose` exist only in 4.3 module | unit | `npx vitest run tests/runtime/runtime-distinctness.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RT-03 | — | A cross-runtime handle mix is a **compile-time** error (brand + required `__rt`) | typecheck (neg) | `npm run typecheck` + a `// @ts-expect-error` fixture | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | RT-03 | — | No source file imports BOTH spine-core alias specifiers (backstop) | unit (arch) | `npx vitest run tests/arch.spec.ts` | ✅ (extend) | ⬜ pending |
-| TBD | TBD | TBD | RT-04 | — | `core/runtime/**` imports no DOM/Electron/sharp/node:fs (and no spine-core in Phase 42) | unit (arch) | `npx vitest run tests/arch.spec.ts` | ✅ (extend) | ⬜ pending |
-| TBD | TBD | TBD | CI-01 | — | `ci.yml` triggers push(any)+PR→main+dispatch, NEVER tags; `paths-ignore` skips docs-only | CI (self) | workflow runs on push; manual `paths-ignore` review | ❌ W0 (ci.yml) | ⬜ pending |
-| TBD | TBD | TBD | CI-01 | — | 3-OS matrix runs full vitest + SAFE-01 gate + ancestry + distinctness on every code push | CI | `ci.yml` `test` job (3-OS) | ❌ W0 (ci.yml) | ⬜ pending |
-| TBD | TBD | TBD | CI-01 / D-13 | T-input-parsing | In-repo 4.3 JSON loads through 4.3 `SkeletonJson` directly without the v1.4 reject (integrity, not value) | integration | `npx vitest run tests/runtime/d13-43-load-smoke.spec.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | CI-01 | T-supply-chain | electron-builder packages BOTH spine-core copies; built worker runs against a 4.2 + the 4.3 fixture | CI | `ci.yml` `bundle-smoke` (PR→main only) | ❌ W0 (ci.yml) | ⬜ pending |
-| TBD | TBD | TBD | CI-01 / D-13 | — | CI FAILS if owner ORCL-01/SLIDER-01 fixtures absent once milestone reaches Phase 44 | unit (phase-gated) | `npx vitest run tests/safe01/phase44-fixture-guard.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-01-02 | 42-01 | 1 | SAFE-01 | — | Every discovered 4.2 fixture's full `SamplerOutput` byte-identical to committed canonical baseline (strict `toEqual`) | golden | `npx vitest run tests/safe01/safe01-baseline.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-01-02 | 42-01 | 1 | SAFE-01 | — | Discovered fixture set == committed enumeration manifest (silent dropout = failure, D-08) | unit | `npx vitest run tests/safe01/safe01-enumeration.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-01-03 | 42-01 | 1 | SAFE-01 | T-42-02 | SAFE-01 baseline commit is a git ancestor of the npm-alias commit (D-09; skip-with-reason until alias exists, hard-assert after) | integration | `npx vitest run tests/safe01/safe01-freeze-guard.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-01-01 | 42-01 | 1 | SAFE-01 | T-42-04 | Canonical serializer deterministic; surfaces (not hides) `NaN`/`Infinity`/`-0` as string sentinels | unit | `npx vitest run tests/safe01/canonical-json.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-01-03 | 42-01 | 1 | SAFE-01 | T-42-01 | No `UPDATE_FIXTURES`/`process.env` regen branch in the SAFE-01 baseline spec (D-09 no-escape-hatch) | unit (meta) | `npx vitest run tests/safe01/safe01-freeze-guard.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-02-02 | 42-02 | 2 | RT-01 | T-42-06 | `@esotericsoftware/spine-core` and `spine-core-42` resolve to distinct versions under vitest/Node | unit | `npx vitest run tests/runtime/alias-resolution.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-02-01 | 42-02 | 2 | RT-01 | — | Dual-type isolation: 4.2 and 4.3 `Skeleton` types non-overlapping under `tsc moduleResolution:bundler` | typecheck | `npm run typecheck` | ✅ (cmd exists) | ⬜ pending |
+| 42-04-03 | 42-04 | 4 | RT-01 | T-42-06 | `npm ci` from committed lockfile reproduces both copies (no churn) | CI step | `npm ci` in `ci.yml` `test` job | ❌ W0 (ci.yml) | ⬜ pending |
+| 42-04-03 | 42-04 | 4 | RT-01 | — | Vite renderer + Vite main both build with the alias resolvable | CI step | `npm run build` in `ci.yml` `bundle-smoke` | ❌ W0 (ci.yml) | ⬜ pending |
+| 42-02-02 | 42-02 | 2 | RT-03 | T-42-08 | `adapter42.version !== adapter43.version`; `Slider`/`BonePose`/`Pose`/`Posed`/`SlotPose` exist only in 4.3 module | unit | `npx vitest run tests/runtime/runtime-distinctness.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-03-02 | 42-03 | 3 | RT-03 | T-42-11 | A cross-runtime handle mix is a **compile-time** error (brand + required `__rt`) | typecheck (neg) | `npm run typecheck` + a `// @ts-expect-error` fixture | ❌ W0 | ⬜ pending |
+| 42-03-02 | 42-03 | 3 | RT-03 | T-42-12 | No source file imports BOTH spine-core alias specifiers (backstop) | unit (arch) | `npx vitest run tests/arch.spec.ts` | ✅ (extend) | ⬜ pending |
+| 42-03-02 | 42-03 | 3 | RT-04 | T-42-13 | `core/runtime/**` imports no DOM/Electron/sharp/node:fs (and no spine-core in Phase 42) | unit (arch) | `npx vitest run tests/arch.spec.ts` | ✅ (extend) | ⬜ pending |
+| 42-04-03 | 42-04 | 4 | CI-01 | T-42-18 | `ci.yml` triggers push(any)+PR→main+dispatch, NEVER tags; `paths-ignore` skips docs-only | CI (self) | workflow runs on push; manual `paths-ignore` review | ❌ W0 (ci.yml) | ⬜ pending |
+| 42-04-03 | 42-04 | 4 | CI-01 | T-42-17 | 3-OS matrix runs full vitest + SAFE-01 gate + ancestry + distinctness on every code push | CI | `ci.yml` `test` job (3-OS) | ❌ W0 (ci.yml) | ⬜ pending |
+| 42-04-01 | 42-04 | 4 | CI-01 / D-13 | T-42-20 | In-repo 4.3 JSON loads through 4.3 `SkeletonJson` directly without the v1.4 reject (integrity, not value) | integration | `npx vitest run tests/runtime/d13-43-load-smoke.spec.ts` | ❌ W0 | ⬜ pending |
+| 42-04-03 | 42-04 | 4 | CI-01 | T-42-19 | electron-builder packages BOTH spine-core copies; built worker runs against a 4.2 + the 4.3 fixture | CI | `ci.yml` `bundle-smoke` (PR→main only) | ❌ W0 (ci.yml) | ⬜ pending |
+| 42-04-02 | 42-04 | 4 | CI-01 / D-13 | — | CI FAILS if owner ORCL-01/SLIDER-01 fixtures absent once milestone reaches Phase 44 | unit (phase-gated) | `npx vitest run tests/safe01/phase44-fixture-guard.spec.ts` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -98,11 +98,11 @@ created: 2026-05-16
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-05-16
