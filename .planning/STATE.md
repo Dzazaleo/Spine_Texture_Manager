@@ -4,12 +4,12 @@ milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: ready_to_plan
 last_updated: "2026-05-16T21:09:24.165Z"
-last_activity: 2026-05-16 -- Phase 42 execution started
+last_activity: 2026-05-16 -- Phase 42 COMPLETE (gap-closure 42-05; re-verified passed 5/5)
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 17
 ---
 
@@ -22,9 +22,9 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-05-16
 
-Next: `/gsd-execute-phase 42` — resume Wave 2 on top of the frozen COMMIT B `cc5783f`. The amended plans narrow the gate to `typecheck:node` (fresh-clone); `typecheck:web` spine-player `.d.ts` 4.3-leak is a KNOWN Phase-47-owned item. COMMIT A `1b5327d` + COMMIT B `cc5783f` are FROZEN ancestry anchors — execute-phase must detect-and-skip COMMIT B; do NOT regenerate/reorder/amend.
+Next: `/gsd-discuss-phase 43` (recommended) or `/gsd-plan-phase 43` — Phase 43 has no CONTEXT.md yet. Phase 42 is COMPLETE and re-verified passed 5/5; gap-closure 42-05 closed RT-01/ROADMAP-SC-#2 (runtime-distinctness test restored) + CR-01 D-09 hardening (HARDEN NOW). Frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact; 42-05 commits are additive descendants. Phase 43 gates against the SAFE-01 baseline.
 
-Progress: [██░░░░░░░░] Phase 42: 1/4 plans complete + COMMIT B landed (42-01 frozen; 42-02 Task1/COMMIT B frozen; 02 Task2+/03/04 re-planned + plan-checker-verified, await execution)
+Progress: [██████████] Phase 42: 5/5 plans complete — re-verified PASSED 5/5 (SAFE-01, RT-01, RT-03, RT-04, CI-01). Advisory: 42-REVIEW.md 0 blockers / 2 warnings (asymmetric CR-01 baseline-side hardening + stale comment — low-priority Phase-44/45 follow-up). Deferred: 11 `tests/renderer/*` MixBlend failures are ROADMAP Phase-47-owned (renderer 4.3 port), not a Phase-42 regression.
 
 ## Project Reference
 
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 42 — pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding
+**Current focus:** Phase 43 — runtime-adapter-facade-+-verified-4.3-api-mapping (ready to plan)
 
 ## Last Completed Milestone
 
