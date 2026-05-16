@@ -23,6 +23,14 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const MANIFEST = path.resolve(REPO_ROOT, 'tests/safe01/baselines/_manifest.json');
 
 describe('SAFE-01 enumeration: discovered git-tracked set == committed manifest (dropout-is-failure, D-08)', () => {
+  // discover() samples EVERY on-disk fixture at 120 Hz + spawns a git
+  // subprocess per fixture. On a maintainer machine the gitignored heavy
+  // rigs are present (~39 fixtures vs. CI's 13 git-tracked), so a full
+  // re-discovery here legitimately runs ~20 s under full-suite parallel
+  // contention. The default 10 s per-test timeout false-fails locally
+  // (CI / fresh-clone / worktree only sees the 13 tracked fixtures and is
+  // fast). An explicit generous timeout makes this gate environment-robust
+  // WITHOUT weakening the assertion — a genuine hang still blows past 60 s.
   it('the sorted git-tracked sampling set deep-equals _manifest.json fixtures', () => {
     const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
       _meta: Record<string, unknown>;
@@ -44,7 +52,7 @@ describe('SAFE-01 enumeration: discovered git-tracked set == committed manifest 
         'NEW sampling fixture must be added via a deliberate reviewed commit ' +
         '(baseline + manifest entry) — pre-existing baselines stay frozen (D-08/D-09).',
     ).toEqual(committed);
-  });
+  }, 60_000);
 
   it('the manifest carries a _meta provenance block (generatedCommit + generatedAt)', () => {
     const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
