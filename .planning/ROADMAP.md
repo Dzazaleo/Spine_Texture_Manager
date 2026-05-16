@@ -114,7 +114,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] 42-02-PLAN.md — COMMIT B: RT-01 dual-install (4.3.0 canonical + `spine-core-42` exact-pinned alias) + resolution/distinctness tests; git descendant of COMMIT A *(RT-01)*
 - [x] 42-03-PLAN.md — COMMIT C: RT-03/RT-04 opaque-handle scaffolding (branded handles + SpineRuntime signatures + LoadResult.runtime? + arch anchors + compile-negative fixture) *(RT-03, RT-04)*
 - [x] 42-04-PLAN.md — COMMIT D: CI-01 `ci.yml` dual-runtime gate + D-13 4.3 load-smoke + Phase-44 owner-fixture guard + `42-OWNER-EXPORT-SPEC.md` *(CI-01)*
-- [ ] 42-05-PLAN.md — GAP-CLOSURE (additive descendant of D): restore the RT-01 ROADMAP-SC-#2 runtime-distinctness regression test (collaterally dropped by the Option-1 re-plan) + harden the CR-01 D-09 SAFE-01 ancestry resolution (user-decided HARDEN NOW) *(RT-01, SAFE-01)*
+- [x] 42-05-PLAN.md — GAP-CLOSURE (additive descendant of D): restore the RT-01 ROADMAP-SC-#2 runtime-distinctness regression test (collaterally dropped by the Option-1 re-plan) + harden the CR-01 D-09 SAFE-01 ancestry resolution (user-decided HARDEN NOW) *(RT-01, SAFE-01)*
 
 ### Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping
 **Goal**: Introduce the `SpineRuntime` adapter facade with the 4.2 path proven behavior-neutral (byte-green — the hard phase-exit gate), then implement the 4.3 adapter against the research-verified stable Pose API so the ~750-line sampler/bounds algorithm is never forked.
@@ -183,7 +183,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 39 | v1.5 | 3/3 | Complete | 2026-05-13 |
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
-| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 4/4 | Complete   | 2026-05-16 |
+| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete   | 2026-05-16 |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 0/TBD | Not started | - |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
