@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "generatedCommit": "c5ef3584459e6545ed659bd1c86fd93e0b0b58f7",
+    "generatedAt": "2026-05-16T15:35:13.841Z",
+    "spineCoreVersion": "4.2.111",
+    "schema": "safe01/v1"
+  },
+  "fixtures": [
+    "fixtures/Chicken-Min/Chicken-Min.json",
+    "fixtures/EXPORT_PROJECT/EXPORT.json",
+    "fixtures/INHERIT_TIMELINE/INHERIT_TEST.json",
+    "fixtures/SIMPLE_PROJECT_NO_ATLAS_MESH/MeshOnly_TEST.json",
+    "fixtures/SIMPLE_PROJECT_NO_ATLAS/SIMPLE_TEST.json",
+    "fixtures/SIMPLE_PROJECT/SIMPLE_TEST_GHOST.json",
+    "fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json",
+    "fixtures/SIMPLE_PROJECT/skeleton.json",
+    "fixtures/SIMPLE_PROJECT/skeleton2.json",
+    "fixtures/spine_rotated/EXPORT/skeleton.json",
+    "fixtures/spine_stripWS/EXPORT/skeleton.json"
+  ]
+}
