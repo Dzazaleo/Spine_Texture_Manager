@@ -111,7 +111,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   5. CI runs from a fresh clone against both 4.2.x and 4.3.x fixture slots, the npm alias resolves reproducibly under `npm ci`, electron-builder packages both spine-core copies, and a production-bundle smoke job runs the built worker against a 4.2 and a 4.3 fixture (not from `src/`). *(CI-01)*
 **Plans**: 4 plans (strict linear waves — the 4-commit ordering A->B->C->D is the acceptance test)
 - [x] 42-01-PLAN.md — COMMIT A: SAFE-01 byte-equal 4.2 baseline (canonical serializer + auto-discovery + enumeration + freeze-guard) captured BEFORE the alias *(SAFE-01)*
-- [ ] 42-02-PLAN.md — COMMIT B: RT-01 dual-install (4.3.0 canonical + `spine-core-42` exact-pinned alias) + resolution/distinctness tests; git descendant of COMMIT A *(RT-01)*
+- [x] 42-02-PLAN.md — COMMIT B: RT-01 dual-install (4.3.0 canonical + `spine-core-42` exact-pinned alias) + resolution/distinctness tests; git descendant of COMMIT A *(RT-01)*
 - [ ] 42-03-PLAN.md — COMMIT C: RT-03/RT-04 opaque-handle scaffolding (branded handles + SpineRuntime signatures + LoadResult.runtime? + arch anchors + compile-negative fixture) *(RT-03, RT-04)*
 - [ ] 42-04-PLAN.md — COMMIT D: CI-01 `ci.yml` dual-runtime gate + D-13 4.3 load-smoke + Phase-44 owner-fixture guard + `42-OWNER-EXPORT-SPEC.md` *(CI-01)*
 
@@ -182,7 +182,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 39 | v1.5 | 3/3 | Complete | 2026-05-13 |
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
-| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 1/4 | In Progress|  |
+| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 2/4 | In Progress|  |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 0/TBD | Not started | - |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
