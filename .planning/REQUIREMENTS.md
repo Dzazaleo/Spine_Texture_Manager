@@ -24,14 +24,14 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Runtime Dual-Install & Boundary (RT)
 
-- [ ] **RT-01**: `@esotericsoftware/spine-core@4.3.0` is the canonical install and `4.2.111` is installed side-by-side via an exact-pinned, lockfile-committed npm alias; both resolve identically under `tsc`, Vite (renderer + main), `worker_threads`, and `vitest` from a fresh clone.
+- [x] **RT-01**: `@esotericsoftware/spine-core@4.3.0` is the canonical install and `4.2.111` is installed side-by-side via an exact-pinned, lockfile-committed npm alias; both resolve identically under `tsc`, Vite (renderer + main), `worker_threads`, and `vitest` from a fresh clone.
 - [ ] **RT-02**: A `SpineRuntime` adapter interface in `core/runtime/` has two implementations (`runtime-42`, `runtime-43`); `core/sampler.ts` and `core/bounds.ts` no longer import `@esotericsoftware/spine-core` directly (enforced by a `tests/arch.spec.ts` anchor).
-- [ ] **RT-03**: Runtime objects cross the adapter boundary as opaque branded handles carrying an explicit runtime tag; a 4.2 object reaching a 4.3 adapter (or vice-versa) is a compile-time error, not a runtime corruption.
-- [ ] **RT-04**: The `core/runtime/` module imports no DOM, Electron, or `sharp` — the Layer-3 purity invariant is preserved and arch-spec-enforced after the port.
+- [x] **RT-03**: Runtime objects cross the adapter boundary as opaque branded handles carrying an explicit runtime tag; a 4.2 object reaching a 4.3 adapter (or vice-versa) is a compile-time error, not a runtime corruption.
+- [x] **RT-04**: The `core/runtime/` module imports no DOM, Electron, or `sharp` — the Layer-3 purity invariant is preserved and arch-spec-enforced after the port.
 
 ### 4.2 Regression Safety (SAFE)
 
-- [ ] **SAFE-01**: A byte-equal golden snapshot of `globalPeaks` / `SamplerOutput` for every in-repo 4.2 fixture is captured and committed **before** the npm alias is added (order is load-bearing — behavior cannot be baselined after it changes).
+- [x] **SAFE-01**: A byte-equal golden snapshot of `globalPeaks` / `SamplerOutput` for every in-repo 4.2 fixture is captured and committed **before** the npm alias is added (order is load-bearing — behavior cannot be baselined after it changes).
 - [ ] **SAFE-02**: Every in-repo 4.2 fixture sampled through the new adapter produces output byte-identical to the pre-v1.6 baseline (strict equality, not epsilon — the 4.2 runtime is unchanged, so any drift is a plumbing bug).
 - [ ] **SAFE-03**: A regression test proves the cross-runtime `instanceof` invariant — each loaded skeleton's attachments resolve `instanceof` (Region / Vertex / Mesh) against the same runtime instance that loaded it.
 
@@ -75,7 +75,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Continuous Integration (CI)
 
-- [ ] **CI-01**: The CI matrix runs the full test suite against both 4.2.x and 4.3.x fixtures from a fresh clone; the npm alias resolves reproducibly and electron-builder packages both spine-core copies.
+- [x] **CI-01**: The CI matrix runs the full test suite against both 4.2.x and 4.3.x fixtures from a fresh clone; the npm alias resolves reproducibly and electron-builder packages both spine-core copies.
 
 ### Performance (PERF)
 
@@ -121,11 +121,11 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RT-01 | Phase 42 | Pending |
+| RT-01 | Phase 42 | Complete |
 | RT-02 | Phase 43 | Pending |
-| RT-03 | Phase 42 | Pending |
-| RT-04 | Phase 42 | Pending |
-| SAFE-01 | Phase 42 | Pending |
+| RT-03 | Phase 42 | Complete |
+| RT-04 | Phase 42 | Complete |
+| SAFE-01 | Phase 42 | Complete |
 | SAFE-02 | Phase 43 | Pending |
 | SAFE-03 | Phase 43 | Pending |
 | PORT-01 | Phase 43 | Pending |
@@ -145,7 +145,7 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | UX-02 | Phase 45 | Pending |
 | PLAYER-01 | Phase 47 | Pending |
 | PLAYER-02 | Phase 47 | Pending |
-| CI-01 | Phase 42 | Pending |
+| CI-01 | Phase 42 | Complete |
 | PERF-01 | Phase 46 | Pending |
 
 **Coverage:**

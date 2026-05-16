@@ -183,7 +183,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 39 | v1.5 | 3/3 | Complete | 2026-05-13 |
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
-| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete   | 2026-05-16 |
+| 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 0/TBD | Not started | - |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |

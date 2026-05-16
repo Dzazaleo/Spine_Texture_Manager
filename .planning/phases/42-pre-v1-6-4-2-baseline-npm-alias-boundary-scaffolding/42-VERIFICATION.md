@@ -1,45 +1,36 @@
 ---
 phase: 42-pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding
-verified: 2026-05-16T21:20:00Z
-status: gaps_found
-score: 4/5 must-haves verified (1 partial)
+verified: 2026-05-16T23:00:00Z
+status: passed
+score: 5/5 must-haves verified
 overrides_applied: 0
-gaps:
-  - truth: "RT-01: a runtime-distinctness test asserts adapter42.version !== adapter43.version and that Slider/BonePose exist only in the 4.3 module (ROADMAP Phase-42 Success Criterion #2)"
-    status: partial
-    reason: >-
-      The dual-install itself is fully correct and independently verified
-      (canonical @esotericsoftware/spine-core@4.3.0 exports Slider/BonePose;
-      spine-core-42 alias = 4.2.111 does NOT; both resolve under node/vitest/tsc).
-      However the ROADMAP-contracted *automated regression test* that asserts and
-      locks this distinctness does not exist in the codebase. Git history shows
-      the pre-replan 42-02-PLAN explicitly scoped tests/runtime/runtime-distinctness.spec.ts
-      with the exact matching must_have; the Option-1 re-plan (commit c87a95f)
-      silently removed that test artifact + its must_have/key_link from the plan
-      while 42-REPLAN-NOTE.md only documents the typecheck-scope narrowing — the
-      distinctness-test removal was collateral scope reduction, NOT an
-      explicitly-reasoned descope. The ROADMAP plan-list line for 42-02 still
-      reads "+ resolution/distinctness tests" and ROADMAP SC #2 (a non-negotiable
-      contract) still requires it. Distinctness is functionally TRUE but not
-      regression-locked by an automated test.
-    artifacts:
-      - path: "tests/runtime/runtime-distinctness.spec.ts"
-        issue: "Does not exist. No test in tests/ asserts adapter42.version !== adapter43.version or Slider/BonePose-only-in-4.3. (d13-43-load-smoke.spec.ts only drives 4.3 SkeletonJson for integrity; it does not assert version/export distinctness between the two installs.)"
-    missing:
-      - "A small spec (e.g. tests/runtime/runtime-distinctness.spec.ts) importing from both '@esotericsoftware/spine-core' (4.3.0) and 'spine-core-42' (4.2.111) that asserts: (a) both resolve under vitest without throwing, (b) the two .version values differ (4.3.0 vs 4.2.111), (c) Slider and BonePose are exported from the 4.3 module and ABSENT from spine-core-42. This is a non-spine-core-logic, behavior-neutral test addition (no COMMIT A/B/repoint/C/D ancestry impact) and can land as a follow-up commit descendant of D."
-human_verification:
-  - test: "Decision on CR-01 (forward-fragility of the D-09 introducing-commit resolution)"
-    expected: "Decide whether to apply /gsd-code-review-fix now (switch ci.yml:117 and safe01-freeze-guard.spec.ts:63 to `git log --reverse -S 'spine-core-42' --format=%H -- package.json | head -1` + a `grep -q spine-core-42 package.json` presence guard) OR carry CR-01 as an explicit Phase-44/45 entry-gate pre-req (Phase 44/45 churns package.json — the fragility becomes load-bearing there, not in Phase 42)."
-    why_human: "Empirically the D-09 gate resolves correctly AS SHIPPED TODAY (pickaxe set size = 1; tail-1 == --reverse|head-1; baseline 1b5327d machine-verified ancestor of alias cc5783f; SAFE-01 ordering invariant genuinely enforced). CR-01 is a robustness gap that only manifests once a future phase removes-then-re-adds the spine-core-42 literal — a scheduling/risk-tolerance decision, not a Phase-42 goal failure, and explicitly surfaced by the orchestrator for developer decision."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/5 (1 partial)
+  gaps_closed:
+    - "RT-01 / ROADMAP-SC-#2: the runtime-distinctness automated regression test (tests/runtime/runtime-distinctness.spec.ts) was collaterally descoped by the Option-1 re-plan — RESTORED by 42-05 commit 411b84f, 4/4 green, asserts adapter42.version (4.2.111) !== adapter43.version (4.3.0) + Slider/BonePose 4.3-only + dual-universe Skeleton non-identity smoke"
+    - "CR-01 (human-decision item, user-decided HARDEN NOW 2026-05-16): the D-09 SAFE-01 ancestry resolution forward-fragility — HARDENED by 42-05 commit 65c99e1 in BOTH .github/workflows/ci.yml (--reverse|head-1 + grep presence guard) and tests/safe01/safe01-freeze-guard.spec.ts (--reverse + [0] + readFileSync presence guard); behavior-equivalent today (resolved alias commit STILL cc5783f; pickaxe set size = 1)"
+  gaps_remaining: []
+  regressions: []
+deferred:
+  - truth: "tests/renderer/*.spec.tsx (11 suites) import the removed 4.3 export MixBlend and fail with SyntaxError"
+    addressed_in: "Phase 47"
+    evidence: "ROADMAP Phase 47 = 'spine-player 4.3.0 Bump + Viewer Regression — Decoupled, revertible viewer bump; drop removed MixBlend/MixDirection; ... migrated to the new apply(fromSetup, add, out, appliedPose) model (PLAYER-01)'. Phase 42 is boundary-scaffolding and DELIBERATELY does not port the renderer (its arch anchors gate src/** only). The 11 failures are byte-identical at the pre-42-05 base bc0c6c6 — a pre-existing, intended, Phase-47-owned milestone state, not a Phase-42 regression or goal failure."
 ---
 
-# Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding — Verification Report
+# Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding — Verification Report (Re-Verification)
 
 **Phase Goal:** De-risk the entire v1.6 milestone by freezing the existing 4.2 behavior as a committed byte-equal golden BEFORE any code changes, then landing the lockfile-pinned dual-install and the opaque-handle boundary scaffolding that gates every downstream phase.
 
-**Verified:** 2026-05-16T21:20:00Z
-**Status:** gaps_found (1 partial against ROADMAP SC #2) + 1 human-decision item (CR-01)
-**Re-verification:** No — initial verification
+**Verified:** 2026-05-16T23:00:00Z
+**Status:** passed
+**Re-verification:** Yes — after gap closure (plan 42-05; commits 411b84f test + 65c99e1 fix + c7a20bd docs; merged at 851e6fa)
+
+## Re-Verification Summary
+
+The prior 42-VERIFICATION.md was `gaps_found` (score 4/5): one PARTIAL gap on ROADMAP Phase-42 Success Criterion #2 (RT-01 — the contracted runtime-distinctness automated regression test was collaterally descoped by the Option-1 re-plan `c87a95f`) plus one human-decision item (CR-01 — D-09 ancestry-resolution forward-fragility, resolved with the user: HARDEN NOW, 2026-05-16). Gap-closure plan 42-05 landed both as two atomic additive descendants of the frozen D `2360c51`. **Both gaps are now CLOSED. No regression. The four previously-VERIFIED criteria pass a quick regression re-check. Score: 5/5.**
+
+The 11 failing `tests/renderer/*.spec.tsx` suites (`SyntaxError: ... does not provide an export named 'MixBlend'`) are confirmed PRE-EXISTING (byte-identical at the pre-42-05 base) and an explicitly ROADMAP-tracked **Phase-47-owned** milestone state — filtered to `deferred` per Step 9b. They are NOT a Phase-42 goal failure (Phase 42 deliberately does not port the renderer; its arch anchors gate `src/**` only).
 
 ## Goal Achievement
 
@@ -47,102 +38,101 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 (SAFE-01) | A deterministic byte-equal golden snapshot of SamplerOutput for every in-repo 4.2 fixture is committed in a commit that **predates** the npm-alias commit (order is the acceptance test) | ✓ VERIFIED | COMMIT A `1b5327d` (manifest-add) is machine-verified `git merge-base --is-ancestor` of alias commit `cc5783f`. 11 git-tracked baseline JSONs + `_manifest.json` committed. `safe01-baseline.spec.ts`: all 11 fixtures byte-equal (16 passed). `safe01-freeze-guard.spec.ts` ancestry assertion now HARD-PASSING (435ms, flipped from skip→assert as designed). Canonical serializer has NaN/-0 string sentinels + toPrecision(15) clamp + zero core/sharp/electron import + zero regen branch. |
-| 2 (RT-01) | From a fresh clone, 4.3.0 (canonical) + 4.2.111 (alias) both resolve identically; **a runtime-distinctness test asserts adapter42.version !== adapter43.version and Slider/BonePose exist only in the 4.3 module** | ✗ PARTIAL | Dual-install fully correct: package.json `@esotericsoftware/spine-core@4.3.0` + `spine-core-42`=`npm:@esotericsoftware/spine-core@4.2.111` + spine-player still 4.2.111; lockfile integrity-pinned (sha512); both installed (4.3.0 / 4.2.111); functionally `Slider`/`BonePose` in canonical only — VERIFIED. **BUT the ROADMAP-contracted automated runtime-distinctness test does NOT exist** (removed by the Option-1 re-plan, not a documented descope). Full suite (954 passed) proves both resolve under vitest, but no test asserts version/export *distinctness*. See Gaps. |
-| 3 (RT-03) | A 4.2-object-at-a-4.3-boundary is a **compile-time** error: opaque branded handles carry a required runtime tag; no source file imports both alias specifiers (arch-enforced) | ✓ VERIFIED | `src/core/runtime/types.ts`: 8 `unique symbol` per-kind brands + REQUIRED non-optional `__rt: RuntimeTag` (0 optional `__rt?:`) + 3 helper exports. `handle-brand-negative.ts`: 7 `@ts-expect-error`, **ZERO leaked tsc errors** → all directives consumed by genuine compile errors → wall is REAL (an unused directive would fail `typecheck:node`). RT-03 backstop arch anchor present + green; no `src/**` co-mingling; `spine-core-43` (rejected key) absent. |
-| 4 (RT-04) | The new core/runtime/ module imports no DOM, Electron, or sharp; Layer-3 purity green under tests/arch.spec.ts | ✓ VERIFIED | `grep` for `@esotericsoftware/spine-core|spine-core-42|sharp|electron|node:fs` in `types.ts`+`runtime.ts` = 0. RT-04 arch anchor `Phase 42 RT-04` present, `globSync('src/core/runtime/**')`, asserts `.toEqual([])`, green in the 38-pass arch+safe01 run. `runtime.ts` signatures-only (31 signatures, no bodies, `pickRuntime` as `export declare`). |
-| 5 (CI-01) | CI runs from a fresh clone vs 4.2.x+4.3.x slots, alias resolves reproducibly under npm ci, both spine-core copies packaged, PR-only production-bundle smoke runs the built worker (not src/) vs a 4.2+4.3 fixture | ✓ VERIFIED | `.github/workflows/ci.yml` (225 lines): 0 `tags:` lines, 5×`fetch-depth: 0`, 2×`merge-base --is-ancestor`, bare `typecheck:node` (1) + 0 full `typecheck`, 3-OS matrix (ubuntu/windows/macos all present), 1 PR-only `bundle-smoke` asserting BOTH `node_modules/@esotericsoftware/spine-core`(4.3.0)+`spine-core-42`(4.2.111) survive packaging and runs built `out/main/sampler-worker.cjs` vs SIMPLE_TEST + 4.3 SkeletonJson, 4 pinned-SHA actions. `release.yml` byte-untouched in Phase 42. D-13 smoke PASSES (4.3 JSON parses past v1.4 reject via direct 4.3 SkeletonJson). Phase-44 guard correctly SKIPS (CURRENT_PHASE=42<44). `42-OWNER-EXPORT-SPEC.md` (187 lines) with all content tokens. |
+| 1 (SAFE-01) | A deterministic byte-equal golden snapshot of SamplerOutput for every in-repo 4.2 fixture is committed in a commit that **predates** the npm-alias commit (order is the acceptance test) | ✓ VERIFIED | COMMIT A `1b5327d` is machine-verified `git merge-base --is-ancestor` of alias COMMIT B `cc5783f`. Full frozen chain A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` all ancestors of HEAD, original SHAs intact (not amended/rebased). `tests/safe01` suite 38 passed / 0 failed (with arch.spec.ts). `safe01-freeze-guard.spec.ts` A→B ancestry `it` **HARD-PASSES at 421ms** (ran the `merge-base --is-ancestor` child process — the non-vacuous path, NOT the ~0ms skip-with-reason path). |
+| 2 (RT-01) | From a fresh clone, 4.3.0 (canonical) + 4.2.111 (alias) both resolve identically; **a runtime-distinctness test asserts adapter42.version !== adapter43.version and Slider/BonePose exist only in the 4.3 module** | ✓ VERIFIED (gap closed) | **`tests/runtime/runtime-distinctness.spec.ts` now EXISTS (commit `411b84f`, 153 lines) and passes 4/4.** Live diagnostic confirms: `{"v43":"4.3.0","v42":"4.2.111"}`; sc43 `Slider`/`BonePose`/`Posed`/`SlotPose` = `function`, sc42 all `undefined`; `Skeleton` = `function` in BOTH but non-identical reference (Pitfall-4 dual-universe smoke). Asserts the verbatim `v43 !== v42` ROADMAP `!==` contract + exact pins (`4.3.0`/`4.2.111`) + Slider/BonePose 4.3-only-and-absent-from-spine-core-42, reading `.version` from the non-forgeable resolved package.json. `tests/arch.spec.ts` still 15/15 green (the new `tests/` both-specifier co-import did NOT trip the `src/**`-scoped RT-03 backstop). |
+| 3 (RT-03) | A 4.2-object-at-a-4.3-boundary is a **compile-time** error: opaque branded handles carry a required runtime tag; no source file imports both alias specifiers (arch-enforced) | ✓ VERIFIED (regression re-check) | Unchanged by 42-05 (frozen COMMIT C `b6f3177`). `tests/arch.spec.ts:313` "Phase 42 RT-03 backstop: no source file imports BOTH spine-core alias specifiers" present + green in the 38-pass run. The new `tests/runtime/runtime-distinctness.spec.ts` is the sanctioned `tests/` co-import idiom (RT-03 backstop globs `src/**` ONLY) — proven by arch.spec.ts staying green after it landed. |
+| 4 (RT-04) | The new core/runtime/ module imports no DOM, Electron, or sharp; Layer-3 purity green under tests/arch.spec.ts | ✓ VERIFIED (regression re-check) | Unchanged by 42-05 (frozen COMMIT C `b6f3177`). `tests/arch.spec.ts:297` "Phase 42 RT-04: src/core/runtime/ is Layer-3 pure" present, `globSync('src/core/runtime/**/*.ts')`, green in the 38-pass arch+safe01 run. |
+| 5 (CI-01) | CI runs fresh-clone vs 4.2.x+4.3.x slots, alias resolves under npm ci, both spine-core copies packaged, PR-only bundle-smoke runs the built worker (not src/) vs a 4.2+4.3 fixture | ✓ VERIFIED (re-checked + CR-01-hardened) | `.github/workflows/ci.yml` (229 lines): 5×`fetch-depth: 0`, 2×`merge-base --is-ancestor`, 3-OS matrix (ubuntu/windows/macos), `bundle-smoke` job asserting BOTH `node_modules/@esotericsoftware/spine-core` + `node_modules/spine-core-42` survive packaging. **CR-01-hardened D-09 step**: `grep -q "spine-core-42" package.json` presence guard (line 116-117) + explicit-oldest `git log --reverse -S 'spine-core-42' ... | head -1` (line 121); the old fragile `tail -1` form is GONE. `release.yml` byte-untouched across all of Phase 42. |
 
-**Score:** 4/5 ROADMAP success criteria fully verified; 1 (RT-01) PARTIAL — dual-install correct, distinctness test artifact missing.
+**Score:** 5/5 ROADMAP success criteria fully verified (was 4/5 with 1 partial; the RT-01 SC#2 partial is now CLOSED).
 
-### Required Artifacts
+### Deferred Items
+
+| # | Item | Addressed In | Evidence |
+|---|------|--------------|----------|
+| 1 | 11 `tests/renderer/*.spec.tsx` suites fail with `SyntaxError: '@esotericsoftware/spine-core' does not provide an export named 'MixBlend'` | Phase 47 | ROADMAP Phase 47 = "spine-player 4.3.0 Bump + Viewer Regression — drop removed MixBlend/MixDirection; migrated to the new apply(fromSetup, add, out, appliedPose) model (PLAYER-01)". Pre-existing & byte-identical at the pre-42-05 base; caused by the FROZEN 42-02 4.3 repoint. Phase 42 is boundary-scaffolding and DELIBERATELY does not port the renderer (arch anchors gate src/** only). Intended, planned, Phase-47-owned — not a Phase-42 regression. |
+
+### Required Artifacts (gap-closure delta + key prior anchors regression-checked)
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `tests/safe01/canonical-json.ts` | Deterministic serializer | ✓ VERIFIED | 107 lines; NaN/-0 sentinels; toPrecision(15); no core import |
-| `tests/safe01/discover-fixtures.ts` | Auto-discovery | ✓ VERIFIED | 101 lines; predicate-based, no hand-list |
-| `tests/safe01/safe01-baseline.spec.ts` | Strict byte-equal toEqual | ✓ VERIFIED | 99 lines; no regen branch; 11 fixtures byte-equal |
-| `tests/safe01/safe01-freeze-guard.spec.ts` | D-09 ancestry + no-regen meta | ✓ VERIFIED | 125 lines; merge-base×4, diff-filter=A, hard-passing now |
-| `tests/safe01/baselines/_manifest.json` + 11 baselines | Committed golden set | ✓ VERIFIED | 12 git-tracked files; `_meta` provenance present |
-| `package.json` / `package-lock.json` | 4.3.0 canonical + spine-core-42 alias | ✓ VERIFIED | Frozen COMMIT B `cc5783f`; integrity sha512 pinned |
-| `src/core/runtime/types.ts` | unique-symbol brands + required __rt | ✓ VERIFIED | 72 lines; 8 brands; 3 helpers; 0 forbidden imports |
-| `src/core/runtime/runtime.ts` | SpineRuntime signatures-only | ✓ VERIFIED | 64 lines; 31 sigs; declared pickRuntime; boneAxisScale-only (no slotBone) |
-| `src/core/types.ts` LoadResult.runtime? | Additive optional field | ✓ VERIFIED | `runtime?: SpineRuntime` at :190; type-only import at :22 |
-| `tests/runtime/handle-brand-negative.ts` | @ts-expect-error compile-negative | ✓ VERIFIED | 78 lines; 7 directives, all consumed (0 leaked) |
-| `.github/workflows/ci.yml` | Dual-runtime gate | ✓ VERIFIED | 225 lines; all properties confirmed |
-| `tests/runtime/d13-43-load-smoke.spec.ts` | 4.3 SkeletonJson direct-load | ✓ VERIFIED | Passes; bypasses gated loader; consumes 4.3 constraints[] |
-| `tests/safe01/phase-gate.ts` + `phase44-fixture-guard.spec.ts` | CURRENT_PHASE marker + guard | ✓ VERIFIED | `CURRENT_PHASE=42 as const`; guard skips-with-reason |
-| `42-OWNER-EXPORT-SPEC.md` | One-session owner handoff | ✓ VERIFIED | 187 lines; all required tokens present |
-| `tests/runtime/runtime-distinctness.spec.ts` | RT-01 version/export distinctness | ✗ MISSING | Removed by Option-1 re-plan; ROADMAP SC #2 still requires it |
+| `tests/runtime/runtime-distinctness.spec.ts` | RT-01 / ROADMAP-SC-#2 automated regression lock (NEW — the closed gap) | ✓ VERIFIED | 153 lines (commit `411b84f`); imports BOTH `@esotericsoftware/spine-core` (4.3.0) + `spine-core-42` (4.2.111) on purpose; 4 focused `it` blocks; version from resolved package.json via `createRequire`; pre-assertion diagnostic `console.log`; 4/4 green |
+| `.github/workflows/ci.yml` | CR-01-hardened D-09 step | ✓ VERIFIED | 229 lines; `grep -q "spine-core-42" package.json` presence guard + `git log --reverse -S 'spine-core-42' ... \| head -1` (line 121); old `tail -1` form GONE; 3-OS matrix + bundle-smoke + 5×fetch-depth:0 all intact |
+| `tests/safe01/safe01-freeze-guard.spec.ts` | CR-01-hardened vitest D-09 enforcement | ✓ VERIFIED | `readFileSync(package.json)` + `.includes('spine-core-42')` loud-throw presence guard (lines 41-51); alias resolution now `--reverse` + `[0]` (lines 76-85); A→B ancestry `it` hard-passes 421ms; skip-with-reason / `_meta` cross-check preserved |
+| `tests/safe01/baselines/_manifest.json` + 11 baselines | Committed golden (frozen COMMIT A) | ✓ VERIFIED (regression) | SAFE-01 byte-equal suite green; A `1b5327d` ancestor of B `cc5783f` machine-verified |
+| `package.json` / `package-lock.json` | 4.3.0 canonical + spine-core-42 alias (frozen COMMIT B) | ✓ VERIFIED (regression) | Byte-untouched in `2360c51..HEAD` (frozen COMMIT B `cc5783f` anchor not perturbed by 42-05) |
+| `src/core/runtime/types.ts` + `runtime.ts` | Branded handles + signatures (frozen COMMIT C) | ✓ VERIFIED (regression) | Unchanged by 42-05; RT-03 + RT-04 arch anchors green in 38-pass run |
+| `tests/runtime/d13-43-load-smoke.spec.ts` | 4.3 SkeletonJson direct-load (frozen COMMIT D) | ✓ VERIFIED (regression) | Passes in the consolidated 43-pass run; the established `tests/` co-import idiom precedent |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|----|--------|---------|
-| COMMIT A `1b5327d` | COMMIT B `cc5783f` | `git merge-base --is-ancestor` | ✓ WIRED | TRUE — baseline predates alias (the existential SAFE-01 invariant) |
-| COMMIT B `cc5783f` | repoint `1a8c18b` | descendant | ✓ WIRED | TRUE — A→B→repoint linear |
-| repoint `1a8c18b` | COMMIT C `b6f3177` | descendant | ✓ WIRED | TRUE |
-| COMMIT C `b6f3177` | COMMIT D `2360c51` | descendant | ✓ WIRED | TRUE — full A→B→repoint→C→D chain, all ancestors of HEAD |
-| 8 bare consumers (src/+tests) | `spine-core-42` | mechanical specifier rename | ✓ WIRED | repoint `1a8c18b` = specifier-only (16 files, 19+/18−); all 8 prod files now `spine-core-42`, 0 bare; SAFE-01 re-verified byte-equal |
-| `safe01-freeze-guard.spec.ts` | git history | merge-base/pickaxe | ✓ WIRED | Hard-asserts A→B ancestry now (not skipped) |
-| `ci.yml` D-09 step | git history | `git log -S 'spine-core-42' \| tail -1` | ⚠️ WIRED (fragile) | Resolves correctly TODAY (pickaxe size=1); CR-01 forward-fragility — see Human Verification |
+| COMMIT A `1b5327d` | COMMIT B `cc5783f` | `git merge-base --is-ancestor` | ✓ WIRED | TRUE — baseline predates alias (the existential SAFE-01 invariant); unchanged by 42-05 |
+| Full chain A→B→repoint `1a8c18b`→C `b6f3177`→D `2360c51` | HEAD | first-parent ancestry | ✓ WIRED | All 5 frozen commits ancestors of HEAD, original SHAs intact (not amended); 42-05 commits `411b84f`/`65c99e1` are NEW additive descendants of D |
+| `tests/runtime/runtime-distinctness.spec.ts` | ROADMAP Phase-42 SC #2 (RT-01) | automated vitest assertions on resolved package.json `.version` + `Object.keys` export presence/absence across both installs | ✓ WIRED | `v43 !== v42` + exact pins + Slider/BonePose 4.3-only asserted and passing — the contract is now regression-locked |
+| `ci.yml` D-09 + `safe01-freeze-guard.spec.ts` (CR-01-hardened) | SAFE-01 baseline-predates-alias ordering invariant | `git log --reverse -S 'spine-core-42' ... \| head -1`/`[0]` + literal-presence guard, then `git merge-base --is-ancestor` | ✓ WIRED | Forward-fragility CLOSED; behavior-equivalent today (resolved alias commit STILL `cc5783f`; `tail-1` == `--reverse\|head-1` == `cc5783f`; pickaxe set size = 1) |
+| `safe01-freeze-guard.spec.ts` baseline operand | `--diff-filter=A` manifest add | `.split('\n').filter(Boolean).pop()` (UNCHANGED — CR-01 scoped to the `-S` alias pickaxe only) | ⚠️ WIRED (advisory) | Functions correctly today; review WR-01/WR-02 flag the baseline-side `.pop()` as asymmetrically un-hardened + a now-stale comment at line 53. Advisory follow-up — does NOT break any SC (the SAFE-01 acceptance test is the A→B git-ancestry ordering, which hard-passes) |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data Variable | Source | Produces Real Data | Status |
 |----------|---------------|--------|--------------------|--------|
-| `safe01-baseline.spec.ts` | per-fixture canonical SamplerOutput | live `loadSkeleton`+`sampleSkeleton` (4.2.111 via spine-core-42) vs committed baseline JSON | ✓ Yes — 11 fixtures byte-equal against real committed goldens | ✓ FLOWING |
-| `d13-43-load-smoke.spec.ts` | parsed 4.3 skeletonData | real 4.3.0 `SkeletonJson` over `fixtures/SPINE_4_3_TEST/SPINE_4_3_TEST.json` | ✓ Yes — parses past v1.4 reject, consumes 4.3 constraints[] | ✓ FLOWING |
-| `handle-brand-negative.ts` | tsc diagnostics | real `tsc -p tsconfig.node.json` | ✓ Yes — 7 directives consumed by genuine TS2345 errors | ✓ FLOWING |
+| `runtime-distinctness.spec.ts` | `v43`/`v42`, `sc43Rec`/`sc42Rec` exports | live `createRequire` resolution of `@esotericsoftware/spine-core/package.json` (4.3.0) + `spine-core-42/package.json` (4.2.111) + real module namespaces | ✓ Yes — diagnostic log emits `{"v43":"4.3.0","v42":"4.2.111"}` + real `Object.keys` counts (159 / 117); not hardcoded, not empty | ✓ FLOWING |
+| `safe01-freeze-guard.spec.ts` | `aliasCommit`, `baselineCommit` | live `git log` child processes over real repo history + real `readFileSync(package.json)` | ✓ Yes — `aliasCommit` resolves to real `cc5783f`; A→B `merge-base` assertion executes (421ms, non-vacuous) | ✓ FLOWING |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| SAFE-01 byte-equal + freeze-guard | `npx vitest run tests/safe01 tests/arch.spec.ts` | 5 passed / 1 skipped, 38 tests, 0 failed; ancestry assertion hard-passing | ✓ PASS |
-| Phase-42 unified test gate (excl. Phase-47-owned renderer + scratch) | `CI=true npx vitest run --exclude '**/tests/renderer/**' --exclude '**/_trace_tmp/**'` | 75 files passed / 3 skipped; **954 passed / 0 failed** / 31 skipped | ✓ PASS |
-| typecheck:node fresh-clone-equivalent gate | `npm run typecheck:node` then strip gitignored scratch | 140 raw errors ALL in gitignored `scripts/probe-*`/`diagnose-*`/`_trace_tmp`; **0 git-tracked errors** → fresh-clone exit 0 | ✓ PASS |
-| Compile-negative wall is real | `tsc -p tsconfig.node.json \| grep handle-brand-negative` | 0 leaked errors → all 7 `@ts-expect-error` consumed | ✓ PASS |
-| D-13 4.3 load-smoke | `npx vitest run tests/runtime/d13-43-load-smoke.spec.ts` | 1 passed | ✓ PASS |
-| Phase-44 guard skip-with-reason | `npx vitest run tests/safe01/phase44-fixture-guard.spec.ts` | 1 skipped (CURRENT_PHASE=42<44) | ✓ PASS |
-| RT-01 functional distinctness (manual, no test) | `node -e "require('@esotericsoftware/spine-core'); require('spine-core-42')"` | canonical has Slider/BonePose; alias does not; both resolve | ✓ PASS (functionally) — but NOT regression-locked by a test |
+| RT-01 distinctness regression lock (the closed gap) | `CI=true npx vitest run tests/runtime/runtime-distinctness.spec.ts` | 4/4 passed; diagnostic confirms v43=4.3.0, v42=4.2.111, Slider/BonePose 4.3-only, Skeleton non-identical | ✓ PASS |
+| SAFE-01 freeze-guard A→B HARD-pass (non-vacuous) | `CI=true npx vitest run tests/safe01/safe01-freeze-guard.spec.ts --reporter=verbose` | 2/2 passed; A→B ancestry `it` ran at **421ms** (the `merge-base --is-ancestor` child-process path, NOT the ~0ms skip path) | ✓ PASS |
+| SAFE-01 suite + arch anchors (RT-03/RT-04) | `CI=true npx vitest run tests/safe01 tests/arch.spec.ts` | 38 passed / 0 failed / 21 skipped | ✓ PASS |
+| Landmine proof: new `tests/` co-import did NOT trip `src/**` RT-03 backstop | `CI=true npx vitest run tests/arch.spec.ts` | 15/15 passed | ✓ PASS |
+| Consolidated gap-closure + core regression | `CI=true npx vitest run runtime-distinctness + safe01 + arch.spec.ts + d13-43-load-smoke` | 43 passed / 0 failed / 1 skipped (Phase-44 guard skip-with-reason — by design) | ✓ PASS |
+| CR-01 behavior-equivalence (resolved alias commit unchanged) | `git log -S / --reverse -S 'spine-core-42' -- package.json` | both forms == `cc5783f`; pickaxe set size = 1 | ✓ PASS |
+| Pre-existing renderer state is Phase-47-owned (NOT a Phase-42 regression) | `CI=true npx vitest run tests/renderer` | 11 failed (MixBlend SyntaxError) — ROADMAP Phase 47 explicitly owns the MixBlend/MixDirection drop; deferred | ? DEFERRED (Phase 47) |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| SAFE-01 | 42-01, 42-02 | Byte-equal golden committed before the npm alias | ✓ SATISFIED | A→B ancestry machine-verified; 11 fixtures byte-equal; freeze-guard hard-passing |
-| RT-01 | 42-02 | 4.3.0 canonical + 4.2.111 exact-pinned alias; both resolve; distinctness test | ⚠️ PARTIAL | Dual-install + resolution VERIFIED; the ROADMAP-required distinctness *test* is MISSING (re-plan collateral removal) |
-| RT-03 | 42-03 | Cross-runtime mix is a compile-time error; no co-mingled imports | ✓ SATISFIED | unique-symbol brand wall proven real (0 leaked @ts-expect-error); RT-03 backstop green |
-| RT-04 | 42-03 | core/runtime/ Layer-3 pure, arch-enforced | ✓ SATISFIED | 0 forbidden imports; RT-04 arch anchor green |
-| CI-01 | 42-04 | CI fresh-clone dual-runtime gate + bundle-smoke + packaging | ✓ SATISFIED | ci.yml verified; release.yml untouched; D-13 smoke passes |
+| SAFE-01 | 42-01, 42-02, 42-05 | Byte-equal golden committed before the npm alias (order is load-bearing) | ✓ SATISFIED | A→B ancestry machine-verified; freeze-guard hard-passes; CR-01 hardening makes the gate strictly stronger (forward-fragility closed) |
+| RT-01 | 42-02, 42-05 | 4.3.0 canonical + 4.2.111 exact-pinned alias; both resolve; **distinctness test** | ✓ SATISFIED (was PARTIAL) | Dual-install + resolution VERIFIED; the ROADMAP-required distinctness *test* now EXISTS and passes 4/4 (`runtime-distinctness.spec.ts`, commit `411b84f`) — the SC#2 regression lock is restored |
+| RT-03 | 42-03 | Cross-runtime mix is a compile-time error; no co-mingled imports | ✓ SATISFIED | unique-symbol brand wall + RT-03 backstop arch anchor green; unchanged by 42-05 (regression-checked) |
+| RT-04 | 42-03 | core/runtime/ Layer-3 pure, arch-enforced | ✓ SATISFIED | RT-04 arch anchor green; unchanged by 42-05 (regression-checked) |
+| CI-01 | 42-04 | CI fresh-clone dual-runtime gate + bundle-smoke + packaging | ✓ SATISFIED | ci.yml verified (229 lines, 3-OS, bundle-smoke, fetch-depth:0); CR-01-hardened D-09 step; release.yml byte-untouched |
 
-No orphaned requirements — REQUIREMENTS.md maps exactly {SAFE-01, RT-01, RT-03, RT-04, CI-01} to Phase 42 (5 expected), all declared across the 4 plans and accounted for.
+No orphaned requirements — REQUIREMENTS.md maps exactly {SAFE-01, RT-01, RT-03, RT-04, CI-01} to Phase 42 (5 expected); all declared across plans 42-01..42-05 and accounted for. RT-01 + SAFE-01 additionally declared in the 42-05 gap-closure plan frontmatter.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| (none) | — | No TODO/FIXME/PLACEHOLDER/stub in any new Phase-42 source/test file | ℹ️ Info | `runtime.ts` is signatures-only by design (correct Phase-42 scaffold, NOT a stub — Phase 43 implements bodies) |
-| `.planning/STATE.md` | 22-27 | Stale "Phase 42: 1/4 plans complete / execution started" | ℹ️ Info | Known SDK miscount (MEMORY.md `project_gsd_phase_complete_state_miscount`); git history + all 4 SUMMARYs confirm all 4 plans executed/committed. Not a Phase-42 deliverable. |
+| `tests/safe01/safe01-freeze-guard.spec.ts` | 53 | Stale comment "OLDEST add (tail/.pop()) ... robust against a later delete+re-add" contradicts the now-hardened alias block (review WR-02/IN-03) | ⚠️ Warning (advisory) | The baseline operand still uses `.pop()` (CR-01 was scoped to the `-S` alias pickaxe ONLY — correct per plan). Functions correctly today (`git log` default newest-first → `.pop()` is oldest). NOT an SC failure: the SAFE-01 acceptance test is the A→B git-ancestry ordering, which hard-passes. Advisory follow-up only. |
+| `.github/workflows/ci.yml` | ~118 | Baseline `BASE_COMMIT` uses `--diff-filter=A \| tail -1` while alias side was hardened (review WR-01) | ⚠️ Warning (advisory) | Asymmetric robustness — same advisory class as WR-02. Plan explicitly scoped CR-01 to the alias `-S` pickaxe; the `--diff-filter=A` baseline is chronologically meaningful today. Advisory follow-up; does not break SAFE-01. |
+| `tests/runtime/runtime-distinctness.spec.ts` | 81-101 | Top-level `console.log` runs on every suite run (review IN-02) | ℹ️ Info | Deliberate, eslint-suppressed forward-fragility aid (surfaces a future upstream export rename as a visible diff). Defensible as-is; optional reporter-hygiene relocation. No correctness impact. |
+
+The two Warnings are the 42-REVIEW.md advisory findings (0 blockers / 2 warnings / 3 info). They are forward-robustness/consistency follow-ups on the SAFE-01 ordering gate's *baseline* operand — they do NOT break any ROADMAP Success Criterion (the SC#1 acceptance test is the A→B ordering, machine-verified and hard-passing; CR-01's user-decided scope was the alias pickaxe, which is correctly hardened). Recommended as a low-priority follow-up (logical home: the Phase 44/45 entry-gate, where package.json churn makes the baseline-side fragility load-bearing — same rationale as the original CR-01 deferral option).
 
 ### Human Verification Required
 
-#### 1. CR-01 — D-09 introducing-commit resolution forward-fragility (orchestrator-surfaced)
-
-**Test:** Decide the disposition of code-review BLOCKER CR-01 (`ci.yml:117` + `safe01-freeze-guard.spec.ts:63` use `git log -S 'spine-core-42' ... | tail -1`/`.pop()` to resolve the alias-introducing commit; lacks an explicit `--reverse | head -1` + a `grep -q spine-core-42 package.json` presence guard).
-
-**Expected:** Either (a) apply `/gsd-code-review-fix` now to harden both call sites to the robust form, OR (b) accept it for Phase 42 as-shipped and carry CR-01 as an explicit Phase-44/45 entry-gate pre-req (those phases churn package.json, where the fragility becomes load-bearing).
-
-**Why human:** The Phase-42 SAFE-01 goal is achieved AS DELIVERED TODAY — independently re-confirmed: the `spine-core-42` pickaxe set on package.json has exactly 1 entry, so `tail -1` returns the correct introducing commit `cc5783f`; baseline `1b5327d` is a machine-verified ancestor; the SAFE-01 ordering invariant is genuinely enforced. CR-01 is a forward-fragility advisory (it only misbehaves once a future phase removes-then-re-adds the literal), surfaced by the orchestrator for a developer scheduling/risk decision — not a falsifiable Phase-42 goal failure.
+None. The sole prior human-decision item (CR-01) was resolved with the user on 2026-05-16 (decision: HARDEN NOW) and is now machine-verified closed in both `ci.yml` and `safe01-freeze-guard.spec.ts`. All five ROADMAP success criteria are programmatically verifiable (git ancestry, automated test pass/fail, ci.yml structure) and verified green. No visual/real-time/external-service surface in this phase.
 
 ### Gaps Summary
 
-**One partial gap against a ROADMAP success criterion (RT-01 SC #2):** the dual-install is correct and the distinctness is *functionally* true (verified: canonical 4.3.0 exports `Slider`/`BonePose`; `spine-core-42`=4.2.111 does not; both resolve), but the **ROADMAP-contracted automated runtime-distinctness test does not exist**. Git history shows the pre-replan `42-02-PLAN` explicitly scoped `tests/runtime/runtime-distinctness.spec.ts` with the exact must_have matching ROADMAP SC #2; the Option-1 re-plan (`c87a95f`) removed it as collateral scope reduction while `42-REPLAN-NOTE.md` only documents the (orthogonal) typecheck-scope narrowing. The ROADMAP plan-list line for 42-02 still reads "+ resolution/distinctness tests" and SC #2 still requires the assertion. This is a `partial`: the dual-runtime de-risking machinery is genuinely in place, but the regression lock that ROADMAP makes a non-negotiable acceptance criterion is absent. Closing it is a small, behavior-neutral, ancestry-irrelevant follow-up test (importing both specifiers, asserting `.version` difference + `Slider`/`BonePose` 4.3-only) that does not perturb any frozen commit.
+**No gaps.** The single prior PARTIAL (RT-01 / ROADMAP-SC-#2 runtime-distinctness automated regression test, collaterally descoped by the Option-1 re-plan) is CLOSED: `tests/runtime/runtime-distinctness.spec.ts` (commit `411b84f`, 153 lines) now exists and passes 4/4, asserting the verbatim ROADMAP `adapter42.version !== adapter43.version` contract (`4.3.0` ≠ `4.2.111`, read from non-forgeable resolved package.json), `Slider`/`BonePose` exported from 4.3 and absent from `spine-core-42`, plus a dual-universe `Skeleton`-non-identity smoke. The prior human-decision item (CR-01 forward-fragility, user-decided HARDEN NOW) is CLOSED: both `.github/workflows/ci.yml` and `tests/safe01/safe01-freeze-guard.spec.ts` now resolve the alias-introducing commit via explicit-oldest `--reverse|head-1`/`[0]` + a literal-presence guard; behavior-equivalent today (resolved alias commit STILL `cc5783f`; pickaxe set size = 1) — a strict strengthening of the SAFE-01 data-integrity gate, not a behavior change.
 
-**Everything else is genuinely verified.** The existential SAFE-01 ordering invariant (the milestone's load-bearing de-risking root) is machine-enforced and hard-passing; the 4-commit ordering A→B→repoint→C→D is intact and all ancestors of HEAD; the repoint is provably specifier-only with SAFE-01 byte-equality re-verified; the opaque-handle compile wall is proven real (not aspirational); `typecheck:node` is genuinely exit 0 on a fresh-clone-equivalent tree; the unified test gate (excluding the explicitly Phase-47-owned `tests/renderer/**`) is 954 passed / 0 failed; CI-01's ci.yml + D-13 smoke + Phase-44 guard + owner spec are all substantive and correct; `release.yml` is byte-untouched; the `typecheck:web` / `AnimationPlayerModal.tsx` 22-error leak is confirmed to trace *only* to spine-player's own bare `Player.d.ts` hoist and is correctly out of Phase-42 scope per the user-locked Option 1 (NOT flagged as a Phase-42 miss).
+**No regression.** The four previously-VERIFIED criteria (SAFE-01 ordering, RT-03 brand wall, RT-04 purity, CI-01 ci.yml) pass a quick regression re-check; the frozen A→B→repoint→C→D chain is intact at original SHAs (not amended/rebased); both 42-05 commits are new additive descendants of D `2360c51` touching ONLY their target files (`411b84f`: the new spec only; `65c99e1`: ci.yml + freeze-guard only); `package.json`/`package-lock.json`/`src/renderer/**`/`tsconfig.web.json`/`vitest.config.ts` byte-untouched; `release.yml` byte-untouched across all of Phase 42; the freeze-guard A→B ancestry assertion hard-passes the non-vacuous path (421ms).
+
+**Deferred (not a gap):** 11 `tests/renderer/*.spec.tsx` suites fail with the `MixBlend` SyntaxError — pre-existing, byte-identical at the pre-42-05 base, caused by the FROZEN 42-02 4.3 repoint, and EXPLICITLY ROADMAP-tracked as Phase-47-owned (`drop removed MixBlend/MixDirection`). Phase 42 is boundary-scaffolding and deliberately does not port the renderer (arch anchors gate `src/**` only). This is an intended, planned, Phase-47-owned milestone state — correctly filtered to `deferred`, does NOT affect Phase-42 goal achievement.
+
+**Two advisory Warnings** (from 42-REVIEW.md, 0 blockers): the SAFE-01 freeze-guard/ci.yml *baseline* operand retains `.pop()`/`tail -1` (asymmetric to the now-hardened alias side) plus a stale contradictory comment at `safe01-freeze-guard.spec.ts:53`. These are forward-robustness follow-ups on an operand that functions correctly today; CR-01's user-decided scope was the alias pickaxe (correctly hardened). They do NOT break any ROADMAP Success Criterion. Recommended as a low-priority Phase-44/45 entry-gate follow-up (where package.json churn makes the baseline-side fragility load-bearing).
+
+**Phase 42 goal is achieved.** The v1.6 milestone is de-risked: the byte-equal 4.2 baseline is committed and machine-proven to predate the npm-alias commit; the lockfile-pinned dual-install is real and now regression-locked by an automated distinctness test; the opaque-handle boundary scaffolding (RT-03 brand wall + RT-04 purity) is arch-enforced and green; the CI dual-runtime gate is in place with the SAFE-01 ordering invariant hardened against forward-fragility. Ready to proceed to Phase 43.
 
 ---
 
-_Verified: 2026-05-16T21:20:00Z_
+_Verified: 2026-05-16T23:00:00Z_
 _Verifier: Claude (gsd-verifier)_
+_Re-verification after gap closure (plan 42-05) — previous: gaps_found 4/5 → now: passed 5/5_
