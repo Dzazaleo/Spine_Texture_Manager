@@ -113,8 +113,12 @@ jobs:
       - name: Assert SAFE-01 baseline predates the npm-alias commit (D-09)
         shell: bash
         run: |
+          grep -q "spine-core-42" package.json \
+            || { echo "::error::D-09: spine-core-42 alias no longer present in package.json — gate cannot be evaluated"; exit 1; }
           BASE_COMMIT="$(git log --diff-filter=A --format=%H -- tests/safe01/baselines/_manifest.json | tail -1)"
-          ALIAS_COMMIT="$(git log -S 'spine-core-42' --format=%H -- package.json | tail -1)"
+          # --reverse | head -1 = the OLDEST pickaxe hit = the introducing commit,
+          # explicit (do NOT rely on `tail -1` of an unordered-intent set — CR-01).
+          ALIAS_COMMIT="$(git log --reverse -S 'spine-core-42' --format=%H -- package.json | head -1)"
           echo "SAFE-01 baseline (_manifest.json added) : $BASE_COMMIT"
           echo "npm-alias commit (spine-core-42 in pkg) : $ALIAS_COMMIT"
           if [ -z "$BASE_COMMIT" ] || [ -z "$ALIAS_COMMIT" ]; then

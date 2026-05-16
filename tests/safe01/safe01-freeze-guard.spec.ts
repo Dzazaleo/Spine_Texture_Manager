@@ -35,6 +35,21 @@ const sh = (args: string[]) =>
 
 describe('SAFE-01 freeze guard (D-09 — "order is the acceptance test")', () => {
   it('the baseline commit is a git ancestor of the npm-alias commit', () => {
+    // CR-01 presence guard: if the alias literal is gone, the gate cannot be
+    // evaluated — fail LOUDLY (mirrors the ci.yml D-09 grep-presence guard)
+    // rather than vacuously pass against a removed dependency.
+    const pkgJsonText = readFileSync(
+      path.resolve(REPO_ROOT, 'package.json'),
+      'utf8',
+    );
+    if (!pkgJsonText.includes('spine-core-42')) {
+      throw new Error(
+        'D-09: spine-core-42 alias no longer present in package.json — the SAFE-01 ' +
+          'ordering gate cannot be evaluated (a removed alias must fail loudly, not ' +
+          'vacuously pass).',
+      );
+    }
+
     // OLDEST add (tail/.pop()) of the manifest — the original introduction,
     // robust against a later delete+re-add.
     const baselineCommit = sh([
@@ -52,15 +67,22 @@ describe('SAFE-01 freeze guard (D-09 — "order is the acceptance test")', () =>
     // `spine-core-42` alias key to package.json. Pickaxe (-S) on the chosen
     // unique literal — robust to later edits; do NOT match package-lock.json
     // (lockfile churn is noisier).
+    //
+    // CR-01: the OLDEST pickaxe hit = the introducing commit, taken EXPLICITLY
+    // via `--reverse` + first element ([0]) — NOT `.pop()` of an
+    // unordered-intent `-S` set (`-S` lists every add/remove/re-add; `.pop()`
+    // is the oldest only while the literal is added exactly once and never
+    // churned — CR-01 forward-fragility).
     const aliasLog = sh([
       'log',
+      '--reverse',
       '-S',
       'spine-core-42',
       '--format=%H',
       '--',
       'package.json',
     ]);
-    const aliasCommit = aliasLog.split('\n').filter(Boolean).pop();
+    const aliasCommit = aliasLog.split('\n').filter(Boolean)[0];
 
     if (!aliasCommit) {
       // The alias is introduced in Plan 02 / COMMIT B, AFTER this baseline
