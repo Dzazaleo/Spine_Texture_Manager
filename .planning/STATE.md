@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-16T19:30:00.000Z"
-last_activity: 2026-05-16 -- Phase 42 HALTED at Wave 2 (2nd cross-plan defect — spine-player .d.ts 4.3-leak); re-plan required
+last_updated: "2026-05-16T19:02:44.228Z"
+last_activity: 2026-05-16 -- Phase 42 planning complete
 progress:
   total_phases: 6
   completed_phases: 0
@@ -17,14 +17,14 @@ progress:
 
 ## Current Position
 
-Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — HALTED at Wave 2 (2nd cross-plan defect); RE-PLAN REQUIRED
-Plan: 42-01 done+frozen (COMMIT A `1b5327d`); 42-02 Task 1 done+frozen (COMMIT B `cc5783f`, pure, A→B ancestry verified); 42-02 Task 2+ / 42-03 / 42-04 NOT done
-Status: Halted — `npm run typecheck:web` red via spine-player@4.2.111 `Player.d.ts` BARE `@esotericsoftware/spine-core` import resolving to 4.3.0 after COMMIT B → 22 errors in tracked `AnimationPlayerModal.tsx`. `typecheck:node` (CI gate scope) clean on fresh clone. User-selected resolution = Option 1 (narrow gate to typecheck:node; typecheck:web spine-player leak handed to Phase 47). Authoritative hand-off: `42-REPLAN-NOTE.md` v2.
-Last activity: 2026-05-16 -- Phase 42 HALTED at Wave 2 (2nd defect); re-plan required
+Phase: 42 (pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding) — RE-PLANNED + plan-checker PASSED (Option 1, per `42-REPLAN-NOTE.md` v2); ready to RESUME Wave 2
+Plan: 42-01 done+frozen (COMMIT A `1b5327d`); 42-02 Task 1 done+frozen (COMMIT B `cc5783f`, pure, A→B ancestry verified); 42-02 (Task 2+) / 42-03 / 42-04 re-planned + verified (`c87a95f`), NOT yet executed
+Status: Ready to execute
+Last activity: 2026-05-16 -- Phase 42 re-plan complete (42-02/03/04 amended; plan-checker PASSED 0 blockers/0 warnings on first re-pass)
 
-Next: `/gsd-plan-phase 42` — re-plan 42-02 (Task 2+) / 42-03 / 42-04 per `42-REPLAN-NOTE.md` v2; plan-checker re-pass on 02 + 04. COMMIT A + COMMIT B are FROZEN ancestry anchors — do NOT regenerate/reorder/amend.
+Next: `/gsd-execute-phase 42` — resume Wave 2 on top of the frozen COMMIT B `cc5783f`. The amended plans narrow the gate to `typecheck:node` (fresh-clone); `typecheck:web` spine-player `.d.ts` 4.3-leak is a KNOWN Phase-47-owned item. COMMIT A `1b5327d` + COMMIT B `cc5783f` are FROZEN ancestry anchors — execute-phase must detect-and-skip COMMIT B; do NOT regenerate/reorder/amend.
 
-Progress: [██░░░░░░░░] Phase 42: 1/4 plans complete + COMMIT B landed (42-01 frozen; 42-02 Task1/COMMIT B frozen; 02 Task2+/03/04 await re-plan)
+Progress: [██░░░░░░░░] Phase 42: 1/4 plans complete + COMMIT B landed (42-01 frozen; 42-02 Task1/COMMIT B frozen; 02 Task2+/03/04 re-planned + plan-checker-verified, await execution)
 
 ## Project Reference
 
