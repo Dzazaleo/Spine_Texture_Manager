@@ -60,7 +60,7 @@ import {
   type MeshAttachment,
   type RegionAttachment,
   type Skin,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import { readPngDims } from './png-header.js';
 import { MissingImagesDirError } from './errors.js';
 

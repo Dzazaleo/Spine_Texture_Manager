@@ -37,7 +37,7 @@ import {
   Texture,
   TextureFilter,
   TextureWrap,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import type { LoadResult, LoaderOptions, SourceDims } from './types.js';
 import {
   AtlasNotFoundError,

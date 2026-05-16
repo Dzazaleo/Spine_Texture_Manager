@@ -28,7 +28,7 @@ import {
   BoneData,
   Skin,
   Slot,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import { attachmentWorldAABB } from '../../src/core/bounds.js';
 
 // Helper: build a TextureRegion-shaped object with packed/canonical dims.

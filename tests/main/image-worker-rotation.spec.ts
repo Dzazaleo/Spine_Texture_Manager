@@ -187,7 +187,8 @@ describe('runExport — rotated atlas region extract (Phase 33 D-03)', () => {
 
     await runExport(plan, tmpDir, () => {}, () => false);
     const outPath = path.join(tmpDir, 'images', `${FIXTURE_REGION_NAME}.png`);
-    const { data, info } = await sharp(outPath).raw().toBuffer({ resolveWithObject: true });
+    // repoint deviation: pre-existing TS6133, see 42 deferred-items.md §3
+    const { data: _data, info } = await sharp(outPath).raw().toBuffer({ resolveWithObject: true });
     expect(info.width).toBe(CANONICAL_W);
     expect(info.height).toBe(CANONICAL_H);
 

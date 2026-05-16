@@ -15,7 +15,7 @@
 import type {
   SkeletonData,
   TextureAtlas,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 
 export interface LoaderOptions {
   /** Override the atlas path. Defaults to sibling `.atlas` next to the JSON. */

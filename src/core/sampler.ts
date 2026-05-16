@@ -50,7 +50,7 @@ import {
   AnimationStateData,
   Physics,
   AttachmentTimeline,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import type { LoadResult, SampleRecord, SourceDims } from './types.js';
 import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
 

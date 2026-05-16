@@ -30,7 +30,7 @@
 import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { RGBA2Timeline } from '@esotericsoftware/spine-core';
+import { RGBA2Timeline } from 'spine-core-42';
 import { loadSkeleton } from '../../src/core/loader.js';
 import {
   sampleSkeleton,

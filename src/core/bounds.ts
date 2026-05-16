@@ -38,7 +38,7 @@ import {
   ClippingAttachment,
   type Slot,
   type Attachment,
-} from '@esotericsoftware/spine-core';
+} from 'spine-core-42';
 import type { AABB } from './types.js';
 
 /**

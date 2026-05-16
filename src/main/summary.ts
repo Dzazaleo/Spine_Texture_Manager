@@ -16,7 +16,7 @@
  * Consumed by `src/main/ipc.ts`. Not imported by the renderer — the renderer
  * sees only the `SkeletonSummary` object on the far side of IPC.
  */
-import { Skeleton } from '@esotericsoftware/spine-core';
+import { Skeleton } from 'spine-core-42';
 import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
 import type {
