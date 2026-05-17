@@ -181,5 +181,114 @@ None - no external service configuration required.
 - HEAD on `worktree-agent-a2115f23dbb9b43c1` (per-agent branch — assertion OK)
 
 ---
+
+## Addendum (2026-05-17) — Issues Encountered: vi.resetModules() resolver-robustness fix
+
+### The gap (a real regression, NOT pre-existing, NOT out of scope)
+
+Option A as originally landed stored the test-only ESM resolver at **module
+scope** in `src/core/runtime/runtime.ts` (`let __esmAdapterResolver`). The
+vitest setupFile (`tests/setup/esm-adapter-resolver.ts`, `setupFiles`) binds it
+**exactly once per file, before any test**, on the *original* `runtime.ts`
+instance.
+
+`tests/main/repack-worker.spec.ts` calls `vi.resetModules()` (≈ lines 376, 452).
+`vi.resetModules()` clears vitest's module registry but the setupFile does NOT
+re-run. The next `loadSkeleton` → `import('runtime.ts')` therefore yielded a
+**fresh** `runtime.ts` instance whose module-scoped `__esmAdapterResolver` was
+`null`. `pickRuntime` fell to branch (2) — the vitest-unresolvable
+`require('./runtime-42.js')` — and threw `Error: Cannot find module
+'./runtime-42.js'`. The failure surfaces only when the gitignored SKINS fixture
+is present (so `describeIfSkins` = `describe`, the suite RUNS):
+`tests/main/repack-worker.spec.ts > runRepack — UAT round 2: SKINS fixture
+sanity (gitignored) > atlas region count ≈ unique-paths in JSON`.
+SAFE-02 stayed green because its specs do not call `vi.resetModules()`, so the
+original-instance binding survived there.
+
+### The fix
+
+Moved the resolver slot from **module scope** to **`globalThis`** (unique typed
+key `__GSD_ESM_ADAPTER_RESOLVER__`, typed getter + idempotent setter).
+`vi.resetModules()` never clears `globalThis`, so the setupFile's one-time
+binding stays reachable by every post-reset fresh `runtime.ts` instance. This is
+the **same Option A mechanism** — test-infra-ONLY, REAL adapters,
+resolution-only (NOT a mock), synchronous loader — just hardened.
+
+- `__setEsmAdapterResolver(fn)` public API **byte-stable** (signature
+  unchanged; now writes to `globalThis`; idempotent — `delete`s slot on `null`).
+- `pickRuntime` precedence **unchanged**: (1) globalThis resolver → (2) ambient
+  `require('./runtime-4x.js')` — **byte-identical to Plan 02** → (3) loud throw.
+- No static adapter import added; `pickRuntime` stays sync; `loadSkeleton`
+  untouched.
+- Two files only: `src/core/runtime/runtime.ts` + `tests/setup/esm-adapter-resolver.ts`
+  (comment-only on the setupFile — its `__setEsmAdapterResolver(...)` call is
+  unchanged). No consumer/test-logic edits.
+
+### Before / after of the repack-worker SKINS test (A/B, full spec file)
+
+| Code state | `tests/main/repack-worker.spec.ts` (full file) |
+|---|---|
+| Pristine pre-fix base `93b4fe3` | **1 failed | 20 passed** — SKINS-sanity test `Error: Cannot find module './runtime-42.js'` |
+| With fix | **21 passed (21)** — SKINS-sanity test RUNS (✓ ≈4.3s) and PASSES |
+
+(Verified by stashing the fix and re-running the full spec file — the regression
+reproduces deterministically pre-fix and is gone post-fix.)
+
+### Full-suite counts (A/B on identical worktree, SKINS fixture symlinked in for verification only — never staged)
+
+| Code state | Tests | Test Files |
+|---|---|---|
+| Pristine pre-fix `93b4fe3` | **2 failed | 1201 passed** | 12 failed | 108 passed |
+| With fix | **1 failed | 1202 passed** | 11 failed | 109 passed |
+
+Net delta of the fix: **−1 failure** (the regression), **+1 pass**, **zero new
+failures**.
+
+Enumeration of the 11 remaining failed files WITH the fix (each proven
+NOT-our-regression by failing identically on the pristine pre-fix base):
+
+- **9 known pre-existing renderer files** (ESM `MixBlend` named-export mismatch
+  in `AnimationPlayerModal.tsx`, predates Phase 43, out of scope):
+  `app-elevation`, `app-quit-subscription`, `app-update-subscriptions`,
+  `appshell-mode-switch-divergence`, `atlas-less-fallback-save-roundtrip`,
+  `loader-mode-toggle-disabled`, `override-migration-banner`,
+  `rig-info-tooltip`, `save-load` (`tests/renderer/*.spec.tsx`).
+- **2 worktree-environment artifacts** (missing **gitignored** licensed
+  fixtures absent from a fresh worktree; `SkeletonJsonNotFoundError`, NOT the
+  resolver error; fail identically on the pristine base → pre-existing, out of
+  scope per the scope boundary):
+  `tests/core/sampler-skin-defined-unbound-attachment.spec.ts`
+  (`fixtures/SAMPLER_ALPHA_ZERO/`) and
+  `tests/main/sampler-worker-girl.spec.ts` (`fixtures/Girl/`).
+
+(The verification spec's "9 renderer-only" expectation assumed those two
+gitignored fixtures present, as in the main checkout; in a fresh worktree they
+are absent — an environmental difference, fully accounted for by the A/B diff
+showing zero delta on those two files.)
+
+### Hard gates re-confirmed AFTER the fix
+
+- **SAFE-02 stayed 12/12 byte-equal** vs the committed canonical baselines
+  (Chicken-Min, EXPORT_PROJECT, INHERIT_TIMELINE, SIMPLE_PROJECT_NO_ATLAS_MESH,
+  SIMPLE_PROJECT_NO_ATLAS, SIMPLE_TEST_GHOST, SIMPLE_TEST, skeleton, skeleton2,
+  spine_rotated, spine_stripWS + discovery). No tolerance relaxed.
+- **D-09**: `git status --porcelain tests/safe01/baselines/` EMPTY — **zero
+  baseline regeneration**. `tests/safe01/baselines/` untouched.
+- **RT-02 GREEN** (runtime43-baseline, runtime43-d03); **SAFE-03 runs+passes**
+  (real `pickRuntime('4.3')`); **freeze-guard GREEN**;
+  `tsc --noEmit -p tsconfig.node.json` — 0 errors.
+- **Production worker path unchanged**: the worker never imports the setupFile,
+  so the `globalThis` slot is `undefined` in production → branch (2) lazy
+  single-copy `require` runs byte-identically to Plan 02 (ARCHITECTURE §4
+  preserved). Not async; no static adapter import.
+
+### Self-Check (addendum): PASSED
+
+- `src/core/runtime/runtime.ts` (globalThis-scoped resolver) — FOUND
+- `tests/setup/esm-adapter-resolver.ts` (globalThis-aware comment) — FOUND
+- Fix commit `e43f206` — FOUND in git history
+- HEAD on `worktree-agent-ad30e3233c1dc0871` (per-agent branch — assertion OK)
+
+---
 *Phase: 43-runtime-adapter-facade-verified-4-3-api-mapping*
-*Completed: 2026-05-17*
+*Completed: 2026-05-17 (addendum: vi.resetModules resolver-robustness fix, 2026-05-17)*
