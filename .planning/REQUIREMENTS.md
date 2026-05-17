@@ -33,7 +33,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 - [x] **SAFE-01**: A byte-equal golden snapshot of `globalPeaks` / `SamplerOutput` for every in-repo 4.2 fixture is captured and committed **before** the npm alias is added (order is load-bearing — behavior cannot be baselined after it changes).
 - [x] **SAFE-02**: Every in-repo 4.2 fixture sampled through the new adapter produces output byte-identical to the pre-v1.6 baseline (strict equality, not epsilon — the 4.2 runtime is unchanged, so any drift is a plumbing bug).
-- [ ] **SAFE-03**: A regression test proves the cross-runtime `instanceof` invariant — each loaded skeleton's attachments resolve `instanceof` (Region / Vertex / Mesh) against the same runtime instance that loaded it.
+- [x] **SAFE-03**: A regression test proves the cross-runtime `instanceof` invariant — each loaded skeleton's attachments resolve `instanceof` (Region / Vertex / Mesh) against the same runtime instance that loaded it.
 
 ### Spine 4.3 API Port (PORT — corrected; supersedes SEED-006 beta inventory)
 
@@ -127,7 +127,7 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | RT-04 | Phase 42 | Complete |
 | SAFE-01 | Phase 42 | Complete |
 | SAFE-02 | Phase 43 | Complete |
-| SAFE-03 | Phase 43 | Pending |
+| SAFE-03 | Phase 43 | Complete |
 | PORT-01 | Phase 43 | Complete |
 | PORT-02 | Phase 43 | Complete |
 | PORT-03 | Phase 43 | Complete |

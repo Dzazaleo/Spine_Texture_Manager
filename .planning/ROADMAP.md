@@ -91,7 +91,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 **Milestone Goal:** Load and correctly sample both Spine 4.2 and Spine 4.3 skeleton JSON, routed by detected version, with 4.2 behavior byte-frozen and 4.3 correctness independently oracle-proven.
 
 - [x] **Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding** - Capture the byte-equal 4.2 golden BEFORE the alias lands; install 4.3.0 canonical / 4.2.111 aliased; stand up the opaque-handle boundary + CI dual-matrix reproducibility (completed 2026-05-16)
-- [ ] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure)
+- [x] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure) (completed 2026-05-17)
 - [ ] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4
 - [ ] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases
 - [ ] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract
@@ -190,7 +190,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
-| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Plans complete — awaiting phase re-verification | 2026-05-17 |
+| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
