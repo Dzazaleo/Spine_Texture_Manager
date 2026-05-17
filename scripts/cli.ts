@@ -21,6 +21,13 @@
  *   2 — bad argv (missing path, unknown flag, invalid --hz value)
  *   3 — SpineLoaderError subclass (missing JSON, missing atlas, atlas parse error)
  */
+// MUST be first: side-effect import that binds the SpineRuntime adapter
+// resolver for the CLI/Node (tsx ESM) runtime BEFORE any loadSkeleton →
+// pickRuntime call. Without it pickRuntime hits its loud-throw arm under
+// `npm run cli` (GAP-43-CLI-SEAM, 43-07). See the module header for why this
+// preserves the LOCKED Option-A constraints (it is a scripts/ entrypoint
+// bootstrap, never bundled into the production worker).
+import './register-esm-adapter-resolver.js';
 import { loadSkeleton } from '../src/core/loader.js';
 import {
   sampleSkeleton,
