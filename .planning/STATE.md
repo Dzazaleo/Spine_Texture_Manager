@@ -4,13 +4,13 @@ milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
 last_updated: "2026-05-17T19:10:00.000Z"
-last_activity: "2026-05-17 -- Phase 43 all 5 plans executed; D-04 gate SATISFIED; regression gate found 1 blocking gap (GAP-43-PROD-SEAM) — gaps_found, NOT complete"
+last_activity: "2026-05-17 -- Gap-closure plan 43-06 created + plan-checker VERIFICATION PASSED (closes GAP-43-PROD-SEAM); ready to execute"
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 10
+  total_plans: 11
   completed_plans: 10
-  percent: 95
+  percent: 91
 ---
 
 # State
@@ -18,11 +18,11 @@ progress:
 ## Current Position
 
 Phase: 43 (runtime-adapter-facade-verified-4-3-api-mapping) — GAPS_FOUND (NOT complete)
-Plan: 5 of 5 executed (all SUMMARYs present)
-Status: Phase 43 executed; D-04 hard close gate SATISFIED; 1 BLOCKING regression gap open → gap-closure cycle
-Last activity: 2026-05-17 -- regression gate found GAP-43-PROD-SEAM; recorded gaps_found
+Plan: 5 of 5 executed + 1 gap-closure plan PLANNED (43-06, Wave 4, not yet executed)
+Status: Phase 43 executed; D-04 hard close gate SATISFIED; gap-closure plan 43-06 created + plan-checker VERIFICATION PASSED → ready to execute
+Last activity: 2026-05-17 -- 43-06-PLAN.md created (commit `0d1d52d`) + plan-checker PASSED (2 non-blocking WARNINGs)
 
-Next: `/gsd-plan-phase 43 --gaps` — close GAP-43-PROD-SEAM (see `43-VERIFICATION.md` § Gaps). **Phase 43 is NOT complete.** All 5 plans executed + committed (43-01..43-05; 43-05 commits `bd3f4d0`/`d849726`/`f895300`/`ceb5714`). D-04 hard close gate SATISFIED: 32/32 SAFE-02 byte-equal (12 redistributable + 20 heavy/proprietary incl. Girl/SKINS/CHJ/3Queens/Jokerman) vs an INDEPENDENT frozen `c5ef358` reference captured in an isolated detached worktree (anti-tautology; heavy baselines now present locally in `tests/safe01/baselines/`, gitignored). A1 was FALSIFIED → Approach B applied to `runtime-43.applyRotatedRegionFix` + re-validated within 1e-4 (+2 [Rule 1] runtime-43 fixes: sequenceRegions `<=1`, D-03 dev-assertion). **BLOCKING GAP-43-PROD-SEAM:** 43-03's Option A ESM seam prod ambient `require('./runtime-42.js')` is NOT emitted/resolved by electron-vite → built `out/main/sampler-worker.cjs` errors `Cannot find module './runtime-42.js'` on every sample (Assumptions Log A2 falsified by the real build; touches LOCKED `project_phase43_pickruntime_esm_split` — gap plan must revisit deliberately). Pre-existing & correctly Phase-47-owned (NOT this gap): the 11 `tests/renderer/*` MixBlend failures + the `npm run build` spine-player MixBlend abort. Branch is now `milestone/v1.6-spine-4.3-dual-runtime` (was detached HEAD at session start; fast-forwarded — all Phase 42/43 work preserved on the branch). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact.
+Next: `/gsd-execute-phase 43` — execute gap-closure plan 43-06 (Wave 4; `autonomous: false` — Task 3 is a blocking checkpoint:human-verify). Closes GAP-43-PROD-SEAM via the ARCHITECTURE §4/§7 build-order item: add `runtime-42`/`runtime-43` as electron-vite `rollupOptions.input` entries (emit `out/main/runtime-4x.cjs`, spine-core externalized = lazy single-copy preserved) + correct the `pickRuntime` prod require literal `./runtime-42.js` → `../runtime-4x.cjs` + a build-required spawn-smoke falsifier (RED-before/GREEN-after, hard-fail-not-skip). LOCKED Option-A constraints (a) lazy single-copy / (b) globalThis env-split / (c) sync loader / (d) loud-throw all byte-preserved. **Phase 43 is NOT complete.** All 5 plans executed + committed (43-01..43-05; 43-05 commits `bd3f4d0`/`d849726`/`f895300`/`ceb5714`). D-04 hard close gate SATISFIED: 32/32 SAFE-02 byte-equal (12 redistributable + 20 heavy/proprietary incl. Girl/SKINS/CHJ/3Queens/Jokerman) vs an INDEPENDENT frozen `c5ef358` reference captured in an isolated detached worktree (anti-tautology; heavy baselines now present locally in `tests/safe01/baselines/`, gitignored). A1 was FALSIFIED → Approach B applied to `runtime-43.applyRotatedRegionFix` + re-validated within 1e-4 (+2 [Rule 1] runtime-43 fixes: sequenceRegions `<=1`, D-03 dev-assertion). **BLOCKING GAP-43-PROD-SEAM:** 43-03's Option A ESM seam prod ambient `require('./runtime-42.js')` is NOT emitted/resolved by electron-vite → built `out/main/sampler-worker.cjs` errors `Cannot find module './runtime-42.js'` on every sample (Assumptions Log A2 falsified by the real build; touches LOCKED `project_phase43_pickruntime_esm_split` — gap plan must revisit deliberately). Pre-existing & correctly Phase-47-owned (NOT this gap): the 11 `tests/renderer/*` MixBlend failures + the `npm run build` spine-player MixBlend abort. Branch is now `milestone/v1.6-spine-4.3-dual-runtime` (was detached HEAD at session start; fast-forwarded — all Phase 42/43 work preserved on the branch). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact.
 
 Progress: [██████████] Phase 42: 5/5 plans complete — re-verified PASSED 5/5 (SAFE-01, RT-01, RT-03, RT-04, CI-01). Advisory: 42-REVIEW.md 0 blockers / 2 warnings (asymmetric CR-01 baseline-side hardening + stale comment — low-priority Phase-44/45 follow-up). Deferred: 11 `tests/renderer/*` MixBlend failures are ROADMAP Phase-47-owned (renderer 4.3 port), not a Phase-42 regression.
 
