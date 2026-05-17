@@ -1,8 +1,8 @@
 ---
 phase: 43-runtime-adapter-facade-verified-4-3-api-mapping
 verified: 2026-05-17
-status: gaps_found
-score: D-04 close gate SATISFIED (32/32 SAFE-02 byte-equal) BUT 1 blocking Phase-43 regression — production sampler-worker bundle cannot resolve the Option A ESM seam adapters
+status: gap_closed_pending_phase_reverification
+score: D-04 close gate SATISFIED (32/32 SAFE-02 byte-equal); the 1 blocking Phase-43 regression GAP-43-PROD-SEAM is RESOLVED by 43-06 (b3b975b/60b4fac; §4 bounded-exception adjudication, maintainer Option ii, 2026-05-17) — awaiting orchestrator phase-level re-verification/closure
 requirements: [RT-02, SAFE-02, SAFE-03, PORT-01, PORT-02, PORT-03]
 draft_origin: 43-05 Task 2 (D-04 template + A1 resolution); D-04 table filled by 43-05 Task 3; regression gap appended by execute-phase regression_gate 2026-05-17
 gaps:
@@ -10,7 +10,9 @@ gaps:
     severity: blocking
     requirement: RT-02 / PORT (runtime adapter must work in the production worker, not only vitest)
     summary: "43-03 Option A ESM seam uses prod ambient require('./runtime-42.js'); electron-vite/rollup never emits runtime-42.js/runtime-43.js next to the bundled chunk → built sampler-worker errors 'Cannot find module ./runtime-42.js' on every sample"
-    status: open
+    status: RESOLVED
+    closed_by: "43-06 (b3b975b electron.vite.config.ts input entries + ../runtime-4x.cjs literal correction; 60b4fac build-required RED→GREEN falsifier)"
+    closure: "Prod seam resolves on-disk (RED→GREEN falsifier GREEN); LOCKED Option-A constraints (a)-(d) preserved; SAFE-02 32/32 re-asserted GREEN, 0 baseline regen. The plan's probe-derived `<interfaces>` empirical claim ('runtime-43.cjs has 0 spine-core-42 require literals') was FALSIFIED by the real electron-vite build (pre-existing 43-04 runtime-43.ts → synthetic-atlas.ts AtlasAttachmentLoader edge → 1 bare require(\"spine-core-42\") in runtime-43.cjs). Maintainer adjudicated 2026-05-17 (Option ii — amend §4 doctrine, decouple rejected): §4 lazy-single-copy is scoped to the spine-core RUNTIME/ANIMATION graph (cleanly split + verified; runtime-42.cjs strictly clean, 4.2 path single-copy); the lone parse-time AtlasAttachmentLoader pulled via the shared synthetic-atlas helper onto the 4.3 path is an ACCEPTED, DOCUMENTED, BOUNDED pre-existing 43-04 exception, not a §4 regression. Task-1 AC#8 / checkpoint check #2 strict-zero forms for runtime-43.cjs are SUPERSEDED by this disposition; all other AC pass unchanged. Decouple deferred as a tracked NON-BLOCKING follow-up. See 43-06-SUMMARY.md § '§4 Bounded-Exception Adjudication'."
     route: "/gsd-plan-phase 43 --gaps"
 ---
 
@@ -117,9 +119,19 @@ The heavy-rig baselines were captured against an **independent pre-rewire refere
 
 ## Gaps
 
-### GAP-43-PROD-SEAM — Production sampler-worker cannot resolve the Option A ESM seam adapters (BLOCKING)
+### GAP-43-PROD-SEAM — Production sampler-worker cannot resolve the Option A ESM seam adapters — ✅ RESOLVED / CLOSED
 
-**Status:** open · **Severity:** blocking · **Requirement:** RT-02 / PORT-01..03 (the runtime adapter must function in the production worker, not only under vitest) · **Route:** `/gsd-plan-phase 43 --gaps`
+**Status:** RESOLVED / CLOSED (43-06; maintainer-adjudicated 2026-05-17) · **Severity:** was blocking · **Requirement:** RT-02 / PORT-01..03 (the runtime adapter must function in the production worker, not only under vitest) · **Closed by:** 43-06 (`b3b975b`, `60b4fac`)
+
+> **CLOSURE DISPOSITION (§4 bounded-exception adjudication — maintainer-decided 2026-05-17, Option ii: amend the §4 doctrine; decouple option (i) explicitly rejected):**
+>
+> The prod seam is fixed: `electron.vite.config.ts` emits `out/main/runtime-4x.cjs` as resolvable entry artifacts and `pickRuntime`'s prod literal is corrected to the on-disk-resolvable `../runtime-4x.cjs` (`b3b975b`); a build-required RED→GREEN-proven falsifier replaces the silent-skip blind-spot (`60b4fac`). The BUILT worker resolves the runtime adapter (no Cannot-find-module); the LOCKED Option-A constraints (a) lazy single-copy on the 4.2 path / (b) env-split byte-untouched / (c) synchronous / (d) loud-throw are all preserved; SAFE-02 is re-asserted 32/32 GREEN with zero baseline regen (D-09).
+>
+> **Falsified-assumption note:** the gap plan's `<interfaces>` empirical claim — derived from a now-deleted throwaway probe — that "runtime-43.cjs has 0 `require(\"spine-core-42\")` literals (the lone substring is a comment/string)" was **FALSIFIED by the real electron-vite build**: `out/main/runtime-43.cjs:8` emits exactly one bare side-effect `require("spine-core-42")` via the PRE-EXISTING 43-04 edge `runtime-43.ts:56 → synthetic-atlas.ts:57-63` (`SilentSkipAttachmentLoader extends the 4.2 AtlasAttachmentLoader`, committed `f2cf770`, LOCKED, untouched by 43-06 — 43-06 only made it observable by emitting runtime-43 as a standalone artifact). The maintainer adjudicated (Option ii) that ARCHITECTURE §4 "lazy single-copy" is scoped to the spine-core RUNTIME/ANIMATION graph — which IS cleanly split and verified (`runtime-42.cjs` strictly clean, the 4.2 path stays strictly single-copy) — and that the single parse-time `AtlasAttachmentLoader` pulled via the shared `synthetic-atlas` helper onto the 4.3 path is an **ACCEPTED, DOCUMENTED, BOUNDED** pre-existing 43-04 exception, NOT a §4 regression and not introduced by 43-06. Task-1 acceptance criterion #8's strict-zero form for `runtime-43.cjs` and checkpoint check #2's strict-zero form are SUPERSEDED by this adjudicated bounded-exception disposition; all other acceptance criteria passed unchanged. Decoupling `SilentSkipAttachmentLoader`/`synthetic-atlas` from `spine-core-42` for the 4.3 path is a tracked, NON-BLOCKING follow-up (deferred — does NOT block this closure or Phase 43). Full verbatim adjudication: `43-06-SUMMARY.md` § "§4 Bounded-Exception Adjudication".
+>
+> The original blocking-state analysis below is RETAINED for historical record; it is superseded by this closure.
+
+**(historical — superseded by the closure above) Status when filed:** open · **Severity:** blocking · **Requirement:** RT-02 / PORT-01..03 (the runtime adapter must function in the production worker, not only under vitest) · **Route:** `/gsd-plan-phase 43 --gaps`
 
 **Symptom (reproducible):**
 ```

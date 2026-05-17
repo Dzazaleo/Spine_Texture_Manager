@@ -25,21 +25,21 @@ Active scope for this milestone. Each maps to exactly one phase.
 ### Runtime Dual-Install & Boundary (RT)
 
 - [x] **RT-01**: `@esotericsoftware/spine-core@4.3.0` is the canonical install and `4.2.111` is installed side-by-side via an exact-pinned, lockfile-committed npm alias; both resolve identically under `tsc`, Vite (renderer + main), `worker_threads`, and `vitest` from a fresh clone.
-- [ ] **RT-02**: A `SpineRuntime` adapter interface in `core/runtime/` has two implementations (`runtime-42`, `runtime-43`); `core/sampler.ts` and `core/bounds.ts` no longer import `@esotericsoftware/spine-core` directly (enforced by a `tests/arch.spec.ts` anchor).
+- [x] **RT-02**: A `SpineRuntime` adapter interface in `core/runtime/` has two implementations (`runtime-42`, `runtime-43`); `core/sampler.ts` and `core/bounds.ts` no longer import `@esotericsoftware/spine-core` directly (enforced by a `tests/arch.spec.ts` anchor).
 - [x] **RT-03**: Runtime objects cross the adapter boundary as opaque branded handles carrying an explicit runtime tag; a 4.2 object reaching a 4.3 adapter (or vice-versa) is a compile-time error, not a runtime corruption.
 - [x] **RT-04**: The `core/runtime/` module imports no DOM, Electron, or `sharp` — the Layer-3 purity invariant is preserved and arch-spec-enforced after the port.
 
 ### 4.2 Regression Safety (SAFE)
 
 - [x] **SAFE-01**: A byte-equal golden snapshot of `globalPeaks` / `SamplerOutput` for every in-repo 4.2 fixture is captured and committed **before** the npm alias is added (order is load-bearing — behavior cannot be baselined after it changes).
-- [ ] **SAFE-02**: Every in-repo 4.2 fixture sampled through the new adapter produces output byte-identical to the pre-v1.6 baseline (strict equality, not epsilon — the 4.2 runtime is unchanged, so any drift is a plumbing bug).
+- [x] **SAFE-02**: Every in-repo 4.2 fixture sampled through the new adapter produces output byte-identical to the pre-v1.6 baseline (strict equality, not epsilon — the 4.2 runtime is unchanged, so any drift is a plumbing bug).
 - [ ] **SAFE-03**: A regression test proves the cross-runtime `instanceof` invariant — each loaded skeleton's attachments resolve `instanceof` (Region / Vertex / Mesh) against the same runtime instance that loaded it.
 
 ### Spine 4.3 API Port (PORT — corrected; supersedes SEED-006 beta inventory)
 
-- [ ] **PORT-01**: `core/sampler.ts` correctly samples a 4.3 skeleton via the 4.3 adapter using the verified-stable API (`setupPose`/`setupPoseSlots`/`setupPoseBones`, overloaded `setAnimation`, `slot.pose.attachment`, `slot.pose.color`, `AnimationState` `setTrack`/`getTrack`), reading the post-constraint `appliedPose` for all world-transform-relevant state.
-- [ ] **PORT-02**: `core/bounds.ts` computes world vertices for 4.3 `RegionAttachment` (`vertexOffsets` as the 2nd arg via `getOffsets(slot.pose)`) and `VertexAttachment` (`skeleton` as the 1st arg), and reads bone world scale via `bone.appliedPose.getWorldScaleX/Y()`.
-- [ ] **PORT-03**: The v1.4 Phase 33 rotated-atlas offset mechanism is re-expressed for 4.3 (stable 4.3 `RegionAttachment` has no mutable `offset[]`); the 4.2 rotated-atlas path is unchanged and regression-locked.
+- [x] **PORT-01**: `core/sampler.ts` correctly samples a 4.3 skeleton via the 4.3 adapter using the verified-stable API (`setupPose`/`setupPoseSlots`/`setupPoseBones`, overloaded `setAnimation`, `slot.pose.attachment`, `slot.pose.color`, `AnimationState` `setTrack`/`getTrack`), reading the post-constraint `appliedPose` for all world-transform-relevant state.
+- [x] **PORT-02**: `core/bounds.ts` computes world vertices for 4.3 `RegionAttachment` (`vertexOffsets` as the 2nd arg via `getOffsets(slot.pose)`) and `VertexAttachment` (`skeleton` as the 1st arg), and reads bone world scale via `bone.appliedPose.getWorldScaleX/Y()`.
+- [x] **PORT-03**: The v1.4 Phase 33 rotated-atlas offset mechanism is re-expressed for 4.3 (stable 4.3 `RegionAttachment` has no mutable `offset[]`); the 4.2 rotated-atlas path is unchanged and regression-locked.
 
 ### Version Dispatch (DISP)
 
@@ -122,15 +122,15 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | RT-01 | Phase 42 | Complete |
-| RT-02 | Phase 43 | Pending |
+| RT-02 | Phase 43 | Complete |
 | RT-03 | Phase 42 | Complete |
 | RT-04 | Phase 42 | Complete |
 | SAFE-01 | Phase 42 | Complete |
-| SAFE-02 | Phase 43 | Pending |
+| SAFE-02 | Phase 43 | Complete |
 | SAFE-03 | Phase 43 | Pending |
-| PORT-01 | Phase 43 | Pending |
-| PORT-02 | Phase 43 | Pending |
-| PORT-03 | Phase 43 | Pending |
+| PORT-01 | Phase 43 | Complete |
+| PORT-02 | Phase 43 | Complete |
+| PORT-03 | Phase 43 | Complete |
 | DISP-01 | Phase 44 | Pending |
 | DISP-02 | Phase 44 | Pending |
 | DISP-03 | Phase 44 | Pending |

@@ -91,7 +91,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 **Milestone Goal:** Load and correctly sample both Spine 4.2 and Spine 4.3 skeleton JSON, routed by detected version, with 4.2 behavior byte-frozen and 4.3 correctness independently oracle-proven.
 
 - [x] **Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding** - Capture the byte-equal 4.2 golden BEFORE the alias lands; install 4.3.0 canonical / 4.2.111 aliased; stand up the opaque-handle boundary + CI dual-matrix reproducibility (completed 2026-05-16)
-- [ ] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API
+- [ ] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure)
 - [ ] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4
 - [ ] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases
 - [ ] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract
@@ -132,7 +132,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] 43-04-PLAN.md -- Wave 1: `runtime-43.ts` verified 4.3.0 Pose-API port + D-03 appliedPose-only structural defense + `.region`/`.uvs`->`sequence` routing *(RT-02, PORT-01, PORT-02, PORT-03)*
 - [x] 43-03-PLAN.md -- Wave 2: rewire loader/sampler/bounds to `load.runtime.*` (RT-02 anchor -> GREEN; D-02 hard-pick 4.2) + SAFE-02 byte-equal HARD exit gate + SAFE-03 *(RT-02, SAFE-02, SAFE-03)*
 - [x] 43-05-PLAN.md -- Wave 3: capture the SEPARATE 4.3 own-baseline + EMPIRICALLY validate A1 rotated-region vs the 4.2-sibling known-good + 4.3-only fixture commit + D-04 documented local heavy-rig SAFE-02 close gate *(PORT-01, PORT-02, PORT-03, SAFE-02)*
-- [ ] 43-06-PLAN.md -- Wave 4 (GAP-CLOSURE): close GAP-43-PROD-SEAM — emit `runtime-42`/`runtime-43` as resolvable build artifacts (ARCHITECTURE §4/§7 build-order item) + correct the pickRuntime prod require literal to `../runtime-4x.cjs` + a build-required spawn-smoke falsifier; LOCKED Option-A constraints (a)-(d) + SAFE-02 byte-equality preserved *(RT-02, SAFE-02, PORT-01, PORT-02, PORT-03)*
+- [x] 43-06-PLAN.md -- Wave 4 (GAP-CLOSURE): close GAP-43-PROD-SEAM — emit `runtime-42`/`runtime-43` as resolvable build artifacts (ARCHITECTURE §4/§7 build-order item) + correct the pickRuntime prod require literal to `../runtime-4x.cjs` + a build-required spawn-smoke falsifier; LOCKED Option-A constraints (a)-(d) + SAFE-02 byte-equality preserved *(RT-02, SAFE-02, PORT-01, PORT-02, PORT-03)*
 
 ### Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring
 **Goal**: Repurpose the loader from rejecter to version dispatcher, acquire the owner-blocked in-repo 4.3 fixtures (scheduled early, off the critical path), and stand up the layered equivalence oracle that gates every 4.3-feature claim before any user-facing flip.
@@ -190,7 +190,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
-| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 4/5 | In Progress|  |
+| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Plans complete — awaiting phase re-verification | 2026-05-17 |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
