@@ -1,10 +1,17 @@
 ---
 phase: 43-runtime-adapter-facade-verified-4-3-api-mapping
 verified: 2026-05-17
-status: passed
-score: D-04 hard close gate SATISFIED — 32/32 SAFE-02 byte-equal (12 redistributable + 20 heavy/proprietary), 0 failed
+status: gaps_found
+score: D-04 close gate SATISFIED (32/32 SAFE-02 byte-equal) BUT 1 blocking Phase-43 regression — production sampler-worker bundle cannot resolve the Option A ESM seam adapters
 requirements: [RT-02, SAFE-02, SAFE-03, PORT-01, PORT-02, PORT-03]
-draft_origin: 43-05 Task 2 (D-04 template + A1 resolution); D-04 table filled by 43-05 Task 3
+draft_origin: 43-05 Task 2 (D-04 template + A1 resolution); D-04 table filled by 43-05 Task 3; regression gap appended by execute-phase regression_gate 2026-05-17
+gaps:
+  - id: GAP-43-PROD-SEAM
+    severity: blocking
+    requirement: RT-02 / PORT (runtime adapter must work in the production worker, not only vitest)
+    summary: "43-03 Option A ESM seam uses prod ambient require('./runtime-42.js'); electron-vite/rollup never emits runtime-42.js/runtime-43.js next to the bundled chunk → built sampler-worker errors 'Cannot find module ./runtime-42.js' on every sample"
+    status: open
+    route: "/gsd-plan-phase 43 --gaps"
 ---
 
 # Phase 43: Runtime Adapter Facade — Verified 4.3 API Mapping — Verification Report
@@ -104,4 +111,38 @@ The heavy-rig baselines were captured against an **independent pre-rewire refere
 - [x] Exactly the 4.3 triplet committed; 4.2 sibling untracked (D-05/Q2); SAFE-01 corpus untouched (D-09)
 - [x] **D-04 hard close gate — heavy-rig SAFE-02 byte-equal pass recorded above: 20/20 heavy + 12/12 redistributable = 32/32 byte-equal vs the independent frozen `c5ef358` reference, 0 drift (2026-05-17)**
 
-**D-04 SATISFIED — Phase 43 close gate cleared.** All five D-04-named proprietary rigs (Girl/SKINS/CHJ/3Queens/Jokerman) plus every other heavy rig are byte-identical through the rewired adapter against an independent pre-rewire frozen reference. The Phase-43 dual-runtime adapter rewire is byte-faithful for the 4.2 path even on constraint-heavy proprietary rigs.
+**D-04 SATISFIED — but Phase 43 does NOT close: a separate blocking regression was found by the execute-phase regression gate (see below).** The D-04 byte-equality evidence above remains valid and need not be re-derived by gap closure.
+
+---
+
+## Gaps
+
+### GAP-43-PROD-SEAM — Production sampler-worker cannot resolve the Option A ESM seam adapters (BLOCKING)
+
+**Status:** open · **Severity:** blocking · **Requirement:** RT-02 / PORT-01..03 (the runtime adapter must function in the production worker, not only under vitest) · **Route:** `/gsd-plan-phase 43 --gaps`
+
+**Symptom (reproducible):**
+```
+npm run build            # electron-vite emits out/main/sampler-worker.cjs + out/main/chunks/sampler-*.cjs
+                          # (build then aborts LATER on the pre-existing Phase-47 spine-player MixBlend
+                          #  issue — unrelated to this gap; the main/worker chunks ARE emitted first)
+npx vitest run tests/main/sampler-worker.spec.ts
+  → "sampler-worker — Wave 1 spawn smoke … delivers progress then complete" FAILS
+  → worker emits {type:'error', error:{kind:'Unknown',
+      message:"Cannot find module './runtime-42.js'
+               Require stack: out/main/chunks/sampler-*.cjs ← out/main/sampler-worker.cjs"}}
+```
+
+**Root cause:** 43-03's Option A ESM seam (`src/core/runtime/runtime.ts`) resolves the runtime adapters in production via an ambient `require('./runtime-42.js')` / `require('./runtime-43.js')` (the "Assumptions Log A2" branch — vitest uses a globalThis-bound test-only resolver instead). electron-vite v5 with `build.externalizeDeps:true` only externalizes `package.json` `dependencies`; a **relative intra-`src` `require('./runtime-42.js')`** is neither bundled into the chunk nor copied beside it, so at runtime the spawned worker resolves `./runtime-42.js` relative to `out/main/chunks/` where **no such file exists**. `find out -name "*runtime-4*"` → nothing. **Assumptions Log A2 ("ambient require resolves the CJS worker bundle") is falsified by the real electron-vite build.**
+
+**Classification:** Phase-43-introduced (the seam was created by `0ea26c5 feat(43-03)`; the pre-43 worker imported `@esotericsoftware/spine-core` directly and bundled correctly), in-scope for Phase 43, **distinct** from the Phase-47-deferred spine-player/renderer MixBlend item. Masked from 43-03's self-check because every 43-03 vitest test takes the globalThis test-only resolver and never exercises the prod ambient-require-in-bundle path (the Generator self-evaluation blind spot the regression gate exists to catch). The spawn-smoke test additionally only runs against a pre-built bundle, which was stale (pre-rewire) until rebuilt during this gate.
+
+**This touches the LOCKED `project_phase43_pickruntime_esm_split` decision — gap closure must revisit it deliberately, not patch around it.**
+
+**Remediation directions for the gap plan (not prescriptive — the gap planner decides):**
+- Make electron-vite/rollup emit `runtime-42`/`runtime-43` as resolvable artifacts next to the chunk (additional rollup input entries, a copy/emit step in `electron.vite.config.ts`, or `manualChunks`), OR
+- Replace the prod ambient relative `require('./runtime-*.js')` with a bundler-static form (static import behind the env discriminator, or a `new URL(..., import.meta.url)`-style resolution rollup can trace) while preserving the Option A intent (lazy single-copy prod / globalThis test resolver) and the locked split semantics, OR
+- Externalize the adapters as real resolvable modules.
+- A falsifying regression test MUST exercise the BUILT bundle's spawn path (the existing `tests/main/sampler-worker.spec.ts` "Wave 1 spawn smoke" against a freshly-built `out/main/sampler-worker.cjs`) so the prod path is no longer self-eval-blind.
+
+**Out of scope for this gap (correctly Phase-47-owned, pre-existing, do NOT fix here):** the 11 `tests/renderer/*.spec.tsx` MixBlend import failures and the `npm run build` abort at `spine-player/dist/Player.js` "MixBlend not exported" — these are the documented Phase-42→47 4.3-canonical-flip carry-forward, unrelated to GAP-43-PROD-SEAM.

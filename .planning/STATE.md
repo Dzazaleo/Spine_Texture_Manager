@@ -3,26 +3,26 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-17T10:15:24.654Z"
-last_activity: 2026-05-17 -- Phase 43 execution started
+last_updated: "2026-05-17T19:10:00.000Z"
+last_activity: "2026-05-17 -- Phase 43 all 5 plans executed; D-04 gate SATISFIED; regression gate found 1 blocking gap (GAP-43-PROD-SEAM) — gaps_found, NOT complete"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 10
-  completed_plans: 5
-  percent: 50
+  completed_plans: 10
+  percent: 95
 ---
 
 # State
 
 ## Current Position
 
-Phase: 43 (runtime-adapter-facade-verified-4-3-api-mapping) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 43
-Last activity: 2026-05-17 -- Phase 43 execution started
+Phase: 43 (runtime-adapter-facade-verified-4-3-api-mapping) — GAPS_FOUND (NOT complete)
+Plan: 5 of 5 executed (all SUMMARYs present)
+Status: Phase 43 executed; D-04 hard close gate SATISFIED; 1 BLOCKING regression gap open → gap-closure cycle
+Last activity: 2026-05-17 -- regression gate found GAP-43-PROD-SEAM; recorded gaps_found
 
-Next: `/gsd-plan-phase 43` — Phase 43 CONTEXT.md captured (`a18d4a1`). 4 decisions locked: D-01 real 4.3 owner rig `fixtures/SIMPLE_PROJECT_43/skeleton2.json` sampled + own 4.3 baseline (cross-runtime 1e-4 stays Phase 44); D-02 full loader parse-relocation + hard-pick `pickRuntime('4.2')` (no version detection — Phase 44); D-03 structural appliedPose-only defense-in-depth; D-04 documented local heavy-rig SAFE-02 pass is a hard close gate. ORCL-01 pair (4.3 `skeleton2.json` + same-session 4.2 `skeleton2_42.json`, hash `mFDzgNETPHo`, non-IK/#891-immune) in place but EXCLUDED from the SAFE-02 frozen set (postdates the Phase-42 baseline). Owner SLIDER/XTRA exports still pending (deferred, off critical path). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact; Phase 43 SAFE-02 gates against the SAFE-01 baseline.
+Next: `/gsd-plan-phase 43 --gaps` — close GAP-43-PROD-SEAM (see `43-VERIFICATION.md` § Gaps). **Phase 43 is NOT complete.** All 5 plans executed + committed (43-01..43-05; 43-05 commits `bd3f4d0`/`d849726`/`f895300`/`ceb5714`). D-04 hard close gate SATISFIED: 32/32 SAFE-02 byte-equal (12 redistributable + 20 heavy/proprietary incl. Girl/SKINS/CHJ/3Queens/Jokerman) vs an INDEPENDENT frozen `c5ef358` reference captured in an isolated detached worktree (anti-tautology; heavy baselines now present locally in `tests/safe01/baselines/`, gitignored). A1 was FALSIFIED → Approach B applied to `runtime-43.applyRotatedRegionFix` + re-validated within 1e-4 (+2 [Rule 1] runtime-43 fixes: sequenceRegions `<=1`, D-03 dev-assertion). **BLOCKING GAP-43-PROD-SEAM:** 43-03's Option A ESM seam prod ambient `require('./runtime-42.js')` is NOT emitted/resolved by electron-vite → built `out/main/sampler-worker.cjs` errors `Cannot find module './runtime-42.js'` on every sample (Assumptions Log A2 falsified by the real build; touches LOCKED `project_phase43_pickruntime_esm_split` — gap plan must revisit deliberately). Pre-existing & correctly Phase-47-owned (NOT this gap): the 11 `tests/renderer/*` MixBlend failures + the `npm run build` spine-player MixBlend abort. Branch is now `milestone/v1.6-spine-4.3-dual-runtime` (was detached HEAD at session start; fast-forwarded — all Phase 42/43 work preserved on the branch). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact.
 
 Progress: [██████████] Phase 42: 5/5 plans complete — re-verified PASSED 5/5 (SAFE-01, RT-01, RT-03, RT-04, CI-01). Advisory: 42-REVIEW.md 0 blockers / 2 warnings (asymmetric CR-01 baseline-side hardening + stale comment — low-priority Phase-44/45 follow-up). Deferred: 11 `tests/renderer/*` MixBlend failures are ROADMAP Phase-47-owned (renderer 4.3 port), not a Phase-42 regression.
 
