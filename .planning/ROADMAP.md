@@ -130,7 +130,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] 43-01-PLAN.md -- Wave 0: RT-02 arch anchor (RED by design) + Q1 strictly-additive `attachmentTimelineNames` interface method + the 4 ENOENT-tolerant 4.3 test seams *(RT-02, SAFE-03, PORT-01, PORT-03)*
 - [x] 43-02-PLAN.md -- Wave 1: `runtime-42.ts` byte-faithful verbatim relocation (SAFE-02-by-construction) + Phase-33 patch relocation + the `pickRuntime` lazy-require body *(RT-02, SAFE-02, PORT-03)*
 - [x] 43-04-PLAN.md -- Wave 1: `runtime-43.ts` verified 4.3.0 Pose-API port + D-03 appliedPose-only structural defense + `.region`/`.uvs`->`sequence` routing *(RT-02, PORT-01, PORT-02, PORT-03)*
-- [ ] 43-03-PLAN.md -- Wave 2: rewire loader/sampler/bounds to `load.runtime.*` (RT-02 anchor -> GREEN; D-02 hard-pick 4.2) + SAFE-02 byte-equal HARD exit gate + SAFE-03 *(RT-02, SAFE-02, SAFE-03)*
+- [x] 43-03-PLAN.md -- Wave 2: rewire loader/sampler/bounds to `load.runtime.*` (RT-02 anchor -> GREEN; D-02 hard-pick 4.2) + SAFE-02 byte-equal HARD exit gate + SAFE-03 *(RT-02, SAFE-02, SAFE-03)*
 - [ ] 43-05-PLAN.md -- Wave 3: capture the SEPARATE 4.3 own-baseline + EMPIRICALLY validate A1 rotated-region vs the 4.2-sibling known-good + 4.3-only fixture commit + D-04 documented local heavy-rig SAFE-02 close gate *(PORT-01, PORT-02, PORT-03, SAFE-02)*
 
 ### Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring
@@ -189,7 +189,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 40 | v1.5 | 9/9 | Complete | 2026-05-15 |
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
-| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 3/5 | In Progress|  |
+| 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 4/5 | In Progress|  |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 0/TBD | Not started | - |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
