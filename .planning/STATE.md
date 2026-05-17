@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-16T23:58:51.885Z"
-last_activity: 2026-05-16 -- Phase 43 planning complete
+last_updated: "2026-05-17T10:15:24.654Z"
+last_activity: 2026-05-17 -- Phase 43 execution started
 progress:
   total_phases: 6
   completed_phases: 1
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 43
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-16 -- Phase 43 planning complete
+Phase: 43 (runtime-adapter-facade-verified-4-3-api-mapping) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 43
+Last activity: 2026-05-17 -- Phase 43 execution started
 
 Next: `/gsd-plan-phase 43` — Phase 43 CONTEXT.md captured (`a18d4a1`). 4 decisions locked: D-01 real 4.3 owner rig `fixtures/SIMPLE_PROJECT_43/skeleton2.json` sampled + own 4.3 baseline (cross-runtime 1e-4 stays Phase 44); D-02 full loader parse-relocation + hard-pick `pickRuntime('4.2')` (no version detection — Phase 44); D-03 structural appliedPose-only defense-in-depth; D-04 documented local heavy-rig SAFE-02 pass is a hard close gate. ORCL-01 pair (4.3 `skeleton2.json` + same-session 4.2 `skeleton2_42.json`, hash `mFDzgNETPHo`, non-IK/#891-immune) in place but EXCLUDED from the SAFE-02 frozen set (postdates the Phase-42 baseline). Owner SLIDER/XTRA exports still pending (deferred, off critical path). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact; Phase 43 SAFE-02 gates against the SAFE-01 baseline.
 
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 43 — runtime-adapter-facade-+-verified-4.3-api-mapping (ready to plan)
+**Current focus:** Phase 43 — runtime-adapter-facade-verified-4-3-api-mapping
 
 ## Last Completed Milestone
 
