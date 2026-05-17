@@ -49,6 +49,13 @@ export interface SpineRuntime {
   slotName(slot: OpaqueSlot): string;
   slotAttachment(slot: OpaqueSlot): OpaqueAttachment | null;      // 4.2 slot.getAttachment() | 4.3 slot.pose.attachment
   slotColorAlpha(slot: OpaqueSlot): number;                       // 4.2 slot.color.a | 4.3 slot.pose.color.a
+  /** Q1 additive (Phase 43, RT-02 — strictly-additive, no reshape; same
+   *  escalation pattern as attachmentTimelineNames). The attachment's intrinsic
+   *  `Attachment.name` (distinct from the path-indirected region name and from
+   *  the SkinEntry name). sampler.ts's snapshotFrame builds the global key
+   *  `${skin}/${slot}/${attachment.name}` from this when walking LIVE slots
+   *  (no SkinEntry in scope). 4.2 & 4.3: `attachment.name` (base Attachment). */
+  attachmentName(a: OpaqueAttachment): string;
   skinEntries(skin: OpaqueSkin): { slotIndex: number; name: string; attachment: OpaqueAttachment }[];
 
   // --- bounds math (the two computeWorldVertices + bone scale + attachment meta) ---
@@ -75,15 +82,80 @@ export interface SpineRuntime {
  * lands in Plan 04; `tag === '4.2'` is the only arm Phase 43's loader exercises
  * (D-02 hard-pick). Do NOT add a static `import` of either runtime-4x file —
  * that would defeat the lazy single-copy load and pull both spine-core graphs
- * into every worker. */
+ * into every worker.
+ *
+ * 43-03 — Option A (environment-conditional resolution with a bundler-safe test
+ * seam). The lazy-`require` design is correct for the PRODUCTION electron-vite
+ * CJS worker bundle (Assumptions Log A2 — ambient `require` resolves the
+ * sibling adapter chunk there) and is preserved byte-identical below: it keeps
+ * the unmatched spine-core copy out of the worker (ARCHITECTURE §4 lazy
+ * single-copy). But the SAFE-02 HARD exit gate runs under vitest, where
+ * `package.json` is `"type":"module"`: vitest DOES inject a `require` shim
+ * (`typeof require !== 'undefined'` is true) but that shim cannot resolve
+ * `./runtime-42.js` against vitest's `.ts` transform graph ("Cannot find module
+ * './runtime-42.js'"). So the environment discriminator is NOT `typeof require`
+ * — it is "has a test resolver been injected?".
+ *
+ * The production worker bundle NEVER imports the test setupFile, so
+ * `__esmAdapterResolver` is ALWAYS null there → the lazy-`require` branch below
+ * runs byte-identically to Plan 02 (invariant a preserved; ARCHITECTURE §4
+ * lazy-single-copy untouched). The vitest setupFile
+ * (`tests/setup/esm-adapter-resolver.ts`, registered via `setupFiles` —
+ * test-infra ONLY, runs before every test module) binds the resolver by
+ * STATICALLY importing the REAL `runtime-42.ts` / `runtime-43.ts`
+ * (resolution-only — the real adapters run; SAFE-02 exercises the real
+ * runtime-42.111 path, NOT a mock). When the resolver is bound it takes
+ * precedence so the unresolvable `require('./runtime-42.js')` is never reached
+ * under vitest. `loadSkeleton` stays SYNCHRONOUS — no `await import()`. If
+ * neither a resolver nor a working `require` is available, this throws loudly
+ * (never silently returns null — a verification-integrity requirement). */
+
+/** Test-only ESM resolver hook. Bound by the vitest setupFile
+ *  (`tests/setup/esm-adapter-resolver.ts`) which statically imports the REAL
+ *  runtime-42/runtime-43 modules. Module-scoped + null by default so the
+ *  production worker bundle (which never imports the setupFile) keeps the
+ *  ambient-`require` branch and the lazy-single-copy guarantee. */
+let __esmAdapterResolver: ((tag: RuntimeTag) => SpineRuntime) | null = null;
+
+/** Test-infra ONLY. Registered exclusively from the vitest setupFile. NEVER
+ *  call this from `src/` — the production path resolves via ambient `require`. */
+export function __setEsmAdapterResolver(
+  fn: ((tag: RuntimeTag) => SpineRuntime) | null,
+): void {
+  __esmAdapterResolver = fn;
+}
+
 const cache = new Map<RuntimeTag, SpineRuntime>();
 export function pickRuntime(tag: RuntimeTag): SpineRuntime {
   const hit = cache.get(tag);
   if (hit) return hit;
-  // Conditional require keeps the unmatched spine-core copy out of the worker.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = tag === '4.2' ? require('./runtime-42.js') : require('./runtime-43.js');
-  const rt: SpineRuntime = (mod as { create: () => SpineRuntime }).create();
+  let rt: SpineRuntime;
+  if (__esmAdapterResolver != null) {
+    // TEST (vitest ESM) — and ONLY test: the production worker bundle never
+    // imports the setupFile, so this is null in production and this branch is
+    // dead there. The setupFile statically imported the REAL adapters and bound
+    // this resolver; the real runtime-42/runtime-43 `create()` runs
+    // (resolution-only; NOT a mock — SAFE-02 exercises the real path). This
+    // takes precedence so the vitest-unresolvable `require('./runtime-42.js')`
+    // below is never reached under vitest.
+    rt = __esmAdapterResolver(tag);
+  } else if (typeof require !== 'undefined') {
+    // PRODUCTION (electron-vite CJS worker — Assumptions Log A2). BYTE-IDENTICAL
+    // to Plan 02: conditional lazy require keeps the unmatched spine-core copy
+    // out of the worker (ARCHITECTURE §4 lazy single-copy). DO NOT add a static
+    // import of either runtime-4x file — that defeats lazy single-copy.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = tag === '4.2' ? require('./runtime-42.js') : require('./runtime-43.js');
+    rt = (mod as { create: () => SpineRuntime }).create();
+  } else {
+    // Never silently return null: neither a resolver nor a working `require`.
+    throw new Error(
+      `pickRuntime('${tag}'): no ESM adapter resolver is registered and ` +
+        `ambient require is unavailable. Under vitest, ensure ` +
+        `tests/setup/esm-adapter-resolver.ts is listed in vitest.config.ts ` +
+        `setupFiles. (Production worker resolves via ambient require — A2.)`,
+    );
+  }
   cache.set(tag, rt);
   return rt;
 }

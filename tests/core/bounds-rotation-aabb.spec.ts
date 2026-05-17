@@ -30,6 +30,28 @@ import {
   Slot,
 } from 'spine-core-42';
 import { attachmentWorldAABB } from '../../src/core/bounds.js';
+import { pickRuntime } from '../../src/core/runtime/runtime.js';
+import { brandHandle } from '../../src/core/runtime/types.js';
+import type {
+  OpaqueSkeleton,
+  OpaqueSlot,
+  OpaqueAttachment,
+} from '../../src/core/runtime/types.js';
+
+// Phase 43 (RT-02, 43-03): attachmentWorldAABB now takes (rt, sk, slot, a)
+// opaque handles. The region path does not use `sk` (4.2 regionWorldVertices
+// ignores skeleton); we still thread the slot's owning skeleton for shape
+// fidelity. Behavioral assertions below are byte-UNCHANGED.
+const rt = pickRuntime('4.2');
+function asSk(s: unknown): OpaqueSkeleton {
+  return brandHandle<OpaqueSkeleton>(s, '4.2');
+}
+function asSlot(s: unknown): OpaqueSlot {
+  return brandHandle<OpaqueSlot>(s, '4.2');
+}
+function asAtt(a: unknown): OpaqueAttachment {
+  return brandHandle<OpaqueAttachment>(a, '4.2');
+}
 
 // Helper: build a TextureRegion-shaped object with packed/canonical dims.
 function buildRegion(opts: {
@@ -217,8 +239,18 @@ describe('attachmentWorldAABB — rotated RegionAttachment matrix (ATLAS-02)', (
         const slotRot = buildSlotWithBoneMatrix(tc);
         const slotUnrot = buildSlotWithBoneMatrix(tc);
 
-        const aabbRot = attachmentWorldAABB(slotRot, rotatedAtt);
-        const aabbUnrot = attachmentWorldAABB(slotUnrot, unrotatedRef);
+        const aabbRot = attachmentWorldAABB(
+          rt,
+          asSk(slotRot.bone.skeleton),
+          asSlot(slotRot),
+          asAtt(rotatedAtt),
+        );
+        const aabbUnrot = attachmentWorldAABB(
+          rt,
+          asSk(slotUnrot.bone.skeleton),
+          asSlot(slotUnrot),
+          asAtt(unrotatedRef),
+        );
 
         expect(aabbRot, 'rotated AABB must not be null').not.toBeNull();
         expect(aabbUnrot, 'unrotated AABB must not be null').not.toBeNull();

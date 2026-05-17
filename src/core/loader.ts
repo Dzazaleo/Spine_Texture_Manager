@@ -20,24 +20,16 @@
  *   - This file uses `node:fs` ONLY at load time — sampler hot-loop code in
  *     plans 00-03..00-05 MUST NOT re-enter the loader. Requirement N2.3.
  *   - PNG bytes are never touched. Requirement F1.3.
- *   - spine-core 4.2 ships a `FakeTexture` class already (see
- *     `@esotericsoftware/spine-core/Texture`), but we wrap it with a tiny
- *     named `StubTexture` subclass so the intent is explicit in stack traces
- *     and so the `createStubTextureLoader()` factory stays a stable public
- *     export regardless of whether spine-core reshuffles `FakeTexture`.
+ *   - Phase 43 (D-02, RT-02): this file no longer imports any spine-core
+ *     package. The atlas/skeleton parse seam (TextureAtlas / SkeletonJson /
+ *     AtlasAttachmentLoader + the Phase-33 rotated-region patch + the headless
+ *     StubTexture) is relocated into `runtime-42.ts`; the loader obtains
+ *     everything via the runtime adapter. The runtime is hard-picked as 4.2
+ *     UNCONDITIONALLY here (no version detection — that is Phase 44).
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  AtlasAttachmentLoader,
-  RegionAttachment,
-  SkeletonJson,
-  TextureAtlas,
-  Texture,
-  TextureFilter,
-  TextureWrap,
-} from 'spine-core-42';
 import type { LoadResult, LoaderOptions, SourceDims } from './types.js';
 import {
   AtlasNotFoundError,
@@ -47,46 +39,44 @@ import {
 } from './errors.js';
 import {
   synthesizeAtlasText,
-  SilentSkipAttachmentLoader,
   composeSequenceFramePath,
 } from './synthetic-atlas.js';
 import { readPngDims } from './png-header.js';
+import { pickRuntime } from './runtime/runtime.js';
+import type { OpaqueAtlas, OpaqueSkeletonData } from './runtime/types.js';
 
 /**
- * Headless stub texture. Fabricated from atlas metadata only. Never decodes
- * pixels. All overridable methods are deliberate no-ops — `dispose`, filter
- * setters, and wrap setters have no meaningful effect without a GPU/image
- * backing, and the Phase 0 sampler never calls them.
- *
- * Subclass of spine-core's abstract `Texture` — implements the three abstract
- * methods required by the 4.2 type signature.
+ * Phase 43 (D-02): narrow structural view of the runtime's `OpaqueAtlas`
+ * (a branded passthrough of the real spine-core `TextureAtlas`). The loader
+ * still needs `atlas.regions`/`atlas.pages` for the sourceDims/atlasSources
+ * builders (SAFE-02-gated — byte-unchanged), so it reads through this local
+ * structural type instead of re-importing `TextureAtlas` (keeping loader.ts
+ * spine-core-TYPE-free per the RT-02 arch anchor).
  */
-class StubTexture extends Texture {
-  constructor() {
-    // Pass a sentinel null image — spine-core's Texture constructor stores
-    // whatever we give it; nothing in the Phase 0 pipeline reads it.
-    super(null);
-  }
-  setFilters(_min: TextureFilter, _mag: TextureFilter): void {
-    /* no-op — no GPU backing */
-  }
-  setWraps(_u: TextureWrap, _v: TextureWrap): void {
-    /* no-op — no GPU backing */
-  }
-  dispose(): void {
-    /* no-op — nothing to release */
-  }
+interface AtlasRegionsView {
+  regions: Array<{
+    name: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    originalWidth: number;
+    originalHeight: number;
+    offsetX: number;
+    offsetY: number;
+    degrees: number;
+    page: { name: string };
+  }>;
 }
 
 /**
- * Returns a TextureLoader-shaped callback that fabricates a `StubTexture`
- * per atlas page. No filesystem I/O, no PNG decode. This is the headless
- * loading pattern documented in the spine-ts guide.
- *
- * Exported so tests and the CLI can use the exact same stub the loader uses.
+ * Phase 43 (D-02): narrow structural view of the runtime's `OpaqueSkeletonData`
+ * for the loader's read of the editor-dopesheet `fps` field (display-only;
+ * CLAUDE.md rule #1 forbids fps-driven sampling). Keeps loader.ts free of a
+ * spine-core `SkeletonData` type import.
  */
-export function createStubTextureLoader(): (pageName: string) => Texture {
-  return (_pageName: string) => new StubTexture();
+interface SkeletonDataFpsView {
+  fps: number;
 }
 
 /**
@@ -250,6 +240,15 @@ export function loadSkeleton(
   // `SkeletonJson.readSkeletonData`.
   checkSpine43Schema(parsedJson, skeletonPath);
 
+  // Phase 43 (D-02, RT-02) — hard-pick the 4.2 runtime adapter UNCONDITIONALLY.
+  // NO version detection / resolveRuntimeTag here — that is Phase 44 (DISP-01);
+  // the loader hard-picks 4.2 this phase. The existing checkSpineVersion /
+  // checkSpine43Schema guards above stay EXACTLY as-is (still throw <4.2 / ≥4.3)
+  // — Phase 43 does NOT repurpose them. The parse seam (atlas/skeleton/rotated-
+  // region patch) is delegated to this runtime via rt.makeAtlas /
+  // rt.parseSkeleton / rt.applyRotatedRegionFix.
+  const rt = pickRuntime('4.2');
+
   // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
   // canonical width/height per region. Pattern verbatim from
   // synthetic-atlas.ts:walkSyntheticRegionPaths (Phase 21) — same skin/
@@ -377,7 +376,14 @@ export function loadSkeleton(
   // and (for synthesis branches) `synthSourcePaths`/`synthDims` directly,
   // so TypeScript's flow analysis can prove every variable is initialized
   // before use below.
-  let atlas: TextureAtlas;
+  // Phase 43 (D-02): `atlas` is now an OpaqueAtlas handle from the runtime
+  // adapter (a branded passthrough of the real TextureAtlas — the brand is a
+  // compile-time phantom; `brandHandle` returns the same object with `__rt`
+  // attached non-enumerably, so the structural `.regions`/`.pages` reads in the
+  // sourceDims/atlasSources builders below still work at runtime). A narrow
+  // local structural type (`AtlasRegionsView`) is used at those read sites so
+  // loader.ts stays spine-core-TYPE-free without re-importing TextureAtlas.
+  let atlas: OpaqueAtlas;
   let resolvedAtlasPath: string | null;
   let isAtlasLess: boolean;
   let synthSourcePaths: Map<string, string> | null = null;
@@ -400,11 +406,7 @@ export function loadSkeleton(
       throw new AtlasNotFoundError(explicitAtlasPath, skeletonPath);
     }
     try {
-      atlas = new TextureAtlas(atlasText);
-      const stubLoader = createStubTextureLoader();
-      for (const page of atlas.pages) {
-        page.setTexture(stubLoader(page.name));
-      }
+      atlas = rt.makeAtlas(atlasText);
     } catch (cause) {
       throw new AtlasParseError(explicitAtlasPath, cause);
     }
@@ -414,11 +416,7 @@ export function loadSkeleton(
     // D-08: per-project override forces atlas-less even if .atlas exists.
     const dirOfImages = path.join(path.dirname(skeletonPath), 'images');
     const synth = synthesizeAtlasText(parsedJson, dirOfImages, skeletonPath);
-    atlas = new TextureAtlas(synth.atlasText);
-    const stubLoader = createStubTextureLoader();
-    for (const page of atlas.pages) {
-      page.setTexture(stubLoader(page.name));
-    }
+    atlas = rt.makeAtlas(synth.atlasText);
     synthSourcePaths = synth.pngPathsByRegionName;
     synthDims = synth.dimsByRegionName;
     synthMissingPngs = synth.missingPngs; //                                Plan 21-09 G-01
@@ -453,11 +451,7 @@ export function loadSkeleton(
         throw new AtlasNotFoundError(siblingAtlasPath, skeletonPath);
       }
       try {
-        atlas = new TextureAtlas(atlasText);
-        const stubLoader = createStubTextureLoader();
-        for (const page of atlas.pages) {
-          page.setTexture(stubLoader(page.name));
-        }
+        atlas = rt.makeAtlas(atlasText);
       } catch (cause) {
         throw new AtlasParseError(siblingAtlasPath, cause);
       }
@@ -491,11 +485,7 @@ export function loadSkeleton(
         probeImagesDir,
         skeletonPath,
       );
-      atlas = new TextureAtlas(synth.atlasText);
-      const stubLoader = createStubTextureLoader();
-      for (const page of atlas.pages) {
-        page.setTexture(stubLoader(page.name));
-      }
+      atlas = rt.makeAtlas(synth.atlasText);
       synthSourcePaths = synth.pngPathsByRegionName;
       synthDims = synth.dimsByRegionName;
       synthMissingPngs = synth.missingPngs; //                              Plan 21-09 G-01
@@ -504,112 +494,36 @@ export function loadSkeleton(
     }
   }
 
-  // 5. Parse skeleton via spine-core's own JSON reader.
-  //    `SkeletonJson.readSkeletonData` accepts either a string or a pre-parsed
-  //    object; we parse once with V8's JSON.parse (hoisted above for the
-  //    Phase 12 F3 version guard) and pass the object so we don't force
-  //    spine-core to re-parse.
-  //
-  //    In atlas-less mode, wrap the AtlasAttachmentLoader in
-  //    SilentSkipAttachmentLoader so spine-core silently drops orphan
-  //    attachments instead of throwing "Region not found in atlas" (D-09 +
-  //    RESEARCH.md §Pitfall 1). In canonical mode, the stock loader is
-  //    correct — we want the throw on a malformed atlas.
-  //
-  //    The cast through `AttachmentLoader` accommodates
-  //    SilentSkipAttachmentLoader's narrower-return-type override (it
-  //    returns `Attachment | null` where stock returns non-nullable; the
-  //    SkeletonJson reader handles null returns gracefully —
-  //    SkeletonJson.js:371-372, 404-405). Plan 21-04 SUMMARY documents the
-  //    `@ts-expect-error` directives on the override signatures.
-  const attachmentLoader = isAtlasLess
-    ? (new SilentSkipAttachmentLoader(atlas) as unknown as AtlasAttachmentLoader)
-    : new AtlasAttachmentLoader(atlas);
-  const skeletonJson = new SkeletonJson(attachmentLoader);
-  const skeletonData = skeletonJson.readSkeletonData(parsedJson);
+  // 5. Parse skeleton via the runtime adapter (Phase 43 D-02 — the
+  //    SkeletonJson / AtlasAttachmentLoader / SilentSkipAttachmentLoader
+  //    construction is relocated VERBATIM into runtime-42.parseSkeleton).
+  //    `parsedJson` is the once-parsed object (hoisted above for the Phase 12
+  //    F3 version guard); the adapter passes it straight to
+  //    SkeletonJson.readSkeletonData so spine-core does not re-parse. The
+  //    atlas-less SilentSkipAttachmentLoader branch (D-09 + RESEARCH.md
+  //    §Pitfall 1) lives inside the adapter, selected by the `isAtlasLess`
+  //    flag.
+  // Phase 43 (D-02): structural views of the opaque handles for the loader's
+  // own `.regions`/`.pages`/`.fps` reads below (the OpaqueAtlas is the same
+  // object the adapter constructed — `brandHandle` attaches `__rt`
+  // non-enumerably and returns it unchanged; these casts are compile-time
+  // narrowing only, no spine-core type import).
+  const atlasView = atlas! as unknown as AtlasRegionsView;
+
+  const skeletonData: OpaqueSkeletonData = rt.parseSkeleton(
+    parsedJson,
+    atlas,
+    isAtlasLess,
+  );
 
   // Phase 33 — D-01: per-RegionAttachment offset override for rotated regions.
-  // Bypasses spine-core RegionAttachment.updateRegion()'s packed-dim layout
-  // (which produces wrong world-quad geometry for rotate:true regions —
-  // verified at node_modules/@esotericsoftware/spine-core/dist/attachments/RegionAttachment.js:82-87).
-  // Direct-write variant — touches no region state, so MeshAttachment.updateRegion
-  // downstream still sees PACKED dims as before (D-02 untouched).
-  //
-  // Walks ALL skins (memory: project_sampler_visibility_invariant — sampler
-  // measures all skin-declared attachments, not just default skin).
-  //
-  // ASSUMES region.degrees === 90 only. Spine editor never emits 180/270 in
-  // 4.2; if a future export surfaces non-90° rotation, this path silently
-  // misbehaves (deferred per CONTEXT Out-of-Scope).
-  //
-  // Direction VERIFIED EMPIRICALLY in 33-RESEARCH.md (CONTEXT D-03 hypothesis
-  // of -90 was falsified): the SWAP form (region.width <-> region.height substituted
-  // into spine-core's offset formula) preserves SW trim semantics, while the
-  // originalWidth/Height substitution variant breaks SW+rotation.
-  //
-  // Gated on !isAtlasLess: atlas-less mode never has rotated regions
-  // (memory: project_strict_loadermode_separation).
+  // Phase 43 (D-02): the verbatim Phase-33 SWAP-form offset[] write is
+  // relocated into runtime-42.applyRotatedRegionFix. The `!isAtlasLess` gate
+  // stays loader-side to preserve the EXACT original guard (atlas-less mode
+  // never has rotated regions — memory: project_strict_loadermode_separation).
+  // SAFE-02 byte-gates this path via the frozen `spine_rotated` baseline.
   if (!isAtlasLess) {
-    for (const skin of skeletonData.skins) {
-      // skin.attachments: StringMap<Attachment>[] — array indexed by slot.
-      // Each entry (when present) is a plain object: { [attachmentName]: Attachment }.
-      for (const slotMap of skin.attachments) {
-        if (!slotMap) continue;
-        for (const attachmentName in slotMap) {
-          const attachment = slotMap[attachmentName];
-          if (!(attachment instanceof RegionAttachment)) continue;
-          const region = attachment.region;
-          if (!region || region.degrees === 0) continue;
-
-          const w = attachment.width;
-          const h = attachment.height;
-          const x = attachment.x;
-          const y = attachment.y;
-          const scaleX = attachment.scaleX;
-          const scaleY = attachment.scaleY;
-          const rotation = attachment.rotation;
-
-          const radians = (rotation * Math.PI) / 180;
-          const cos = Math.cos(radians);
-          const sin = Math.sin(radians);
-
-          // Canonical (post-swap) regionScaleX/Y. originalWidth/originalHeight
-          // are canonical per libgdx convention (verified: TextureAtlas.js:87-93).
-          const rsX = (w / region.originalWidth) * scaleX;
-          const rsY = (h / region.originalHeight) * scaleY;
-
-          const localX = (-w / 2) * scaleX + region.offsetX * rsX;
-          const localY = (-h / 2) * scaleY + region.offsetY * rsY;
-
-          // SWAP — verified at 33-RESEARCH.md §"D-01 Formula Derivation" probe:
-          //   localX2 uses region.height (PACKED H = post-rot canonical W);
-          //   localY2 uses region.width  (PACKED W = post-rot canonical H).
-          const localX2 = localX + region.height * rsX;
-          const localY2 = localY + region.width * rsY;
-
-          const lXc = localX * cos + x;
-          const lXs = localX * sin;
-          const lYc = localY * cos + y;
-          const lYs = localY * sin;
-          const lX2c = localX2 * cos + x;
-          const lX2s = localX2 * sin;
-          const lY2c = localY2 * cos + y;
-          const lY2s = localY2 * sin;
-
-          const off = attachment.offset;
-          off[0] = lXc - lYs;
-          off[1] = lYc + lXs;
-          off[2] = lXc - lY2s;
-          off[3] = lY2c + lXs;
-          off[4] = lX2c - lY2s;
-          off[5] = lY2c + lX2s;
-          off[6] = lX2c - lYs;
-          off[7] = lYc + lX2s;
-          // Note: do NOT touch attachment.uvs — spine-core wrote correct
-          // rotated-UVs at parse time (RegionAttachment.js:109-117).
-        }
-      }
-    }
+    rt.applyRotatedRegionFix(skeletonData);
   }
 
   // 6. Build sourceDims map.
@@ -636,7 +550,7 @@ export function loadSkeleton(
       sourceDims.set(name, { w: dims.w, h: dims.h, source: 'png-header' });
     }
   } else {
-    for (const region of atlas!.regions) {
+    for (const region of atlasView.regions) {
       const packedW = region.width;
       const packedH = region.height;
       const origW = region.originalWidth;
@@ -681,7 +595,7 @@ export function loadSkeleton(
     // only, so re-adding sourcePaths carries no risk of re-enabling stale PNG reads.
     // The image-worker already falls back to atlasSource extraction when the file is
     // absent (image-worker.ts:148-162).
-    for (const region of atlas!.regions) {
+    for (const region of atlasView.regions) {
       sourcePaths.set(
         region.name,
         path.resolve(path.join(imagesDir, region.name + '.png')),
@@ -729,7 +643,7 @@ export function loadSkeleton(
     }
   } else {
     // Atlas-source: atlas is authoritative. region.originalWidth/Height only.
-    for (const region of atlas!.regions) {
+    for (const region of atlasView.regions) {
       actualDimsByRegion.set(region.name, {
         actualSourceW: region.originalWidth,
         actualSourceH: region.originalHeight,
@@ -793,7 +707,7 @@ export function loadSkeleton(
   } else {
     // Canonical mode: resolvedAtlasPath is non-null (set by loadCanonical).
     const atlasDir = path.dirname(resolvedAtlasPath!);
-    for (const region of atlas!.regions) {
+    for (const region of atlasView.regions) {
       const rotated = region.degrees !== 0;
       // Phase 33 UAT fix — packW/packH MUST be the actual page-pixel rect
       // dims (sharp.extract args). libgdx atlas convention: `bounds:x,y,W,H`
@@ -825,7 +739,7 @@ export function loadSkeleton(
   // field (SkeletonJson.js:73). Spine's editor default is 30 — fall back to
   // that silently when the field is absent. NOT used for sampling rate
   // (CLAUDE.md rule #1 forbids fps-driven sampling).
-  const editorFps = skeletonData.fps || 30;
+  const editorFps = (skeletonData as unknown as SkeletonDataFpsView).fps || 30;
 
   // Phase 21 Plan 21-09 G-01 — surface attachments whose PNGs were missing in
   // atlas-less mode. Each missingPngs entry from the synthesizer is
@@ -852,8 +766,20 @@ export function loadSkeleton(
   return {
     skeletonPath: path.resolve(skeletonPath),
     atlasPath: resolvedAtlasPath, //                                      D-03: string | null
-    skeletonData,
-    atlas: atlas!,
+    // Phase 43 (D-02): `skeletonData`/`atlas` are OpaqueSkeletonData/OpaqueAtlas
+    // handles from the runtime adapter — the SAME runtime objects the adapter
+    // constructed (brandHandle attaches `__rt` non-enumerably and returns the
+    // object unchanged). LoadResult's spine-core-typed fields are intentionally
+    // NOT reshaped this phase (PATTERNS § types.ts; the Phase-44/45-owned
+    // main/summary.ts still constructs `new Skeleton(load.skeletonData)`
+    // directly). The cast through `unknown` is the single boundary
+    // reconciliation at the loader return — the runtime identity stays threaded
+    // via the populated `runtime` field below.
+    skeletonData: skeletonData as unknown as LoadResult['skeletonData'],
+    atlas: atlas! as unknown as LoadResult['atlas'],
+    // Phase 43 (D-02, RT-02): the hard-picked 4.2 runtime adapter. Consumed by
+    // sampler.ts/bounds.ts via `load.runtime.*` (no spine-core import there).
+    runtime: rt,
     sourceDims,
     sourcePaths,
     atlasSources,

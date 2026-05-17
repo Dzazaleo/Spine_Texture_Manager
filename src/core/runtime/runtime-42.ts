@@ -330,6 +330,12 @@ export function create(): SpineRuntime {
       return (unwrapHandle<{ color: { a: number } }>(slot)).color.a;
     },
 
+    attachmentName(a: OpaqueAttachment): string {
+      // Verbatim from sampler.ts snapshotFrame: attachment.name (base
+      // Attachment.name). Q1 strictly-additive accessor (RT-02).
+      return (unwrapHandle<{ name: string }>(a)).name;
+    },
+
     skinEntries(skin: OpaqueSkin): { slotIndex: number; name: string; attachment: OpaqueAttachment }[] {
       // Verbatim from sampler.ts:228: skin.getAttachments()
       return (unwrapHandle<{

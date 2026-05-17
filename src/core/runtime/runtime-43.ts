@@ -271,6 +271,12 @@ export function create(): SpineRuntime {
       return (unwrapHandle<Slot43>(slot).pose as unknown as { color: { a: number } }).color.a;
     },
 
+    attachmentName(a: OpaqueAttachment): string {
+      // Source: Attachment.d.ts — attachment.name (base Attachment, identical
+      // to 4.2). Q1 strictly-additive accessor (RT-02); no reshape.
+      return (unwrapHandle<{ name: string }>(a)).name;
+    },
+
     skinEntries(skin: OpaqueSkin): { slotIndex: number; name: string; attachment: OpaqueAttachment }[] {
       // Source: Skin.d.ts:70 — getAttachments() → Array<SkinEntry>;
       // SkinEntry (Skin.d.ts:35-41) has fields: slotIndex, placeholder, attachment.
