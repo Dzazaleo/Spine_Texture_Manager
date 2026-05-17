@@ -121,7 +121,23 @@ export interface SpineRuntime {
  * reachable by every post-reset fresh `runtime.ts` instance. This is still
  * test-infra-ONLY and DEAD in production (the worker never imports the
  * setupFile → the globalThis slot is `undefined` → branch (2) lazy-`require`,
- * unchanged byte-for-byte from Plan 02). */
+ * unchanged byte-for-byte from Plan 02).
+ *
+ * 43-06 note (GAP-43-PROD-SEAM): Assumptions Log A2's *bare-`./runtime-42.js`-
+ * same-dir* form was FALSIFIED by the real electron-vite build — electron-vite
+ * v5 `build.externalizeDeps:true` only externalizes package.json deps, so the
+ * intra-`src` relative `require('./runtime-42.js')` was neither bundled nor
+ * emitted beside the worker-shared chunk (no `runtime-42.js` artifact existed →
+ * the built worker threw `Cannot find module './runtime-42.js'` on every
+ * sample). The branch-(2) literal is now corrected to the EMITTED
+ * `../runtime-4x.cjs` artifact path: ARCHITECTURE §7's build-order item is
+ * landed (electron.vite.config.ts rollupOptions.input emits
+ * out/main/runtime-4x.cjs with spine-core externalized), and the specifier is
+ * `../runtime-4x.cjs` because the literal resolves relative to the requiring
+ * file's dir = out/main/chunks/ (one dir UP into out/main/, `.cjs` not `.js`).
+ * The lazy-single-copy (ARCHITECTURE §4), resolver-first precedence, sync
+ * `require` (no `await import()`), and globalThis-scoping invariants are
+ * UNCHANGED — only the falsified A2 same-dir-`.js` form is corrected. */
 
 /** Unique globalThis key for the test-only ESM resolver. globalThis-scoped
  *  (NOT module-scoped) so the setupFile's one-time binding survives
@@ -171,12 +187,21 @@ export function pickRuntime(tag: RuntimeTag): SpineRuntime {
     // `require('./runtime-42.js')` below is never reached under vitest.
     rt = esmResolver(tag);
   } else if (typeof require !== 'undefined') {
-    // PRODUCTION (electron-vite CJS worker — Assumptions Log A2). BYTE-IDENTICAL
-    // to Plan 02: conditional lazy require keeps the unmatched spine-core copy
-    // out of the worker (ARCHITECTURE §4 lazy single-copy). DO NOT add a static
-    // import of either runtime-4x file — that defeats lazy single-copy.
+    // PRODUCTION (electron-vite CJS worker). GAP-43-PROD-SEAM fix (43-06):
+    // electron-vite bundles pickRuntime into the worker-shared chunk at
+    // out/main/chunks/sampler-<hash>.cjs and PRESERVES this require literal
+    // VERBATIM (it does not rewrite an untraceable relative require). Node
+    // resolves it relative to the requiring file's dir = out/main/chunks/.
+    // The adapters are emitted (electron.vite.config.ts rollupOptions.input,
+    // 43-06) at out/main/runtime-4x.cjs — one dir UP from chunks/ — so the
+    // specifier is `../runtime-4x.cjs` (NOT `./runtime-4x.js`: wrong dir +
+    // wrong ext = the GAP-43-PROD-SEAM orphan). Still a CONDITIONAL SYNC
+    // require — loadSkeleton stays synchronous (no await import()); the
+    // unmatched adapter (and its spine-core copy) is never required → lazy
+    // single-copy (ARCHITECTURE §4) preserved. DO NOT add a static import of
+    // either adapter — that defeats lazy single-copy.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = tag === '4.2' ? require('./runtime-42.js') : require('./runtime-43.js');
+    const mod = tag === '4.2' ? require('../runtime-42.cjs') : require('../runtime-43.cjs');
     rt = (mod as { create: () => SpineRuntime }).create();
   } else {
     // Never silently return null: neither a resolver nor a working `require`.

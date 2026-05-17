@@ -45,6 +45,22 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
           'sampler-worker': resolve(__dirname, 'src/main/sampler-worker.ts'),
+          // Phase 43 GAP-43-PROD-SEAM (43-06) — ARCHITECTURE §4/§7 build-order
+          // item: emit the two SpineRuntime adapters as their OWN resolvable
+          // entry artifacts (out/main/runtime-42.cjs / runtime-43.cjs) so the
+          // pickRuntime prod-arm lazy `require('../runtime-4x.cjs')` (resolved
+          // relative to the worker-shared out/main/chunks/ dir) lands on a real
+          // on-disk file. electron-vite v5 build.externalizeDeps:true keeps each
+          // adapter's package.json spine-core dep EXTERNAL (a bare
+          // `require("spine-core-42")` / `require("@esotericsoftware/spine-core")`),
+          // so the UNMATCHED spine-core graph is NOT co-bundled into the matched
+          // adapter — ARCHITECTURE §4 lazy single-copy PRESERVED (empirically
+          // verified: runtime-42.cjs has 0 `@esotericsoftware/spine-core`
+          // require literals; runtime-43.cjs has 0 `spine-core-42` require
+          // literals). DO NOT add a static `import` of either adapter anywhere
+          // — that would defeat lazy single-copy by pulling both graphs in.
+          'runtime-42': resolve(__dirname, 'src/core/runtime/runtime-42.ts'),
+          'runtime-43': resolve(__dirname, 'src/core/runtime/runtime-43.ts'),
         },
         output: {
           format: 'cjs',
