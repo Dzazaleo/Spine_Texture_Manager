@@ -14,6 +14,15 @@
  *     the raw bone hierarchy without any animation state applied).
  *   - N2.3 hygiene greps: no `node:fs` / `node:path` / `sharp` imports.
  *
+ * Phase 43 (RT-02, 43-03): bounds.ts is now instanceof-free and its exported
+ * functions take `(rt, sk, slot, a)` opaque handles instead of raw spine-core
+ * `(slot, attachment)`. The behavioral assertions below are byte-UNCHANGED —
+ * only the call shape is threaded through the runtime adapter (mirrors the
+ * production sampler rewire). The module-hygiene block is updated to assert the
+ * NEW RT-02 contract (no direct spine-core import; no instanceof; calls route
+ * through rt.*) — the Q3 signature ripple deliberately inverts the old
+ * instanceof-presence assertions.
+ *
  * N1.5 (TransformConstraint on SQUARE — constrained-vs-unconstrained peak)
  * lives in sampler.spec.ts per the plan's locked test strategy, because
  * the constraint only fires during animation application.
@@ -34,8 +43,31 @@ import {
   attachmentWorldAABB,
   computeRenderScale,
 } from '../../src/core/bounds.js';
+import { pickRuntime } from '../../src/core/runtime/runtime.js';
+import { brandHandle } from '../../src/core/runtime/types.js';
+import type {
+  OpaqueSkeleton,
+  OpaqueSlot,
+  OpaqueAttachment,
+} from '../../src/core/runtime/types.js';
 
 const FIXTURE = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+
+// The hard-picked 4.2 runtime adapter (same one loadSkeleton populates).
+const rt = pickRuntime('4.2');
+
+/** Wrap a raw spine object as the matching opaque handle (test-only — mirrors
+ *  what the adapter does internally; the brand is a compile-time phantom and
+ *  brandHandle attaches `__rt` non-enumerably to the same object). */
+function asSk(s: unknown): OpaqueSkeleton {
+  return brandHandle<OpaqueSkeleton>(s, '4.2');
+}
+function asSlot(s: unknown): OpaqueSlot {
+  return brandHandle<OpaqueSlot>(s, '4.2');
+}
+function asAtt(a: unknown): OpaqueAttachment {
+  return brandHandle<OpaqueAttachment>(a, '4.2');
+}
 
 /**
  * Helper: build a Skeleton ready for per-slot bounds queries at t=0 (setup pose +
@@ -62,7 +94,7 @@ describe('computeRenderScale (F2.5)', () => {
     expect(slot).toBeDefined();
     const att = slot!.getAttachment();
     expect(att instanceof RegionAttachment).toBe(true);
-    const rs = computeRenderScale(slot!, att!);
+    const rs = computeRenderScale(rt, asSk(skeleton), asSlot(slot!), asAtt(att!));
     expect(rs).not.toBeNull();
     expect(rs!.scaleX).toBeCloseTo(
       Math.abs(slot!.bone.getWorldScaleX()),
@@ -86,7 +118,7 @@ describe('computeRenderScale (F2.5)', () => {
     expect(slot).toBeDefined();
     const att = slot!.getAttachment();
     expect(att instanceof RegionAttachment).toBe(true);
-    const rs = computeRenderScale(slot!, att!);
+    const rs = computeRenderScale(rt, asSk(skeleton), asSlot(slot!), asAtt(att!));
     expect(rs).not.toBeNull();
     expect(rs!.scale).toBeGreaterThan(0);
     expect(rs!.scale).toBeLessThan(1);
@@ -107,7 +139,7 @@ describe('computeRenderScale (F2.5)', () => {
     expect(slot).toBeDefined();
     const att = slot!.getAttachment();
     expect(att).not.toBeNull();
-    const rs = computeRenderScale(slot!, att!);
+    const rs = computeRenderScale(rt, asSk(skeleton), asSlot(slot!), asAtt(att!));
     expect(rs).not.toBeNull();
     expect(Number.isFinite(rs!.scale)).toBe(true);
     expect(rs!.scale).toBeCloseTo(1.0, 3); // setup pose, identity chain
@@ -133,7 +165,14 @@ describe('computeRenderScale (F2.5)', () => {
       if (pathEntry) break;
     }
     if (!pathEntry) throw new Error('fixture has no PathAttachment');
-    expect(computeRenderScale(pathEntry.slot!, pathEntry.att)).toBeNull();
+    expect(
+      computeRenderScale(
+        rt,
+        asSk(skeleton),
+        asSlot(pathEntry.slot!),
+        asAtt(pathEntry.att),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -151,7 +190,7 @@ describe('attachmentWorldAABB (F2.3)', () => {
       const att = slot.getAttachment();
       if (!(att instanceof RegionAttachment)) continue;
       regionCount++;
-      const aabb = attachmentWorldAABB(slot, att);
+      const aabb = attachmentWorldAABB(rt, asSk(skeleton), asSlot(slot), asAtt(att));
       expect(aabb, `slot ${slot.data.name}: AABB null`).not.toBeNull();
       expect(Number.isFinite(aabb!.minX)).toBe(true);
       expect(Number.isFinite(aabb!.minY)).toBe(true);
@@ -177,7 +216,7 @@ describe('attachmentWorldAABB (F2.3)', () => {
       }
     }
     if (!found) throw new Error('fixture has no RegionAttachment — test premise invalid');
-    const aabb = attachmentWorldAABB(found.slot!, found.att);
+    const aabb = attachmentWorldAABB(rt, asSk(skeleton), asSlot(found.slot!), asAtt(found.att));
     expect(aabb).not.toBeNull();
     expect(aabb!.maxX).toBeGreaterThan(aabb!.minX);
     expect(aabb!.maxY).toBeGreaterThan(aabb!.minY);
@@ -205,7 +244,7 @@ describe('attachmentWorldAABB (F2.3)', () => {
       }
     }
     if (!mesh) throw new Error('fixture has no MeshAttachment — test premise invalid');
-    const aabb = attachmentWorldAABB(mesh.slot!, mesh.att);
+    const aabb = attachmentWorldAABB(rt, asSk(skeleton), asSlot(mesh.slot!), asAtt(mesh.att));
     expect(aabb).not.toBeNull();
     expect(aabb!.maxX).toBeGreaterThan(aabb!.minX);
     expect(aabb!.maxY).toBeGreaterThan(aabb!.minY);
@@ -259,12 +298,17 @@ describe('attachmentWorldAABB (F2.3)', () => {
       }
     }
     if (!pathEntry) throw new Error('fixture has no PathAttachment — test premise invalid');
-    const result = attachmentWorldAABB(pathEntry.slot!, pathEntry.att);
+    const result = attachmentWorldAABB(
+      rt,
+      asSk(skeleton),
+      asSlot(pathEntry.slot!),
+      asAtt(pathEntry.att),
+    );
     expect(result).toBeNull();
   });
 });
 
-describe('bounds.ts module hygiene (N2.3 by construction)', () => {
+describe('bounds.ts module hygiene (N2.3 + RT-02 by construction)', () => {
   const src = fs.readFileSync(
     path.resolve('src/core/bounds.ts'),
     'utf8',
@@ -283,16 +327,23 @@ describe('bounds.ts module hygiene (N2.3 by construction)', () => {
     expect(src).toMatch(/export\s+function\s+computeRenderScale/);
   });
 
-  it('references both RegionAttachment and VertexAttachment delegation paths', () => {
-    expect(src).toMatch(/RegionAttachment/);
-    expect(src).toMatch(/VertexAttachment/);
-    expect(src).toMatch(/worldVerticesLength/);
+  // Phase 43 RT-02 (Pitfall 2): bounds.ts is now instanceof-free and imports
+  // NO spine-core package — the attachment-kind discriminant + its LOCKED
+  // ORDER live INSIDE the runtime adapter (runtime-42/43.ts). These assertions
+  // deliberately invert the pre-RT-02 instanceof-presence checks.
+  it('RT-02: does NOT import a spine-core package directly', () => {
+    expect(src).not.toMatch(/from ['"](@esotericsoftware\/spine-core|spine-core-42)['"]/);
   });
 
-  it('handles all four non-textured VertexAttachment subclasses before the generic path', () => {
-    expect(src).toMatch(/BoundingBoxAttachment/);
-    expect(src).toMatch(/PathAttachment/);
-    expect(src).toMatch(/PointAttachment/);
-    expect(src).toMatch(/ClippingAttachment/);
+  it('RT-02: is instanceof-free for every spine-core attachment class', () => {
+    expect(src).not.toMatch(
+      /\binstanceof\s+(RegionAttachment|VertexAttachment|MeshAttachment|BoundingBoxAttachment|PathAttachment|PointAttachment|ClippingAttachment)\b/,
+    );
+  });
+
+  it('RT-02: routes attachment-kind + world-vertices through the runtime adapter', () => {
+    expect(src).toMatch(/rt\.attachmentKind/);
+    expect(src).toMatch(/rt\.regionWorldVertices/);
+    expect(src).toMatch(/rt\.vertexWorldVertices/);
   });
 });

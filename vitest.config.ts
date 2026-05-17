@@ -12,6 +12,15 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Phase 43 (43-03) Option A — test-infra-only ESM adapter resolver.
+    // package.json is "type":"module", so under vitest the ambient `require`
+    // that pickRuntime's production CJS-worker path uses is undefined. This
+    // setupFile statically imports the REAL runtime-42/runtime-43 adapters and
+    // binds pickRuntime's injectable resolver (resolution-only; NOT a mock —
+    // SAFE-02 exercises the real runtime-42.111 path). It is NEVER imported by
+    // src/ / the electron-vite worker bundle, so the worker keeps its
+    // ambient-require lazy single-copy guarantee (ARCHITECTURE §4) unchanged.
+    setupFiles: ['tests/setup/esm-adapter-resolver.ts'],
     include: ['tests/**/*.spec.ts', 'tests/**/*.spec.tsx'],
     // tests/_trace_tmp/ is a gitignored scratch dir for ad-hoc investigation
     // specs (see .gitignore); exclude it so CI/local runs don't trip on

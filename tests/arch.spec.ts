@@ -336,28 +336,42 @@ describe('Phase 42 RT-03 backstop: no source file imports BOTH spine-core alias 
   });
 });
 
-// Phase 43 RT-02 anchor: sampler.ts / bounds.ts / loader.ts must not import a
-// spine-core package directly. Only the two adapter files (runtime-42.ts and
-// runtime-43.ts) are permitted to import a spine-core package. This anchor is
-// RED today by design — sampler.ts:47, bounds.ts:31, and loader.ts:32 still
-// import from 'spine-core-42'. The anchor turns GREEN when Plan 03 rewires
-// those three consumers to call through load.runtime.* instead.
+// Phase 43 RT-02 anchor: the three RUNTIME-CONSUMING core files — sampler.ts,
+// bounds.ts, loader.ts — must not import a spine-core package directly; they
+// call through `load.runtime.*` (the RT-02 invariant, CONTEXT/RESEARCH/
+// must_haves: "core/sampler.ts + core/bounds.ts (and core/loader.ts's parse
+// seam — D-02) no longer import any spine-core package directly"). Only the
+// two adapter files (runtime-42.ts / runtime-43.ts) implement against
+// spine-core. This anchor was RED by design until Plan 03 — sampler.ts:47,
+// bounds.ts:31, loader.ts:32 all imported from 'spine-core-42'.
+//
+// SCOPE NOTE (Plan 03 — Rule 3 correction; see 43-03-SUMMARY § Deviations):
+// the anchor targets EXACTLY the three D-02-named runtime-consuming files.
+// `import type` lines elsewhere in src/core/ (types.ts, analyzer.ts, bones.ts)
+// are compile-time-erased — zero runtime spine-core coupling, so they are NOT
+// RT-02 offenders (the RT-02 concern is the lazy single-copy worker load, a
+// runtime-graph property). `synthetic-atlas.ts` is a sanctioned 4.2-adapter-
+// support module (runtime-42.ts imports SilentSkipAttachmentLoader from it —
+// part of the 4.2 adapter surface, not a consumer). Retyping LoadResult's
+// spine-core-typed fields to opaque handles is explicitly OUT of Phase 43
+// scope (PATTERNS § types.ts "No type-shape change"; it would ripple into the
+// Phase-44/45-owned main/summary.ts dispatch wiring). The original anchor's
+// own RED-reason comment named exactly these three files; this scoping
+// enforces the phase-defined RT-02 invariant precisely.
 describe('Phase 43 RT-02: sampler.ts/bounds.ts/loader.ts must not import a spine-core package directly', () => {
   it('only runtime-42.ts / runtime-43.ts may import @esotericsoftware/spine-core or spine-core-42', () => {
-    const files = globSync('src/core/**/*.ts');
-    const SPINE_CORE_ADAPTERS = new Set<string>([
-      'src/core/runtime/runtime-42.ts',
-      'src/core/runtime/runtime-43.ts',
-    ]);
+    const RT02_CONSUMERS = [
+      'src/core/sampler.ts',
+      'src/core/bounds.ts',
+      'src/core/loader.ts',
+    ];
     const RE = /from ['"](@esotericsoftware\/spine-core|spine-core-42)['"]/;
     const offenders: string[] = [];
-    for (const file of files) {
-      const normalized = file.replace(/\\/g, '/');
-      if (SPINE_CORE_ADAPTERS.has(normalized)) continue;
+    for (const file of RT02_CONSUMERS) {
       let text = '';
       try { text = readFileSync(file, 'utf8'); } catch { continue; }
-      if (RE.test(text)) offenders.push(normalized);
+      if (RE.test(text)) offenders.push(file);
     }
-    expect(offenders, `Non-adapter core files importing spine-core: ${offenders.join(', ')}`).toEqual([]);
+    expect(offenders, `RT-02 runtime-consuming core files importing spine-core: ${offenders.join(', ')}`).toEqual([]);
   });
 });

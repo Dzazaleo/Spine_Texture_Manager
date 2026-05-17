@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tryLoad43 } from './load43.js';
-import { handleRuntime } from '../../src/core/runtime/types.js';
+import { brandHandle, handleRuntime } from '../../src/core/runtime/types.js';
 
 describe('SAFE-03: attachments resolve attachmentKind against the loading runtime; cross-feed detected', () => {
   it('every 4.3 skin-entry attachment is handleRuntime "4.3" and classifies non-skip-or-known', () => {
@@ -24,8 +24,9 @@ describe('SAFE-03: attachments resolve attachmentKind against the loading runtim
     if (loaded == null) { expect(true).toBe(true); return; }
     // The brand makes a cross-mix a COMPILE error; handleRuntime is the runtime
     // backstop. Construct a deliberately 4.2-tagged fake handle and assert the
-    // tag is observable (so a cross-feed cannot be silent).
-    const { brandHandle } = require('../../src/core/runtime/types.js');
+    // tag is observable (so a cross-feed cannot be silent). Static import (not
+    // require) — package.json is "type":"module"; ambient require is undefined
+    // under vitest (43-03 Option A verification-integrity fix).
     const fake42 = brandHandle({}, '4.2');
     expect(handleRuntime(fake42)).toBe('4.2');
     expect(handleRuntime(fake42)).not.toBe('4.3');

@@ -44,15 +44,13 @@
  * `frame` field that lets animators cross-reference their editor dopesheet.
  */
 
-import {
-  Skeleton,
-  AnimationState,
-  AnimationStateData,
-  Physics,
-  AttachmentTimeline,
-} from 'spine-core-42';
 import type { LoadResult, SampleRecord, SourceDims } from './types.js';
 import { attachmentWorldAABB, computeRenderScale } from './bounds.js';
+import type { SpineRuntime } from './runtime/runtime.js';
+import type {
+  OpaqueSkeleton,
+  OpaqueSkeletonData,
+} from './runtime/types.js';
 
 /** CLAUDE.md rule #6 — default 120 Hz. Above typical 60 Hz game render cadence. */
 export const DEFAULT_SAMPLING_HZ = 120;
@@ -136,6 +134,17 @@ export function sampleSkeleton(
   load: LoadResult,
   opts: SamplerOptions = {},
 ): SamplerOutput {
+  // Phase 43 (RT-02): every spine-core leaf call routes through the runtime
+  // adapter the loader hard-picked (4.2 this phase — D-02). The sampler
+  // ALGORITHM is byte-UNCHANGED; only the ~12 leaf calls move behind `rt.*`.
+  const rt = load.runtime;
+  if (rt == null) {
+    throw new Error(
+      'sampleSkeleton: load.runtime missing — loader must populate it (43-03)',
+    );
+  }
+  const skeletonData = load.skeletonData as unknown as OpaqueSkeletonData;
+
   const samplingHz = opts.samplingHz ?? DEFAULT_SAMPLING_HZ;
   const editorFps = load.editorFps;
   const dt = 1 / samplingHz;
@@ -157,22 +166,22 @@ export function sampleSkeleton(
 
   // Single Skeleton + AnimationState pair reused across all (skin, animation)
   // iterations — the locked lifecycle resets them between runs.
-  const skeleton = new Skeleton(load.skeletonData);
-  const stateData = new AnimationStateData(load.skeletonData);
-  const state = new AnimationState(stateData);
+  const skeleton = rt.makeSkeleton(skeletonData);
+  const state = rt.makeAnimationState(skeletonData);
 
-  for (const skin of load.skeletonData.skins) {
-    skeleton.setSkin(skin);
-    skeleton.setSlotsToSetupPose();
+  for (const skin of rt.skins(skeletonData)) {
+    rt.setSkin(skeleton, skin);
+    rt.setupPoseSlots(skeleton);
 
     // Pass 1 (per skin): setup-pose snapshot. Use Physics.pose — world
     // transforms are recomputed without stepping physics (static pose).
-    skeleton.setToSetupPose();
-    state.clearTracks();
-    skeleton.updateWorldTransform(Physics.pose);
+    rt.setupPose(skeleton);
+    rt.clearTracks(state);
+    rt.updateWorldTransform(skeleton, 'pose');
     snapshotFrame(
+      rt,
       skeleton,
-      skin.name,
+      rt.skinName(skin),
       SETUP_POSE_LABEL,
       /*time*/ 0,
       /*frame*/ 0,
@@ -225,8 +234,9 @@ export function sampleSkeleton(
     // sampler.ts:291. Empirical fixture probe falsified it — both
     // JOKER-BG and JOKER-FRAME slot defs have no `color` field (default
     // alpha 1.0). The alpha gate at sampler.ts:291 stays unchanged.
-    for (const entry of skin.getAttachments()) {
-      const slot = skeleton.slots[entry.slotIndex];
+    const slotsForSkin = rt.slots(skeleton);
+    for (const entry of rt.skinEntries(skin)) {
+      const slot = slotsForSkin[entry.slotIndex];
       if (slot === undefined) continue; // defensive (skin/skeleton drift)
 
       const attachment = entry.attachment;
@@ -234,21 +244,22 @@ export function sampleSkeleton(
       // declares `attachment: Attachment` and we don't trust the input fully.
       if (attachment === null || attachment === undefined) continue;
 
-      const key = `${skin.name}/${slot.data.name}/${entry.name}`;
+      const slotName = rt.slotName(slot);
+      const key = `${rt.skinName(skin)}/${slotName}/${entry.name}`;
       if (globalPeaks.has(key)) continue; // existing setup-pose pass already measured this binding — defer
 
-      const aabb = attachmentWorldAABB(slot, attachment);
+      const aabb = attachmentWorldAABB(rt, skeleton, slot, attachment);
       if (aabb === null) continue; // BoundingBox / Path / Point / Clipping — no source texture
 
       // Region-name resolution mirrors snapshotFrame's logic (sampler.ts:
       // 309-310): prefer attachment.region.name (path indirection), fall
       // back to entry.name. Identical lookup path so atlas-source vs
       // optimized-folder load stays symmetric.
-      const regionName = (attachment as { region?: { name?: string } }).region?.name;
+      const regionName = rt.attachmentRegionMeta(attachment)?.name;
       const sd = load.sourceDims.get(regionName ?? entry.name);
       if (sd === undefined || sd.w <= 0 || sd.h <= 0) continue;
 
-      const rs = computeRenderScale(slot, attachment);
+      const rs = computeRenderScale(rt, skeleton, slot, attachment);
       if (rs === null) continue;
       const { scale: peakScale, scaleX: peakScaleX, scaleY: peakScaleY } = rs;
       const worldW = aabb.maxX - aabb.minX;
@@ -256,8 +267,8 @@ export function sampleSkeleton(
 
       const record: PeakRecord = {
         attachmentKey: key,
-        skinName: skin.name,
-        slotName: slot.data.name,
+        skinName: rt.skinName(skin),
+        slotName,
         attachmentName: entry.name,
         regionName: regionName ?? entry.name,
         animationName: SETUP_POSE_LABEL,
@@ -286,45 +297,40 @@ export function sampleSkeleton(
     // === end Pass 1.5 ===
 
     // Pass 2 (per skin, per animation): locked tick lifecycle.
-    for (const anim of load.skeletonData.animations) {
+    for (const anim of rt.animations(skeletonData)) {
       // Pre-loop: one-time collection of AttachmentTimeline-named pairs
       // `${slotIndex}/${attachmentName}` for the second arm of D-54's
-      // "affected" test. Uses instanceof on each timeline.
-      const animAttachmentNames = new Set<string>();
-      for (const tl of anim.timelines) {
-        if (tl instanceof AttachmentTimeline) {
-          for (const name of tl.attachmentNames) {
-            if (name !== null) animAttachmentNames.add(`${tl.slotIndex}/${name}`);
-          }
-        }
-      }
+      // "affected" test. The `tl instanceof AttachmentTimeline` walk is
+      // relocated VERBATIM into rt.attachmentTimelineNames (Q1, RT-02).
+      const animAttachmentNames = rt.attachmentTimelineNames(anim);
 
-      skeleton.setToSetupPose();
-      skeleton.setSlotsToSetupPose();
-      state.clearTracks();
-      // spine-core 4.2 splits the overload: `setAnimation` takes a string name,
-      // `setAnimationWith` takes the Animation object. The plan's interface
-      // block conflated them; the installed .d.ts confirms the split.
-      state.setAnimationWith(0, anim, false);
+      rt.setupPose(skeleton);
+      rt.setupPoseSlots(skeleton);
+      rt.clearTracks(state);
+      // 4.2 splits the overload (`setAnimation` takes a string, `setAnimationWith`
+      // takes the Animation object); the adapter maps `rt.setAnimation` →
+      // `setAnimationWith` for 4.2 (4.3 uses the unified overload).
+      rt.setAnimation(state, 0, anim, false);
       // Physics.reset called ONCE per animation — this is the determinism
       // anchor (N1.6 / T-00-04-02).
-      skeleton.updateWorldTransform(Physics.reset);
+      rt.updateWorldTransform(skeleton, 'reset');
 
-      const duration = anim.duration;
+      const duration = rt.animationDuration(anim);
       // `t <= duration + 1e-9` catches terminal-frame peaks and handles the
       // zero-duration (static pose) animation case — the first iteration
       // always runs because `0 <= 0 + 1e-9`.
       for (let t = 0; t <= duration + 1e-9; t += dt) {
         // === LOCKED TICK ORDER (CLAUDE.md rule #3 — do not reorder) ===
-        state.update(dt);
-        state.apply(skeleton);
-        skeleton.update(dt);
-        skeleton.updateWorldTransform(Physics.update);
+        rt.stateUpdate(state, dt);
+        rt.stateApply(state, skeleton);
+        rt.skeletonUpdate(skeleton, dt);
+        rt.updateWorldTransform(skeleton, 'update');
         // ==============================================================
         snapshotFrame(
+          rt,
           skeleton,
-          skin.name,
-          anim.name,
+          rt.skinName(skin),
+          rt.animationName(anim),
           t,
           Math.round(t * editorFps),
           load.sourceDims,
@@ -373,6 +379,8 @@ export function sampleSkeleton(
   // Hot-loop cost: zero. The fan-out is a one-shot O(N_sequences * N_frames)
   // walk over `skeletonData.skins` after sampling completes.
   fanOutSequencePeaks(
+    rt,
+    skeletonData,
     skeleton,
     load.sourceDims,
     globalPeaks,
@@ -411,30 +419,27 @@ export function sampleSkeleton(
  * packer for sequences and does not warrant the warning iconography.
  */
 function fanOutSequencePeaks(
-  skeleton: Skeleton,
+  rt: SpineRuntime,
+  skeletonData: OpaqueSkeletonData,
+  skeleton: OpaqueSkeleton,
   sourceDims: Map<string, SourceDims>,
   globalPeaks: Map<string, PeakRecord>,
   setupPosePeaks: Map<string, PeakRecord>,
   perAnimation: Map<string, PeakRecord>,
 ): void {
-  for (const skin of skeleton.data.skins) {
-    for (const entry of skin.getAttachments()) {
-      const att = entry.attachment as {
-        sequence?: {
-          regions?: ReadonlyArray<{ name?: string } | null | undefined>;
-          start?: number;
-          digits?: number;
-        } | null;
-      };
-      const seq = att.sequence;
-      if (seq === null || seq === undefined) continue;
-      const regions = seq.regions;
-      if (regions === undefined || regions === null || regions.length === 0) continue;
+  const slots = rt.slots(skeleton);
+  for (const skin of rt.skins(skeletonData)) {
+    const skinName = rt.skinName(skin);
+    for (const entry of rt.skinEntries(skin)) {
+      // Sequence regions resolved through the adapter (4.2 reads
+      // a.sequence?.regions; 4.3 maps the same shape — RT-02).
+      const regions = rt.sequenceRegions(entry.attachment);
+      if (regions === null || regions.length === 0) continue;
 
-      const slot = skeleton.slots[entry.slotIndex];
+      const slot = slots[entry.slotIndex];
       if (slot === undefined) continue;
-      const slotName = slot.data.name;
-      const baseKey = `${skin.name}/${slotName}/${entry.name}`;
+      const slotName = rt.slotName(slot);
+      const baseKey = `${skinName}/${slotName}/${entry.name}`;
 
       // Pull the at-peak record from globalPeaks (canonical source of truth
       // for the bone-driven world scale shared across all frames). If absent,
@@ -476,7 +481,7 @@ function fanOutSequencePeaks(
         // surfacing of missing frames flows via skippedAttachments.
         const sourceW = frameSd?.w ?? baseRecord.sourceW;
         const sourceH = frameSd?.h ?? baseRecord.sourceH;
-        const fannedKey = `${skin.name}/${slotName}/${frameName}`;
+        const fannedKey = `${skinName}/${slotName}/${frameName}`;
 
         // Skip if a real (non-fanned) entry already exists at this key
         // — happens when the user has a non-sequence attachment elsewhere
@@ -591,7 +596,8 @@ function fanOutSequencePeaks(
  * per tick. No growing arrays — CLAUDE.md rule #4.
  */
 function snapshotFrame(
-  skeleton: Skeleton,
+  rt: SpineRuntime,
+  skeleton: OpaqueSkeleton,
   skinName: string,
   animationName: string,
   time: number,
@@ -605,19 +611,19 @@ function snapshotFrame(
   perAnimationNames: Set<string> | null,
 ): void {
   let slotIndex = 0;
-  for (const slot of skeleton.slots) {
-    const attachment = slot.getAttachment();
+  for (const slot of rt.slots(skeleton)) {
+    const attachment = rt.slotAttachment(slot);
     if (attachment === null) {
       slotIndex++;
       continue;
     }
     // Canonical visibility: alpha 0 slots are invisible at runtime.
-    if (slot.color.a <= 0) {
+    if (rt.slotColorAlpha(slot) <= 0) {
       slotIndex++;
       continue;
     }
 
-    const aabb = attachmentWorldAABB(slot, attachment);
+    const aabb = attachmentWorldAABB(rt, skeleton, slot, attachment);
     if (aabb === null) {
       slotIndex++;
       continue; // BoundingBox / Path / Point / Clipping
@@ -630,14 +636,16 @@ function snapshotFrame(
     // attachment's region.name when present and fall back to attachment.name
     // only for attachments without a region (shouldn't happen for pixel-bearing
     // ones at this point — the AABB guard above already filtered them).
-    const regionName = (attachment as { region?: { name?: string } }).region?.name;
-    const sd = sourceDims.get(regionName ?? attachment.name);
+    const attachmentName = rt.attachmentName(attachment);
+    const slotName = rt.slotName(slot);
+    const regionName = rt.attachmentRegionMeta(attachment)?.name;
+    const sd = sourceDims.get(regionName ?? attachmentName);
     if (sd === undefined || sd.w <= 0 || sd.h <= 0) {
       slotIndex++;
       continue;
     }
 
-    const rs = computeRenderScale(slot, attachment);
+    const rs = computeRenderScale(rt, skeleton, slot, attachment);
     if (rs === null) {
       slotIndex++;
       continue; // non-textured attachment (defensive; AABB guard above already skipped)
@@ -646,7 +654,7 @@ function snapshotFrame(
     const worldW = aabb.maxX - aabb.minX;
     const worldH = aabb.maxY - aabb.minY;
 
-    const key = `${skinName}/${slot.data.name}/${attachment.name}`;
+    const key = `${skinName}/${slotName}/${attachmentName}`;
     if (touchedSet !== null) touchedSet.add(key);
 
     const existing = globalPeaks.get(key);
@@ -654,9 +662,9 @@ function snapshotFrame(
       globalPeaks.set(key, {
         attachmentKey: key,
         skinName,
-        slotName: slot.data.name,
-        attachmentName: attachment.name,
-        regionName: regionName ?? attachment.name,
+        slotName,
+        attachmentName,
+        regionName: regionName ?? attachmentName,
         animationName,
         time,
         frame,
@@ -678,9 +686,9 @@ function snapshotFrame(
       setupPosePeaks.set(key, {
         attachmentKey: key,
         skinName,
-        slotName: slot.data.name,
-        attachmentName: attachment.name,
-        regionName: regionName ?? attachment.name,
+        slotName,
+        attachmentName,
+        regionName: regionName ?? attachmentName,
         animationName,
         time,
         frame,
@@ -701,7 +709,7 @@ function snapshotFrame(
       const baseline = setupPoseBaseline.get(key) ?? 0;
       const scaleDelta = Math.abs(peakScale - baseline);
       const isAffectedByScale = scaleDelta > SCALE_DELTA_EPSILON;
-      const timelineKey = `${slotIndex}/${attachment.name}`;
+      const timelineKey = `${slotIndex}/${attachmentName}`;
       const isAffectedByTimeline =
         perAnimationNames !== null && perAnimationNames.has(timelineKey);
       if (isAffectedByScale || isAffectedByTimeline) {
@@ -711,9 +719,9 @@ function snapshotFrame(
           perAnimation.set(perAnimKey, {
             attachmentKey: key,
             skinName,
-            slotName: slot.data.name,
-            attachmentName: attachment.name,
-            regionName: regionName ?? attachment.name,
+            slotName,
+            attachmentName,
+            regionName: regionName ?? attachmentName,
             animationName,
             time,
             frame,

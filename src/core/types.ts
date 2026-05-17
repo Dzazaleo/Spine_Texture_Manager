@@ -185,8 +185,10 @@ export interface LoadResult {
    */
   skippedAttachments?: { name: string; expectedPngPath: string }[];
   /** Phase 42 (RT-03): the runtime adapter that parsed this skeleton.
-   *  Declared in Phase 42; populated by loader.ts and consumed by
-   *  sampler.ts/bounds.ts in Phase 43 (RT-02). Optional until then. */
+   *  Declared in Phase 42; populated by loader.ts (hard-pick pickRuntime('4.2'))
+   *  and consumed by sampler.ts/bounds.ts in Phase 43 (RT-02, 43-03). Kept
+   *  optional: partial LoadResult test/CLI builders exist and Phase 43 does not
+   *  reshape the type (PATTERNS § types.ts). */
   runtime?: SpineRuntime;
 }
 

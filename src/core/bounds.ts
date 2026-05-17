@@ -28,18 +28,13 @@
  * `tests/core/bounds.spec.ts` and by spec grep in the plan.
  */
 
-import {
-  RegionAttachment,
-  VertexAttachment,
-  MeshAttachment,
-  BoundingBoxAttachment,
-  PathAttachment,
-  PointAttachment,
-  ClippingAttachment,
-  type Slot,
-  type Attachment,
-} from 'spine-core-42';
 import type { AABB } from './types.js';
+import type { SpineRuntime } from './runtime/runtime.js';
+import type {
+  OpaqueSkeleton,
+  OpaqueSlot,
+  OpaqueAttachment,
+} from './runtime/types.js';
 
 /**
  * Compute the world-space AABB of a single attachment on a slot.
@@ -57,35 +52,32 @@ import type { AABB } from './types.js';
  *      pixel-carrying VertexAttachment subtype.
  */
 export function attachmentWorldAABB(
-  slot: Slot,
-  attachment: Attachment,
+  rt: SpineRuntime,
+  sk: OpaqueSkeleton,
+  slot: OpaqueSlot,
+  a: OpaqueAttachment,
 ): AABB | null {
+  // The kind discriminant + its LOCKED ORDER (Region → skip-list → mesh/vertex)
+  // lives INSIDE the adapter's `attachmentKind` (runtime-42/43.ts) — bounds.ts
+  // is now instanceof-free (RT-02 / Pitfall 2). Math byte-UNCHANGED.
+  const kind = rt.attachmentKind(a);
+
   // 1) Region — 4 vertices.
-  if (attachment instanceof RegionAttachment) {
-    const v = new Float32Array(8);
-    attachment.computeWorldVertices(slot, v, 0, 2);
-    return aabbFromFloat32(v, 4);
+  if (kind === 'region') {
+    return aabbFromFloat32(rt.regionWorldVertices(slot, a), 4);
   }
 
-  // 2) Skip list — no source texture to size (return null BEFORE the generic
-  //    VertexAttachment branch, because these all extend VertexAttachment).
-  if (
-    attachment instanceof BoundingBoxAttachment ||
-    attachment instanceof PathAttachment ||
-    attachment instanceof PointAttachment ||
-    attachment instanceof ClippingAttachment
-  ) {
+  // 2) Skip list — no source texture to size (BoundingBox/Path/Point/Clipping).
+  if (kind === 'skip') {
     return null;
   }
 
-  // 3) Generic VertexAttachment (covers MeshAttachment and any future
+  // 3) Mesh / generic VertexAttachment (covers MeshAttachment and any future
   //    pixel-carrying VertexAttachment subtype).
-  if (attachment instanceof VertexAttachment) {
-    const n = attachment.worldVerticesLength;
-    if (n <= 0) return null;
-    const v = new Float32Array(n);
-    attachment.computeWorldVertices(slot, 0, n, v, 0, 2);
-    return aabbFromFloat32(v, n / 2);
+  if (kind === 'mesh' || kind === 'vertex') {
+    const v = rt.vertexWorldVertices(sk, slot, a);
+    if (v.length <= 0) return null;
+    return aabbFromFloat32(v, v.length / 2);
   }
 
   return null;
@@ -146,38 +138,35 @@ function aabbFromFloat32(buf: Float32Array, vertexCount: number): AABB {
  * so bone `a/b/c/d/worldX/worldY` are current.
  */
 export function computeRenderScale(
-  slot: Slot,
-  attachment: Attachment,
+  rt: SpineRuntime,
+  sk: OpaqueSkeleton,
+  slot: OpaqueSlot,
+  a: OpaqueAttachment,
 ): { scale: number; scaleX: number; scaleY: number } | null {
+  const kind = rt.attachmentKind(a);
+
   // 1) Region — source pixels transform by slot.bone only.
-  if (attachment instanceof RegionAttachment) {
-    return boneAxisScales(slot);
+  if (kind === 'region') {
+    return boneAxisScales(rt, slot);
   }
 
   // 2) Skip list — non-textured VertexAttachment subclasses.
-  if (
-    attachment instanceof BoundingBoxAttachment ||
-    attachment instanceof PathAttachment ||
-    attachment instanceof PointAttachment ||
-    attachment instanceof ClippingAttachment
-  ) {
+  if (kind === 'skip') {
     return null;
   }
 
   // 3) MeshAttachment — convex-hull area-ratio (iteration-4).
-  if (attachment instanceof MeshAttachment) {
-    const n = attachment.worldVerticesLength;
-    if (n <= 0) return null;
-    const wv = new Float32Array(n);
-    attachment.computeWorldVertices(slot, 0, n, wv, 0, 2);
-    return hullAreaRatio(attachment, wv)
-      ?? weightedSumMeshRenderScale(slot, attachment);
+  if (kind === 'mesh') {
+    const wv = rt.vertexWorldVertices(sk, slot, a);
+    if (wv.length <= 0) return null;
+    return hullAreaRatio(rt, a, wv)
+      ?? weightedSumMeshRenderScale(rt, slot, a);
   }
 
   // 4) Generic VertexAttachment — future pixel-bearing subtypes without
   //    `triangles[]`. Fall back to weighted per-vertex bone-scale sum.
-  if (attachment instanceof VertexAttachment) {
-    return weightedSumMeshRenderScale(slot, attachment);
+  if (kind === 'vertex') {
+    return weightedSumMeshRenderScale(rt, slot, a);
   }
 
   return null;
@@ -210,24 +199,22 @@ export function computeRenderScale(
  * undefined). Caller falls back to the weighted-sum formula.
  */
 function hullAreaRatio(
-  attachment: MeshAttachment,
+  rt: SpineRuntime,
+  a: OpaqueAttachment,
   worldVertices: Float32Array,
 ): { scale: number; scaleX: number; scaleY: number } | null {
-  // Defensive: spine-core 4.2 ships `TextureAtlasRegion` with a direct
-  // `.page` field. Older / alternative region shapes nest the page under
-  // `.texture.page`. Guard both so a rehomed region type doesn't trip us.
-  const region = attachment.region as
-    | {
-        page?: { width?: number; height?: number };
-        texture?: { page?: { width?: number; height?: number } };
-      }
-    | null;
-  const page = region?.page ?? region?.texture?.page;
-  const pageW = page?.width ?? 0;
-  const pageH = page?.height ?? 0;
+  // Region meta routed through the adapter (Pitfall 4 / PORT-02): 4.2 reads
+  // attachment.region.{page,originalWidth/Height} + attachment.width/height;
+  // 4.3 resolves the same via sequence.regions[idx]. The adapter normalizes
+  // both to { pageW, pageH, originalW, originalH, canonW, canonH }. The
+  // page-resolution defensive guard (.page ?? .texture.page) lives inside the
+  // adapter's attachmentRegionMeta.
+  const meta = rt.attachmentRegionMeta(a);
+  const pageW = meta?.pageW ?? 0;
+  const pageH = meta?.pageH ?? 0;
   if (pageW <= 0 || pageH <= 0) return null;
 
-  const uvs = attachment.uvs;
+  const uvs = rt.attachmentUVs(a);
   const n = worldVertices.length;
   if (!uvs || uvs.length < n || n < 6) return null;
 
@@ -271,12 +258,10 @@ function hullAreaRatio(
   // behavior. spine-core 4.2 ships attachment.width/height on Mesh as the
   // canonical pixel dims from JSON; region.originalWidth/Height tracks the
   // on-disk basis the page is in.
-  const att = attachment as { width?: number; height?: number };
-  const reg = region as { originalWidth?: number; originalHeight?: number };
-  const canonW = att.width ?? 0;
-  const canonH = att.height ?? 0;
-  const origW = reg.originalWidth ?? 0;
-  const origH = reg.originalHeight ?? 0;
+  const canonW = meta?.canonW ?? 0;
+  const canonH = meta?.canonH ?? 0;
+  const origW = meta?.originalW ?? 0;
+  const origH = meta?.originalH ?? 0;
   let scale = Math.sqrt(ratio);
   if (canonW > 0 && canonH > 0 && origW > 0 && origH > 0) {
     // Isotropic correction: sourceArea_canonical = sourceArea_page × (canon/orig)^2.
@@ -360,19 +345,42 @@ function cross(buf: Float32Array, p0: number, p1: number, p2: number): number {
  * always ships triangles, so this path is currently unreachable in practice.
  */
 function weightedSumMeshRenderScale(
-  slot: Slot,
-  attachment: VertexAttachment,
+  rt: SpineRuntime,
+  slot: OpaqueSlot,
+  a: OpaqueAttachment,
 ): { scale: number; scaleX: number; scaleY: number } {
-  const bones = attachment.bones;
-  if (!bones) return boneAxisScales(slot);
+  // generic-VertexAttachment per-influence path: unreachable for
+  // MeshAttachment (triangles[] always present, bounds.ts:360 docstring —
+  // computeRenderScale's `kind === 'mesh'` branch never falls here; only the
+  // `kind === 'vertex'` future-subtype branch can, and SAFE-02's frozen corpus
+  // contains no such attachment so it stays byte-green). If a future
+  // triangulation-less VertexAttachment subtype reaches here, it needs a
+  // per-bone adapter accessor (the 43 interface exposes boneAxisScale(slot)
+  // only — out of scope; flagged). The narrow structural reads below are the
+  // verbatim relocation of the original per-influence math (skeletonBones from
+  // slot.bone.skeleton.bones, exactly as the pre-RT-02 source); it is dead
+  // code on the frozen corpus and is byte-inert.
+  const att = a as unknown as {
+    bones: number[] | null | undefined;
+    vertices: ArrayLike<number>;
+    worldVerticesLength: number;
+  };
+  const bones = att.bones;
+  if (!bones) return boneAxisScales(rt, slot);
 
-  const skeletonBones = slot.bone.skeleton.bones;
-  const verts = attachment.vertices;
+  const skeletonBones = (slot as unknown as {
+    bone: {
+      skeleton: {
+        bones: Array<{ getWorldScaleX(): number; getWorldScaleY(): number }>;
+      };
+    };
+  }).bone.skeleton.bones;
+  const verts = att.vertices;
   let maxX = 0;
   let maxY = 0;
   let v = 0;
   let b = 0;
-  const numVerts = attachment.worldVerticesLength >> 1;
+  const numVerts = att.worldVerticesLength >> 1;
   for (let i = 0; i < numVerts; i++) {
     const n = bones[v++]!;
     let vx = 0;
@@ -390,10 +398,11 @@ function weightedSumMeshRenderScale(
 }
 
 function boneAxisScales(
-  slot: Slot,
+  rt: SpineRuntime,
+  slot: OpaqueSlot,
 ): { scale: number; scaleX: number; scaleY: number } {
-  const bone = slot.bone;
-  const scaleX = Math.abs(bone.getWorldScaleX());
-  const scaleY = Math.abs(bone.getWorldScaleY());
+  // 4.2: |bone.getWorldScaleX/Y()|; 4.3: |bone.appliedPose.getWorldScaleX/Y()|
+  // (D-03 structural defense lives inside runtime-43.boneAxisScale).
+  const { x: scaleX, y: scaleY } = rt.boneAxisScale(slot);
   return { scaleX, scaleY, scale: Math.max(scaleX, scaleY) };
 }
