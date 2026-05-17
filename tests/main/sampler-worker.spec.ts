@@ -17,7 +17,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { resolve as pathResolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { Worker } from 'node:worker_threads';
 import { runSamplerJob } from '../../src/main/sampler-worker.js';
 import { loadSkeleton } from '../../src/core/loader.js';
@@ -130,41 +131,115 @@ describe('sampler-worker — Wave 1 D-194', () => {
   });
 });
 
-describe('sampler-worker — Wave 1 spawn smoke', () => {
-  // The spawn smoke test exercises the BUILT bundle at out/main/sampler-worker.cjs.
-  // It is conditionally enabled when the bundle exists (i.e. after `npx
-  // electron-vite build` has run). The Wave 1 verify command runs the build
-  // before the test suite, so this path is GREEN in CI / verify runs.
-  // Fresh checkouts that have never run the build skip cleanly with a TODO.
-  const bundleExists = existsSync(WORKER_BUNDLE);
+describe('sampler-worker — Wave 1 spawn smoke (GAP-43-PROD-SEAM falsifier)', () => {
+  // GAP-43-PROD-SEAM regression gate. 43-03's Option A prod arm
+  // (require('./runtime-42.js')) was orphaned by the real electron-vite build
+  // — no runtime-42 artifact emitted beside the worker-shared chunk → the
+  // BUILT out/main/sampler-worker.cjs threw "Cannot find module
+  // './runtime-42.js'" on EVERY sample. It evaded 43-03's self-check because
+  // every unit test takes the vitest globalThis resolver (never the prod
+  // ambient require) AND this spawn-smoke silently `it.skip`-ped on a stale
+  // bundle. This block now (a) HARD-FAILS (never skips) when the bundle is
+  // stale/absent so the prod path can never be self-eval-blind again, and
+  // (b) asserts the SPECIFIC GAP-43-PROD-SEAM negative: the worker must NOT
+  // emit a Cannot-find-module-runtime-4x error. RED on the pre-fix orphaned
+  // bundle, GREEN after 43-06 Task 1.
 
-  (bundleExists ? it : it.skip)(
-    'spawning a real Worker against SIMPLE_PROJECT delivers progress then complete via postMessage',
+  function ensureFreshWorkerBundle(): void {
+    // Build the main bundle so out/main/sampler-worker.cjs + the shared chunk
+    // + out/main/runtime-4x.cjs are emitted. `electron-vite build` exits
+    // NON-ZERO on the KNOWN, PRE-EXISTING, PHASE-47-OWNED spine-player
+    // "MixBlend not exported" abort — but that fires AFTER the main/worker
+    // chunks are emitted (documented: 43-VERIFICATION.md "Out of scope";
+    // memory: Renderer MixBlend test-file failures are pre-existing). So we
+    // tolerate the non-zero exit and instead assert the worker ARTIFACTS
+    // exist and are fresh. We run ONLY the bundler step
+    // (`npx electron-vite build`) — NOT the full `npm run build` (which also
+    // runs electron-builder packaging) — which is sufficient for the worker
+    // spawn path and avoids the packaging stage entirely.
+    const t0 = Date.now();
+    try {
+      execFileSync('npx', ['electron-vite', 'build'], {
+        cwd: pathResolve(__dirname, '../..'),
+        stdio: 'ignore',
+        timeout: 240_000,
+      });
+    } catch {
+      // Expected: non-zero exit on the Phase-47 spine-player MixBlend abort,
+      // which is downstream of (after) the main/worker emit. Swallow it; the
+      // freshness + existence assertions below are the real gate.
+    }
+    if (!existsSync(WORKER_BUNDLE)) {
+      throw new Error(
+        `GAP-43-PROD-SEAM gate: out/main/sampler-worker.cjs was NOT emitted by ` +
+          `\`npx electron-vite build\` (cwd repo root). This is a HARD FAILURE, ` +
+          `NOT a skip — the production worker path must never be self-eval-blind. ` +
+          `Investigate the electron-vite main build (the Phase-47 spine-player ` +
+          `renderer abort is EXPECTED and downstream of the main emit; the main/ ` +
+          `worker chunks must still be produced before it).`,
+      );
+    }
+    const mtimeMs = statSync(WORKER_BUNDLE).mtimeMs;
+    if (mtimeMs < t0 - 5_000) {
+      throw new Error(
+        `GAP-43-PROD-SEAM gate: out/main/sampler-worker.cjs is STALE ` +
+          `(mtime ${new Date(mtimeMs).toISOString()} predates this build at ` +
+          `${new Date(t0).toISOString()}). A stale pre-rewire bundle is exactly ` +
+          `how GAP-43-PROD-SEAM evaded 43-03's self-check. HARD FAILURE, not a skip.`,
+      );
+    }
+  }
+
+  it(
+    'BUILT worker spawns, samples SIMPLE_PROJECT, delivers complete, and NEVER emits a Cannot-find-module runtime-4x error',
     async () => {
+      ensureFreshWorkerBundle();
+
       const worker = new Worker(WORKER_BUNDLE, {
         workerData: { skeletonPath: SIMPLE_TEST_JSON, samplingHz: 120 },
       });
-      const events: Array<{ type: string; percent?: number }> = [];
+      const events: Array<{ type: string; percent?: number; error?: { kind?: string; message?: string } }> = [];
 
-      const finalMsg = await new Promise<{ type: string }>((resolve, reject) => {
-        worker.on('message', (msg: { type: string; percent?: number }) => {
-          events.push(msg);
-          if (msg.type === 'complete' || msg.type === 'error' || msg.type === 'cancelled') {
-            resolve(msg);
-          }
-        });
-        worker.on('error', (err) => reject(err));
-      });
+      const finalMsg = await new Promise<{ type: string; error?: { message?: string } }>(
+        (resolve, reject) => {
+          worker.on('message', (msg: { type: string; percent?: number; error?: { kind?: string; message?: string } }) => {
+            events.push(msg);
+            if (msg.type === 'complete' || msg.type === 'error' || msg.type === 'cancelled') {
+              resolve(msg);
+            }
+          });
+          worker.on('error', (err) => reject(err));
+        },
+      );
 
+      // GAP-43-PROD-SEAM-SPECIFIC NEGATIVE FALSIFIER: the orphaned-require
+      // failure surfaces (via runSamplerJob's catch → serializeError) as
+      // {type:'error', error:{kind:'Unknown', message:/Cannot find module
+      // .*runtime-4.../}}. Assert it appears in NO received event. This is
+      // the precise regression assertion (distinct from a generic
+      // not-complete) — RED on the pre-fix bundle, GREEN after 43-06 Task 1.
+      const cannotFindRuntime = events.find(
+        (e) =>
+          e.type === 'error' &&
+          typeof e.error?.message === 'string' &&
+          /Cannot find module .*runtime-4/.test(e.error.message),
+      );
+      expect(
+        cannotFindRuntime,
+        `GAP-43-PROD-SEAM REGRESSION: the BUILT worker could not resolve the ` +
+          `runtime adapter — ${JSON.stringify(cannotFindRuntime)}. The ` +
+          `pickRuntime prod-arm require literal must resolve to an emitted ` +
+          `out/main/runtime-4x.cjs artifact (43-06 Task 1).`,
+      ).toBeUndefined();
+
+      // Positive: terminal complete, preceded by >=1 progress.
       expect(finalMsg.type).toBe('complete');
       expect(events.some((e) => e.type === 'progress')).toBe(true);
-      // Last message MUST be the terminal one (complete here).
       expect(events[events.length - 1].type).toBe('complete');
 
-      // Cleanup.
       await worker.terminate();
     },
-    15000,
+    300_000,
   );
 });
 
