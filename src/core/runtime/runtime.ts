@@ -26,6 +26,11 @@ export interface SpineRuntime {
   animations(data: OpaqueSkeletonData): OpaqueAnimation[];
   animationDuration(anim: OpaqueAnimation): number;
   animationName(anim: OpaqueAnimation): string;
+  /** Q1 additive (Phase 43, RT-02): the `${slotIndex}/${attachmentName}` pairs
+   *  named by every AttachmentTimeline in this animation (D-54 affected set).
+   *  4.2: `tl instanceof AttachmentTimeline` over `anim.timelines`; 4.3 maps
+   *  the same. Lets sampler.ts drop its spine-core AttachmentTimeline import. */
+  attachmentTimelineNames(anim: OpaqueAnimation): Set<string>;
   skinName(skin: OpaqueSkin): string;
 
   setSkin(sk: OpaqueSkeleton, skin: OpaqueSkin): void;
