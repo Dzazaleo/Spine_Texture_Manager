@@ -294,19 +294,31 @@ describe('Phase 18 Layer 3: src/renderer/src/components/AppShell.tsx must not su
 // the unique-symbol brand (RT-03 defense-in-depth — brand FIRST, grep SECOND).
 // globSync self-handles a missing/empty dir → zero files = empty offenders =
 // green, so no ENOENT guard is needed (the dir lands in this same commit).
-describe('Phase 42 RT-04: src/core/runtime/ is Layer-3 pure (no DOM/Electron/sharp/spine-core in Phase 42)', () => {
-  it('core/runtime/*.ts import neither sharp/node:fs/electron NOR a spine-core package (signatures only in Phase 42)', () => {
+describe('Phase 42 RT-04 / Phase 43 RT-02: src/core/runtime/ is Layer-3 pure (no DOM/Electron/sharp; only the two Phase-43 adapter files may import spine-core)', () => {
+  it('core/runtime/*.ts import neither sharp/node:fs/electron; only runtime-42.ts and runtime-43.ts may import a spine-core package', () => {
     const files = globSync('src/core/runtime/**/*.ts');
+    // Phase 43 RT-02: the two adapter impls are the ONLY sanctioned spine-core
+    // importers in core/runtime/. All other runtime/ files remain pure.
+    const SPINE_CORE_ADAPTERS = new Set<string>([
+      'src/core/runtime/runtime-42.ts',
+      'src/core/runtime/runtime-43.ts',
+    ]);
     const offenders: string[] = [];
     for (const file of files) {
+      const normalized = file.replace(/\\/g, '/');
       const text = readFileSync(file, 'utf8');
-      // Phase 42: runtime/ is signatures only — NO spine-core import yet
-      // (the two adapter impls that import it are Phase 43 / RT-02).
-      if (/from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]electron['"]|from ['"]@esotericsoftware\/spine-core['"]|from ['"]spine-core-42['"]/.test(text)) {
-        offenders.push(file);
+      // All runtime/ files: never import DOM/Electron/sharp/node:fs.
+      if (/from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]electron['"]/.test(text)) {
+        offenders.push(normalized + ' (sharp/fs/electron)');
+      }
+      // Non-adapter runtime/ files: also must not import a spine-core package.
+      if (!SPINE_CORE_ADAPTERS.has(normalized)) {
+        if (/from ['"](@esotericsoftware\/spine-core|spine-core-42)['"]/.test(text)) {
+          offenders.push(normalized + ' (spine-core in non-adapter)');
+        }
       }
     }
-    expect(offenders, `core/runtime Phase-42 purity violation: ${offenders.join(', ')}`).toEqual([]);
+    expect(offenders, `core/runtime purity violation: ${offenders.join(', ')}`).toEqual([]);
   });
 });
 

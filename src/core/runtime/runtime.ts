@@ -64,6 +64,26 @@ export interface SpineRuntime {
   sequenceRegions(a: OpaqueAttachment): { name: string }[] | null;
 }
 
-/** Phase 42 declares the signature; Phase 43 (RT-02) implements the lazy
- *  require()/import() switch. Body intentionally absent in Phase 42. */
-export declare function pickRuntime(tag: RuntimeTag): SpineRuntime;
+/** Phase 43 (RT-02) — lazy sync require() switch.
+ *
+ * Conditional require keeps the unmatched spine-core copy out of the worker.
+ * electron-vite emits the worker as CJS (sampler-worker-bridge.ts:71) so
+ * `require` is available; sync keeps loadSkeleton() synchronous (no async
+ * thread through runSamplerJob → the byte-frozen loader contract).
+ *
+ * The `require('./runtime-43.js')` arm is a forward reference — runtime-43.ts
+ * lands in Plan 04; `tag === '4.2'` is the only arm Phase 43's loader exercises
+ * (D-02 hard-pick). Do NOT add a static `import` of either runtime-4x file —
+ * that would defeat the lazy single-copy load and pull both spine-core graphs
+ * into every worker. */
+const cache = new Map<RuntimeTag, SpineRuntime>();
+export function pickRuntime(tag: RuntimeTag): SpineRuntime {
+  const hit = cache.get(tag);
+  if (hit) return hit;
+  // Conditional require keeps the unmatched spine-core copy out of the worker.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = tag === '4.2' ? require('./runtime-42.js') : require('./runtime-43.js');
+  const rt: SpineRuntime = (mod as { create: () => SpineRuntime }).create();
+  cache.set(tag, rt);
+  return rt;
+}
