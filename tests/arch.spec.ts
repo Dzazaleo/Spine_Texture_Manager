@@ -323,3 +323,29 @@ describe('Phase 42 RT-03 backstop: no source file imports BOTH spine-core alias 
     expect(offenders, `Files co-mingling both spine-core runtimes: ${offenders.join(', ')}`).toEqual([]);
   });
 });
+
+// Phase 43 RT-02 anchor: sampler.ts / bounds.ts / loader.ts must not import a
+// spine-core package directly. Only the two adapter files (runtime-42.ts and
+// runtime-43.ts) are permitted to import a spine-core package. This anchor is
+// RED today by design — sampler.ts:47, bounds.ts:31, and loader.ts:32 still
+// import from 'spine-core-42'. The anchor turns GREEN when Plan 03 rewires
+// those three consumers to call through load.runtime.* instead.
+describe('Phase 43 RT-02: sampler.ts/bounds.ts/loader.ts must not import a spine-core package directly', () => {
+  it('only runtime-42.ts / runtime-43.ts may import @esotericsoftware/spine-core or spine-core-42', () => {
+    const files = globSync('src/core/**/*.ts');
+    const SPINE_CORE_ADAPTERS = new Set<string>([
+      'src/core/runtime/runtime-42.ts',
+      'src/core/runtime/runtime-43.ts',
+    ]);
+    const RE = /from ['"](@esotericsoftware\/spine-core|spine-core-42)['"]/;
+    const offenders: string[] = [];
+    for (const file of files) {
+      const normalized = file.replace(/\\/g, '/');
+      if (SPINE_CORE_ADAPTERS.has(normalized)) continue;
+      let text = '';
+      try { text = readFileSync(file, 'utf8'); } catch { continue; }
+      if (RE.test(text)) offenders.push(normalized);
+    }
+    expect(offenders, `Non-adapter core files importing spine-core: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
