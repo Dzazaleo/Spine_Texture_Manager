@@ -1,10 +1,11 @@
 ---
 phase: 44
 slug: loader-dispatch-equivalence-oracle-4-3-fixture-authoring
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-17
+plan_validated: 2026-05-17
 ---
 
 # Phase 44 — Validation Strategy
@@ -93,13 +94,17 @@ created: 2026-05-17
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 90s
-- [ ] 3-entrypoint Multi-Runtime Matrix verified (vitest + built worker + CLI)
-- [ ] ORCL-02 HARD gate green
-- [ ] `nyquist_compliant: true` set in frontmatter
+> Plan-time validation reconciled 2026-05-17 against the 4 committed PLAN.md
+> files (gsd-plan-checker WARNING-2 resolution). Boxes left unchecked are
+> execution-time gates — they flip green when the executor runs them.
 
-**Approval:** pending
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies *(checker-confirmed: every impl task has an automated verify or a Wave-0 dependency)*
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify *(checker-confirmed: 3/3 automated blocks per plan)*
+- [x] Wave 0 covers all MISSING references *(planner enumerated every Wave-0 seam: orcl02-equivalence, xtra0{1,2}-baseline+structural, slider43-smoke, the discover-fixtures denylist, the predicate positive-routing cases)*
+- [x] No watch-mode flags *(checker-confirmed)*
+- [x] Feedback latency < 90s *(checker-confirmed)*
+- [ ] 3-entrypoint Multi-Runtime Matrix verified (vitest + built worker + CLI) — *execution-time gate (44-03 Task 3)*
+- [ ] ORCL-02 HARD gate green — *execution-time gate (44-04 Task 1; D-14 no-waiver)*
+- [x] `nyquist_compliant: true` set in frontmatter
+
+**Approval:** plan-validated 2026-05-17 — execution-time gates pending (3-entrypoint matrix · ORCL-02 HARD gate)
