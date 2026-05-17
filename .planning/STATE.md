@@ -2,21 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
-status: ready_to_plan
-last_updated: "2026-05-17T19:22:35.996Z"
-last_activity: "2026-05-17 -- Phase 43 COMPLETE + verified passed 5/5 (phase.complete ran; ROADMAP [x]). Post-completion: user ran the documented `npm run cli` → GAP-43-CLI-SEAM (pickRuntime env-split had no arm for the tsx/ESM-source CLI runtime; verification only covered vitest+built-worker). CLOSED by 43-07 (f7caa6a fix scripts/register-esm-adapter-resolver.ts + cli.ts; b933c77 spawn-the-real-CLI regression guard); recorded in 43-VERIFICATION.md post-completion addendum. GUI white-canvas is the expected Phase-47-owned spine-player@4.2-vs-core@4.3 MixBlend state, NOT a regression. /gsd-secure-phase 43 ran (df1ad8d 43-SECURITY.md)."
-# NOTE: progress counters reflect ONLY enumerated/executed phases (42:5 + 43:6 = 11
-# plans). Milestone v1.6 has 6 phases (42-47); 44-47 not yet planned so total_plans
-# is partial and the SDK-derived percent is NOT a milestone-completion signal.
-# Phase 43 is COMPLETE + verified (passed 5/5; ROADMAP [x]; status ready_to_plan→Phase 44).
-# 43-07 is a post-completion regression FIX (GAP-43-CLI-SEAM), not a roadmapped plan —
-# plan counts intentionally stay 6/6 for Phase 43 (the fix is tracked in 43-VERIFICATION.md).
+status: executing
+last_updated: "2026-05-17T22:14:56.502Z"
+last_activity: 2026-05-17 -- Phase 44 planning complete
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 11
+  total_plans: 15
   completed_plans: 11
-  percent: 33
+  percent: 73
 ---
 
 # State
@@ -25,8 +19,8 @@ progress:
 
 Phase: 44
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-17
+Status: Ready to execute
+Last activity: 2026-05-17 -- Phase 44 planning complete
 
 Next: **43-06 COMPLETE — GAP-43-PROD-SEAM CLOSED.** The blocking Task-3 `checkpoint:human-verify` is SATISFIED by the maintainer's architectural adjudication 2026-05-17 (**Option ii — amend the ARCHITECTURE §4 doctrine; the decouple option (i) was explicitly REJECTED**, so NO code edits were made — the code is frozen exactly as committed in `b3b975b`/`60b4fac`). The blocking finding (`out/main/runtime-43.cjs:8` emits 1 bare `require("spine-core-42")` via the PRE-EXISTING 43-04 `runtime-43.ts:56 → synthetic-atlas.ts:57-63` `SilentSkipAttachmentLoader extends spine-core-42.AtlasAttachmentLoader` edge, committed `f2cf770`, untouched by 43-06 — 43-06 only made it observable) FALSIFIED the plan's probe-derived `<interfaces>` "0 spine-core-42 literals" empirical claim. Maintainer disposition: §4 "lazy single-copy" is scoped to the spine-core RUNTIME/ANIMATION graph (cleanly split + verified; `runtime-42.cjs` strictly clean, 4.2 path strictly single-copy); the lone parse-time `AtlasAttachmentLoader` pulled via the shared `synthetic-atlas` helper onto the 4.3 path is an ACCEPTED, DOCUMENTED, BOUNDED pre-existing 43-04 exception, not a §4 regression. Task-1 AC#8 / checkpoint check #2 strict-zero forms for `runtime-43.cjs` are SUPERSEDED by this disposition; all other AC pass unchanged (prod seam resolves on-disk, RED→GREEN falsifier GREEN, SAFE-02 32/32 0-failed, D-09 zero regen, env-split byte-untouched, sync require + loud-throw preserved). Decouple is a tracked NON-BLOCKING follow-up (deferred). Verbatim adjudication in `43-06-SUMMARY.md` § "§4 Bounded-Exception Adjudication" + `43-VERIFICATION.md` Gaps closure. **The orchestrator owns Phase-43-level re-verification/closure — this executor did NOT mark the phase complete or advance the phase.** D-04 32/32 close-gate from 43-05 remains valid + does NOT need re-derivation (4.2 sampling path unchanged — only module-resolution plumbing + build-emit topology). Prior context: execute gap-closure plan 43-06 (Wave 4; `autonomous: false`). Closes GAP-43-PROD-SEAM via the ARCHITECTURE §4/§7 build-order item: add `runtime-42`/`runtime-43` as electron-vite `rollupOptions.input` entries (emit `out/main/runtime-4x.cjs`, spine-core externalized = lazy single-copy preserved) + correct the `pickRuntime` prod require literal `./runtime-42.js` → `../runtime-4x.cjs` + a build-required spawn-smoke falsifier (RED-before/GREEN-after, hard-fail-not-skip). LOCKED Option-A constraints (a) lazy single-copy / (b) globalThis env-split / (c) sync loader / (d) loud-throw all byte-preserved. **Phase 43 is NOT complete.** All 5 plans executed + committed (43-01..43-05; 43-05 commits `bd3f4d0`/`d849726`/`f895300`/`ceb5714`). D-04 hard close gate SATISFIED: 32/32 SAFE-02 byte-equal (12 redistributable + 20 heavy/proprietary incl. Girl/SKINS/CHJ/3Queens/Jokerman) vs an INDEPENDENT frozen `c5ef358` reference captured in an isolated detached worktree (anti-tautology; heavy baselines now present locally in `tests/safe01/baselines/`, gitignored). A1 was FALSIFIED → Approach B applied to `runtime-43.applyRotatedRegionFix` + re-validated within 1e-4 (+2 [Rule 1] runtime-43 fixes: sequenceRegions `<=1`, D-03 dev-assertion). **BLOCKING GAP-43-PROD-SEAM:** 43-03's Option A ESM seam prod ambient `require('./runtime-42.js')` is NOT emitted/resolved by electron-vite → built `out/main/sampler-worker.cjs` errors `Cannot find module './runtime-42.js'` on every sample (Assumptions Log A2 falsified by the real build; touches LOCKED `project_phase43_pickruntime_esm_split` — gap plan must revisit deliberately). Pre-existing & correctly Phase-47-owned (NOT this gap): the 11 `tests/renderer/*` MixBlend failures + the `npm run build` spine-player MixBlend abort. Branch is now `milestone/v1.6-spine-4.3-dual-runtime` (was detached HEAD at session start; fast-forwarded — all Phase 42/43 work preserved on the branch). Phase 42 COMPLETE; frozen ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact.
 
