@@ -96,10 +96,10 @@ export interface SpineRuntime {
  * './runtime-42.js'"). So the environment discriminator is NOT `typeof require`
  * — it is "has a test resolver been injected?".
  *
- * The production worker bundle NEVER imports the test setupFile, so
- * `__esmAdapterResolver` is ALWAYS null there → the lazy-`require` branch below
- * runs byte-identically to Plan 02 (invariant a preserved; ARCHITECTURE §4
- * lazy-single-copy untouched). The vitest setupFile
+ * The production worker bundle NEVER imports the test setupFile, so the
+ * globalThis resolver slot is ALWAYS `undefined` there → the lazy-`require`
+ * branch below runs byte-identically to Plan 02 (invariant a preserved;
+ * ARCHITECTURE §4 lazy-single-copy untouched). The vitest setupFile
  * (`tests/setup/esm-adapter-resolver.ts`, registered via `setupFiles` —
  * test-infra ONLY, runs before every test module) binds the resolver by
  * STATICALLY importing the REAL `runtime-42.ts` / `runtime-43.ts`
@@ -108,21 +108,50 @@ export interface SpineRuntime {
  * precedence so the unresolvable `require('./runtime-42.js')` is never reached
  * under vitest. `loadSkeleton` stays SYNCHRONOUS — no `await import()`. If
  * neither a resolver nor a working `require` is available, this throws loudly
- * (never silently returns null — a verification-integrity requirement). */
+ * (never silently returns null — a verification-integrity requirement).
+ *
+ * 43-03 robustness fix — the resolver binding is stored on `globalThis`, NOT
+ * at module scope. `tests/main/repack-worker.spec.ts` calls
+ * `vi.resetModules()`, which clears vitest's module registry: a module-scoped
+ * `let` (bound exactly once by the setupFile, which runs once per file BEFORE
+ * any test) would be `null` again on the FRESH post-reset `runtime.ts`
+ * instance, dropping pickRuntime into the vitest-unresolvable
+ * `require('./runtime-42.js')` branch. `vi.resetModules()` does NOT touch
+ * `globalThis`, so a globalThis-scoped slot the setupFile sets once stays
+ * reachable by every post-reset fresh `runtime.ts` instance. This is still
+ * test-infra-ONLY and DEAD in production (the worker never imports the
+ * setupFile → the globalThis slot is `undefined` → branch (2) lazy-`require`,
+ * unchanged byte-for-byte from Plan 02). */
 
-/** Test-only ESM resolver hook. Bound by the vitest setupFile
- *  (`tests/setup/esm-adapter-resolver.ts`) which statically imports the REAL
- *  runtime-42/runtime-43 modules. Module-scoped + null by default so the
- *  production worker bundle (which never imports the setupFile) keeps the
- *  ambient-`require` branch and the lazy-single-copy guarantee. */
-let __esmAdapterResolver: ((tag: RuntimeTag) => SpineRuntime) | null = null;
+/** Unique globalThis key for the test-only ESM resolver. globalThis-scoped
+ *  (NOT module-scoped) so the setupFile's one-time binding survives
+ *  `vi.resetModules()` — which clears the module registry but never globalThis.
+ *  `undefined` in production (the worker bundle never imports the setupFile),
+ *  so the ambient-`require` lazy-single-copy branch is preserved there. */
+const __GSD_ESM_RESOLVER_KEY = '__GSD_ESM_ADAPTER_RESOLVER__';
+
+type EsmAdapterResolver = (tag: RuntimeTag) => SpineRuntime;
+
+/** Typed getter for the globalThis-backed resolver. Returns `null` when no
+ *  resolver is registered (always the case in the production worker). */
+function __getEsmAdapterResolver(): EsmAdapterResolver | null {
+  const slot = (globalThis as Record<string, unknown>)[__GSD_ESM_RESOLVER_KEY];
+  return typeof slot === 'function' ? (slot as EsmAdapterResolver) : null;
+}
 
 /** Test-infra ONLY. Registered exclusively from the vitest setupFile. NEVER
- *  call this from `src/` — the production path resolves via ambient `require`. */
+ *  call this from `src/` — the production path resolves via ambient `require`.
+ *  Writes to `globalThis` (NOT module scope) so the binding survives
+ *  `vi.resetModules()`. Idempotent: re-invoking simply re-assigns the slot, so
+ *  the setupFile running twice is harmless. */
 export function __setEsmAdapterResolver(
-  fn: ((tag: RuntimeTag) => SpineRuntime) | null,
+  fn: EsmAdapterResolver | null,
 ): void {
-  __esmAdapterResolver = fn;
+  if (fn == null) {
+    delete (globalThis as Record<string, unknown>)[__GSD_ESM_RESOLVER_KEY];
+    return;
+  }
+  (globalThis as Record<string, unknown>)[__GSD_ESM_RESOLVER_KEY] = fn;
 }
 
 const cache = new Map<RuntimeTag, SpineRuntime>();
@@ -130,15 +159,17 @@ export function pickRuntime(tag: RuntimeTag): SpineRuntime {
   const hit = cache.get(tag);
   if (hit) return hit;
   let rt: SpineRuntime;
-  if (__esmAdapterResolver != null) {
+  const esmResolver = __getEsmAdapterResolver();
+  if (esmResolver != null) {
     // TEST (vitest ESM) — and ONLY test: the production worker bundle never
-    // imports the setupFile, so this is null in production and this branch is
-    // dead there. The setupFile statically imported the REAL adapters and bound
-    // this resolver; the real runtime-42/runtime-43 `create()` runs
-    // (resolution-only; NOT a mock — SAFE-02 exercises the real path). This
-    // takes precedence so the vitest-unresolvable `require('./runtime-42.js')`
-    // below is never reached under vitest.
-    rt = __esmAdapterResolver(tag);
+    // imports the setupFile, so the globalThis slot is `undefined` in
+    // production and this branch is dead there. The setupFile statically
+    // imported the REAL adapters and bound this resolver on globalThis (so it
+    // survives `vi.resetModules()`); the real runtime-42/runtime-43 `create()`
+    // runs (resolution-only; NOT a mock — SAFE-02 exercises the real path).
+    // This takes precedence so the vitest-unresolvable
+    // `require('./runtime-42.js')` below is never reached under vitest.
+    rt = esmResolver(tag);
   } else if (typeof require !== 'undefined') {
     // PRODUCTION (electron-vite CJS worker — Assumptions Log A2). BYTE-IDENTICAL
     // to Plan 02: conditional lazy require keeps the unmatched spine-core copy

@@ -24,6 +24,14 @@ import * as runtime43 from '../../src/core/runtime/runtime-43.js';
 // cache lives in runtime.ts (pickRuntime memoizes), so this only does module
 // resolution + `create()`; identical observable behavior to the worker's
 // `require('./runtime-4x.js').create()`.
+//
+// `__setEsmAdapterResolver` now writes to `globalThis` (not module scope), so
+// this one-time binding survives `vi.resetModules()` in specs like
+// tests/main/repack-worker.spec.ts: resetModules clears the module registry
+// (so a fresh runtime.ts instance is created) but never touches globalThis, so
+// the fresh pickRuntime still sees this resolver. The setter is idempotent —
+// re-invoking it (if the setupFile somehow runs twice) just re-assigns the
+// same closure, with no observable change.
 __setEsmAdapterResolver((tag: RuntimeTag): SpineRuntime => {
   const mod = tag === '4.2' ? runtime42 : runtime43;
   return (mod as { create: () => SpineRuntime }).create();
