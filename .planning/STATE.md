@@ -4,13 +4,13 @@ milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: ready_to_plan
 last_updated: "2026-05-17T19:22:35.996Z"
-last_activity: "2026-05-17 -- 43-06 finalized: §4 bounded-exception adjudication (maintainer Option ii) recorded verbatim in SUMMARY + VERIFICATION; GAP-43-PROD-SEAM CLOSED; scratch deleted; commits b3b975b/60b4fac/163023b + finalization"
+last_activity: "2026-05-17 -- Phase 43 COMPLETE + verified passed 5/5 (phase.complete ran; ROADMAP [x]). Post-completion: user ran the documented `npm run cli` → GAP-43-CLI-SEAM (pickRuntime env-split had no arm for the tsx/ESM-source CLI runtime; verification only covered vitest+built-worker). CLOSED by 43-07 (f7caa6a fix scripts/register-esm-adapter-resolver.ts + cli.ts; b933c77 spawn-the-real-CLI regression guard); recorded in 43-VERIFICATION.md post-completion addendum. GUI white-canvas is the expected Phase-47-owned spine-player@4.2-vs-core@4.3 MixBlend state, NOT a regression. /gsd-secure-phase 43 ran (df1ad8d 43-SECURITY.md)."
 # NOTE: progress counters reflect ONLY enumerated/executed phases (42:5 + 43:6 = 11
 # plans). Milestone v1.6 has 6 phases (42-47); 44-47 not yet planned so total_plans
 # is partial and the SDK-derived percent is NOT a milestone-completion signal.
-# Phase 43 plans are 6/6 complete (incl. 43-06 gap-closure) BUT Phase-43-level
-# re-verification/closure is orchestrator-owned and NOT yet done — do NOT treat
-# this as milestone or phase completion (documented SDK plan-vs-summary miscount).
+# Phase 43 is COMPLETE + verified (passed 5/5; ROADMAP [x]; status ready_to_plan→Phase 44).
+# 43-07 is a post-completion regression FIX (GAP-43-CLI-SEAM), not a roadmapped plan —
+# plan counts intentionally stay 6/6 for Phase 43 (the fix is tracked in 43-VERIFICATION.md).
 progress:
   total_phases: 6
   completed_phases: 2

@@ -139,6 +139,14 @@ No gaps. GAP-43-PROD-SEAM (the sole prior blocking regression — the production
 
 The phase goal is achieved: the `SpineRuntime` adapter facade is in place, the 4.2 path is proven behavior-neutral (byte-green — the hard phase-exit gate, 32/32), the 4.3 adapter is implemented against the research-verified stable Pose API and empirically validated (A1/D-03/own-baseline), and the ~750-line sampler/bounds algorithm is NOT forked (single algorithm, two adapters, RT-02 anchored). Phase 43 is complete and ready to proceed to Phase 44.
 
+### Post-completion addendum — GAP-43-CLI-SEAM (found 2026-05-17 by user run; CLOSED in 43-07)
+
+**Status unchanged (`passed`).** After phase completion the user ran the CLAUDE.md-documented `npm run cli -- <skeleton>` command and it errored `pickRuntime('4.2'): no ESM adapter resolver is registered and ambient require is unavailable`. Root cause: the Phase-43 `pickRuntime` env-split has **three** runtimes — (1) vitest (globalThis resolver via `setupFiles`), (2) the built electron-vite CJS worker (ambient `require('../runtime-4x.cjs')`), and (3) Node-from-source via `tsx scripts/cli.ts`. The 43-05/43-06 verification surface exercised only (1) and (2); runtime (3) fell through to pickRuntime's loud-throw arm. This was a real Phase-43-introduced regression in a documented entrypoint that the 5/5 goal-verification did not catch **because no test exercised the `npm run cli` runtime** (the spawn-smoke proves the built worker; SAFE-02 proves vitest; neither is the tsx/ESM-source path).
+
+**Closed by 43-07:** `scripts/register-esm-adapter-resolver.ts` (a `scripts/` entrypoint bootstrap, NOT `src/` — the Node analog of the sanctioned `tests/setup/esm-adapter-resolver.ts`) binds pickRuntime arm 1 for the CLI runtime; `scripts/cli.ts` side-effect-imports it first. LOCKED Option-A constraints preserved (prod ambient-require arm byte-unchanged, no `src/` static adapter import, resolution-only/real adapters, synchronous). Commits: `f7caa6a` (fix), `b933c77` (regression guard — spawns the real `npx tsx scripts/cli.ts` child process and asserts the specific no-resolver-loud-throw negative + a real peak table; RED pre-fix per the verbatim loud-throw observed this session, GREEN post-fix). `npm run cli -- fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` now exits 0 with the locked peak table.
+
+**Lesson (carried to memory):** the env-split's runtime count (3) exceeded the verified runtime count (2). A facade/seam that resolves differently per runtime MUST have every documented entrypoint runtime in the verification surface, not only the test harness + the primary built artifact.
+
 ---
 
 ## Historical Record (superseded — retained for traceability)
