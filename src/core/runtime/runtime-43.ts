@@ -108,20 +108,121 @@ export function create(): SpineRuntime {
       return brandHandle<OpaqueSkeletonData>(data, '4.3');
     },
 
-    applyRotatedRegionFix(_data: OpaqueSkeletonData): void {
-      // PORT-03 Approach A (Assumptions Log A1): 4.3's native Sequence.update →
-      // computeUVs already computes correct rotated-region offsets (including the
-      // degrees === 90 UV/offset math at RegionAttachment.js:113-168). The 4.2
-      // SWAP-form mutable offset[] write (loader.ts:552-613) is structurally
-      // impossible here — 4.3 RegionAttachment has no offset[] member at all;
-      // offsets flow through getOffsets(pose) → sequence.offsets[resolveIndex].
+    applyRotatedRegionFix(data: OpaqueSkeletonData): void {
+      // PORT-03 Approach B (Assumptions Log A1 — Approach A FALSIFIED by 43-05).
       //
-      // This no-op is the CANDIDATE for Approach A. It is EMPIRICALLY VALIDATED
-      // by Plan 05 (43-05) against the rotate:90 regions (TRIANGLE / rect) in
-      // skeleton2.atlas BEFORE being trusted for production. If Plan 05's
-      // rotated-region check falsifies Approach A, Approach B (recompute into
-      // sequence.offsets[i]) is the fallback. Do NOT declare the no-op "proven"
-      // until 43-05 passes its empirical rotated-region geometry assertion.
+      // Approach A (verify-then-no-op) HYPOTHESIZED that 4.3's native
+      // Sequence.update → computeUVs already produces correct rotated-region
+      // offsets, making this a no-op. 43-05's empirical rotated-region
+      // validation FALSIFIED that: the 4.3 native offsets for the rotate:90
+      // TRIANGLE region diverged from the same-hash same-geometry 4.2-sibling
+      // known-good by ~32px in worldY/worldH (well beyond the 1e-4 ground
+      // truth) — exactly the Phase-33-class rotated-region undersize bug, NOT
+      // fixed natively in 4.3 for this packed-dim layout.
+      //
+      // Approach B (RESEARCH §PORT-03 (B)): re-express Phase-33's correction
+      // through the Sequence. 4.3 RegionAttachment has NO mutable offset[]
+      // member — offsets flow through getOffsets(pose) →
+      // sequence.offsets[resolveIndex(pose)] (RegionAttachment.js:103-106).
+      // So we (1) call attachment.updateSequence() to ALLOCATE
+      // sequence.offsets (Sequence.js:83-103 populates offsets[i] per region),
+      // then (2) OVERWRITE the 8 floats in EVERY sequence.offsets[i] with the
+      // SAME corrected-offset SWAP-form math as runtime-42.applyRotatedRegionFix
+      // (loader.ts:552-613 verbatim) — only the write TARGET changes
+      // (sequence.offsets[i] instead of attachment.offset[]); the formula is
+      // byte-identical. getOffsets(pose) then returns the corrected array for
+      // every pose/index. The 4.2 path is UNCHANGED (runtime-42 still does the
+      // verbatim Phase-33 offset[] write; SAFE-02 byte-gates it).
+      const skeletonData = unwrapHandle<SkeletonData43>(data);
+      for (const skin of skeletonData.skins) {
+        // skin.attachments: StringMap<Attachment>[] — array indexed by slot.
+        for (const slotMap of skin.attachments) {
+          if (!slotMap) continue;
+          for (const attachmentName in slotMap) {
+            const attachment = slotMap[attachmentName];
+            if (!(attachment instanceof RegionAttachment)) continue;
+            const ra = attachment as RegionAttachment43;
+            const seq = ra.sequence;
+            if (!seq || !seq.regions || seq.regions.length === 0) continue;
+
+            // Allocate sequence.offsets[i]/uvs[i] for every region (no-op-safe
+            // if already updated). Sequence.update(attachment) computes the
+            // native (incorrect-for-rotated) offsets we are about to overwrite.
+            ra.updateSequence();
+            const offsets = (seq as unknown as { offsets?: number[][] }).offsets;
+            if (!offsets) continue;
+
+            for (let i = 0; i < seq.regions.length; i++) {
+              const region = seq.regions[i] as unknown as {
+                degrees: number;
+                width: number;
+                height: number;
+                originalWidth: number;
+                originalHeight: number;
+                offsetX: number;
+                offsetY: number;
+              } | null;
+              // Same skip semantic as runtime-42: only rotated regions need
+              // the correction (region.degrees !== 0). degrees === 0 keeps
+              // 4.3's native (correct, non-rotated) offsets untouched.
+              if (!region || region.degrees === 0) continue;
+              const off = offsets[i];
+              if (!off || off.length < 8) continue;
+
+              // ── SWAP-form corrected-offset math — VERBATIM from
+              // runtime-42.applyRotatedRegionFix (loader.ts:552-613). DO NOT
+              // alter a single argument, variable, or formula: SAFE-02 +
+              // the A1 1e-4 ground truth gate this byte-for-byte against the
+              // 4.2 path.
+              const w = ra.width;
+              const h = ra.height;
+              const x = ra.x;
+              const y = ra.y;
+              const scaleX = ra.scaleX;
+              const scaleY = ra.scaleY;
+              const rotation = ra.rotation;
+
+              const radians = (rotation * Math.PI) / 180;
+              const cos = Math.cos(radians);
+              const sin = Math.sin(radians);
+
+              const rsX = (w / region.originalWidth) * scaleX;
+              const rsY = (h / region.originalHeight) * scaleY;
+
+              const localX = (-w / 2) * scaleX + region.offsetX * rsX;
+              const localY = (-h / 2) * scaleY + region.offsetY * rsY;
+
+              // SWAP — localX2 uses region.height (PACKED H = post-rot
+              // canonical W); localY2 uses region.width (PACKED W = post-rot
+              // canonical H). Verified 33-RESEARCH.md §"D-01 Formula".
+              // BYTE-FAITHFUL to runtime-42.applyRotatedRegionFix: same
+              // packed-bounds fields (region.height / region.width), NOT
+              // originalWidth/Height (they coincide only when strip-whitespace
+              // is off; the 4.2 path uses the packed dims, so we must too).
+              const localX2 = localX + region.height * rsX;
+              const localY2 = localY + region.width * rsY;
+
+              const lXc = localX * cos + x;
+              const lXs = localX * sin;
+              const lYc = localY * cos + y;
+              const lYs = localY * sin;
+              const lX2c = localX2 * cos + x;
+              const lX2s = localX2 * sin;
+              const lY2c = localY2 * cos + y;
+              const lY2s = localY2 * sin;
+
+              off[0] = lXc - lYs;
+              off[1] = lYc + lXs;
+              off[2] = lXc - lY2s;
+              off[3] = lY2c + lXs;
+              off[4] = lX2c - lY2s;
+              off[5] = lY2c + lX2s;
+              off[6] = lX2c - lYs;
+              off[7] = lYc + lX2s;
+            }
+          }
+        }
+      }
     },
 
     // ── sampler-side (lifecycle) ─────────────────────────────────────────────
@@ -353,19 +454,41 @@ export function create(): SpineRuntime {
       // NEVER call bone.pose.getWorldScaleX — that reads pre-constraint geometry
       // and silently undersizes constraint rigs (Pitfall 1, T-43-07).
       const s           = unwrapHandle<Slot43>(slot);
-      const appliedPose = s.bone.appliedPose;  // BonePose — post-constraint world state
+      const appliedPose = s.bone.appliedPose;  // BonePose — render pose (post-constraint)
       if (process.env.NODE_ENV !== 'production') {
-        // Dev-mode assertion: appliedPose must differ from the unconstrained pose.
-        // Guards against an upstream refactor silently collapsing appliedPose === pose,
-        // which would make the structural defense identical to reading pre-IK geometry.
-        if (appliedPose === (s.bone as unknown as { pose: unknown }).pose) {
-          // Intentional: 'bone' + '.pose' in the message below is a STRING describing
-          // the wrong accessor name, not an actual bone.pose read. The lhs of === is
-          // `appliedPose`; the rhs casts through `{ pose: unknown }` to compare
-          // the two identity-equal references only in this assertion branch.
+        // [Rule 1 - Bug] Plan-04's original dev-assertion threw when
+        // `appliedPose === pose`. That premise is FALSIFIED by the upstream
+        // 4.3 contract — `Posed` docstring (node_modules/@esotericsoftware/
+        // spine-core/dist/Posed.d.ts:33-35, verified 2026-05-17):
+        //
+        //   "appliedPose: The pose to use for rendering. If no constraints
+        //    modify this pose, this is the same as pose. Otherwise it is a
+        //    copy of pose modified by constraints."
+        //
+        // So `appliedPose === pose` is the NORMAL, CORRECT state for every
+        // bone NOT touched by a constraint (the common case — CIRCLE, the
+        // root, etc.). The old assertion threw on every unconstrained bone,
+        // making the 4.3 sampler unrunnable (Task-1 blocker). The D-03
+        // structural defense is NOT "appliedPose must differ from pose" — it
+        // is "ALWAYS read the render pose (`appliedPose`), NEVER the
+        // unconstrained `pose`", which the facade already guarantees by
+        // construction (it exposes only boneAxisScale(slot); no OpaqueBone
+        // ⇒ a raw `bone.pose` read is unreachable from bounds.ts/sampler.ts).
+        //
+        // The retained guard verifies the structural invariant that actually
+        // matters: we read `appliedPose` (the render pose) and it is a usable
+        // BonePose exposing the world-scale accessors. A regression that
+        // collapsed `appliedPose` to `undefined`/`null` (an upstream API
+        // break) is the real silent-undersize risk this catches.
+        if (
+          appliedPose == null ||
+          typeof appliedPose.getWorldScaleX !== 'function' ||
+          typeof appliedPose.getWorldScaleY !== 'function'
+        ) {
           throw new Error(
-            'runtime-43 D-03: bone.appliedPose === bone' + '.pose — ' +
-            'reading pre-constraint geometry would silently undersize constraint rigs.',
+            'runtime-43 D-03: bone.appliedPose is not a usable BonePose ' +
+              '(missing getWorldScaleX/Y) — the render-pose world-scale read ' +
+              'is broken; constraint rigs would silently undersize.',
           );
         }
       }
@@ -441,13 +564,40 @@ export function create(): SpineRuntime {
     sequenceRegions(a: OpaqueAttachment): { name: string }[] | null {
       // Source: Sequence.d.ts:39 — sequence.regions (Array<TextureRegion | null>).
       // TextureAtlasRegion.name (TextureAtlas.d.ts:54-67).
+      //
+      // [Rule 1 - Bug] CROSS-RUNTIME SEMANTIC DIVERGENCE (Plan-04 defect found
+      // empirically in 43-05; the existential-undersize / total-peak-wipe
+      // failure mode for the 4.3 path).
+      //
+      // 4.2: `RegionAttachment`/`MeshAttachment` only carry a `.sequence` when
+      //   the JSON declares a `sequence:` block (a GENUINE multi-frame animated
+      //   flipbook). Plain attachments have `att.sequence === undefined` →
+      //   4.2's sequenceRegions returns null → fanOutSequencePeaks SKIPS them
+      //   (correct: a plain attachment is not a sequence).
+      //
+      // 4.3: EVERY RegionAttachment/MeshAttachment `implements HasSequence` and
+      //   ALWAYS has a non-optional `readonly sequence: Sequence`
+      //   (HasSequence.d.ts:40, RegionAttachment.d.ts:40). For a PLAIN
+      //   attachment that Sequence is a degenerate single-region HOLDER
+      //   (`regions.length === 1`), NOT an animated flipbook. The Plan-04
+      //   implementation returned that lone region, so fanOutSequencePeaks
+      //   treated EVERY 4.3 attachment as a sequence: it re-keyed the base
+      //   record onto an identical fannedKey and then `globalPeaks.delete`d
+      //   the baseKey (sampler.ts:573-579) → every 4.3 peak was wiped → 0
+      //   globalPeaks (verified: 4.2-sibling produced 6, 4.3 produced 0).
+      //
+      // Correct semantic (matches 4.2 by construction): a GENUINE animated
+      // sequence has MORE THAN ONE frame region. `regions.length <= 1` is the
+      // 4.3 single-region holder for a non-sequence attachment and MUST map to
+      // null — exactly what 4.2 returns for the same plain attachment. Real
+      // flipbooks (`sequence: { count: N>=2 }`) still fan out correctly.
       const att = unwrapHandle<{
         sequence?: {
           regions?: Array<{ name?: string } | null | undefined> | null;
         } | null;
       }>(a);
       const seq = att.sequence;
-      if (!seq || !seq.regions || seq.regions.length === 0) return null;
+      if (!seq || !seq.regions || seq.regions.length <= 1) return null;
       const result: { name: string }[] = [];
       for (const r of seq.regions) {
         if (r && r.name != null && r.name !== '') {
