@@ -1,0 +1,45 @@
+SLIDER-01 — Spine 4.3 editor-observed slider_bone world scale (D-03 / D-05 triangulation third leg)
+==================================================================================================
+
+Source project read: temp/SLIDER-01/slider-01.spine, opened in the Spine 4.3 editor
+(Esoteric's own reference runtime). Exported rig committed at
+fixtures/SLIDER_4_3/SLIDER-01.{json,atlas,png} (skeleton.spine = 4.3.02).
+
+Rig: bones root -> slider_bone (parent root is identity scale, so slider_bone
+world scale == its local scale here). Slot `square` is bound under slider_bone.
+Slider constraint `drive`: { type:"slider", animation:"scale", bone:"slider_bone",
+property:"x", scale:0.005, local:true }.
+
+Machine-extractable line (the SLIDER-02 D-05 arm parses scaleX from here):
+
+  slider_bone world scaleX = 4.000, scaleY = 4.000 at slide t=1.0s (slider_bone.x=200)
+
+What was observed in the editor
+-------------------------------
+- Animation `slide` (the load-bearing slider proof): playhead at the end frame,
+  time t = 1.0 s (frame 30 at the editor's default 30 fps dopesheet; dopesheet
+  fps is editor-display metadata only and has zero runtime effect — CLAUDE.md
+  Fact 1; the runtime time is 1.0 s). At that frame the `square` renders ~4x
+  larger than at t=0 — the slider constraint applying the referenced `scale`
+  animation end-to-end, driven by slider_bone.x reaching 200.
+- Animation `scale` (where slider_bone.scale is keyed directly, so the editor's
+  transform panel shows the numeric value the slider drives slider_bone to):
+  at its end frame t = 1.0 s, slider_bone Scale X = 4.0, Scale Y = 4.0.
+
+Peak frame / source property
+----------------------------
+- Peak time: t = 1.0 s (frame 30 @ 30 fps dopesheet).
+- Source property at peak: slider_bone local X = 200 (keyed by `slide`:
+  translate 0 -> 200 over 0 -> 1 s). Slider maps x -> p.time = 0.005 * x;
+  at x = 200 => p.time = 1.0 s => slider applies `scale` @ 1.0 s =>
+  slider_bone scaleX = scaleY = 4.0.
+
+Units
+-----
+- World scale is a dimensionless multiplier (slider_bone parent = root identity,
+  so world scale == local scale here).
+- slider_bone local X (= 200 at peak) is in skeleton units.
+
+Observed by: project owner, in the proprietary Spine 4.3 editor, 2026-05-18.
+This is the independent third leg of the D-05 triangulation:
+hand-derived closed form (4.0) == this editor read (4.0) == sampled runtime peak.
