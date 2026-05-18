@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 import { loadSkeleton } from '../../src/core/loader.js';
-import { handleRuntime } from '../../src/core/runtime/types.js';
+import { handleRuntime, type OpaqueSkeletonData } from '../../src/core/runtime/types.js';
 import { SpineVersionUnsupportedError } from '../../src/core/errors.js';
 
 // D-12 (Phase 45, UX-02): a PERMANENT in-suite anti-false-green
@@ -40,7 +40,12 @@ describe('D-12 standing guard: every in-repo 4.3 fixture ROUTES (never the old 4
       expect(() => loadSkeleton(fx)).not.toThrow();
       // Dispatch-target proof (load-bearing): the routed LoadResult's
       // opaque skeletonData handle is branded by the 4.3 runtime.
-      expect(handleRuntime(loadSkeleton(fx).skeletonData)).toBe('4.3');
+      // `LoadResult.skeletonData` is publicly typed `SkeletonData` (src/core/
+      // types.ts) but is constructed + cast as `OpaqueSkeletonData` inside the
+      // loader (loader.ts:923). Re-applying the codebase's single sanctioned
+      // boundary cast (`as unknown as`, types.ts:42) is compile-time only —
+      // runtime behavior and the dispatch-target proof are unchanged.
+      expect(handleRuntime(loadSkeleton(fx).skeletonData as unknown as OpaqueSkeletonData)).toBe('4.3');
     });
   }
 });
