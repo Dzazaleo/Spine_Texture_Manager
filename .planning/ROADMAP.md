@@ -92,7 +92,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 
 - [x] **Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding** - Capture the byte-equal 4.2 golden BEFORE the alias lands; install 4.3.0 canonical / 4.2.111 aliased; stand up the opaque-handle boundary + CI dual-matrix reproducibility (completed 2026-05-16)
 - [x] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure) (completed 2026-05-17)
-- [ ] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4
+- [x] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4 (completed 2026-05-18)
 - [ ] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases
 - [ ] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract
 - [ ] **Phase 47: spine-player 4.3.0 Bump + Viewer Regression** - Decoupled, revertible viewer bump; drop removed `MixBlend`/`MixDirection`; re-run the 5 carried Phase 41 HUMAN-UATs on the 4.3 player
@@ -147,8 +147,8 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 **Plans**: 4 plans (3 waves; Wave 1 fixture+driver foundation -> Wave 2 the dispatch flip + co-required D-04 denylist -> Wave 3 parallel: D-11 reconciliation + 3-entrypoint verify ∥ the ORCL-02 hard gate + XTRA/SLIDER specs)
 - [x] 44-01-PLAN.md — Wave 1: commit the ORCL-01 4.2-sibling + 3 owner 4.3 rigs (D-05), add buildLoadXtra01/02 to baseline-driver, bump CURRENT_PHASE 42->44 *(ORCL-01)*
 - [x] 44-02-PLAN.md — Wave 2: resolveRuntimeTag dispatch flip (D-06/07/08/09) + SpineVersionUnsupportedError 2->3 branch (D-10) + the CO-REQUIRED D-04 SAFE-01 denylist *(DISP-01, DISP-02, DISP-03)*
-- [ ] 44-03-PLAN.md — Wave 3: D-11 test-suite reconciliation (4.3 arms->routing, <4.2/>=4.4 throws preserved) + the [BLOCKING] 3-entrypoint Multi-Runtime verification + ORCL-03/Phase-45-split dispositions *(DISP-01, DISP-03)*
-- [ ] 44-04-PLAN.md — Wave 3: ORCL-02 all-3-maps cross-runtime HARD gate (D-12/13/14) + XTRA-01/02 own-baseline+structural (D-03) + SLIDER smoke (D-02) *(ORCL-02, ORCL-03, XTRA-01, XTRA-02)*
+- [x] 44-03-PLAN.md — Wave 3: D-11 test-suite reconciliation (4.3 arms->routing, <4.2/>=4.4 throws preserved) + the [BLOCKING] 3-entrypoint Multi-Runtime verification + ORCL-03/Phase-45-split dispositions *(DISP-01, DISP-03)*
+- [x] 44-04-PLAN.md — Wave 3: ORCL-02 all-3-maps cross-runtime HARD gate (D-12/13/14) + XTRA-01/02 own-baseline+structural (D-03) + SLIDER smoke (D-02) *(ORCL-02, ORCL-03, XTRA-01, XTRA-02)*
 
 ### Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep
 **Goal**: Flip the user-facing "re-export as Version 4.2" reject into first-class 4.3 support — only now that the 4.3 path works and the oracle proves it — and sweep every stale 4.2-only surface so the app's promise matches its capability.
@@ -195,7 +195,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
-| 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 2/4 | In Progress|  |
+| 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete   | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
 | 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/TBD | Not started | - |
