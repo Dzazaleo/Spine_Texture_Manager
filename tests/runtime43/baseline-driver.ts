@@ -16,7 +16,7 @@
 // A1 / D-03 tolerances here are 1e-4 (same-hash cross-runtime geometry) and are
 // DISTINCT from SAFE-02's strict byte-equal gate (Plan 03 owns SAFE-02; it
 // stays strict and is untouched by this driver).
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import * as path from 'node:path';
 import { pickRuntime } from '../../src/core/runtime/runtime.js';
 import type { SpineRuntime } from '../../src/core/runtime/runtime.js';
@@ -208,6 +208,146 @@ export function buildLoadSibling42(): { load: LoadResult; rt: SpineRuntime } | n
     runtime: pair.rt,
   };
   return { load, rt: pair.rt };
+}
+
+// --- XTRA-01 / XTRA-02 cross-runtime drivers (Phase 44 Plan 01, D-03) ---------
+// Faithful clones of buildLoad43 (lines 128-157) with ONLY the fixture dir
+// swapped. The owner-rig internal filenames are NOT locked (only the dir names
+// fixtures/XTRA0{1,2}_4_3/ are — D-01 / CONTEXT Claude's Discretion), so the
+// .json / .atlas are resolved by scanning the directory (readdirSync), never
+// by a hardcoded assumed filename. The loud-or-skip presence-guard contract
+// from load43.ts:34-72 is preserved verbatim: a broken pickRuntime('4.3')
+// PROPAGATES (verification-integrity failure, NOT a Wave-0 skip); only a
+// genuinely absent/empty rig directory returns null (legit Wave-0 fixture
+// absence). buildSourceDims / rt.makeAtlas / rt.parseSkeleton /
+// rt.applyRotatedRegionFix are IDENTICAL to buildLoad43.
+
+function isFileAbsent(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err != null &&
+    (err as { code?: string }).code === 'ENOENT'
+  );
+}
+
+/**
+ * Resolve the single `.json` and single `.atlas` inside an owner rig dir by
+ * scanning its contents (the owner filenames are Claude's-Discretion, only the
+ * dir name is locked). Returns `null` ONLY when the directory itself is absent
+ * (legit Wave-0 ENOENT skip — load43.ts:34-72 contract). A directory that
+ * exists but is missing its `.json`/`.atlas` is a malformed rig, NOT a skip —
+ * it throws (the loud-over-silent posture; a half-exported rig must fail loud,
+ * never green-wash as "fixture absent").
+ */
+function resolveRigFiles(
+  dirAbs: string,
+): { jsonPath: string; atlasPath: string } | null {
+  let entries: string[];
+  try {
+    entries = readdirSync(dirAbs);
+  } catch (err) {
+    if (isFileAbsent(err)) return null; // legit Wave-0: owner rig dir absent
+    throw err;
+  }
+  const jsons = entries.filter((f) => f.toLowerCase().endsWith('.json'));
+  const atlases = entries.filter((f) => f.toLowerCase().endsWith('.atlas'));
+  if (jsons.length === 0 && atlases.length === 0) return null; // empty → Wave-0
+  if (jsons.length !== 1) {
+    throw new Error(
+      `resolveRigFiles: expected exactly one .json in ${dirAbs}, found ` +
+        `${jsons.length} (${jsons.join(', ') || 'none'}) — malformed owner ` +
+        'rig, NOT a Wave-0 skip (loud-over-silent: a half-exported rig must ' +
+        'fail loud).',
+    );
+  }
+  if (atlases.length !== 1) {
+    throw new Error(
+      `resolveRigFiles: expected exactly one .atlas in ${dirAbs}, found ` +
+        `${atlases.length} (${atlases.join(', ') || 'none'}) — malformed ` +
+        'owner rig, NOT a Wave-0 skip.',
+    );
+  }
+  return {
+    jsonPath: path.resolve(dirAbs, jsons[0]),
+    atlasPath: path.resolve(dirAbs, atlases[0]),
+  };
+}
+
+/**
+ * Assemble a minimal LoadResult so `sampleSkeleton` drives an owner XTRA rig
+ * through runtime-43. VERBATIM clone of buildLoad43 — only the fixture dir
+ * differs (resolved by directory scan, not a hardcoded filename). Loud-or-skip:
+ * pickRuntime('4.3') failure PROPAGATES (verification-integrity, NOT a skip);
+ * only a genuinely absent rig directory returns null (legit Wave-0
+ * fixture-absence — load43.ts:34-72 contract).
+ */
+function buildLoadXtra(
+  dirRel: string,
+): { load: LoadResult; rt: SpineRuntime } | null {
+  // pickRuntime('4.3') must succeed — any failure is a verification-integrity
+  // defect, NOT a Wave-0 skip: let it propagate (no catch). Mirrors
+  // load43.ts:51-58.
+  const rt = pickRuntime('4.3');
+  if (rt == null) {
+    throw new Error(
+      `buildLoadXtra(${dirRel}): pickRuntime('4.3') returned null — ` +
+        'runtime-43 must be resolvable. A null here is a ' +
+        'verification-integrity failure, not a Wave-0 skip.',
+    );
+  }
+  const dirAbs = path.resolve(REPO_ROOT, dirRel);
+  const files = resolveRigFiles(dirAbs);
+  if (files == null) return null; // legit Wave-0: owner rig not yet exported
+  let json: unknown;
+  let atlasText: string;
+  try {
+    json = JSON.parse(readFileSync(files.jsonPath, 'utf8'));
+    atlasText = readFileSync(files.atlasPath, 'utf8');
+  } catch (err) {
+    if (isFileAbsent(err)) return null; // race: file vanished mid-scan
+    throw err; // parse defect / runtime bug → PROPAGATE (never a silent skip)
+  }
+  const atlas = rt.makeAtlas(atlasText);
+  const skeletonData = rt.parseSkeleton(json, atlas, /*atlasLess*/ false);
+  rt.applyRotatedRegionFix(skeletonData);
+  const sourceDims = buildSourceDims(atlasText);
+  const load: LoadResult = {
+    skeletonPath: files.jsonPath,
+    atlasPath: files.atlasPath,
+    // The sampler treats skeletonData opaquely (casts to OpaqueSkeletonData and
+    // routes every read through load.runtime). The structural `SkeletonData`
+    // shape is satisfied by the runtime-43-parsed handle at runtime.
+    skeletonData: skeletonData as unknown as LoadResult['skeletonData'],
+    atlas: undefined as unknown as LoadResult['atlas'],
+    sourceDims,
+    sourcePaths: new Map(),
+    atlasSources: new Map(),
+    canonicalDimsByRegion: new Map(),
+    actualDimsByRegion: new Map(),
+    editorFps: 30, // owner rigs have no `skeleton.fps` → Spine's default 30
+    runtime: rt,
+  };
+  return { load, rt };
+}
+
+/**
+ * XTRA-01 (multi-map TransformConstraint rig) through runtime-43 via the
+ * sampler. Clone of buildLoad43 — only the fixture dir differs. Loud-or-skip:
+ * pickRuntime('4.3') failure PROPAGATES (verification-integrity, NOT a skip);
+ * only a genuinely absent rig directory returns null (legit Wave-0
+ * fixture-absence).
+ */
+export function buildLoadXtra01(): { load: LoadResult; rt: SpineRuntime } | null {
+  return buildLoadXtra('fixtures/XTRA01_4_3');
+}
+
+/**
+ * XTRA-02 (4.3 IK `scaleYMode` Uniform + Volume rig) through runtime-43 via the
+ * sampler. Clone of buildLoad43 — only the fixture dir differs. Same
+ * loud-or-skip contract as buildLoadXtra01.
+ */
+export function buildLoadXtra02(): { load: LoadResult; rt: SpineRuntime } | null {
+  return buildLoadXtra('fixtures/XTRA02_4_3');
 }
 
 /**
