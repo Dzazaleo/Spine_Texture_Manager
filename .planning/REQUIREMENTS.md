@@ -43,15 +43,15 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Version Dispatch (DISP)
 
-- [ ] **DISP-01**: The loader detects the skeleton version and routes 4.2 JSON → 4.2 runtime and 4.3 JSON → 4.3 runtime; the existing `checkSpine43Schema` predicate is repurposed from a rejecter into a routing signal.
-- [ ] **DISP-02**: Genuinely unsupported versions still reject with the existing typed-error envelope — the `< 4.2` guard is preserved and a NEW `≥ 4.4` guard arm is added (future-proofing).
-- [ ] **DISP-03**: A 4.2 JSON is never silently loaded by the 4.3 runtime (which would yield zero constraints with no error); routing is decided by detected version *before* runtime load.
+- [x] **DISP-01**: The loader detects the skeleton version and routes 4.2 JSON → 4.2 runtime and 4.3 JSON → 4.3 runtime; the existing `checkSpine43Schema` predicate is repurposed from a rejecter into a routing signal.
+- [x] **DISP-02**: Genuinely unsupported versions still reject with the existing typed-error envelope — the `< 4.2` guard is preserved and a NEW `≥ 4.4` guard arm is added (future-proofing).
+- [x] **DISP-03**: A 4.2 JSON is never silently loaded by the 4.3 runtime (which would yield zero constraints with no error); routing is decided by detected version *before* runtime load.
 
 ### Correctness Oracle & 4.3 Fixtures (ORCL)
 
 - [x] **ORCL-01**: An owner-exported SIMPLE_TEST-equivalent rig, exported from a Spine 4.3 editor as **both** "Version 4.3" and "Version 4.2", is committed in-repo (redistributable).
-- [ ] **ORCL-02**: A same-rig cross-runtime equivalence test asserts the 4.3-runtime and 4.2-runtime `globalPeaks` agree within 1e-4 on the ORCL-01 rig.
-- [ ] **ORCL-03**: spine-editor#891 (4.3→4.2 downgrade IK-scramble) status is human-verified before the dual-version reference is trusted; if unresolved, the oracle degrades to a non-IK reference rig that still exercises the `appliedPose` constraint canary.
+- [x] **ORCL-02**: A same-rig cross-runtime equivalence test asserts the 4.3-runtime and 4.2-runtime `globalPeaks` agree within 1e-4 on the ORCL-01 rig.
+- [x] **ORCL-03**: spine-editor#891 (4.3→4.2 downgrade IK-scramble) status is human-verified before the dual-version reference is trusted; if unresolved, the oracle degrades to a non-IK reference rig that still exercises the `appliedPose` constraint canary.
 
 ### Slider Constraint Validation (SLIDER — PORT-03 reshaped: fixture-only, no sampler code)
 
@@ -60,8 +60,8 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Optional 4.3-Only Confidence Fixtures (XTRA — user opted in to both, 2026-05-16)
 
-- [ ] **XTRA-01**: A 4.3 transform-constraint multi-map fixture (one source property → multiple target properties of different types, local↔world with clamp) samples correctly through the adapter.
-- [ ] **XTRA-02**: A 4.3 IK `scaleYMode` fixture exercising Uniform and Volume samples correctly; default `None` is confirmed 4.2-equivalent (no regression).
+- [x] **XTRA-01**: A 4.3 transform-constraint multi-map fixture (one source property → multiple target properties of different types, local↔world with clamp) samples correctly through the adapter.
+- [x] **XTRA-02**: A 4.3 IK `scaleYMode` fixture exercising Uniform and Volume samples correctly; default `None` is confirmed 4.2-equivalent (no regression).
 
 ### User-Facing Surface (UX)
 
@@ -131,16 +131,16 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | PORT-01 | Phase 43 | Complete |
 | PORT-02 | Phase 43 | Complete |
 | PORT-03 | Phase 43 | Complete |
-| DISP-01 | Phase 44 | Pending |
-| DISP-02 | Phase 44 | Pending |
-| DISP-03 | Phase 44 | Pending |
+| DISP-01 | Phase 44 | Complete |
+| DISP-02 | Phase 44 | Complete |
+| DISP-03 | Phase 44 | Complete |
 | ORCL-01 | Phase 44 | Complete |
-| ORCL-02 | Phase 44 | Pending |
-| ORCL-03 | Phase 44 | Pending |
+| ORCL-02 | Phase 44 | Complete |
+| ORCL-03 | Phase 44 | Complete |
 | SLIDER-01 | Phase 46 | Pending |
 | SLIDER-02 | Phase 46 | Pending |
-| XTRA-01 | Phase 44 | Pending |
-| XTRA-02 | Phase 44 | Pending |
+| XTRA-01 | Phase 44 | Complete |
+| XTRA-02 | Phase 44 | Complete |
 | UX-01 | Phase 45 | Pending |
 | UX-02 | Phase 45 | Pending |
 | PLAYER-01 | Phase 47 | Pending |
