@@ -172,7 +172,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   3. 4.3 sampler wall-time is measured on a complex 4.3 rig against the N2.2 606 ms contract and a 4.3-specific regression budget is recorded — 4.3's three-pose model is heavier per tick, so parity is not assumed and the budget reflects measured reality. *(PERF-01)*
 **Plans**: 2 plans (1 wave; two INDEPENDENT soundness proofs — zero file overlap, parallel-safe). No src/core/ change in either plan (SC#2: the absence of slider-specific code IS the deliverable, machine-asserted).
 - [ ] 46-01-PLAN.md — SLIDER-01/02: buildLoadSlider43() driver + slider43-closedform.spec.ts (closed-form peak == hand-derived 4.0 + D-05 NOTES.txt triangulation + machine-checked zero-src/core/-diff) + 46-OWNER-EXPORT-SPEC.md (D-10) + owner-authored fixtures/SLIDER_4_3/NOTES.txt *(SLIDER-01, SLIDER-02)*
-- [ ] 46-02-PLAN.md — PERF-01: CI-enabled sampler-worker-spineboy43.spec.ts (verbatim Girl-analog clone, it.skipIf REMOVED, repointed to spineboy-pro 4.3, BUDGET = measured x 3, [PERF-43] ratio-to-606 log) *(PERF-01)*
+- [x] 46-02-PLAN.md — PERF-01: CI-enabled sampler-worker-spineboy43.spec.ts (verbatim Girl-analog clone, it.skipIf REMOVED, repointed to spineboy-pro 4.3, BUDGET = measured x 3, [PERF-43] ratio-to-606 log) *(PERF-01)*
 
 ### Phase 47: spine-player 4.3.0 Bump + Viewer Regression
 **Goal**: Bump the decoupled spine-player viewer to 4.3.0 last and revertibly — a player regression must not gate the core port — migrating the removed apply-model imports and re-running the carried Phase 41 viewer UATs on the 4.3 player.
@@ -201,7 +201,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/2 | Planned | - |
+| 46. Slider Validation + 4.3 Perf Budget | v1.6 | 1/2 | In Progress|  |
 | 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/TBD | Not started | - |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)

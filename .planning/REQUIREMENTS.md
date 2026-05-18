@@ -79,7 +79,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Performance (PERF)
 
-- [ ] **PERF-01**: 4.3 sampler wall-time is measured on a complex 4.3 rig against the N2.2 606 ms contract and a 4.3-specific regression budget is recorded (4.3's three-pose model is heavier per tick — parity is not assumed).
+- [x] **PERF-01**: 4.3 sampler wall-time is measured on a complex 4.3 rig against the N2.2 606 ms contract and a 4.3-specific regression budget is recorded (4.3's three-pose model is heavier per tick — parity is not assumed).
 
 ---
 
@@ -146,7 +146,7 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | PLAYER-01 | Phase 47 | Pending |
 | PLAYER-02 | Phase 47 | Pending |
 | CI-01 | Phase 42 | Complete |
-| PERF-01 | Phase 46 | Pending |
+| PERF-01 | Phase 46 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 26 total
