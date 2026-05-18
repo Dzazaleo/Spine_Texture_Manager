@@ -10,10 +10,12 @@ approved_at:
 
 ## Current Test
 
-[all 7 items pending — Task 2 owner `checkpoint:human-action`: run the real
-Electron app, execute every item live on the spine-player@4.3.0 player, sign
-each off; v1.6 milestone close is HELD per D-01 until every item is signed
-`passed`]
+[REGRESSION at Test 2 — owner UAT session halted 2026-05-18. The 4.2 leg
+(`SIMPLE_TEST.json`) loads & renders through the bumped spine-player@4.3.0
+player; the 4.3 leg (`skeleton2.json`) FAILS to open with
+`Cannot read properties of undefined (reading 'r')`. v1.6 milestone close is
+HELD per D-01 (no revert fallback — D-03). The phase does NOT complete; the
+regression is under triage — see the `## Regression` section below.]
 
 ## Setup
 
@@ -84,7 +86,12 @@ checkpoint — record the artifact + a screenshot, note that the 4.3.0 lever is
 `pma` → `UNPACK_PREMULTIPLY_ALPHA_WEBGL` (per RESEARCH "GL Straight-Alpha"),
 and report it as a regression (v1.6 close stays held per D-01).
 
-result: [pending]
+result: [blocked] — 4.2 leg: `SIMPLE_TEST.json` loaded and rendered through the
+spine-player@4.3.0 player without a crash (owner: "opened correctly"); the
+explicit clean-edge / no-halo verdict + the durable screenshot were NOT yet
+captured. 4.3 leg: BLOCKED — `skeleton2.json` fails to open (see Test 2). Test 1
+cannot be signed (and the Plan-01 Rule-3 `premultipliedAlpha`-removal deviation
+cannot be empirically cleared) until the Test 2 regression is fixed.
 
 ---
 
@@ -103,7 +110,20 @@ the single bumped spine-player@4.3.0 player.
 why_human: cross-major GL render correctness on the two fixed D-09 fixtures;
 jsdom has no WebGL and cannot render either leg.
 
-result: [pending]
+result: **REGRESSION (owner-observed 2026-05-18).** Leg A
+(`fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, 4.2) renders correctly through the
+bumped spine-player@4.3.0 player. **Leg B
+(`fixtures/SIMPLE_PROJECT_43/skeleton2.json`, 4.3) FAILS to open** — the viewer
+shows: `Unknown: Cannot read properties of undefined (reading 'r')` /
+`Dropped: skeleton2.json`. Triage (headless repro, 2026-05-18): the bundled
+spine-core@4.3.0 `SkeletonJson` + the new-format `skeleton2.atlas` parse
+`skeleton2.json` **cleanly** (`bones=14 slots=7 skins=1 anims=4`) — so this is
+**NOT** a spine-core skeleton/atlas parse fault. The fault is in the
+**viewer/modal layer** (the Plan 01 spine-player@4.3.0 migration and/or the
+`AnimationPlayerModal` asset-feed / render / `sampleAnimationBounds` path),
+manifesting only on the 4.3 fixture. v1.6 close HELD per D-01; no revert (D-03
+— the bump is mechanically non-revertible). Root-cause + fix tracked as a
+Phase 47 gap.
 
 ---
 
@@ -222,14 +242,44 @@ result: [pending]
 
 total: 7
 passed: 0
-issues: 0
-pending: 7
+issues: 1
+pending: 5
 skipped: 0
-blocked: 0
+blocked: 1
 
-(Task 2 — the owner — runs every item live on the 4.3 player and flips these
-counters to `passed: 7 / pending: 0` at sign-off; if any item regresses, that
-item's `result:` records the regression and v1.6 close stays held per D-01.)
+(Owner UAT session 2026-05-18 HALTED at Test 2: Test 2 = regression [issues:1],
+Test 1 = blocked behind it [blocked:1], Tests 3-7 not run [pending:5]. NOT
+signed — `status: pending`, `approved_by` blank. Per D-01 v1.6 close is HELD;
+the phase does not complete until the Test 2 regression is fixed and every item
+is re-run + signed `passed`.)
+
+## Regression
+
+**REG-47-01 — `skeleton2.json` (4.3) fails to open in the Animation Viewer.**
+
+- **Observed (owner, real Electron app, 2026-05-18):** loading
+  `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2) renders correctly; loading
+  `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3) shows
+  `Unknown: Cannot read properties of undefined (reading 'r')` /
+  `Dropped: skeleton2.json`. The 4.2 leg works through the *same* bumped
+  spine-player@4.3.0 player — the failure is 4.3-fixture-specific.
+- **Triage (headless repro, 2026-05-18):** spine-core@4.3.0 `SkeletonJson` +
+  `AtlasAttachmentLoader` + the new-format `skeleton2.atlas` parse
+  `skeleton2.json` cleanly (`bones=14 slots=7 skins=1 anims=4`). The app *core*
+  dual-runtime already parses this fixture (runtime-43 tests green). Therefore
+  the fault is **NOT** spine-core parsing — it is in the **viewer/modal layer**:
+  the Plan 01 spine-player@4.3.0 migration (`AnimationPlayerModal.tsx` T1–T8,
+  commit `6b3c57e`) and/or the modal asset-feed (`buildAssetFeed`) /
+  `SpinePlayer` render path. `reading 'r'` is a `Color`-shaped access on
+  `undefined` (a slot/attachment/region color or `backgroundColor`), surfacing
+  only on the 4.3 fixture in a real GL context.
+- **Disposition:** Phase 47 does NOT complete. PLAYER-01 machine track is green
+  but PLAYER-02 (this owner contract) is RED. v1.6 milestone close HELD per
+  D-01 (no revert fallback — D-03). Root-cause + fix is a Phase 47 gap (see the
+  orchestrator routing: `/gsd-debug` to root-cause the viewer-layer `reading
+  'r'` on 4.3 fixtures, then `/gsd-plan-phase 47 --gaps`). The Plan 01 Rule-3
+  `premultipliedAlpha`-removal deviation also remains empirically uncleared
+  until Test 1 can be run (it is blocked behind this regression).
 
 ## Provenance
 
