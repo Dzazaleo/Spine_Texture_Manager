@@ -472,17 +472,19 @@ if (kind === 'region') return boneAxisScales(rt, slot);   // |bone.appliedPose.g
 | A3 | spineboy-pro's measured wall-time will be in the same order of magnitude as Girl's 606 ms (4.3 three-pose model heavier per tick, but spineboy-pro is ~3.8× smaller JSON than Girl). | PERF-01 Budget | MEDIUM — the *actual* measured value is captured at plan/execute time, not assumed; the budget is `measured × 3` regardless of the absolute value, so this assumption only affects the *narrative* ratio-to-606ms (D-08 explicitly says record as-measured, no inflation). Not a correctness risk. |
 | A4 | The editor-observed `slider_bone` world scaleX/Y at the `slide` animation's end frame ≈ 4.0 (Esoteric's reference runtime computes the same slider→scale mapping). | Closed-Form Step 5 (D-05) | LOW — this is the *whole point* of triangulation: if the editor disagrees with hand-math, that is a real finding D-05 is designed to surface, not a research error. The owner reads the actual editor value into NOTES.txt; the test asserts agreement. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the `slide` animation's translation (x up to 200) ever inflate the world AABB enough to matter for `globalPeaks`?**
    - What we know: `globalPeaks` peak for a RegionAttachment is `computeRenderScale` = bone world scaleX/Y (translation-invariant). Translation moves the AABB but does not change render *scale*. So the slider-driven scale (→4.0) is the peak, not the translation.
    - What's unclear: nothing material — `computeRenderScale` for `kind==='region'` is unambiguously `boneAxisScales` (bounds.ts:149-151), no AABB-size term.
    - Recommendation: assert `peakScale`/`peakScaleX`/`peakScaleY` (all 4.0); do NOT assert any AABB/position quantity.
+   - **RESOLVED:** Nothing material — the region peak IS the bone world scale, not an AABB/position term. `computeRenderScale` for `kind==='region'` is unambiguously `boneAxisScales` (`bounds.ts:149-151`, cited above), with no AABB-size or translation term; the `slide` x→200 translation is therefore scale-invariant and cannot inflate the peak. The SLIDER-02 closed-form test (46-01 Task 3) accordingly asserts `peakScale`/`peakScaleX`/`peakScaleY` (all `toBeCloseTo(4.0, 5)`), never any bone position or AABB quantity — matching this recommendation exactly. No open planning decision.
 
 2. **Exact `measured` value for the PERF-01 budget.**
    - What we know: the test must capture it at plan/execute time (a warmed `runSamplerJob` on spineboy-pro); BUDGET = measured × 3.
    - What's unclear: the absolute ms (depends on the run machine).
    - Recommendation: the plan's first PERF-01 task captures `measured` (run the warmed sample once, read the `[PERF-43]` value), then hardcodes `BUDGET = Math.ceil(measured * 3)` with a comment recording the captured value, date, and machine. Record measured + ratio-to-606ms in PROJECT.md at phase close (D-08/D-09).
+   - **RESOLVED (by design — D-09):** The exact `measured` ms is intentionally NOT a plan-time literal — it is machine-dependent and is captured at *execute* time by the 46-02 Task 1 Step 1 warmed `runSamplerJob` throwaway script (one discarded warm-up + one timed run on `fixtures/spineboy_4.3/spineboy-pro.json`), after which `BUDGET = ⌈measured × 3⌉` (`Math.ceil(measured * 3)`) is hardcoded as an integer literal with the captured `measured` ms + date + machine recorded in-comment. This is the locked D-09 contract ("ceiling = measured × margin"; CONTEXT.md D-09), fully encoded in 46-02 Task 1 — NOT an open planning gap.
 
 ## Environment Availability
 
