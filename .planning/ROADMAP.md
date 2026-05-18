@@ -94,7 +94,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure) (completed 2026-05-17)
 - [x] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4 (completed 2026-05-18)
 - [x] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases (completed 2026-05-18)
-- [ ] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract
+- [x] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract (both plans 46-01 + 46-02 COMPLETE 2026-05-18 — awaiting orchestrator phase-level verification/closure)
 - [ ] **Phase 47: spine-player 4.3.0 Bump + Viewer Regression** - Decoupled, revertible viewer bump; drop removed `MixBlend`/`MixDirection`; re-run the 5 carried Phase 41 HUMAN-UATs on the 4.3 player
 
 ## Phase Details
@@ -171,7 +171,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   2. A closed-form test asserts the sampled peak for the slider rig equals the independently-derived analytical value (not a self-referential "it runs"), confirming the slider effect propagates via the existing `updateWorldTransform(Physics.update)` path with no slider-specific sampler code. *(SLIDER-02)*
   3. 4.3 sampler wall-time is measured on a complex 4.3 rig against the N2.2 606 ms contract and a 4.3-specific regression budget is recorded — 4.3's three-pose model is heavier per tick, so parity is not assumed and the budget reflects measured reality. *(PERF-01)*
 **Plans**: 2 plans (1 wave; two INDEPENDENT soundness proofs — zero file overlap, parallel-safe). No src/core/ change in either plan (SC#2: the absence of slider-specific code IS the deliverable, machine-asserted).
-- [ ] 46-01-PLAN.md — SLIDER-01/02: buildLoadSlider43() driver + slider43-closedform.spec.ts (closed-form peak == hand-derived 4.0 + D-05 NOTES.txt triangulation + machine-checked zero-src/core/-diff) + 46-OWNER-EXPORT-SPEC.md (D-10) + owner-authored fixtures/SLIDER_4_3/NOTES.txt *(SLIDER-01, SLIDER-02)*
+- [x] 46-01-PLAN.md — SLIDER-01/02: buildLoadSlider43() driver + slider43-closedform.spec.ts (closed-form peak == hand-derived 4.0 + D-05 NOTES.txt triangulation + machine-checked zero-src/core/-diff) + 46-OWNER-EXPORT-SPEC.md (D-10) + owner-authored fixtures/SLIDER_4_3/NOTES.txt *(SLIDER-01, SLIDER-02)*
 - [x] 46-02-PLAN.md — PERF-01: CI-enabled sampler-worker-spineboy43.spec.ts (verbatim Girl-analog clone, it.skipIf REMOVED, repointed to spineboy-pro 4.3, BUDGET = measured x 3, [PERF-43] ratio-to-606 log) *(PERF-01)*
 
 ### Phase 47: spine-player 4.3.0 Bump + Viewer Regression
@@ -201,7 +201,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 46. Slider Validation + 4.3 Perf Budget | v1.6 | 1/2 | In Progress|  |
+| 46. Slider Validation + 4.3 Perf Budget | v1.6 | 2/2 | Complete   | 2026-05-18 |
 | 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/TBD | Not started | - |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)

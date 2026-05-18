@@ -55,8 +55,8 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Slider Constraint Validation (SLIDER — PORT-03 reshaped: fixture-only, no sampler code)
 
-- [ ] **SLIDER-01**: A minimal slider rig (a slider drives one bone's X over a known time window) is committed in-repo from a 4.3 editor export.
-- [ ] **SLIDER-02**: A closed-form test asserts the sampled peak for the slider rig equals the independently-derived analytical value, confirming slider effect propagates via the existing `updateWorldTransform(Physics.update)` path with no slider-specific sampler code.
+- [x] **SLIDER-01**: A minimal slider rig (a slider drives one bone's X over a known time window) is committed in-repo from a 4.3 editor export.
+- [x] **SLIDER-02**: A closed-form test asserts the sampled peak for the slider rig equals the independently-derived analytical value, confirming slider effect propagates via the existing `updateWorldTransform(Physics.update)` path with no slider-specific sampler code.
 
 ### Optional 4.3-Only Confidence Fixtures (XTRA — user opted in to both, 2026-05-16)
 
@@ -137,8 +137,8 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | ORCL-01 | Phase 44 | Complete |
 | ORCL-02 | Phase 44 | Complete |
 | ORCL-03 | Phase 44 | Complete |
-| SLIDER-01 | Phase 46 | Pending |
-| SLIDER-02 | Phase 46 | Pending |
+| SLIDER-01 | Phase 46 | Complete |
+| SLIDER-02 | Phase 46 | Complete |
 | XTRA-01 | Phase 44 | Complete |
 | XTRA-02 | Phase 44 | Complete |
 | UX-01 | Phase 45 | Complete |
