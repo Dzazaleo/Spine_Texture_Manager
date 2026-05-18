@@ -123,6 +123,19 @@ const SAFE01_EXCLUDED_PREFIXES = [
   'fixtures/XTRA02_4_3/', // D-04: owner 4.3 IK scaleYMode rig
   'fixtures/SPINE_4_3_TEST/', // D-04 Plan-02 co-required: git-tracked 4.3.91-beta canary — routes post-flip; breaks safe01-baseline gitTracked arm
   'fixtures/test_4.3/', // D-04 Plan-02 co-required: gitignored 4.3.88-beta canary — globbed regardless; breaks safe01-baseline non-tracked `heavy` arm
+  // D-04 Phase-46-02 extension (same locked doctrine: EVERY 4.3-routing
+  // fixture dir NOT in the frozen _manifest.json). 46-02 commits the
+  // redistributable PERF-01 rig fixtures/spineboy_4.3/spineboy-pro.{json,
+  // atlas,png} (spine 4.3.01, 67/52/11/14, top-level constraints[] → routes
+  // 4.3 post-dispatch-flip) so the CI-enabled PERF-01 gate is functional on
+  // CI. Being git-tracked + 4.3-routing, it leaks into safe01-enumeration
+  // (+1 vs frozen manifest) and safe01-baseline's gitTracked arm (HARD throw:
+  // no committed SAFE-01 golden — by design; its perf budget lives in
+  // tests/main/sampler-worker-spineboy43.spec.ts, NOT golden-shared with
+  // SAFE-01). Verified at execute time NOT in _manifest.json. Identical
+  // class to the SIMPLE_PROJECT_43/SLIDER_4_3 entries above; mechanism is the
+  // same PATTERNS-recommended path-prefix denylist.
+  'fixtures/spineboy_4.3/', // D-04 (46-02): redistributable PERF-01 4.3 rig — git-tracked + 4.3-routing; excluded from frozen SAFE-01 set/byte-gate
 ] as const;
 
 export function discover(): DiscoveryResult {
