@@ -1,0 +1,61 @@
+{
+"skeleton": {
+	"hash": "pYLiTFF+f0s",
+	"spine": "4.3.02",
+	"x": -5,
+	"y": -5,
+	"width": 10,
+	"height": 10,
+	"images": "./images/",
+	"audio": null
+},
+"bones": [
+	{ "name": "root" },
+	{ "name": "slider_bone", "parent": "root" },
+	{ "name": "CONST", "parent": "root", "x": -0.43084335, "y": 26.71163, "color": "d8e323ff" }
+],
+"slots": [
+	{ "name": "square", "bone": "slider_bone", "attachment": "square" }
+],
+"constraints": [
+	{
+		"type": "transform",
+		"name": "CONST-to-slider_bone",
+		"source": "CONST",
+		"bones": [ "slider_bone" ],
+		"properties": {
+			"x": {
+				"to": {
+					"x": { "max": 100 },
+					"rotate": { "max": 360, "scale": 3.6 }
+				}
+			}
+		},
+		"localTarget": true,
+		"clamp": true,
+		"mixRotate": 0.9054
+	}
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"square": {
+				"square": { "width": 10, "height": 10 }
+			}
+		}
+	}
+],
+"animations": {
+	"XTRA01": {
+		"bones": {
+			"CONST": {
+				"translate": [
+					{ "x": 7.898613 },
+					{ "time": 1.2, "x": 108.4262 }
+				]
+			}
+		}
+	}
+}
+}

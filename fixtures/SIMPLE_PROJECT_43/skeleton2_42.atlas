@@ -1,0 +1,13 @@
+skeleton2_42.png
+size:2466,1004
+filter:Linear,Linear
+CIRCLE
+bounds:1765,303,699,699
+SQUARE
+bounds:2,2,1000,1000
+TRIANGLE
+bounds:1004,169,833,759
+rotate:90
+rect
+bounds:1004,67,100,500
+rotate:90

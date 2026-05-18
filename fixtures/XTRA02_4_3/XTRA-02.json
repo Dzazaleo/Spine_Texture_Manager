@@ -1,0 +1,145 @@
+{
+"skeleton": { "hash": "XQGsMKeyCdk", "spine": "4.3.01", "images": "./images/", "audio": null },
+"bones": [
+	{ "name": "root" },
+	{ "name": "UNIFORM", "parent": "root" },
+	{ "name": "CTRL", "parent": "UNIFORM", "color": "d8e323ff" },
+	{ "name": "UPPER", "parent": "CTRL", "length": 134.3168, "rotation": -50.74061, "x": 17.50003, "y": -20.500027 },
+	{ "name": "LOWER", "parent": "UPPER", "length": 115.39503, "rotation": 115.0638, "x": 134.8082, "y": 2.181444 },
+	{ "name": "LEG", "parent": "UNIFORM", "length": 312.0209, "rotation": 123.89378, "x": 326.5001, "y": -276.5001 },
+	{
+		"name": "TARGET",
+		"parent": "LEG",
+		"rotation": -123.89378,
+		"x": 309.24545,
+		"y": -0.5448837,
+		"color": "ff3f00ff",
+		"icon": "ik"
+	},
+	{ "name": "VOLUME", "parent": "root" },
+	{ "name": "CTRL2", "parent": "VOLUME", "color": "d8e323ff" },
+	{ "name": "UPPER2", "parent": "CTRL2", "length": 134.3168, "rotation": -50.74061, "x": 17.50003, "y": -20.500027 },
+	{ "name": "LOWER2", "parent": "UPPER2", "length": 115.39503, "rotation": 115.0638, "x": 134.8082, "y": 2.181444 },
+	{ "name": "LEG2", "parent": "VOLUME", "length": 312.0209, "rotation": 123.89378, "x": 326.5001, "y": -276.5001 },
+	{
+		"name": "TARGET2",
+		"parent": "LEG2",
+		"rotation": -123.89378,
+		"x": 309.24545,
+		"y": -0.5448837,
+		"color": "ff3f00ff",
+		"icon": "ik"
+	}
+],
+"slots": [
+	{ "name": "1", "bone": "UPPER" },
+	{ "name": "4", "bone": "UPPER2" },
+	{ "name": "2", "bone": "LOWER" },
+	{ "name": "5", "bone": "LOWER2" },
+	{ "name": "3", "bone": "LEG" },
+	{ "name": "6", "bone": "LEG2" }
+],
+"constraints": [
+	{
+		"type": "ik",
+		"name": "TARGET",
+		"target": "TARGET",
+		"bones": [ "UPPER", "LOWER" ],
+		"stretch": true,
+		"scaleY": "uniform"
+	},
+	{
+		"type": "ik",
+		"name": "TARGET2",
+		"target": "TARGET2",
+		"bones": [ "UPPER2", "LOWER2" ],
+		"stretch": true,
+		"scaleY": "volume"
+	}
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"1": {
+				"1": { "x": 68.59895, "y": 3.3429966, "rotation": 50.74061, "width": 99, "height": 117 }
+			},
+			"2": {
+				"2": { "x": 62.09988, "y": -4.540848, "rotation": -64.3232, "width": 69, "height": 111 }
+			},
+			"3": {
+				"3": { "x": 151.1471, "y": -2.7563095, "rotation": -123.89378, "width": 183, "height": 264 }
+			},
+			"4": {
+				"1": { "x": 68.59895, "y": 3.3429966, "rotation": 50.74061, "width": 99, "height": 117 }
+			},
+			"5": {
+				"2": { "x": 62.09988, "y": -4.540848, "rotation": -64.3232, "width": 69, "height": 111 }
+			},
+			"6": {
+				"3": { "x": 151.1471, "y": -2.7563095, "rotation": -123.89378, "width": 183, "height": 264 }
+			}
+		}
+	}
+],
+"animations": {
+	"SCALE_Y_UNIFORM": {
+		"slots": {
+			"1": {
+				"attachment": [
+					{ "name": "1" }
+				]
+			},
+			"2": {
+				"attachment": [
+					{ "name": "2" }
+				]
+			},
+			"3": {
+				"attachment": [
+					{ "name": "3" }
+				]
+			}
+		},
+		"bones": {
+			"CTRL": {
+				"translate": [
+					{},
+					{ "time": 0.4333333, "x": 55 },
+					{ "time": 1.1, "x": -413 },
+					{ "time": 1.8 }
+				]
+			}
+		}
+	},
+	"SCALE_Y_VOLUME": {
+		"slots": {
+			"4": {
+				"attachment": [
+					{ "name": "1" }
+				]
+			},
+			"5": {
+				"attachment": [
+					{ "name": "2" }
+				]
+			},
+			"6": {
+				"attachment": [
+					{ "name": "3" }
+				]
+			}
+		},
+		"bones": {
+			"CTRL2": {
+				"translate": [
+					{},
+					{ "time": 0.4333333, "x": 94.00002 },
+					{ "time": 1.0666667, "x": -377 },
+					{ "time": 1.6 }
+				]
+			}
+		}
+	}
+}
+}

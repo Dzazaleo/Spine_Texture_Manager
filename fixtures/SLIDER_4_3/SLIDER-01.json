@@ -1,0 +1,62 @@
+{
+"skeleton": {
+	"hash": "2NuQo5XQJDQ",
+	"spine": "4.3.02",
+	"x": -5,
+	"y": -5,
+	"width": 10,
+	"height": 10,
+	"images": "./images/",
+	"audio": null
+},
+"bones": [
+	{ "name": "root" },
+	{ "name": "slider_bone", "parent": "root" }
+],
+"slots": [
+	{ "name": "square", "bone": "slider_bone", "attachment": "square" }
+],
+"constraints": [
+	{
+		"type": "slider",
+		"name": "drive",
+		"animation": "scale",
+		"bone": "slider_bone",
+		"property": "x",
+		"scale": 0.005,
+		"local": true
+	}
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"square": {
+				"square": { "width": 10, "height": 10 }
+			}
+		}
+	}
+],
+"animations": {
+	"scale": {
+		"bones": {
+			"slider_bone": {
+				"scale": [
+					{},
+					{ "time": 1, "x": 4, "y": 4 }
+				]
+			}
+		}
+	},
+	"slide": {
+		"bones": {
+			"slider_bone": {
+				"translate": [
+					{},
+					{ "time": 1, "x": 200 }
+				]
+			}
+		}
+	}
+}
+}

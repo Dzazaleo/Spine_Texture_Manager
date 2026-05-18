@@ -1,0 +1,5 @@
+SLIDER-01.png
+size:16,16
+filter:Linear,Linear
+square
+bounds:0,0,10,10
