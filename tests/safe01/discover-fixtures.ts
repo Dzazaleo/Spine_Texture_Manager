@@ -77,9 +77,36 @@ function isGitTracked(fixture: string): boolean {
  * Deterministic ordering: results are sorted by fixture path so the manifest
  * + capture are stable run-to-run.
  */
+/**
+ * D-04 (Phase 44, LOCKED — direct extension of Phase-43 D-05): the v1.6 4.3
+ * fixtures + the postdates-pre-v1.6-freeze 4.2 sibling `skeleton2_42.*` have NO
+ * pre-v1.6 SAFE-01 baseline to byte-compare against. They are EXCLUDED from
+ * BOTH the frozen-set enumeration (D-08) and the SAFE-02 byte-equal gate (D-09)
+ * — auto-including them would FALSELY trip the frozen-set enumeration /
+ * SAFE-02 gate (they sample fine through 4.2/4.3 but have no committed golden
+ * by design; the 4.3 own-baseline lives SEPARATELY in tests/runtime43/baselines/,
+ * NOT golden-shared with SAFE-01). The exclusion is locked; the MECHANISM
+ * (path-prefix denylist) is Claude's-Discretion (the PATTERNS-recommended one).
+ *
+ * Pre-Plan-02 the loader still hard-picks 4.2 + checkSpine43Schema rejects
+ * top-level constraints[], so the 4.3-leg / SLIDER / XTRA rigs are currently
+ * NATURALLY excluded by the existing rejecter; only skeleton2_42.json (token
+ * 4.2, no contradiction) actually reaches sampling and would break the gate.
+ * The denylist is the durable fix and is CO-REQUIRED before the Plan-02
+ * dispatch flip (which makes the 4.3 rigs route-and-sample → they would then
+ * also leak into enumeration without this).
+ */
+const SAFE01_EXCLUDED_PREFIXES = [
+  'fixtures/SIMPLE_PROJECT_43/', // D-04: 4.3 leg + postdates-freeze 4.2 sibling skeleton2_42.*
+  'fixtures/SLIDER_4_3/', // D-04: owner 4.3 slider rig (Phase 44 existence; Phase 46 oracle)
+  'fixtures/XTRA01_4_3/', // D-04: owner 4.3 multi-map TransformConstraint rig
+  'fixtures/XTRA02_4_3/', // D-04: owner 4.3 IK scaleYMode rig
+] as const;
+
 export function discover(): DiscoveryResult {
   const files = globSync('fixtures/**/*.json')
     .map((f) => f.replace(/\\/g, '/'))
+    .filter((f) => !SAFE01_EXCLUDED_PREFIXES.some((p) => f.startsWith(p)))
     .sort();
 
   const included: DiscoveredFixture[] = [];
