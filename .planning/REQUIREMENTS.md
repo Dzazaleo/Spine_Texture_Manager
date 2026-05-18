@@ -49,7 +49,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Correctness Oracle & 4.3 Fixtures (ORCL)
 
-- [ ] **ORCL-01**: An owner-exported SIMPLE_TEST-equivalent rig, exported from a Spine 4.3 editor as **both** "Version 4.3" and "Version 4.2", is committed in-repo (redistributable).
+- [x] **ORCL-01**: An owner-exported SIMPLE_TEST-equivalent rig, exported from a Spine 4.3 editor as **both** "Version 4.3" and "Version 4.2", is committed in-repo (redistributable).
 - [ ] **ORCL-02**: A same-rig cross-runtime equivalence test asserts the 4.3-runtime and 4.2-runtime `globalPeaks` agree within 1e-4 on the ORCL-01 rig.
 - [ ] **ORCL-03**: spine-editor#891 (4.3→4.2 downgrade IK-scramble) status is human-verified before the dual-version reference is trusted; if unresolved, the oracle degrades to a non-IK reference rig that still exercises the `appliedPose` constraint canary.
 
@@ -134,7 +134,7 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | DISP-01 | Phase 44 | Pending |
 | DISP-02 | Phase 44 | Pending |
 | DISP-03 | Phase 44 | Pending |
-| ORCL-01 | Phase 44 | Pending |
+| ORCL-01 | Phase 44 | Complete |
 | ORCL-02 | Phase 44 | Pending |
 | ORCL-03 | Phase 44 | Pending |
 | SLIDER-01 | Phase 46 | Pending |
