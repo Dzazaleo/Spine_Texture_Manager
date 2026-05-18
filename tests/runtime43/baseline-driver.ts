@@ -351,6 +351,21 @@ export function buildLoadXtra02(): { load: LoadResult; rt: SpineRuntime } | null
 }
 
 /**
+ * SLIDER-01 (4.3 slider-constraint rig, spine 4.3.02) through runtime-43 via
+ * the sampler — the SLIDER-02 closed-form proof's load step. VERBATIM
+ * delegation to buildLoadXtra (the dir-scan + loud-or-skip body is shared
+ * with XTRA-01/02; SLIDER-01's internal filenames are owner-discretion, only
+ * the SLIDER_4_3/ dir name is locked — exactly the XTRA situation). Same
+ * loud-or-skip contract: pickRuntime('4.3') failure PROPAGATES
+ * (verification-integrity, NOT a skip); a genuinely absent rig directory
+ * returns null (legit Wave-0 fixture-absence — load43.ts:34-72 contract).
+ * `buildLoadSlider43` is the SLIDER-02 closed-form proof's sole load entry.
+ */
+export function buildLoadSlider43(): { load: LoadResult; rt: SpineRuntime } | null {
+  return buildLoadXtra('fixtures/SLIDER_4_3');
+}
+
+/**
  * Compute setup-pose world-quad AABBs, keyed by the attachment's region name,
  * for every skin-declared RegionAttachment whose region name is in
  * `regionFilter`. Mirrors sampler Pass 1's lifecycle exactly
