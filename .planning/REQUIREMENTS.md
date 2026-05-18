@@ -65,8 +65,8 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### User-Facing Surface (UX)
 
-- [ ] **UX-01**: For a 4.3 file, the drop-zone copy and loader error no longer instruct the user to "re-export as Version 4.2"; 4.3 is presented as supported.
-- [ ] **UX-02**: Every stale "Spine v4.2 only" / "re-export as 4.2" surface is swept (App.tsx drop-zone, loader/error strings, Documentation Builder HTML, README/INSTALL/Help) and the 6 reject-assertion test files are inverted to assert routing while preserving the `< 4.2` and `≥ 4.4` throw cases.
+- [x] **UX-01**: For a 4.3 file, the drop-zone copy and loader error no longer instruct the user to "re-export as Version 4.2"; 4.3 is presented as supported.
+- [x] **UX-02**: Every stale "Spine v4.2 only" / "re-export as 4.2" surface is swept (App.tsx drop-zone, loader/error strings, Documentation Builder HTML, README/INSTALL/Help) and the 6 reject-assertion test files are inverted to assert routing while preserving the `< 4.2` and `≥ 4.4` throw cases.
 
 ### spine-player Viewer Bump (PLAYER)
 
@@ -141,8 +141,8 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | SLIDER-02 | Phase 46 | Pending |
 | XTRA-01 | Phase 44 | Complete |
 | XTRA-02 | Phase 44 | Complete |
-| UX-01 | Phase 45 | Pending |
-| UX-02 | Phase 45 | Pending |
+| UX-01 | Phase 45 | Complete |
+| UX-02 | Phase 45 | Complete |
 | PLAYER-01 | Phase 47 | Pending |
 | PLAYER-02 | Phase 47 | Pending |
 | CI-01 | Phase 42 | Complete |
