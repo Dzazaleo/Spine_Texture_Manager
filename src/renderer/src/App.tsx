@@ -673,7 +673,7 @@ export function App() {
           </div>
         ) : (
           <p className="text-fg-muted font-mono text-sm">
-            Drop a Spine <span className="font-bold text-danger">v4.2</span> <code>.spine</code> JSON file anywhere in this window
+            Drop a Spine <span className="font-bold text-danger">v4.2</span> or <span className="font-bold text-danger">v4.3</span> JSON file anywhere in this window
           </p>
         ))}
       {state.status === 'loading' && <LoadingBar fileName={state.fileName} />}

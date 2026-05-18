@@ -125,10 +125,10 @@ export function HelpDialog(props: HelpDialogProps) {
             1. What this app does
           </h3>
           <p className="text-xs text-fg-muted leading-relaxed">
-            Spine Texture Manager reads Spine 4.2+ skeleton JSON and computes
-            the peak world-space render scale for every attachment, across
-            every animation and skin. Use it to right-size textures per-asset
-            before atlas export.
+            Spine Texture Manager reads Spine 4.2 and 4.3 skeleton JSON and
+            computes the peak world-space render scale for every attachment,
+            across every animation and skin. Use it to right-size textures
+            per-asset before atlas export.
           </p>
         </section>
 
