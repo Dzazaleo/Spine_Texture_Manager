@@ -15,10 +15,20 @@
  *
  * Consumed by `src/main/ipc.ts`. Not imported by the renderer — the renderer
  * sees only the `SkeletonSummary` object on the far side of IPC.
+ *
+ * REG-47-01 fix (2026-05-18): the skeleton materialization below MUST go
+ * through the loader-picked runtime adapter (`load.runtime.makeSkeleton` /
+ * `.slots`), NOT a hardcoded `new Skeleton` from `spine-core-42`. For a 4.3
+ * fixture `load.skeletonData` is a spine-core@4.3.0 SkeletonData; feeding it to
+ * the 4.2 `Skeleton` constructor made the 4.2 Slot setup-pose dereference an
+ * undefined 4.3-shaped slot color (`Color.setFromColor(undefined).r`), which
+ * the loader catch reformatted into the `Unknown: ... (reading 'r')` toast.
+ * This mirrors the already-shipped adapter pattern at sampler.ts:140/169/430.
  */
-import { Skeleton } from 'spine-core-42';
 import type { LoadResult } from '../core/types.js';
 import type { SamplerOutput } from '../core/sampler.js';
+import type { Slot } from 'spine-core-42';
+import type { OpaqueSkeletonData, OpaqueSlot } from '../core/runtime/types.js';
 import type {
   DisplayRow,
   BreakdownRow,
@@ -297,12 +307,36 @@ export function buildSummary(
   // so we materialize a Skeleton here — SkeletonData alone does not carry
   // Bone.parent wiring; spine-core's Skeleton constructor resolves it. Cheap
   // (<1 ms on SIMPLE_TEST), runs once per load.
-  const skeleton = new Skeleton(load.skeletonData);
+  //
+  // REG-47-01 (2026-05-18): materialize via the loader-picked runtime adapter,
+  // NOT a hardcoded `new Skeleton` from spine-core-42. `load.skeletonData` is
+  // whichever runtime's SkeletonData the loader's pickRuntime selected (4.2 OR
+  // 4.3); constructing it with the wrong-version Skeleton crashes the 4.2 Slot
+  // setup-pose on an undefined 4.3-shaped slot color (`reading 'r'`). This
+  // mirrors the already-shipped, test-covered pattern at sampler.ts:140
+  // (runtime guard) / :169 (rt.makeSkeleton) / :430 (rt.slots). The 4.2 path is
+  // behaviorally unchanged — its skeletonData is a 4.2 object and the 4.2
+  // adapter routes through the same spine-core-42 Skeleton. `skeleton.slots` is
+  // consumed only by analyzeBreakdown's boneChainPath Bone.parent walk
+  // (slot.bone.parent + slot.data.name + bone.data.name) — a structurally
+  // runtime-invariant shape, so the OpaqueSlot[] is bridged to the analyzer's
+  // `readonly Slot[]` contract via the same `as unknown as` cast the sampler
+  // uses for opaque handles.
+  const rt = load.runtime;
+  if (rt == null) {
+    throw new Error(
+      'buildSummary: load.runtime missing — loader must populate it (REG-47-01 / 43-03)',
+    );
+  }
+  const skeleton = rt.makeSkeleton(
+    load.skeletonData as unknown as OpaqueSkeletonData,
+  );
+  const skeletonSlots = rt.slots(skeleton) as readonly OpaqueSlot[] as unknown as readonly Slot[];
   const animationBreakdownRaw = analyzeBreakdown(
     sampled.perAnimation,
     sampled.setupPosePeaks,
     load.skeletonData,
-    skeleton.slots,
+    skeletonSlots,
     load.sourcePaths,
     load.atlasSources,
     // Phase 22 DIMS-01 — same canonical/actual dim threading as analyze() above.
