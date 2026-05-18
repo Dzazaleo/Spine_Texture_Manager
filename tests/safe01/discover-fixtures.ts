@@ -88,19 +88,41 @@ function isGitTracked(fixture: string): boolean {
  * NOT golden-shared with SAFE-01). The exclusion is locked; the MECHANISM
  * (path-prefix denylist) is Claude's-Discretion (the PATTERNS-recommended one).
  *
- * Pre-Plan-02 the loader still hard-picks 4.2 + checkSpine43Schema rejects
- * top-level constraints[], so the 4.3-leg / SLIDER / XTRA rigs are currently
- * NATURALLY excluded by the existing rejecter; only skeleton2_42.json (token
- * 4.2, no contradiction) actually reaches sampling and would break the gate.
- * The denylist is the durable fix and is CO-REQUIRED before the Plan-02
- * dispatch flip (which makes the 4.3 rigs route-and-sample → they would then
- * also leak into enumeration without this).
+ * The 4 D-04-NAMED dirs below were applied one plan early as a Plan-01
+ * Rule-3 deviation (committing skeleton2_42.json — token 4.2, no
+ * contradiction — made it git-tracked and it reached sampling, leaking into
+ * the frozen SAFE-01 enumeration). Plan 02's dispatch flip
+ * (loader.ts resolveRuntimeTag) now makes the loader ROUTE-AND-SAMPLE every
+ * 4.3 JSON instead of rejecting it — which mechanically removes the implicit
+ * reject-as-exclusion that, until the flip, hid TWO MORE 4.3-routing dirs
+ * from auto-discovery (Open-Q1, RESEARCH Pattern 4 — the subtlest correctness
+ * point in the phase). Those two are CO-REQUIRED additions to the denylist
+ * AT THE SAME PLAN as the flip:
+ *   - the SPINE_4_3_TEST rig : GIT-TRACKED Phase-32 canary, spine
+ *     "4.3.91-beta" + top-level constraints[] → routes post-flip → would
+ *     enter safe01-baseline's gitTracked arm with NO committed baseline →
+ *     HARD throw (safe01-baseline.spec.ts:62-66) + a +1 in safe01-enumeration.
+ *   - the test_4.3 rig : gitignored Phase-32 canary, spine "4.3.88-beta" +
+ *     top-level constraints[] → discover() globs fixtures/**\/*.json
+ *     regardless of gitignore, then iterates the non-tracked `heavy` arm
+ *     (safe01-baseline.spec.ts:83) → leaks into safe01-enumeration. Must be
+ *     removed from discover() ENTIRELY, not merely gitignored.
+ * The SPINE_3_8_TEST rig is deliberately NOT denylisted — spine "3.8.99"
+ * is a <4.2 reject that STAYS a natural exclusion post-flip (the loader still
+ * throws on it); denylisting it would mask a real regression.
+ *
+ * Scope = EVERY 4.3-routing fixture dir NOT in the frozen
+ * tests/safe01/baselines/_manifest.json (verified via git ls-files +
+ * _manifest.json at plan time, Open-Q1). The verification canary is
+ * safe01-enumeration + safe01-baseline staying GREEN AFTER the dispatch flip.
  */
 const SAFE01_EXCLUDED_PREFIXES = [
   'fixtures/SIMPLE_PROJECT_43/', // D-04: 4.3 leg + postdates-freeze 4.2 sibling skeleton2_42.*
   'fixtures/SLIDER_4_3/', // D-04: owner 4.3 slider rig (Phase 44 existence; Phase 46 oracle)
   'fixtures/XTRA01_4_3/', // D-04: owner 4.3 multi-map TransformConstraint rig
   'fixtures/XTRA02_4_3/', // D-04: owner 4.3 IK scaleYMode rig
+  'fixtures/SPINE_4_3_TEST/', // D-04 Plan-02 co-required: git-tracked 4.3.91-beta canary — routes post-flip; breaks safe01-baseline gitTracked arm
+  'fixtures/test_4.3/', // D-04 Plan-02 co-required: gitignored 4.3.88-beta canary — globbed regardless; breaks safe01-baseline non-tracked `heavy` arm
 ] as const;
 
 export function discover(): DiscoveryResult {
