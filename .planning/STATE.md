@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-18T12:49:51.431Z"
-last_activity: 2026-05-18 -- Phase 45 planning complete
+last_updated: "2026-05-18T12:55:54.349Z"
+last_activity: 2026-05-18 -- Phase 45 execution started
 progress:
   total_phases: 6
   completed_phases: 3
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 45
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-18 -- Phase 45 planning complete
+Phase: 45 (dispatcher-user-facing-flip-copy-docs-sweep) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 45
+Last activity: 2026-05-18 -- Phase 45 execution started
 
 Next: **44-01 COMPLETE (Wave 1 — fixture/driver foundation).** Committed the ORCL-01 in-repo deliverable: the ORCL-02 4.2 leg `fixtures/SIMPLE_PROJECT_43/skeleton2_42.{json,atlas,png}` (D-15 PASS — `skeleton2_42.atlas` byte-untouched, sha256-proven, NO normalization; `skeleton2_42.json` retains `spine:"4.2-from-4.3.01"` with NO top-level `constraints[]`) + the 3 owner-exported 4.3 rigs `SLIDER_4_3/`/`XTRA01_4_3/`/`XTRA02_4_3/` (+ `XTRA02_4_3/NOTES.md` auditable D-15-style fixture-prep record) — 13 files, commit `1ff8107`. Added `buildLoadXtra01()`/`buildLoadXtra02()` to `tests/runtime43/baseline-driver.ts` (faithful `buildLoad43` clones, directory-scan filename resolution, `load43.ts` loud-or-skip contract preserved; commit `4bddc11`). Bumped `CURRENT_PHASE` 42→44 — `phase44-fixture-guard.spec.ts` now ARMED and PASSES (not skipped). **Deviation (Rule 3, expected & locked):** committing `skeleton2_42.json` made it git-tracked; it routes/samples through 4.2 today (token `4.2-from-4.3.01`, no top-level `constraints[]`) so it leaked into the frozen SAFE-01 enumeration → applied the LOCKED D-04 path-prefix denylist (`SIMPLE_PROJECT_43/`/`SLIDER_4_3/`/`XTRA01_4_3/`/`XTRA02_4_3/`) in `discover-fixtures.ts` exactly as PATTERNS.md specifies (commit `81b9b20`). This pre-empts the identical Plan-02 dispatch-flip leak. Plan `<verification>` green: runtime43 + phase44-fixture-guard + safe01-enumeration + safe01-baseline = 6 files/40 tests, 0 failures; full suite 1244 passed / 0 actual failures (the 11 `tests/renderer/*` MixBlend IMPORT failures are pre-existing, Phase-47-owned, NOT a regression — trust targeted gates, memory `project_renderer_mixblend_preexisting_failure`). The loader dispatch seam (`loader.ts:250` `pickRuntime('4.2')`) is UNCHANGED — that single behavior flip is Plan 02's job and was correctly NOT touched here. **Prior (Phase 43, historical — full detail in Roadmap Evolution below):** Phase 43 COMPLETE per orchestrator; GAP-43-PROD-SEAM CLOSED via 43-06 (`b3b975b`/`60b4fac`); maintainer-adjudicated §4 bounded exception 2026-05-17; D-04 32/32 SAFE-02 close-gate valid. Branch `milestone/v1.6-spine-4.3-dual-runtime`; frozen Phase-42 ancestry A `1b5327d` → B `cc5783f` → repoint `1a8c18b` → C `b6f3177` → D `2360c51` intact.
 
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 44 — loader-dispatch-equivalence-oracle-4-3-fixture-authoring
+**Current focus:** Phase 45 — dispatcher-user-facing-flip-copy-docs-sweep
 
 ## Last Completed Milestone
 
