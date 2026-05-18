@@ -182,7 +182,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   1. `@esotericsoftware/spine-player` is bumped 4.2.111 → 4.3.0; the removed `MixBlend` / `MixDirection` imports are dropped from `AnimationPlayerModal.tsx` and migrated to the new `apply(fromSetup, add, out, appliedPose)` model. *(PLAYER-01)*
   2. The v1.5.1 viewer renders both a 4.2 and a 4.3 fixture correctly through the 4.3 player, GL straight-alpha is independently re-verified (the sharp/libvips PMA reasoning does NOT transfer to spine-webgl GL — no dark-fringe/double-multiply halo on SIMPLE_TEST), and the 5 carried Phase 41 HUMAN-UATs are re-run on the 4.3 player. *(PLAYER-02)*
 **Plans**: 2 plans (2 waves; the bump + full modal + lockstep test-mock land as ONE atomic unit in Wave 1, then the owner live-UAT gate in Wave 2 — sequential on the main tree, worktree-incompatible owner checkpoint).
-- [ ] 47-01-PLAN.md — PLAYER-01: spine-player exact-pin bump 4.2.111->4.3.0 + the full 8-touchpoint AnimationPlayerModal.tsx Pose-API migration (D-04 line-255 1:1 + D-05 T1-T8) + the lockstep test-mock migration, as one atomic unit (typecheck:web 22->0, 11 renderer suites RED->GREEN) *(PLAYER-01)*
+- [x] 47-01-PLAN.md — PLAYER-01: spine-player exact-pin bump 4.2.111->4.3.0 + the full 8-touchpoint AnimationPlayerModal.tsx Pose-API migration (D-04 line-255 1:1 + D-05 T1-T8) + the lockstep test-mock migration, as one atomic unit (typecheck:web 22->0, 11 renderer suites RED->GREEN) *(PLAYER-01)*
 - [ ] 47-02-PLAN.md — PLAYER-02: author owner-signed 47-HUMAN-UAT.md (5 carried Phase 41 UATs + GL straight-alpha re-verify + the D-09 4.2/4.3 render pair) + the blocking owner checkpoint:human-action live-UAT (D-01/D-02; gates v1.6 close) + in-place flip of 41-HUMAN-UAT.md's 5 pending items (D-08) *(PLAYER-02)*
 **UI hint**: no (D-07 overturned the speculative pre-scout `UI hint: yes` — Phase 47 is `--skip-ui`: a dependency bump + 1:1 import migration + regression of the *existing* viewer; the visual acceptance contract is the 5-UAT + GL-alpha owner checkpoint, not a UI-SPEC)
 
@@ -204,7 +204,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/2 | Not started | - |
+| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 1/2 | In Progress|  |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 

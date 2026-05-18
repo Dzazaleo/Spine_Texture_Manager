@@ -3,28 +3,28 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-18T20:11:52.763Z"
-last_activity: 2026-05-18 -- Phase 47 planning complete
+last_updated: "2026-05-18T20:49:00.231Z"
+last_activity: 2026-05-18
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 21
-  completed_plans: 20
-  percent: 95
+  completed_plans: 21
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 47
-Plan: Not started
+Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-05-18 -- Phase 47 planning complete
+Last activity: 2026-05-18
 
 Next: **Phase 46 COMPLETE + verified + closed by orchestrator (2026-05-18).** Both plans landed sequentially on the main tree (worktrees disabled for the wave because 46-01 carried a `checkpoint:human-action` incompatible with worktree isolation). 46-02 (PERF-01) ran autonomously during the owner's editor-read dead time. **46-01** (SLIDER-01/02): Task 1 `10bd40f` (buildLoadSlider43 + 46-OWNER-EXPORT-SPEC.md), Task 2 `622f69c` (owner Spine-4.3-editor read → `fixtures/SLIDER_4_3/NOTES.txt`, slider_bone world Scale X=Y=4.0 at `slide` t=1.0s — orchestrator wrote+committed it on the owner's reported numbers), Task 3 `20a61dd` (`tests/runtime43/slider43-closedform.spec.ts` — peak `toBeCloseTo(4.0,5)` + D-05 triangulation + SC#2 git scope gate), metadata `623121a`. **D-05 triangulation closed: hand-math 4.0 == owner editor 4.0 == sampled runtime 4.0.** **46-02** (PERF-01): `6096951`+`c7bc311` — CI-enabled `tests/main/sampler-worker-spineboy43.spec.ts` (`BUDGET=1479` hardcoded, no `skipIf`) + the redistributable spineboy-pro 4.3 rig committed; BUDGET re-anchored 378→1479 (Rule-1, contended-env calibration) + D-04 denylist extended with `fixtures/spineboy_4.3/` (Rule-3, same class as 44-01's leak). Gates: post-merge full `npm test` 1280 passed / 0 actual failures (the 11 `tests/renderer/*` MixBlend IMPORT failures are pre-existing, Phase-47-owned, NOT a regression — memory `project_renderer_mixblend_preexisting_failure`); SC#2 invariant holds (0 `src/core/`+`src/main/` diff over `1a2016f..HEAD` — the proven absence of slider code IS the deliverable); code review `47e72f2` (0 critical / 2 warning / 3 info — both WARNINGs are non-blocking robustness refinements to plan-specified test code, captured in `46-REVIEW.md`); verification `46-VERIFICATION.md` PASSED 3/3 (verifier independently re-derived the closed form vs vendored `spine-core@4.3.0 Slider.js` + ran the Pitfall-2 negative check). `gsd-sdk phase.complete 46` → roadmap/state/requirements updated, next_phase 47, no warnings. **Phase 47 (spine-player 4.3.0 bump + viewer regression) is the only open v1.6 phase** — it owns the pre-existing `MixBlend`/`MixDirection` renderer import failures; decoupled + revertible + sequenced last by roadmap design. Next: `/gsd-discuss-phase 47` (recommended) or `/gsd-plan-phase 47`. **Prior phases (42–45, 46 historical detail) preserved in `### Roadmap Evolution` below + per-plan `*-SUMMARY.md`.**
 
-Progress: [████████░░] 83%  (5/6 phases — Phase 47 remaining)
+Progress: [██████████] 100%
 
 ## Project Reference
 
@@ -32,7 +32,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 46 — slider-constraint-validation-4-3-performance-budget
+**Current focus:** Phase 47 — spine-player-4-3-0-bump-viewer-regression
 
 ## Last Completed Milestone
 
