@@ -72,50 +72,73 @@ export class AtlasParseError extends SpineLoaderError {
  * CLAUDE.md documents 4.2+ as the hard requirement; this class makes the
  * runtime check enforce the doc with an actionable, structured message.
  *
- * Phase 32 (D-03, COMPAT-01) — strict-cut at 4.3+. Constructor branches the
- * message by `detectedVersion`: when `'4.3-schema'` (sentinel from the new
- * checkSpine43Schema predicate) OR semver parses to major.minor >= 4.3, the
- * message routes the user to Spine's "Re-export as Version 4.2" downgrade
- * workflow (supported by the 4.3 editor). Otherwise the existing pre-4.2
- * message is preserved verbatim.
+ * Phase 44 (DISP-02, D-10) — 2-branch → 3-branch. The loader no longer
+ * rejects 4.3 (it ROUTES via resolveRuntimeTag). Constructor classifies
+ * `detectedVersion` into THREE message branches:
+ *   - `ge44`          : (major===4 ∧ minor>=4) OR major>=5 — the NEW typed
+ *                       reject arm for a future/unsupported export.
+ *                       [LOCKED D-10 wording — verbatim]
+ *   - `contradiction` : the `'4.3-schema'` sentinel. Post-Phase-44 it reaches
+ *                       this constructor ONLY via the resolveRuntimeTag
+ *                       token=4.2 + top-level constraints[] CONTRADICTION
+ *                       path — a "4.2-stamped-but-4.3-shaped" reject, NOT a
+ *                       "re-export as 4.2" advisory. [discretion wording]
+ *   - `unsupported`   : <4.2 / 'unknown' / malformed. [LOCKED — the legacy
+ *                       Phase-12 F3 <4.2 message PRESERVED VERBATIM]
+ * The old "re-export as 4.2 (supported downgrade)" string is REMOVED — it is
+ * now wrong for 4.3 (4.3 routes) and unreachable. 4.3.x is UNREACHABLE here
+ * as a reject (it routes); defensively it lands in `unsupported` and must NOT
+ * emit the deleted string.
  *
  * Two-field constructor template mirrors AtlasNotFoundError above —
  * `.name = 'SpineVersionUnsupportedError'` is critical because the IPC
- * forwarder at `src/main/ipc.ts` routes by `err.name` against KNOWN_KINDS.
+ * forwarder at `src/main/ipc.ts` routes by `err.name` against KNOWN_KINDS;
+ * `.name` + the `detectedVersion`/`skeletonPath` readonly fields stay
+ * byte-identical (no new error class — this EXTENDS the discriminated-union
+ * member).
  */
 export class SpineVersionUnsupportedError extends SpineLoaderError {
   constructor(
     public readonly detectedVersion: string,
     public readonly skeletonPath: string,
   ) {
-    // Phase 32 (D-03, COMPAT-01) — branch the message by detectedVersion.
-    // Two audiences: pre-4.2 users (re-export as 4.2 OR LATER) vs.
-    // 4.3+ users (re-export specifically as 4.2; downgrade is a supported
-    // editor workflow).
-    //
-    // The 4.3+ branch fires when:
-    //   (a) detectedVersion === '4.3-schema' (sentinel from checkSpine43Schema), OR
-    //   (b) detectedVersion semver parses to major.minor >= 4.3 (or major >= 5).
-    // Everything else (including 'unknown', malformed strings, and any
-    // < 4.2 semver) takes the pre-4.2 branch — Phase 12 F3 contract preserved.
-    let isSpine43OrLater = false;
+    // Phase 44 (D-10) — 3-way classification (was a 2-way isSpine43OrLater).
+    // '4.3-schema' sentinel: now reaches this constructor ONLY via the
+    //   resolveRuntimeTag token=4.2 + top-level constraints[] CONTRADICTION
+    //   path (loader.ts) — a "4.2-stamped but 4.3-shaped" reject, NOT a
+    //   "re-export as 4.2" advisory.
+    let kind: 'ge44' | 'contradiction' | 'unsupported';
     if (detectedVersion === '4.3-schema') {
-      isSpine43OrLater = true;
+      kind = 'contradiction';
     } else {
-      const parts = detectedVersion.split('.');
-      const major = parseInt(parts[0] ?? '', 10);
-      const minor = parseInt(parts[1] ?? '', 10);
-      if (!Number.isNaN(major) && !Number.isNaN(minor)) {
-        if (major >= 5 || (major === 4 && minor >= 3)) {
-          isSpine43OrLater = true;
-        }
+      const m = detectedVersion.match(/^(\d+)\.(\d+)/);
+      const major = m ? parseInt(m[1], 10) : NaN;
+      const minor = m ? parseInt(m[2], 10) : NaN;
+      if (
+        !Number.isNaN(major) &&
+        !Number.isNaN(minor) &&
+        ((major === 4 && minor >= 4) || major >= 5)
+      ) {
+        kind = 'ge44';
+      } else {
+        // <4.2 / 'unknown' / malformed. (4.3.x is UNREACHABLE here as a
+        // reject — it routes; defensively it lands in 'unsupported' and
+        // must NOT emit the old "re-export as 4.2" string, now deleted.)
+        kind = 'unsupported';
       }
     }
-    const message = isSpine43OrLater
-      ? `This app currently supports Spine v4.2. Re-export from your 4.3 editor as Version 4.2 (supported downgrade) and try again.`
-      : `This file was exported from Spine ${detectedVersion}. ` +
-        `Spine Texture Manager requires Spine 4.2 or later. ` +
-        `Re-export from Spine 4.2 or later in the editor.`;
+    const message =
+      kind === 'ge44'
+        ? // [LOCKED D-10 — verbatim]
+          `This file is from Spine ${detectedVersion}. This app supports Spine 4.2 and 4.3. Re-export as Version 4.3 (or 4.2) and try again.`
+        : kind === 'contradiction'
+          ? // [planner's discretion per D-10 — a 4.2-stamped-but-4.3-shaped
+            // reject; NOT "re-export as 4.2"]
+            `This file is stamped Spine 4.2 but contains a Spine 4.3 constraints[] schema. Re-export it cleanly as Version 4.2 or Version 4.3 and try again.`
+          : // [LOCKED — existing <4.2 wording PRESERVED VERBATIM]
+            `This file was exported from Spine ${detectedVersion}. ` +
+            `Spine Texture Manager requires Spine 4.2 or later. ` +
+            `Re-export from Spine 4.2 or later in the editor.`;
     super(message);
     this.name = 'SpineVersionUnsupportedError';
   }

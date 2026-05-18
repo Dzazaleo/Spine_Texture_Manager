@@ -24,8 +24,13 @@
  *     package. The atlas/skeleton parse seam (TextureAtlas / SkeletonJson /
  *     AtlasAttachmentLoader + the Phase-33 rotated-region patch + the headless
  *     StubTexture) is relocated into `runtime-42.ts`; the loader obtains
- *     everything via the runtime adapter. The runtime is hard-picked as 4.2
- *     UNCONDITIONALLY here (no version detection — that is Phase 44).
+ *     everything via the runtime adapter.
+ *   - Phase 44 (DISP-01/02/03): the runtime is no longer hard-picked. The
+ *     loader DISPATCHES via `resolveRuntimeTag` (token-primary D-06/07 +
+ *     asymmetric contradiction D-08 + the split-out ≥4.4 reject arm D-09),
+ *     routing a 4.2 JSON → runtime-42 and a 4.3 JSON → runtime-43, decided
+ *     BEFORE atlas-resolve + rt.parseSkeleton. The loader stays
+ *     spine-core-import-free (RT-02 preserved).
  */
 
 import * as fs from 'node:fs';
@@ -43,7 +48,11 @@ import {
 } from './synthetic-atlas.js';
 import { readPngDims } from './png-header.js';
 import { pickRuntime } from './runtime/runtime.js';
-import type { OpaqueAtlas, OpaqueSkeletonData } from './runtime/types.js';
+import type {
+  OpaqueAtlas,
+  OpaqueSkeletonData,
+  RuntimeTag,
+} from './runtime/types.js';
 
 /**
  * Phase 43 (D-02): narrow structural view of the runtime's `OpaqueAtlas`
@@ -178,6 +187,127 @@ export function checkSpine43Schema(parsedJson: unknown, skeletonPath: string): v
 }
 
 /**
+ * Phase 44 (DISP-01/02/03, D-06/07/08/09) — the loader's version dispatcher.
+ *
+ * This is the SINGLE behavior flip that turns the loader from a 4.3-rejecter
+ * into a dual-runtime dispatcher. It is a NEW pure exported function COMPOSED
+ * FROM the two already-unit-tested primitives above (`checkSpineVersion`'s
+ * version-band decision tree + `checkSpine43Schema`'s top-level-`constraints[]`
+ * sniff) — repurposed in place, NOT rewritten. The two standalone predicates
+ * keep their EXISTING throw behavior + their existing unit-test contract;
+ * `resolveRuntimeTag` re-derives the band + sniff independently so that
+ * coverage stays valid (a rewrite would discard 4 unit-test files).
+ *
+ * Decision logic:
+ *
+ *   D-06/D-07 TOKEN-PRIMARY band classification (suffix-tolerant):
+ *     - version === null            → throw 'unknown'          (UNCHANGED — checkSpineVersion:113-115)
+ *     - no parseable leading M.m    → throw <version>          (UNCHANGED — :120-122; D-07: only a token
+ *                                                               with no parseable leading major.minor is malformed)
+ *     - major<4 || (4 && minor<2)   → throw <version>          (UNCHANGED — Phase 12 F3; :123-125)
+ *     - (4 && minor>=4) || major>=5 → throw <version>          (NEW D-09 ≥4.4 arm — Pitfall 2: SPLIT OUT of the
+ *                                                               old bundled ≥4.3 throw, NOT folded/deleted)
+ *     - 4 && minor===2              → tentative tag '4.2'
+ *     - 4 && minor===3              → tentative tag '4.3'       (was a throw at :127-130; now routes)
+ *
+ *   D-08 ASYMMETRIC POSITIVE-SHAPE contradiction cross-check (Pitfall 3 —
+ *   positive-shape ONLY; never symmetric / absence-based):
+ *     - tag==='4.2' ∧ hasTopLevelConstraintsArray → throw '4.3-schema'
+ *         (preserves today's checkSpine43Schema reject for exactly this case;
+ *          the '4.3-schema' sentinel is reused so errors.ts gives it the
+ *          contradiction wording)
+ *     - tag==='4.3' ∧ hasLegacyArrays             → throw <version>
+ *         (a legacy-shape rig mis-stamped 4.3)
+ *     - tag==='4.3' ∧ ¬constraints[] ∧ ¬legacy   → tag stays '4.3'
+ *         (a constraint-less 4.3 rig is VALID; absence of constraints[] is
+ *          NOT 4.2 evidence — Pitfall 3)
+ *
+ * The dispatch NEVER falls through to a default runtime on an unrecognized
+ * token — every path either returns a validated '4.2'/'4.3' tag or throws a
+ * typed `SpineVersionUnsupportedError` (T-44-03/04/05 mitigation; ASVS V5
+ * narrow input validation). Pure string/object inspection — no DOM/fs/Electron;
+ * the loader stays spine-core-import-free (Phase 43 RT-02).
+ *
+ * @param version      the value of `skeleton.spine`, or null if absent.
+ * @param parsedJson   the once-parsed JSON.parse(jsonText) result (typed unknown).
+ * @param skeletonPath the absolute path to the skeleton JSON (for the error envelope).
+ * @returns the resolved `RuntimeTag` ('4.2' | '4.3') for `pickRuntime`.
+ * @throws SpineVersionUnsupportedError on <4.2 / unknown / malformed / ≥4.4 / contradiction.
+ */
+export function resolveRuntimeTag(
+  version: string | null,
+  parsedJson: unknown,
+  skeletonPath: string,
+): RuntimeTag {
+  // D-06/D-07 band classification. version===null → 'unknown' (UNCHANGED —
+  // checkSpineVersion:113-115).
+  if (version === null) {
+    throw new SpineVersionUnsupportedError('unknown', skeletonPath);
+  }
+  // D-07: the existing `version.split('.'); parseInt(...)` is ALREADY
+  // suffix-tolerant (parseInt('2-from-4',10)===2 — parseInt stops at the
+  // first non-digit). An explicit leading-`major.minor` regex is the
+  // clarity-only equivalent (NOT a correctness change): "4.2-from-4.3.01"
+  // → [4,2], "4.3.73-beta" → [4,3]. Only a token with NO parseable leading
+  // major.minor at all is malformed.
+  const m = version.match(/^(\d+)\.(\d+)/);
+  if (m === null) {
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  const major = parseInt(m[1], 10);
+  const minor = parseInt(m[2], 10);
+  if (major < 4 || (major === 4 && minor < 2)) {
+    // Pre-4.2 branch — preserves Phase 12 F3 contract (checkSpineVersion:123-125).
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  if ((major === 4 && minor >= 4) || major >= 5) {
+    // NEW D-09 ≥4.4 arm (Pitfall 2 — the existential pitfall): this MUST be
+    // split OUT of checkSpineVersion's old bundled ≥4.3 throw. Do NOT just
+    // delete `minor>=3` and let 4.3 fall through unguarded; a hypothetical
+    // ≥4.4 export must hit the typed rejecter, NOT the 4.3 runtime.
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  // Only 4.2.x and 4.3.x reach here (D-09 split).
+  const tag: RuntimeTag = minor === 3 ? '4.3' : '4.2';
+
+  // D-08 asymmetric positive-shape contradiction cross-check (Pitfall 3 —
+  // positive-shape ONLY; do NOT use symmetric or absence-based logic).
+  //
+  // hasTopLevelConstraintsArray := the EXACT checkSpine43Schema-style sniff
+  // (top-level only — matches that predicate's scope).
+  const hasTopLevelConstraintsArray =
+    parsedJson !== null &&
+    typeof parsedJson === 'object' &&
+    'constraints' in parsedJson &&
+    Array.isArray((parsedJson as Record<string, unknown>).constraints);
+  // hasLegacyArrays := any of the legacy top-level `ik`/`transform`/`path`
+  // arrays (TOP-LEVEL root arrays ONLY — match checkSpine43Schema's
+  // top-level-only scope; skin-scoped `skins[].ik` is IRRELEVANT, do NOT
+  // recurse into skins).
+  const hasLegacyArrays =
+    parsedJson !== null &&
+    typeof parsedJson === 'object' &&
+    (Array.isArray((parsedJson as Record<string, unknown>).ik) ||
+      Array.isArray((parsedJson as Record<string, unknown>).transform) ||
+      Array.isArray((parsedJson as Record<string, unknown>).path));
+
+  if (tag === '4.2' && hasTopLevelConstraintsArray) {
+    // Preserves today's checkSpine43Schema reject for exactly this case. The
+    // '4.3-schema' sentinel is reused so errors.ts (D-10) gives it the
+    // contradiction wording (a 4.2-stamped-but-4.3-shaped reject).
+    throw new SpineVersionUnsupportedError('4.3-schema', skeletonPath);
+  }
+  if (tag === '4.3' && hasLegacyArrays) {
+    // A legacy-shape rig mis-stamped 4.3.
+    throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  // tag==='4.3' ∧ ¬constraints[] ∧ ¬legacy → tag stays '4.3' (a
+  // constraint-less 4.3 rig is VALID; absence of constraints[] is NOT 4.2
+  // evidence — Pitfall 3).
+  return tag;
+}
+
+/**
  * Load a Spine 4.2 skeleton JSON plus its atlas, headlessly.
  *
  * @param skeletonPath - Path (absolute or relative to `process.cwd()`) to the `.json` skeleton file.
@@ -240,14 +370,38 @@ export function loadSkeleton(
   // `SkeletonJson.readSkeletonData`.
   checkSpine43Schema(parsedJson, skeletonPath);
 
-  // Phase 43 (D-02, RT-02) — hard-pick the 4.2 runtime adapter UNCONDITIONALLY.
-  // NO version detection / resolveRuntimeTag here — that is Phase 44 (DISP-01);
-  // the loader hard-picks 4.2 this phase. The existing checkSpineVersion /
-  // checkSpine43Schema guards above stay EXACTLY as-is (still throw <4.2 / ≥4.3)
-  // — Phase 43 does NOT repurpose them. The parse seam (atlas/skeleton/rotated-
-  // region patch) is delegated to this runtime via rt.makeAtlas /
-  // rt.parseSkeleton / rt.applyRotatedRegionFix.
-  const rt = pickRuntime('4.2');
+  // Phase 44 (DISP-01/03, D-06/07/08/09) — the loader now ROUTES via
+  // resolveRuntimeTag instead of hard-picking 4.2. The dispatch is
+  // token-primary (D-06/07, suffix-tolerant) + an asymmetric positive-shape
+  // contradiction cross-check (D-08) + the split-out ≥4.4 reject arm (D-09).
+  // DISP-03 ("decide before runtime load") is structurally free here: the
+  // same `parsedJson` (parsed at the F3 guard above) and `spineField` (the
+  // narrowed `skeleton.spine` value) are already in scope, and
+  // checkSpineVersion/checkSpine43Schema at :220/:241 already ran — ALL
+  // before atlas-resolve + rt.parseSkeleton. The standalone
+  // checkSpineVersion/checkSpine43Schema calls are KEPT (their existing
+  // standalone-predicate unit-test contract is unchanged; resolveRuntimeTag
+  // re-derives the band + sniff INDEPENDENTLY as a new composed function —
+  // Phase 43 RT-02 spine-core-import-free invariant preserved). The parse
+  // seam (atlas/skeleton/rotated-region patch) is delegated to the resolved
+  // runtime via rt.makeAtlas / rt.parseSkeleton / rt.applyRotatedRegionFix.
+  let spineFieldForDispatch: string | null = null;
+  if (
+    parsedJson !== null &&
+    typeof parsedJson === 'object' &&
+    'skeleton' in parsedJson
+  ) {
+    const skelForDispatch = (parsedJson as Record<string, unknown>).skeleton;
+    if (
+      skelForDispatch !== null &&
+      typeof skelForDispatch === 'object' &&
+      'spine' in (skelForDispatch as object)
+    ) {
+      const sf = (skelForDispatch as Record<string, unknown>).spine;
+      spineFieldForDispatch = typeof sf === 'string' ? sf : null;
+    }
+  }
+  const rt = pickRuntime(resolveRuntimeTag(spineFieldForDispatch, parsedJson, skeletonPath));
 
   // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
   // canonical width/height per region. Pattern verbatim from
