@@ -16,7 +16,7 @@
  *   - tests/core/errors-version.spec.ts (SpineVersionUnsupportedError class shape)
  */
 import { describe, expect, it } from 'vitest';
-import { checkSpine43Schema } from '../../src/core/loader.js';
+import { checkSpine43Schema, resolveRuntimeTag } from '../../src/core/loader.js';
 import { SpineVersionUnsupportedError } from '../../src/core/errors.js';
 
 const SKEL = '/tmp/skel.json';
@@ -93,5 +93,56 @@ describe('checkSpine43Schema (Phase 32 / Plan 01 / COMPAT-01)', () => {
       };
       expect(() => checkSpine43Schema(parsed43Full, SKEL)).toThrow(SpineVersionUnsupportedError);
     });
+  });
+});
+
+/**
+ * Phase 44 (D-08) — the repurposed `constraints[]` sniff as the
+ * routing/contradiction SIGNAL inside `resolveRuntimeTag`.
+ *
+ * `checkSpine43Schema` itself is UNCHANGED (its standalone-predicate
+ * contract above stays). `resolveRuntimeTag` re-derives the SAME
+ * top-level-`constraints[]` sniff (D-08) as one half of an ASYMMETRIC,
+ * POSITIVE-SHAPE-ONLY contradiction cross-check (Pitfall 3): a
+ * `constraints[]`-shaped JSON stamped token=4.2 is the contradiction;
+ * a constraint-LESS 4.3 rig is VALID (absence is NOT 4.2 evidence).
+ */
+describe('resolveRuntimeTag — D-08 asymmetric constraints[] contradiction signal', () => {
+  it("token=4.2 + top-level constraints[] → throws (the repurposed checkSpine43Schema reject, '4.3-schema' sentinel)", () => {
+    const full43Shape = {
+      skeleton: { spine: '4.2.43' },
+      bones: [{ name: 'root' }],
+      constraints: [{ name: 'ik1', type: 'ik', bones: ['root'], target: 'root' }],
+    };
+    expect(() => resolveRuntimeTag('4.2.43', full43Shape, SKEL)).toThrow(
+      SpineVersionUnsupportedError,
+    );
+    try {
+      resolveRuntimeTag('4.2.43', full43Shape, SKEL);
+    } catch (err) {
+      expect((err as SpineVersionUnsupportedError).detectedVersion).toBe(
+        '4.3-schema',
+      );
+    }
+  });
+
+  it("token=4.3 + NO constraints[] + NO legacy arrays → routes '4.3' (constraint-less 4.3 is VALID — D-08 Pitfall 3)", () => {
+    expect(
+      resolveRuntimeTag('4.3.01', { skeleton: { spine: '4.3.01' }, bones: [] }, SKEL),
+    ).toBe('4.3');
+  });
+
+  it("token=4.3 + constraints[] (canonical 4.3) → routes '4.3' (constraints[] is the 4.3 marker, NOT a contradiction here)", () => {
+    const canonical43 = {
+      skeleton: { spine: '4.3.01' },
+      constraints: [{ name: 'ik1', type: 'ik', bones: ['root'], target: 'root' }],
+    };
+    expect(resolveRuntimeTag('4.3.01', canonical43, SKEL)).toBe('4.3');
+  });
+
+  it("constraints field present but NOT an array (string) + token=4.2 → routes '4.2' (matches checkSpine43Schema's Array.isArray scope)", () => {
+    expect(
+      resolveRuntimeTag('4.2.43', { constraints: 'not an array' }, SKEL),
+    ).toBe('4.2');
   });
 });
