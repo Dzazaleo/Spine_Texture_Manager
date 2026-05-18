@@ -13,12 +13,13 @@
  *                 D-02c '23273200' background and the Pitfall-8 sized
  *                 container (`flex-1` + minHeight:400).
  *   - VIEWER-05 — Live animation + skin switching: setAnimation(name,true)
- *                 (loop on per D-04b) and setSkinByName THEN
- *                 setSlotsToSetupPose in that exact order.
+ *                 (loop on per D-04b) and the 4.3 setSkin THEN setupPoseSlots
+ *                 in that exact order (Phase 47 T2/T4 rename).
  *   - VIEWER-06 — Playback transport: play/pause + scrub via the Pattern 4
  *                 sequence (animationState.update + apply + skeleton.update
- *                 + updateWorldTransform(2) + playTime write-back). Default
- *                 open state is animations[0] + skins[0] + loop on.
+ *                 + updateWorldTransform(2)). Scrub is now TrackEntry-driven
+ *                 (Phase 47 T6 — the private play-time write-back is dropped).
+ *                 Default open state is animations[0] + skins[0] + loop on.
  *   - VIEWER-08 — Project-change cleanup contract: useEffect dep array
  *                 includes summary identity (asserted indirectly via the
  *                 'remount on summary change' test below — Plan 03 wires
@@ -88,9 +89,9 @@ vi.mock('@esotericsoftware/spine-player', () => {
     constructor(data: unknown) {
       this.data = data;
     }
-    setSkinByName(): void {}
-    setSlotsToSetupPose(): void {}
-    setToSetupPose(): void {}
+    setSkin(): void {}
+    setupPoseSlots(): void {}
+    setupPose(): void {}
     updateWorldTransform(): void {}
     getBounds(off: { x: number; y: number }, size: { x: number; y: number }) {
       off.x = 0;
@@ -103,8 +104,8 @@ vi.mock('@esotericsoftware/spine-player', () => {
     SpinePlayer,
     Skeleton,
     Vector2,
-    MixBlend: { setup: 0 },
-    MixDirection: { mixIn: 0 },
+    // The two 4.2 apply-model enum exports DROPPED — removed entirely from
+    // spine-core@4.3.0 (Phase 47 T1 migration). Physics still exported.
     Physics: { update: 2 },
   };
 });
@@ -128,7 +129,9 @@ function defaultSpinePlayerImpl(_container: HTMLElement, config: any) {
     play: vi.fn(),
     pause: vi.fn(),
     setAnimation: vi.fn(),
-    playTime: 0,
+    // playTime DROPPED — private in spine-player@4.3.0 (Player.d.ts:120);
+    // the migrated modal no longer reads/writes it (Phase 47 T6, scrub is
+    // now TrackEntry.trackTime-driven).
     paused: false,
     skeleton: {
       data: {
@@ -140,15 +143,18 @@ function defaultSpinePlayerImpl(_container: HTMLElement, config: any) {
           apply: vi.fn(),
         })),
       },
-      setSkinByName: vi.fn(),
-      setSlotsToSetupPose: vi.fn(),
+      setSkin: vi.fn(),
+      setupPoseSlots: vi.fn(),
       update: vi.fn(),
       updateWorldTransform: vi.fn(),
     },
     animationState: {
-      getCurrent: vi.fn(() => ({
+      // The removed 4.2 current-track accessor -> getTrack
+      // (AnimationState.d.ts:169). Expose trackTime so the migrated
+      // TrackEntry-driven scrub seek has a delta base (Phase 47 T5/T6).
+      getTrack: vi.fn(() => ({
         animation: { duration: 1, name: 'idle' },
-        loop: true,
+        trackTime: 0,
       })),
       update: vi.fn(),
       apply: vi.fn(),
@@ -308,17 +314,17 @@ function errorSpinePlayerImpl(_container: HTMLElement, config: any) {
     play: vi.fn(),
     pause: vi.fn(),
     setAnimation: vi.fn(),
-    playTime: 0,
+    // playTime DROPPED (Phase 47 T6 — mirrors defaultSpinePlayerImpl).
     paused: false,
     skeleton: {
       data: { animations: [], skins: [] },
-      setSkinByName: vi.fn(),
-      setSlotsToSetupPose: vi.fn(),
+      setSkin: vi.fn(),
+      setupPoseSlots: vi.fn(),
       update: vi.fn(),
       updateWorldTransform: vi.fn(),
     },
     animationState: {
-      getCurrent: vi.fn(() => null),
+      getTrack: vi.fn(() => null),
       update: vi.fn(),
       apply: vi.fn(),
     },
@@ -591,7 +597,7 @@ describe('AnimationPlayerModal — animation + skin switching (VIEWER-05)', () =
     expect(setAnimMock).toHaveBeenCalledWith('walk', true);
   });
 
-  it('skin onChange calls setSkinByName THEN setSlotsToSetupPose in that order', async () => {
+  it('skin onChange calls setSkin THEN setupPoseSlots in that order', async () => {
     render(
       <AnimationPlayerModal
         open={true}
@@ -602,22 +608,22 @@ describe('AnimationPlayerModal — animation + skin switching (VIEWER-05)', () =
     );
     await flushMicrotasks();
     const inst = readInstances()[0];
-    const setSkinByName = inst.player.skeleton.setSkinByName as ReturnType<typeof vi.fn>;
-    const setSlotsToSetupPose = inst.player.skeleton
-      .setSlotsToSetupPose as ReturnType<typeof vi.fn>;
+    const setSkin = inst.player.skeleton.setSkin as ReturnType<typeof vi.fn>;
+    const setupPoseSlots = inst.player.skeleton
+      .setupPoseSlots as ReturnType<typeof vi.fn>;
     // Clear the success-path default-open calls so we measure the user
     // interaction only.
-    setSkinByName.mockClear();
-    setSlotsToSetupPose.mockClear();
+    setSkin.mockClear();
+    setupPoseSlots.mockClear();
     const skinSelect = screen.getByLabelText(/skin/i, { selector: 'select' });
     fireEvent.change(skinSelect, { target: { value: 'red' } });
-    expect(setSkinByName).toHaveBeenCalledWith('red');
-    expect(setSlotsToSetupPose).toHaveBeenCalledTimes(1);
-    // setSkinByName MUST be called before setSlotsToSetupPose
-    // (Pattern 3 — without setSlotsToSetupPose, attachments from the
-    // previous skin remain bound to slots).
-    const skinOrder = setSkinByName.mock.invocationCallOrder[0];
-    const setupOrder = setSlotsToSetupPose.mock.invocationCallOrder[0];
+    expect(setSkin).toHaveBeenCalledWith('red');
+    expect(setupPoseSlots).toHaveBeenCalledTimes(1);
+    // setSkin MUST be called before setupPoseSlots (Pattern 3 / 4.3 setSkin
+    // JSDoc — without setupPoseSlots, attachments from the previous skin
+    // remain bound to slots).
+    const skinOrder = setSkin.mock.invocationCallOrder[0];
+    const setupOrder = setupPoseSlots.mock.invocationCallOrder[0];
     expect(skinOrder).toBeLessThan(setupOrder);
   });
 });
@@ -627,7 +633,7 @@ describe('AnimationPlayerModal — animation + skin switching (VIEWER-05)', () =
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('AnimationPlayerModal — playback transport (VIEWER-06)', () => {
-  it('default open state primes setAnimation with animations[0] + setSkinByName with skins[0]', async () => {
+  it('default open state primes setAnimation with animations[0] + setSkin with skins[0]', async () => {
     render(
       <AnimationPlayerModal
         open={true}
@@ -641,8 +647,8 @@ describe('AnimationPlayerModal — playback transport (VIEWER-06)', () => {
     // First call to setAnimation should be the default ('idle', true).
     const setAnim = inst.player.setAnimation as ReturnType<typeof vi.fn>;
     expect(setAnim.mock.calls[0]).toEqual(['idle', true]);
-    // setSkinByName should have been called with 'default'.
-    const setSkin = inst.player.skeleton.setSkinByName as ReturnType<typeof vi.fn>;
+    // setSkin should have been called with 'default' (Phase 47 T2).
+    const setSkin = inst.player.skeleton.setSkin as ReturnType<typeof vi.fn>;
     expect(setSkin.mock.calls[0]).toEqual(['default']);
   });
 
