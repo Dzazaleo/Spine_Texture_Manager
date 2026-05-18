@@ -58,33 +58,74 @@ describe('SpineVersionUnsupportedError (Phase 12 F3 + Phase 32 COMPAT-01)', () =
     expect(err.message).toContain('Spine 4.2 or later');
   });
 
-  it("4.3+ branch: detectedVersion === '4.3-schema' sentinel produces COMPAT-01 wording", () => {
-    const err = new SpineVersionUnsupportedError('4.3-schema', '/foo/skel.json');
-    expect(err.message).toContain('This app currently supports Spine v4.2');
-    expect(err.message).toContain('Re-export from your 4.3 editor as Version 4.2');
-    expect(err.message).toContain('supported downgrade');
-    expect(err.message).toContain('try again');
+  // ───────────────────────────────────────────────────────────────────────
+  // Phase 44 (DISP-02, D-10) — 2-branch → 3-branch. The old WRONG-for-4.3
+  // "re-export as 4.2 (supported downgrade)" string is REMOVED (4.3 now
+  // routes; it no longer rejects via this class on the routing path). The
+  // '4.3-schema' sentinel now reaches this constructor ONLY via the
+  // resolveRuntimeTag token=4.2 + top-level constraints[] CONTRADICTION
+  // path — it carries the discretion contradiction wording, NOT a
+  // "re-export as 4.2" advisory. ≥4.4/≥5 gets the LOCKED D-10 wording.
+  // <4.2/unknown/malformed keep the LOCKED <4.2 wording VERBATIM.
+  // ───────────────────────────────────────────────────────────────────────
+
+  it("≥4.4 branch: detectedVersion === '4.4.0' produces the LOCKED D-10 wording", () => {
+    const err = new SpineVersionUnsupportedError('4.4.0', '/foo/skel.json');
+    expect(err.message).toContain('This app supports Spine 4.2 and 4.3');
+    expect(err.message).toContain('Re-export as Version 4.3 (or 4.2)');
+    expect(err.detectedVersion).toBe('4.4.0');
+    expect(err.skeletonPath).toBe('/foo/skel.json');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
+    // The old WRONG-for-4.3 string MUST be gone.
+    expect(err.message).not.toContain('supported downgrade');
   });
 
-  it("4.3+ branch: detectedVersion === '4.3.91-beta' (semver) produces COMPAT-01 wording", () => {
-    const err = new SpineVersionUnsupportedError('4.3.91-beta', '/foo/skel.json');
-    expect(err.message).toContain('This app currently supports Spine v4.2');
-    expect(err.message).toContain('supported downgrade');
-  });
-
-  it("4.3+ branch: detectedVersion === '5.0.0' (any major >= 5) produces COMPAT-01 wording", () => {
+  it("≥4.4 branch: detectedVersion === '5.0.0' (any major >= 5) takes the SAME ≥4.4 branch", () => {
     const err = new SpineVersionUnsupportedError('5.0.0', '/foo/skel.json');
-    expect(err.message).toContain('This app currently supports Spine v4.2');
-    expect(err.message).toContain('supported downgrade');
+    expect(err.message).toContain('This app supports Spine 4.2 and 4.3');
+    expect(err.detectedVersion).toBe('5.0.0');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
   });
 
-  it('Pre-4.2 branch: detectedVersion === \'4.1.99\' preserves the legacy F3 message verbatim', () => {
+  it("contradiction branch: detectedVersion === '4.3-schema' is a 4.2-stamped-but-4.3-shaped reject (NOT the old 're-export as 4.2' string)", () => {
+    const err = new SpineVersionUnsupportedError('4.3-schema', '/foo/skel.json');
+    // The old WRONG-for-4.3 string is fully removed.
+    expect(err.message).not.toContain('Re-export from your 4.3 editor as Version 4.2');
+    expect(err.message).not.toContain('supported downgrade');
+    // It now carries a contradiction wording (discretion per D-10).
+    expect(err.message).toContain('4.2');
+    expect(err.message).toContain('4.3');
+    expect(err.detectedVersion).toBe('4.3-schema');
+    expect(err.skeletonPath).toBe('/foo/skel.json');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
+  });
+
+  it("4.3.x no longer takes the old 're-export as 4.2' branch (defensively — 4.3 routes, does not reject via this class on the routing path)", () => {
+    const err = new SpineVersionUnsupportedError('4.3.91-beta', '/foo/skel.json');
+    expect(err.message).not.toContain('Re-export from your 4.3 editor as Version 4.2');
+    expect(err.message).not.toContain('supported downgrade');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
+  });
+
+  it("Pre-4.2 branch: detectedVersion === '4.1.99' preserves the LOCKED <4.2 message VERBATIM", () => {
     const err = new SpineVersionUnsupportedError('4.1.99', '/foo/skel.json');
     expect(err.message).toContain('4.1.99');
-    expect(err.message).toContain('Spine 4.2 or later');
+    expect(err.message).toContain('Spine Texture Manager requires Spine 4.2 or later');
     expect(err.message).toContain('Re-export from Spine 4.2 or later in the editor');
-    // The 4.3+ template MUST NOT leak into the pre-4.2 branch.
+    // Neither the old 4.3-downgrade template NOR the new ≥4.4 template
+    // may leak into the LOCKED <4.2 branch.
     expect(err.message).not.toContain('supported downgrade');
     expect(err.message).not.toContain('your 4.3 editor');
+    expect(err.message).not.toContain('This app supports Spine 4.2 and 4.3');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
+  });
+
+  it("'unknown' detectedVersion takes the LOCKED <4.2 branch (PRESERVED)", () => {
+    const err = new SpineVersionUnsupportedError('unknown', '/foo/skel.json');
+    expect(err.message).toContain('Spine Texture Manager requires Spine 4.2 or later');
+    expect(err.message).not.toContain('This app supports Spine 4.2 and 4.3');
+    expect(err.message).not.toContain('supported downgrade');
+    expect(err.detectedVersion).toBe('unknown');
+    expect(err.name).toBe('SpineVersionUnsupportedError');
   });
 });
