@@ -146,7 +146,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   5. A 4.3 transform-constraint multi-map fixture (one source → multiple differently-typed targets, local↔world with clamp) and a 4.3 IK `scaleYMode` fixture (Uniform + Volume, with default `None` confirmed 4.2-equivalent) both sample correctly through the adapter. *(XTRA-01, XTRA-02)*
 **Plans**: 4 plans (3 waves; Wave 1 fixture+driver foundation -> Wave 2 the dispatch flip + co-required D-04 denylist -> Wave 3 parallel: D-11 reconciliation + 3-entrypoint verify ∥ the ORCL-02 hard gate + XTRA/SLIDER specs)
 - [x] 44-01-PLAN.md — Wave 1: commit the ORCL-01 4.2-sibling + 3 owner 4.3 rigs (D-05), add buildLoadXtra01/02 to baseline-driver, bump CURRENT_PHASE 42->44 *(ORCL-01)*
-- [ ] 44-02-PLAN.md — Wave 2: resolveRuntimeTag dispatch flip (D-06/07/08/09) + SpineVersionUnsupportedError 2->3 branch (D-10) + the CO-REQUIRED D-04 SAFE-01 denylist *(DISP-01, DISP-02, DISP-03)*
+- [x] 44-02-PLAN.md — Wave 2: resolveRuntimeTag dispatch flip (D-06/07/08/09) + SpineVersionUnsupportedError 2->3 branch (D-10) + the CO-REQUIRED D-04 SAFE-01 denylist *(DISP-01, DISP-02, DISP-03)*
 - [ ] 44-03-PLAN.md — Wave 3: D-11 test-suite reconciliation (4.3 arms->routing, <4.2/>=4.4 throws preserved) + the [BLOCKING] 3-entrypoint Multi-Runtime verification + ORCL-03/Phase-45-split dispositions *(DISP-01, DISP-03)*
 - [ ] 44-04-PLAN.md — Wave 3: ORCL-02 all-3-maps cross-runtime HARD gate (D-12/13/14) + XTRA-01/02 own-baseline+structural (D-03) + SLIDER smoke (D-02) *(ORCL-02, ORCL-03, XTRA-01, XTRA-02)*
 
@@ -195,7 +195,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 41 | v1.5.1 | 3/3 | Complete | 2026-05-15 |
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
-| 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 1/4 | In Progress|  |
+| 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 2/4 | In Progress|  |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/TBD | Not started | - |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
 | 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/TBD | Not started | - |
