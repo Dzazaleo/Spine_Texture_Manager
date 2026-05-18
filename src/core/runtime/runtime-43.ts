@@ -537,8 +537,10 @@ export function create(): SpineRuntime {
 
     attachmentUVs(a: OpaqueAttachment): Float32Array | null {
       // PORT-02: NO att.uvs in 4.3. Route through sequence.
-      // For RegionAttachment: use sequence.getUVs(idx) (Sequence.d.ts:63).
-      // For MeshAttachment: use att.regionUVs (MeshAttachment.d.ts:41).
+      // For RegionAttachment: use sequence.getUVs(idx) (Sequence.d.ts:63) —
+      //   already PAGE-space (Sequence.update → RegionAttachment.computeUVs);
+      //   this branch is CORRECT and UNTOUCHED.
+      // For MeshAttachment: see the page-space correction below.
       // Detect RegionAttachment vs MeshAttachment via instanceof.
       const att = unwrapHandle<object>(a);
       if (att instanceof RegionAttachment) {
@@ -553,10 +555,64 @@ export function create(): SpineRuntime {
         }
       }
       if (att instanceof MeshAttachment) {
+        // [Rule 1 - Bug] ORCL-02 silent-undersize defect (Phase-44 HARD gate).
+        //
+        // 4.3.0 `MeshAttachment.regionUVs` is "normalized WITHIN the texture
+        // region" — region-space [0,1] inside the sub-rect (verified:
+        // node_modules/@esotericsoftware/spine-core/dist/attachments/
+        // MeshAttachment.d.ts:41 + the computeUVs impl, MeshAttachment.js:118).
+        // bounds.ts `hullAreaRatio` (bounds.ts:223-226) requires PAGE-space
+        // UVs (`sv[i] = uvs[i] * pageW`). runtime-42 satisfies this by
+        // returning `att.uvs` — spine-core-42's parse-time PAGE-space UVs
+        // (runtime-42.ts:433-437). 4.3.0's MeshAttachment has NO `.uvs`
+        // field; returning the RAW region-space `regionUVs` inflated the
+        // hull-area sourceArea by ~(page/region)² → every weighted/region
+        // mesh through runtime-43 was ~2.25× UNDERSIZED (the exact
+        // silent-undersize-ships class this product exists to prevent).
+        //
+        // FIX: produce the PAGE-space UVs the same way spine-core itself does
+        // for a sequence frame (Sequence.update → MeshAttachment.computeUVs,
+        // Sequence.js:94-101): `MeshAttachment.computeUVs(region, regionUVs,
+        // out)` maps region-space → page-space (out[i] = region.u +
+        // regionUVs[i] * (region.originalWidth / page.width), and the
+        // rotation-aware variants for degrees 90/180/270). The resolved
+        // page-space UVs are equivalent to runtime-42's `att.uvs`.
+        //
+        // Region resolution: MeshAttachment has NO `.region` member in 4.3
+        // (it implements HasSequence, not HasTextureRegion). Resolve it via
+        // `sequence.regions[idx]` using the SAME pose-independent
+        // single-region/setupIndex resolution `attachmentRegionMeta`
+        // (runtime-43.ts:522-526) and the RegionAttachment branch above use
+        // (Sequence attachments get a dedicated per-frame fan-out in
+        // sampler.ts; the hull path only needs the setup/single region).
         const ma = att as InstanceType<typeof MeshAttachment>;
-        const uvs = ma.regionUVs;
-        if (!uvs) return null;
-        return uvs instanceof Float32Array ? uvs : new Float32Array(uvs as unknown as ArrayLike<number>);
+        const regionUVs = ma.regionUVs;
+        if (!regionUVs || regionUVs.length === 0) return null;
+        const seq = (ma as unknown as {
+          sequence?: {
+            regions: Array<unknown | null>;
+            setupIndex: number;
+          };
+        }).sequence;
+        if (!seq || !seq.regions || seq.regions.length === 0) return null;
+        const idx = seq.regions.length === 1 ? 0 : seq.setupIndex;
+        const region = seq.regions[idx];
+        if (region == null) return null;
+        const out = new Float32Array(regionUVs.length);
+        try {
+          // MeshAttachment.computeUVs(region, regionUVs, out): page-space
+          // (MeshAttachment.d.ts — static computeUVs(region, regionUVs, uvs)).
+          (MeshAttachment as unknown as {
+            computeUVs: (
+              region: unknown,
+              regionUVs: ArrayLike<number>,
+              uvs: Float32Array,
+            ) => void;
+          }).computeUVs(region, regionUVs as ArrayLike<number>, out);
+        } catch {
+          return null;
+        }
+        return out;
       }
       return null;
     },
