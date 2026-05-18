@@ -54,6 +54,13 @@ import {
   AtlasAttachmentLoader,
   TextureAtlas,
 } from '@esotericsoftware/spine-core';
+// Phase 44 (D-11) — "make it real": the gated loader is now a dual-runtime
+// dispatcher (loader.ts resolveRuntimeTag). This file historically drove the
+// 4.3 runtime DIRECTLY (proving the dual-install is real); D-11 adds an arm
+// that drives the GATED loader so we prove the dispatch ROUTES a 4.3 file
+// instead of rejecting it.
+import { loadSkeleton } from '../../src/core/loader.js';
+import { handleRuntime } from '../../src/core/runtime/types.js';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
 
@@ -210,5 +217,42 @@ describe('Phase 42 D-13: in-repo 4.3 JSON loads through the 4.3 runtime Skeleton
         'beta parsed clean -> the SPINE_4_3_MIN fallback fixture was NOT created',
       ).toBe(false);
     }
+  });
+});
+
+describe('Phase 44 D-11: the GATED loader ROUTES the committed 4.3 leg (skeleton2.json) to the 4.3 runtime (dispatch made real)', () => {
+  const FIXTURE = resolve(
+    REPO_ROOT,
+    'fixtures/SIMPLE_PROJECT_43/skeleton2.json',
+  );
+
+  it('loadSkeleton(skeleton2.json) routes-and-loads via the 4.3 runtime (pre-flip this threw SpineVersionUnsupportedError)', () => {
+    // skeleton2.json is spine "4.3.01" + a top-level constraints[] array (no
+    // legacy top-level ik/transform/path) -> D-07 token 4.3, D-08 no
+    // contradiction -> runtime-43. Pre-flip the gated loader hard-rejected
+    // every 4.3 input (SpineVersionUnsupportedError); post-flip (Plan 02
+    // resolveRuntimeTag + the 44-03 single-gate fix) it routes-and-loads.
+    // This is D-11 "make it real": the prior arms drive the 4.3 runtime
+    // DIRECTLY (kept above — they cover the beta-vs-stable parse fallback);
+    // THIS arm proves the GATED loader entrypoint dispatches a 4.3 file.
+    expect(() => loadSkeleton(FIXTURE)).not.toThrow();
+    const load = loadSkeleton(FIXTURE);
+    expect(load).toBeTruthy();
+
+    // Dispatch-target proof: the LoadResult's opaque skeletonData handle
+    // carries the threaded runtime identity (__rt). A 4.3-routed load MUST
+    // be branded by the 4.3 runtime — not merely "did not throw".
+    expect(handleRuntime(load.skeletonData)).toBe('4.3');
+
+    // Same structural "parsed, not rejected" proof the direct arm uses
+    // (bones[]/skins[] non-empty) so the route+parse evidence is consistent.
+    const sd = load.skeletonData as unknown as {
+      bones?: unknown[];
+      skins?: unknown[];
+    };
+    expect(Array.isArray(sd.bones), '4.3 SkeletonData has a bones[] array').toBe(true);
+    expect((sd.bones ?? []).length, 'the 4.3 rig bones were consumed').toBeGreaterThan(0);
+    expect(Array.isArray(sd.skins), '4.3 SkeletonData has a skins[] array').toBe(true);
+    expect((sd.skins ?? []).length, 'the 4.3 rig skins were consumed').toBeGreaterThan(0);
   });
 });
