@@ -93,7 +93,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] **Phase 42: Pre-v1.6 4.2 Baseline + npm Alias + Boundary Scaffolding** - Capture the byte-equal 4.2 golden BEFORE the alias lands; install 4.3.0 canonical / 4.2.111 aliased; stand up the opaque-handle boundary + CI dual-matrix reproducibility (completed 2026-05-16)
 - [x] **Phase 43: Runtime-Adapter Facade + Verified 4.3 API Mapping** - Behavior-neutral `SpineRuntime` facade with the 4.2 path proven byte-green (hard exit gate), then the 4.3 adapter written against the verified-stable Pose API (all 6/6 plans complete incl. 43-06 gap-closure 2026-05-17; GAP-43-PROD-SEAM CLOSED — awaiting orchestrator phase-level re-verification/closure) (completed 2026-05-17)
 - [x] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4 (completed 2026-05-18)
-- [ ] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases
+- [x] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases (completed 2026-05-18)
 - [ ] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract
 - [ ] **Phase 47: spine-player 4.3.0 Bump + Viewer Regression** - Decoupled, revertible viewer bump; drop removed `MixBlend`/`MixDirection`; re-run the 5 carried Phase 41 HUMAN-UATs on the 4.3 player
 
@@ -159,8 +159,8 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   2. Every stale "Spine v4.2 only" / "re-export as 4.2" surface is swept — App.tsx drop-zone, loader/error strings, Documentation Builder HTML template, README/INSTALL/Help — and `git grep -i "version 4.2|re-export"` is clean in renderer/docs. *(UX-02)*
   3. The 6 reject-assertion test files are inverted to assert routing (dispatch target, not exception) for 4.3 inputs, while the `< 4.2` and `≥ 4.4` throw-cases are explicitly preserved (the guard is narrowed, not deleted — a passing test still asserting the old 4.3 reject is a false-green). *(UX-02)*
 **Plans**: 2 plans (1 wave; 45-01 renderer/docs copy sweep ∥ 45-02 D-11 test-assertion re-audit + D-12 standing guard — zero file-overlap, parallel-safe). NOTE: Phase 44 D-11 already inverted the behavioral 4.3-reject assertions for CI-green; SC#3's deliverable here is the documented per-file disposition AUDIT of the full Phase-44-D-11 set (the "6" reconciled to the D-11 superset — NOT narrowed back to 6) + a permanent in-suite anti-false-green standing guard. ZERO runtime/loader/dispatch/errors behavior change (the dispatch flip was Phase 44).
-- [ ] 45-01-PLAN.md — UX-01 drop-zone copy flip (D-01/02/03) + UX-02 docs sweep: HelpDialog/README affirmative band (D-04/05), net-new CHANGELOG.md (D-06), D-08-allowlisted renderer/docs grep clean, doc-export D-09 confirm-and-no-op disposition *(UX-01, UX-02)*
-- [ ] 45-02-PLAN.md — UX-02 test-assertion: full 10-file Phase-44-D-11 per-file disposition re-audit (D-10/D-11, preserve `<4.2`/`≥4.4` throws verbatim) + the permanent in-suite D-12 anti-false-green standing guard *(UX-02)*
+- [x] 45-01-PLAN.md — UX-01 drop-zone copy flip (D-01/02/03) + UX-02 docs sweep: HelpDialog/README affirmative band (D-04/05), net-new CHANGELOG.md (D-06), D-08-allowlisted renderer/docs grep clean, doc-export D-09 confirm-and-no-op disposition *(UX-01, UX-02)*
+- [x] 45-02-PLAN.md — UX-02 test-assertion: full 10-file Phase-44-D-11 per-file disposition re-audit (D-10/D-11, preserve `<4.2`/`≥4.4` throws verbatim) + the permanent in-suite D-12 anti-false-green standing guard *(UX-02)*
 
 ### Phase 46: Slider Constraint Validation + 4.3 Performance Budget
 **Goal**: Prove the 4.3-only slider constraint propagates correctly via the unchanged `updateWorldTransform(Physics.update)` path using an independently-derived closed-form oracle (the only true slider ground truth), and record a measured 4.3-specific performance budget rather than assuming parity with the 4.2 contract.
@@ -198,7 +198,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 42. Pre-v1.6 Baseline + Alias + Scaffolding | v1.6 | 5/5 | Complete    | 2026-05-16 |
 | 43. Runtime-Adapter Facade + 4.3 API Mapping | v1.6 | 6/6 | Complete    | 2026-05-17 |
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
-| 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 0/2 | Planned | - |
+| 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete   | 2026-05-18 |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 0/TBD | Not started | - |
 | 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 0/TBD | Not started | - |
 
