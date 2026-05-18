@@ -1,0 +1,43 @@
+{
+  "globalPeaks": {
+    "default/square/square": {
+      "animationName": "XTRA01",
+      "attachmentKey": "default/square/square",
+      "attachmentName": "square",
+      "frame": 1,
+      "isSetupPosePeak": false,
+      "peakScale": 1.00000001067109,
+      "peakScaleX": 0.999999989328914,
+      "peakScaleY": 1.00000001067109,
+      "regionName": "square",
+      "skinName": "default",
+      "slotName": "square",
+      "sourceH": 10,
+      "sourceW": 10,
+      "time": 0.025,
+      "worldH": 13.8553924560547,
+      "worldW": 13.8553929328918
+    }
+  },
+  "perAnimation": {},
+  "setupPosePeaks": {
+    "default/square/square": {
+      "animationName": "Setup Pose (Default)",
+      "attachmentKey": "default/square/square",
+      "attachmentName": "square",
+      "frame": 0,
+      "isSetupPosePeak": true,
+      "peakScale": 1,
+      "peakScaleX": 1,
+      "peakScaleY": 1,
+      "regionName": "square",
+      "skinName": "default",
+      "slotName": "square",
+      "sourceH": 10,
+      "sourceW": 10,
+      "time": 0,
+      "worldH": 10,
+      "worldW": 10
+    }
+  }
+}
