@@ -102,3 +102,73 @@ Delegated within the locked D-01..D-09 invariants: exact 4.3 `apply()` arg shape
 - VIEWER-07 split-pane source-vs-exported comparison — v1.7 candidate, not Phase 47.
 - External-surface copy sweep (GitHub repo description / Releases notes) — owner ship-time follow-up (Phase 45 D-07 carry).
 - Broader 4.3 viewer fixture matrix — scoped down to the SIMPLE_TEST + SIMPLE_PROJECT_43 pair; future-confidence idea, not v1.6.
+
+---
+---
+
+# Phase 47 — GAP RE-DISCUSSION (2026-05-18)
+
+> Second discussion pass. Triggered by debug `viewer-43-42-constraint-parse`
+> (proven Phase-47 design gap) after 47-01 landed and owner UAT failed. The
+> original pass above (D-01..D-09) is preserved as audit trail; this pass adds
+> DV-1..DV-3 and amends only D-09's falsified premise. Decisions captured in
+> 47-CONTEXT.md → "Gap Re-Discussion Addendum".
+
+**Date:** 2026-05-18
+**Areas discussed:** Viewer 4.2-compat architecture, PLAYER-02 SC#2 + D-01 posture, Acceptance fixture set
+
+---
+
+## Viewer 4.2-compat architecture
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Required — must not regress | v1.6 must not ship a viewer worse than v1.5.1 for 4.2; forces a dual-runtime viewer | ✓ |
+| Deferrable to v1.7 | Ship a 4.3-only viewer with a clean "needs 4.3 export" message; defer 4.2 viewer to v1.7 | |
+| Need the trade-offs first | Lay out effort/risk/fidelity of each architecture option before deciding | |
+
+**User's choice:** Required — must not regress.
+**Notes:** v1.5.1 rendered 4.2 fine via spine-player@4.2.111; the 4.3 bump regressed it. Core analysis unaffected; only the visual viewer. → dual-runtime viewer mandated (DV-1).
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Freeze the exact v1.5.1 player+modal path | 4.2 → exact spine-player@4.2.111 + pre-migration modal, alias-isolated to spine-core-42; byte-stable no-op = shipped v1.5.1 viewer; 4.3 → migrated 4.3.0 path; modal branches on core runtime tag | ✓ |
+| One modal, runtime-conditional API calls | Single modal with per-version branches at every spine-player touchpoint; weaker "identical to v1.5.1" guarantee | |
+| Discuss the trade-off | Talk through dual frozen paths vs one conditional path before locking | |
+
+**User's choice:** Freeze the exact v1.5.1 player+modal path. → DV-1 / DV-1a.
+**Notes:** Lowest-risk; the 4.2 leg becomes the literal already-accepted v1.5.1 viewer. DV-RISK-1 (alias-isolation of the full spine-player→spine-webgl→spine-core graph from frozen-canonical 4.3.0) flagged as the #1 researcher question.
+
+---
+
+## PLAYER-02 SC#2 + D-01 posture
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Reword SC#2 to dual-runtime; keep D-01 strict | SC#2 → "4.2 via frozen 4.2.111 path AND 4.3 via migrated 4.3.0 path"; D-01/D-02 stay binding (now achievable); no schema translation; Phase 47 scope grows; reworded PLAYER-02 (not new req) | ✓ |
+| Reword SC#2; soften D-01 | Reword as above but relax D-01 so v1.6 closes without a full new owner-UAT of every old test | |
+| Discuss the requirements structure | Talk through new-requirement vs reworded-PLAYER-02 + ROADMAP edit mechanics first | |
+
+**User's choice:** Reword SC#2 to dual-runtime; keep D-01 strict. → DV-2.
+**Notes:** Rewording makes D-01/D-02 achievable, not softer. ROADMAP/REQUIREMENTS/traceability edits are gap-plan work.
+
+---
+
+## Acceptance fixture set
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Broad: all 3 owner-found + canary + 4.3 | 4.2 leg = SIMPLE_TEST + CHJ (transform) + 3Queens (ik+transform+events) + MON_FILES/TEST_03 (ik+transform+physics); 4.3 leg = skeleton2.json | ✓ |
+| Minimal: canary + 1 rich production + 4.3 | SIMPLE_TEST + MON_FILES/TEST_03 + skeleton2.json | |
+| Let me pick the exact fixtures | User names the specific set | |
+
+**User's choice:** Broad matrix. → DV-3 (supersedes the D-09 render pair).
+**Notes:** UAT proves routing + DV-RISK-1 alias isolation + constraint-mix variety incl. physics — not re-proving the byte-identical 4.2 renderer.
+
+## Claude's Discretion (gap pass)
+
+Delegated per `feedback_delegate_implementation_choices`: HOW the v1.5.1 modal source is recovered (frozen-tagged sibling vs git-history reconstruction — principle locked: literal v1.5.1 source, no reconstruction drift — DV-NOTE); exact alias mechanics for spine-player-42/spine-webgl-42; the REG-47-01 permanent regression test + dual-routing regression test design; ROADMAP/REQUIREMENTS rewording mechanics.
+
+## Deferred Ideas (gap pass)
+
+- None — the gap re-discussion stayed within the (now-grown) Phase 47 scope. The pre-gap deferred ideas above (VIEWER-07, external-surface copy sweep, broader 4.3 fixture matrix) still stand.

@@ -1,7 +1,19 @@
 # Phase 47: spine-player 4.3.0 Bump + Viewer Regression - Context
 
-**Gathered:** 2026-05-18
-**Status:** Ready for planning
+**Gathered:** 2026-05-18 (original) · **Gap re-discussion:** 2026-05-18
+**Status:** Ready for planning — **AMENDED** by the *Gap Re-Discussion
+Addendum (DV-1..DV-3)* in `<decisions>` below. Route: `/gsd-plan-phase 47 --gaps`.
+
+> ⚠ **GAP RE-DISCUSSION IN EFFECT.** After 47-01 landed, owner UAT exposed two
+> bugs (debug `reg-47-01-43-load-reading-r` — FIXED `53e480c`; debug
+> `viewer-43-42-constraint-parse` — root-caused, design gap). The second
+> **falsified D-09's premise** ("a 4.2 fixture renders through the 4.3 player"):
+> spine-player@4.3.0's bundled spine-core@4.3.0 categorically cannot parse ANY
+> 4.2 constraint-bearing JSON (4.3 unified `root.constraints[]` vs 4.2's
+> separate `root.ik/transform/path/physics`) — even SIMPLE_TEST throws. The
+> locked **D-01..D-09 still stand**; the addendum (DV-1..DV-3) amends only the
+> falsified parts (D-09 render-pair + the single-4.3-player assumption). Read
+> the addendum FIRST.
 
 <domain>
 ## Phase Boundary
@@ -33,6 +45,91 @@ candidate); broadening CSP/CORS beyond what 4.3 minimally requires;
 
 <decisions>
 ## Implementation Decisions
+
+### ⚠ Gap Re-Discussion Addendum (2026-05-18) — DV-1..DV-3 — READ FIRST
+
+Triggered by debug `viewer-43-42-constraint-parse` (proven Phase-47 design
+gap). These amend the falsified parts of the locked decisions; everything in
+D-01..D-09 NOT contradicted here still binds.
+
+- **DV-1 (Viewer becomes DUAL-RUNTIME — the gap fix):** The Animation Viewer
+  stops being single-runtime spine-player@4.3.0. It mirrors the **core's
+  `pickRuntime` split**: **4.2 projects → the EXACT shipped v1.5.1 path**
+  (spine-player **4.2.111** + the **pre-migration** modal code path),
+  **alias-isolated** (a `spine-player-42`/`spine-webgl-42` alias whose whole
+  transitive graph resolves `spine-core-42`, **never** canonical
+  spine-core@4.3.0) so the 4.2 leg is a **byte-stable no-op = the
+  owner-accepted v1.5.1 viewer**. **4.3 projects → the already-built migrated
+  spine-player@4.3.0 path** (47-01's 8-touchpoint Pose-API migration, commit
+  `6b3c57e`, **retained unchanged**). The other candidates were rejected:
+  4.2→4.3 JSON upcast (fragile; the exact thing the core's dual-runtime split
+  exists to avoid; also barred by the still-standing "no 4.x schema
+  translation" boundary), core-data-feed (collapses into still needing a
+  4.2-matched spine-webgl while discarding the Phase-41/47 player UI),
+  4.3-only viewer (rejected — it is a capability regression vs v1.5.1, which
+  rendered 4.2 fine).
+- **DV-1a (Routing source — explicit, not inferred):** the modal selects the
+  4.2 vs 4.3 player path off the **core's already-computed runtime tag**
+  (`src/core/loader.ts` `resolveRuntimeTag`/`pickRuntime`) — a single source
+  of truth. It does **not** independently re-detect the version. (Locks the
+  `feedback_explicit_identity_over_inference` lesson; same bug-class as
+  REG-47-01's cross-runtime handoff.)
+- **DV-2 (PLAYER-02 SC#2 reworded; D-01 stays STRICT):** ROADMAP/REQUIREMENTS
+  **PLAYER-02 SC#2** is reworded from "renders a 4.2 and a 4.3 fixture
+  correctly **through the 4.3 player**" (now known-impossible) to: *"the
+  viewer renders a 4.2 fixture correctly via the frozen spine-player@4.2.111
+  path **AND** a 4.3 fixture via the migrated spine-player@4.3.0 path."*
+  **D-01** (hold v1.6 close until BOTH legs green, **no revert**) and **D-02**
+  (in-phase blocking owner UAT) remain fully binding — the rewording makes
+  them *achievable*, it does not soften them. This is a **reworded
+  PLAYER-02**, NOT a new requirement (keep traceability clean). The
+  ROADMAP/REQUIREMENTS/traceability text edits are gap-plan work.
+  **AMENDS the `<domain>` Phase Boundary:** the dual-runtime viewer arm
+  (renderer-graph alias scaffolding + modal branching) is now **IN scope** for
+  Phase 47; "broadening CSP/CORS beyond 4.3 minimum" and "4.x schema
+  translation" remain **OUT** of scope (DV-1 routes per-version, it does not
+  translate).
+- **DV-3 (Acceptance/UAT fixture matrix — SUPERSEDES the D-09 render pair):**
+  - **4.2 leg** (frozen v1.5.1 @4.2.111 path): `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`
+    (the GL straight-alpha hard-floor canary — D-04 / 47-HUMAN-UAT Test 1,
+    still required) **+** `fixtures/CHJ/CHJWC_SYMBOLS.json` (transform-only)
+    **+** `fixtures/3Queens/TQORW_SYMBOLS.json` (ik + transform + events)
+    **+** `fixtures/MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json`
+    (ik + transform + **physics** — the most 4.2/4.3-divergent mix).
+  - **4.3 leg** (migrated @4.3.0 path): `fixtures/SIMPLE_PROJECT_43/skeleton2.json`.
+  - The UAT's real job is **not** re-proving the 4.2 renderer (the frozen
+    4.2.111 path is byte-identical to accepted v1.5.1) — it is proving
+    **(1)** routing sends each version to the right player off the core tag,
+    **(2)** the **alias-isolated 4.2 player actually loads** (the DV-RISK-1
+    split-brain — the single most likely failure), **(3)** the constraint-mix
+    variety (incl. physics) that exposed the gap is covered. The D-08
+    `47-HUMAN-UAT.md` / `41-HUMAN-UAT.md` mechanics still apply; the fixture
+    set + the per-fixture expected-player assertion expand to this matrix.
+
+- **DV-RISK-1 (mandatory researcher question — #1 gap-plan risk):** D-03
+  established spine-player@4.2.111 + frozen-canonical spine-core@4.3.0 is a
+  broken split-brain (bare-resolves the wrong spine-core). DV-1's "frozen
+  v1.5.1 4.2 player" **depends on** being able to alias-isolate
+  spine-player@4.2.111's **entire** transitive graph (spine-player-42 →
+  spine-webgl-42 → spine-core-42) from canonical 4.3.0 — the **same mechanism
+  Phase 42 used to alias spine-core**. The researcher MUST confirm this is
+  mechanically achievable (npm-alias of spine-player + spine-webgl; no
+  bare-specifier leakage to canonical 4.3.0; electron-builder packages both
+  player stacks; Vite renderer + vitest both resolve it) BEFORE the gap plan
+  commits to DV-1. If it is NOT achievable as-is, that is a discuss-phase
+  escalation, not a planner improvisation.
+
+- **DV-NOTE (recovering the v1.5.1 modal path — planner guidance, delegated):**
+  47-01 already migrated `AnimationPlayerModal.tsx` to 4.3 in `main`
+  (`6b3c57e`). DV-1's 4.2 leg needs the **pre-migration** modal code. Per
+  `feedback_delegate_implementation_choices` the planner/researcher owns
+  HOW (recover the v1.5.1-tagged source as a frozen sibling component vs.
+  reconstruct from git history), but the **principle is locked**: the 4.2
+  modal path must be the *literal v1.5.1-shipped source*, not a
+  reconstruction — zero behavioral drift is the whole point of DV-1. Also
+  owed: a permanent REG-47-01 cross-runtime-handoff regression test (still
+  outstanding from debug `reg-47-01-43-load-reading-r`) + a dual-runtime
+  routing regression test — gap-plan test scope.
 
 ### Regression Fallback / Milestone-Close Posture
 
@@ -108,7 +205,10 @@ candidate); broadening CSP/CORS beyond what 4.3 minimally requires;
   in `.planning/phases/41-spine-animation-viewer/41-HUMAN-UAT.md` in place to
   resolved with a pointer to the Phase 47 re-run. Preserves the Phase 41 audit
   trail and creates the Phase 47 record for milestone close.
-- **D-09 (PLAYER-02 SC#1 render pair):** "Both a 4.2 and a 4.3 fixture render
+- **D-09 (PLAYER-02 SC#1 render pair):** **⚠ SUPERSEDED by DV-3** (its
+  "through the 4.3 player" premise was falsified — see the Gap Re-Discussion
+  Addendum). Original text retained for provenance:
+  "Both a 4.2 and a 4.3 fixture render
   correctly through the 4.3 player" =
   **`fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2 — the established GL-alpha
   canary; Phase 41 G-03 was reproduced on it)** +
@@ -187,11 +287,38 @@ D-01..D-09 invariants):
   resolved G-01/G-02/G-03 (CSP `connect-src 'app-image:'`, CORS ACAO,
   straight-alpha) that the 4.3 bump must not regress. D-08 flips these in place.
 
-### Fixtures (PLAYER-02 SC#1 render pair — D-09)
+### Fixtures (PLAYER-02 SC#1 render pair — D-09 → see DV-3 for the live matrix)
 - `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (+ `.atlas`, `.png`) — the 4.2
-  GL-alpha canary.
+  GL-alpha canary (now the 4.2-leg canary via the frozen 4.2.111 path — DV-3).
 - `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (`spine:"4.3.01"`) — the 4.3
-  ORCL-01 SIMPLE_TEST-equivalent sibling.
+  ORCL-01 SIMPLE_TEST-equivalent sibling (the DV-3 4.3-leg fixture).
+- `fixtures/CHJ/CHJWC_SYMBOLS.json`, `fixtures/3Queens/TQORW_SYMBOLS.json`,
+  `fixtures/MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json` — the DV-3 4.2-leg
+  constraint-mix matrix (transform-only / ik+transform+events /
+  ik+transform+physics); all `spine:"4.2.43"`, all owner-confirmed broken
+  under the 4.3-only viewer.
+
+### Gap Re-Discussion sources (DV-1..DV-3 — MUST read for the gap plan)
+- `.planning/debug/viewer-43-42-constraint-parse.md` — the proven root cause
+  (4.3 unified `root.constraints[]` vs 4.2 separate
+  `root.ik/transform/path/physics`; SkeletonJson.js:129 guard; the falsified
+  "SIMPLE_TEST works" control), classification (design gap), and the three
+  weighed fix directions DV-1 selects among.
+- `.planning/debug/reg-47-01-43-load-reading-r.md` — the sibling cross-runtime
+  bug FIXED in `53e480c` (the load-path precedent + the still-owed permanent
+  regression test noted in DV-NOTE).
+- `src/core/loader.ts` — `resolveRuntimeTag` / `pickRuntime` (the runtime-tag
+  source DV-1a reuses; the dual-runtime split DV-1 mirrors).
+- `.planning/phases/42-pre-v1-6-4-2-baseline-npm-alias-boundary-scaffolding/`
+  — the npm-alias scaffolding precedent (`spine-core` ↔ `spine-core-42`) that
+  DV-1's `spine-player-42`/`spine-webgl-42` alias must replicate; the
+  DV-RISK-1 split-brain proof lives against this prior art.
+- Memory: `project_phase47_viewer_single_runtime_design_gap`,
+  `project_reg4701_buildsummary_cross_runtime_fixed`,
+  `feedback_uat_opened_is_not_rendered`,
+  `feedback_isolated_clean_is_not_pipeline_clean`,
+  `feedback_explicit_identity_over_inference` (DV-1a),
+  `project_phase43_pickruntime_esm_split` (the dual-runtime rationale).
 
 ### Memory (durable project facts in play)
 - `project_renderer_mixblend_preexisting_failure` — the ~11 `tests/renderer/*`
