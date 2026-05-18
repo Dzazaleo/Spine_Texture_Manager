@@ -549,3 +549,142 @@ import {
 
 **Research date:** 2026-05-18
 **Valid until:** ~2026-06-17 (30 days — stable; spine-player/webgl/core 4.3.0 are the only 4.3 releases and exact-pinned, so the surface won't drift unless a 4.3.1 publishes; re-verify the `apply()`/Skeleton signatures if any 4.3.x patch appears, per PITFALLS Pitfall 1 patch-shaped-API-change precedent).
+
+---
+
+## GAP ADDENDUM (2026-05-18) — DV-1 Dual-Runtime Viewer Feasibility (DV-RISK-1 resolution)
+
+> **Scope:** This addendum resolves ONLY the gap-discussion DV-1..DV-RISK-1 + DV-NOTE
+> questions. Everything above this line (the single-runtime 4.3 leg: D-03/D-04/D-05/
+> GL-alpha) remains BINDING and unchanged — DV-1 RETAINS the 47-01 `6b3c57e` 4.3
+> migration verbatim as the `tag==='4.3'` arm. This addendum adds the `tag==='4.2'`
+> arm.
+> **Method:** Every claim below is backed by a freshly-`npm pack`'d tarball read,
+> a live `npm install` of the exact alias trio, and live resolution probes through
+> Node's resolver, Vite's `pluginContainer.resolveId`, a real `vite build`, and
+> `vitest run` — i.e. all THREE resolution contexts the project runs
+> (`feedback_verify_all_entrypoint_runtimes_of_a_perruntime_seam`). Nothing here
+> rests on the SUMMARY prose; in fact the SUMMARY's crux claim is **corrected** below.
+
+### 1. DV-RISK-1 Verdict
+
+**VERDICT: ACHIEVABLE-AS-IS — a pure `package.json` npm-alias trio (NO Vite alias, NO vitest alias, NO shim package, NO `overrides`) mechanically isolates the entire spine-player@4.2.111 → spine-webgl@4.2.111 → spine-core@4.2.111 graph from canonical spine-core@4.3.0, in all three resolution contexts, empirically verified this session.** The gap planner may commit to DV-1; this is NOT a discuss-phase escalation.
+
+#### 1a. SUMMARY crux claim — CORRECTED (load-bearing)
+
+`.planning/research/SUMMARY.md` lines 51-53 say "spine-player has **no direct spine-core dep** → bare-resolves canonical 4.3.0". This is **literally true but the inference is the dangerous half** and must be restated precisely for the planner:
+
+| Package (@4.2.111) | `dependencies` (verified `npm view` + tarball `package.json`) | How it imports spine-core |
+|---|---|---|
+| `@esotericsoftware/spine-player@4.2.111` | `{ "@esotericsoftware/spine-webgl": "4.2.111" }` (exact) — NO direct spine-core dep | `Player.js:29` → **bare** `import {…} from "@esotericsoftware/spine-core"` |
+| `@esotericsoftware/spine-webgl@4.2.111` | `{ "@esotericsoftware/spine-core": "4.2.111" }` (exact) — **DOES declare a direct spine-core dep** | ~8 dist files (`SkeletonRenderer.js:29`, `AssetManager.js:29`, …) → **bare** `import {…} from "@esotericsoftware/spine-core"`; `index.js:18` re-exports it |
+
+So spine-player has no *direct* spine-core dep, but it has an **exact-pinned `4.2.111` spine-core dep transitively via spine-webgl@4.2.111**. The resolved entry for all three packages is `main: dist/index.js` (an **unbundled** ESM tree with **live bare `@esotericsoftware/spine-core` specifiers** — no `exports`, no `module` field, so Vite/vitest/Node ALL pick `main`). The pre-bundled `dist/esm/spine-player.mjs` (which *inlines* a verbatim copy of 4.2.111 core) is **not referenced by any package.json field** and is never resolved unless explicitly path-imported (we do not). The bare specifier therefore survives to resolution time and **is aliasable** — that is precisely why DV-1 works.
+
+#### 1b. The mechanism (why no bundler alias is needed)
+
+The exact-pin `"@esotericsoftware/spine-core": "4.2.111"` inside spine-webgl@4.2.111's `dependencies` is **incompatible with** the top-level canonical `@esotericsoftware/spine-core@4.3.0`. npm's resolver therefore **cannot dedupe** and is **forced to nest**: `npm install` of the alias trio auto-creates
+
+```
+node_modules/spine-webgl-42/node_modules/@esotericsoftware/spine-core/   → 4.2.111  [verified: package.json version]
+node_modules/spine-player-42/node_modules/@esotericsoftware/{spine-core,spine-webgl}/  → 4.2.111  [verified]
+node_modules/@esotericsoftware/spine-core/   → 4.3.0  (canonical, untouched — the 4.3 leg)
+```
+
+Node's resolver, Vite's resolver, and vitest's resolver ALL walk *up from the importing file* and hit the **nested 4.2.111 core first** when the import originates inside the aliased package. This is the identical mechanism Phase 42 used for `spine-core-42` (a pure `npm:` alias with **zero** bundler-alias entries — confirmed: `grep` of `electron.vite.config.ts`/`vitest.config.ts`/`tsconfig*` shows NO `spine-core-42` resolve-alias; it resolves purely via `node_modules/spine-core-42/`). DV-1 replicates that prior art exactly, extended to the player+webgl pair.
+
+#### 1c. EXACT config recipe (the only change DV-1's alias scaffolding needs)
+
+**`package.json` `dependencies` — add two lines (the 4.3 lines stay verbatim):**
+```jsonc
+"@esotericsoftware/spine-core": "4.3.0",                              // canonical — UNCHANGED (4.3 leg)
+"@esotericsoftware/spine-player": "4.3.0",                            // canonical — UNCHANGED (4.3 leg, 47-01 6b3c57e)
+"spine-core-42": "npm:@esotericsoftware/spine-core@4.2.111",          // existing Phase-42 alias — UNCHANGED
+"spine-player-42": "npm:@esotericsoftware/spine-player@4.2.111",      // ← NEW (DV-1)
+"spine-webgl-42": "npm:@esotericsoftware/spine-webgl@4.2.111"         // ← NEW (DV-1; REQUIRED — see note)
+```
+Install: `npm install spine-player-42@npm:@esotericsoftware/spine-player@4.2.111 spine-webgl-42@npm:@esotericsoftware/spine-webgl@4.2.111`, then commit `package.json` + `package-lock.json` in the same commit.
+
+**Why `spine-webgl-42` is a REQUIRED separate alias and not optional:** the 4.2 modal imports from `'spine-player-42'` only, but that package's nested graph is what carries webgl+core. Empirically, declaring **both** `spine-player-42` AND `spine-webgl-42` is what produced the verified clean nesting (`spine-player-42/node_modules/@esotericsoftware/{spine-core,spine-webgl}@4.2.111` AND `spine-webgl-42/node_modules/@esotericsoftware/spine-core@4.2.111`). The `spine-webgl-42` line both (a) gives the planner an explicit hook if a deeper SkeletonRenderer touchpoint is ever needed and (b) hardens the lockfile against a future hoist that could otherwise dedupe webgl. The 4.2 leg imports `from 'spine-player-42'` (the modal's only spine import — see §3); `spine-webgl-42` is a graph-isolation guarantor, not necessarily a direct import site.
+
+| Resolution context | Config delta needed | How the nested bare `@esotericsoftware/spine-core` lands on 4.2.111 | Verified |
+|---|---|---|---|
+| **(a) Vite renderer (electron-vite dev + `vite build` + packaged)** | **NONE beyond the package.json trio.** Do NOT add a renderer `resolve.alias` for bare `@esotericsoftware/spine-core` — that would be global and would corrupt the 4.3 leg. The existing `electron.vite.config.ts` renderer block (only `@renderer`) stays untouched; CLAUDE.md Fact #5 Layer-2 (no core aliases) is **not violated** (no alias added). | Vite `pluginContainer.resolveId('@esotericsoftware/spine-core', …/spine-webgl-42/dist/SkeletonRenderer.js)` → `node_modules/spine-webgl-42/node_modules/@esotericsoftware/spine-core/dist/index.js`; same specifier from app code → separate canonical 4.3.0 `.vite/deps` chunk. A real `vite build` produced ONE bundle containing BOTH the 4.3 `root.constraints` guard (5×) AND the 4.2 `root.transform`/`root.ik` separate-array guard (3×) + 6× `readSkeletonData` — dual-stack confirmed co-bundled & distinct. | ✅ live |
+| **(b) vitest (the 11 `tests/renderer/*` MixBlend suites)** | **NONE.** `vitest.config.ts` needs no change. (The 11 suites' `vi.mock('@esotericsoftware/spine-player', …)` mock the 4.3 player wholesale; the 4.2-leg test needs its OWN mock target — see §4.) | `vitest run` resolution test: `createRequire(spine-player-42/dist/Player.js).resolve('@esotericsoftware/spine-core')` → 4.2.111; `createRequire(appfile).resolve(...)` → 4.3.0. Both green in a real vitest run. | ✅ live |
+| **(c) electron-builder packaged app** | **NONE.** spine-player is a **renderer** import → electron-vite **renderer** build **bundles** it into `out/renderer/*.js` (renderer build does NOT externalize — only `main`/`preload` do via `externalizeDeps:true`, per `electron.vite.config.ts:16-19`). `electron-builder.yml` ships `out/**`; the dual-stack is already inside the renderer bundle (proven by the §(a) `vite build`). No `asarUnpack`/`files` change; nothing externalized that could break the alias at runtime. | The renderer bundle is self-contained post-`vite build`; the dual-stack co-bundle is the artifact electron-builder packages verbatim. | ✅ derived from the live `vite build` + config read |
+
+Phase 42's main/worker mechanism (`electron.vite.config.ts` input-entries + `externalizeDeps`) **does NOT transfer to and is NOT needed for** the renderer — the renderer bundles rather than externalizes, so the nested-`node_modules` resolution is sufficient on its own. This is a *different and simpler* mechanism than the main/worker seam, correctly scoped to the renderer bundle.
+
+#### 1d. Definitive end-to-end proof (not just resolution — actual parse)
+
+Feeding `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2, constraint-bearing) to the `SkeletonJson` reached via the **aliased** `spine-player-42`'s bare core import: **parsed clean** (`anims=4 constraints=1`). The **same fixture** through canonical 4.3.0 core: **threw** (`mesh.updateSequence is not a function` / the constraint-array gap class). This reproduces the DV-1 gap AND proves the alias resolves it.
+
+### 2. Q2 — DV-NOTE: Exact recovery of the literal v1.5.1 modal source
+
+**No `v1.5.1` git tag exists** (`git tag` top = `v1.5.0` @ `8dfeae4`; verified). The literal pre-migration modal is recovered by git ref, not by tag.
+
+- **Pin ref (RECOMMENDED, use this exact form):** `git show 9f967d2:src/renderer/src/modals/AnimationPlayerModal.tsx`
+- **Equivalence verified:** `6b3c57e^ == 9f967d2` (the bump-only commit; `git rev-parse 6b3c57e^` = `9f967d2`), and `git diff 6b3c57e^ 9f967d2 -- src/renderer/src/modals/AnimationPlayerModal.tsx` is **empty** (byte-identical). Either ref form works; **use `9f967d2:` (a stable hash, clearer than `6b3c57e^`)**. The modal content at that ref == the `5f1234d` "user-controlled camera; content-less crash fix" state == the v1.5.1-shipped viewer (the imports there include `MixBlend, MixDirection` — the pre-4.3 surface).
+- **Structural form (RECOMMENDED):** a **frozen sibling component** `src/renderer/src/modals/AnimationPlayerModal42.tsx`, materialized verbatim from `9f967d2:` with **only** its spine import specifier rewritten `@esotericsoftware/spine-player` → `spine-player-42` (the 4.2.111 type+runtime surface — `MixBlend`/`MixDirection` exist there, so the original line-255 8-arg `apply()` and the 45-53 import block compile **unchanged** against 4.2.111). This honors DV-NOTE's "literal source, zero behavioral drift" better than a runtime branch inside the migrated modal (which would force the 4.3-migrated body to also satisfy 4.2 types — drift). The 4.3 modal (`AnimationPlayerModal.tsx`, `6b3c57e`) stays byte-untouched as the `tag==='4.3'` arm. A thin dispatcher (the existing `AnimationPlayerModal.tsx` shell, or a new small `AnimationPlayerModalRouter.tsx`) picks the sibling off the runtime tag (§3).
+- **Helper / mock fan-out (verified minimal):**
+  - `6b3c57e` changed **ONLY** `src/renderer/src/modals/AnimationPlayerModal.tsx` (1 file, +83/-38). **No helper/sibling source file** was migrated. The pre-migration modal imports only `react`, `clsx`, `../../../shared/types.js`, `../hooks/useFocusTrap`, and `@esotericsoftware/spine-player` — **none of those non-spine deps changed in `6b3c57e`**, so the 4.2 leg needs **no frozen copy of any helper** (`useFocusTrap`, shared types are 4.2/4.3-invariant). Only the modal file is frozen.
+  - **Test-mock fan-out:** `e08a2a3` lockstep-migrated **ONLY** `tests/renderer/animation-player-modal.spec.tsx` (the modal's mock). The 4.2 leg's spec needs the **pre-`e08a2a3`** mock surface (recover from `git show 9f967d2:tests/renderer/animation-player-modal.spec.tsx`), targeting `vi.mock('spine-player-42', …)` instead of `'@esotericsoftware/spine-player'`. This is a NEW sibling spec (e.g. `animation-player-modal-42.spec.tsx`), not an edit of the migrated one (the 4.3 spec stays as `e08a2a3` left it).
+
+### 3. Q3 — DV-1a: The routing seam (single source of truth, no re-detection)
+
+The core already computes the tag and the modal already receives the carrier object — only one field is missing.
+
+| Step | File : symbol | State | Action |
+|---|---|---|---|
+| Tag computed | `src/core/loader.ts:237` `resolveRuntimeTag()` → `pickRuntime(tag)` → `LoadResult.runtime` (`SpineRuntime`) | exists; `SpineRuntime.tag: '4.2'\|'4.3'` (`src/core/runtime/runtime.ts:18`, `runtime/types.ts:8`) | reuse — no change |
+| Tag reaches main | `src/main/summary.ts:43` `buildSummary(load, …)` already binds `const rt = load.runtime` (REG-47-01 fix `53e480c`); returns `SkeletonSummary` at `summary.ts:543` | `load.runtime.tag` available at the return site | **ADD** `runtimeTag: rt.tag` to the `summary.ts:543` return object |
+| Carrier type | `src/shared/types.ts:756` `interface SkeletonSummary` | NO version/runtime field today (verified) | **ADD** required field `runtimeTag: '4.2' \| '4.3';` (explicit identity, NOT a heuristic — locks `feedback_explicit_identity_over_inference`, same bug-class as REG-47-01) |
+| Tag reaches modal | `src/renderer/src/components/AppShell.tsx:~2547` mounts `<AnimationPlayerModal summary={effectiveSummary} loaderMode={loaderMode} …>` | modal already gets the full `summary` prop | reuse — no new prop; the dispatcher reads `props.summary.runtimeTag` |
+| Branch | the modal shell / new `AnimationPlayerModalRouter` | — | `props.summary.runtimeTag === '4.2'` → render `<AnimationPlayerModal42>` (frozen, `spine-player-42`); else → existing migrated `<AnimationPlayerModal>` (`6b3c57e`, `spine-player@4.3.0`). The modal does **NOT** parse JSON or sniff `skeleton.spine` — it consumes the already-resolved core tag. |
+
+**Single explicit-identity field added:** `SkeletonSummary.runtimeTag: '4.2' | '4.3'`, sourced from `load.runtime.tag`. Threaded as a **required** field (TypeScript turns the routing contract from runtime to compile-time — the `feedback_explicit_identity_over_inference` lesson DV-1a locks).
+
+### 4. Q4 — Owed regression tests (DV-NOTE + DV-3)
+
+CLAUDE.md Fact #5: vitest has no DOM/WebGL — the **routing decision** and the **cross-runtime handoff** are testable headlessly; the **visual render** is the D-02 owner UAT (NOT a machine test).
+
+| Test (owed) | Closest existing analog | What it asserts (headless) | How it runs (no DOM/WebGL) | DV-3 fixtures |
+|---|---|---|---|---|
+| **T-A: Permanent REG-47-01 cross-runtime-handoff regression** (still outstanding from debug `reg-47-01`; the deleted `_dbg-` throwaway must become permanent) | `tests/runtime/d13-43-load-smoke.spec.ts` + the `tests/runtime43/load43.ts` helper (`pickRuntime('4.3')` + parse-seam pattern) | `loadSkeleton → sampleSkeleton → buildSummary` on a 4.3 fixture does NOT throw `reading 'r'` (the summary.ts cross-runtime miss); 4.2 control also passes the same chain | node env vitest; drives the real loader→sampler→summary chain; no renderer | 4.3: `fixtures/SIMPLE_PROJECT_43/skeleton2.json`; 4.2 control: `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` |
+| **T-B: Dual-runtime viewer ROUTING regression** | `tests/runtime/runtime-distinctness.spec.ts` (Phase-42 alias-resolution/distinctness, real-module no-mock) + `tests/renderer/app-shell-animation-viewer.spec.tsx` (source-shape assertion idiom) | (1) `spine-player-42` resolves a spine-core whose `version === '4.2.111'` AND lacks `Slider`/`BonePose` (4.3-only), while `@esotericsoftware/spine-player` resolves `4.3.0`; (2) a `SkeletonSummary` with `runtimeTag:'4.2'` selects the `AnimationPlayerModal42` path and `'4.3'` selects the migrated path (assert the dispatcher's branch, mocking both modal siblings) | node env for the resolution arm; jsdom + `vi.mock('spine-player-42')` + `vi.mock('@esotericsoftware/spine-player')` for the dispatcher-branch arm — assert WHICH mock constructed, never a GL render | routing keyed off the tag, fixture-agnostic; pair with T-C parse coverage |
+| **T-C: 4.2 alias parse coverage (DV-RISK-1 standing guard)** | `tests/runtime43/runtime43-d03.spec.ts` (parse-a-real-fixture-through-a-specific-runtime idiom) | the `SkeletonJson` reached via `spine-player-42`'s bare core parses each DV-3 4.2 constraint-mix fixture **clean** (constraints registered, no `<X> constraint not found`); the same fixtures through canonical 4.3.0 core **throw** (the gap is real → the alias is what fixes it) | node env; construct `SkeletonJson` from `require('spine-player-42')`'s core export with a null/AtlasAttachmentLoader; no DOM | 4.2 leg: `SIMPLE_TEST.json` + `CHJ/CHJWC_SYMBOLS.json` (transform) + `3Queens/TQORW_SYMBOLS.json` (ik+transform+events) + `MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json` (ik+transform+**physics**) |
+| **T-D: 4.2-leg modal spec** (the frozen sibling's own unit spec) | `tests/renderer/animation-player-modal.spec.tsx` PRE-`e08a2a3` (recover from `9f967d2:`) | the frozen `AnimationPlayerModal42` mounts, wires anim/skin selectors, drives the resilient `sampleAnimationBounds` content-less path — same assertions the v1.5.1 spec made, against `vi.mock('spine-player-42')` | jsdom + Testing Library; mock `spine-player-42` (the pre-migration 4.2 mock shape) | routing/mount behavior; no live GL |
+
+Visual halves (GL straight-alpha, same-framing parity, the 5 carried UATs, the alias-isolated-4.2-player-actually-renders DV-3 item) remain the **D-02 owner UAT** per the matrix already in §Validation Architecture — unchanged; this addendum only adds the machine-checkable routing/handoff/parse guards.
+
+### 5. Q5 — Blast-radius / non-regression confirmation
+
+| Concern | Finding | Verified by |
+|---|---|---|
+| Does DV-1 change any `src/core/*` behavior? | **NO.** The core dual-runtime split (Phases 42-46) is complete and untouched; DV-1 reuses `load.runtime.tag` read-only. The only `src/main` change is **additive** (`+runtimeTag` on the `summary.ts:543` return) — no logic change. | source read of loader.ts/summary.ts/runtime types |
+| Does the 4.3 leg (`6b3c57e`) stay byte-untouched? | **YES.** `AnimationPlayerModal.tsx` (the migrated 4.3 modal) is the `tag==='4.3'` arm verbatim; the migrated `animation-player-modal.spec.tsx` (`e08a2a3`) stays as-is. DV-1 adds siblings, edits nothing in the 4.3 path. | DV-1 design + §2 fan-out (only-1-file `6b3c57e`) |
+| Does electron-builder still package a working app? | **YES.** spine-player is renderer-bundled (not externalized); a real `vite build` produced ONE renderer bundle carrying BOTH stacks distinctly (4.3 `root.constraints` 5× + 4.2 `root.transform`/`root.ik` 3×). `electron-builder.yml` ships `out/**` unchanged; no asarUnpack/files/externalize edit. **Bundle-size note:** the renderer bundle gains a second ~full spine-player+webgl+core stack (the unbundled 4.2.111 tree, tree-shaken to used surface). Acceptable — it is the deliberate cost of DV-1 (a dual-stack viewer); flagged for the planner, not a blocker. | live `vite build` + electron-builder.yml read |
+| Is anything `>renderer-scoped` (would itself be an escalation)? | **NO.** Changes confined to: `package.json`/lock (2 alias lines), `src/shared/types.ts` (1 additive field), `src/main/summary.ts` (1 additive return field), `src/renderer/src/modals/*` (1 frozen sibling + 1 dispatcher), `tests/` (T-A..T-D). All renderer-or-additive; no core/main logic, no CSP/CORS, no schema translation. | aggregate of §1-§4 |
+| Is the spine-player bump mechanically revertible (D-03 informational)? | **NO** (confirms the original §D-03 finding, now reinforced): canonical `@esotericsoftware/spine-core@4.3.0` is frozen (Phase 42); `MixBlend`/`MixDirection` are gone from it; the 4.3 leg's migration is mandatory & non-revertible. DV-1 does NOT revert — it **adds** an alias-isolated 4.2 stack alongside the canonical 4.3 one. The revert is not the fallback (D-01). | §1a + original §D-03 |
+
+### 6. Assumptions / Risk-if-Wrong (reasoned, not executed)
+
+| # | Assumption | Basis | Risk if wrong | Mitigation |
+|---|---|---|---|---|
+| GA-1 | The 4.2 frozen sibling, with ONLY its import specifier rewritten to `spine-player-42`, compiles against 4.2.111 types unchanged | `9f967d2` modal imports `MixBlend/MixDirection/Physics/Skeleton/SpinePlayer/Vector2` + `type SpinePlayerConfig` — ALL present in spine-player@4.2.111 `dist/index.d.ts` (re-exports 4.2.111 core which HAS MixBlend/MixDirection; it is the *literal* v1.5.1 source that shipped green against 4.2.111) | TS errors in the frozen leg | T-D (the 4.2-leg spec) + `typecheck:web` catch immediately at plan-execute; prior is very strong |
+| GA-2 | electron-vite renderer build behaves like the plain `vite build` probe (bundles, does not externalize) | `electron.vite.config.ts:16-19` explicitly documents only main/preload externalize via `externalizeDeps:true`; renderer block has no externalize; electron-vite v5 renderer == vite build | If electron-vite renderer externalized spine-player, the alias would need runtime resolution — but config explicitly does not | Plan should add a post-`vite build` grep gate asserting BOTH `root.constraints` AND `root.transform`/`root.ik` markers are in the renderer bundle (the §1c(a) check, promoted to a `/gsd-verify-work` step) |
+| GA-3 | `npm ci`/`install` on dev + CI machines reproduces the SAME nested layout | npm's nested-on-version-conflict resolution is deterministic for exact-pinned incompatible deps; Phase-42's `spine-core-42` already relies on the identical determinism in CI without issue | A flat-hoist npm bug could dedupe webgl → split-brain | committed `package-lock.json` pins the exact nested tree; `npm ci` (project convention) restores it verbatim; T-B/T-C are the standing guard that fails loudly if a bad hoist ever occurs |
+| GA-4 | The dispatcher (frozen-42 vs migrated-43 by `runtimeTag`) is the lowest-drift structural form | DV-NOTE delegates HOW; sibling-component is the codebase's modal convention (6-modal family) and avoids forcing the 4.3 body to satisfy 4.2 types | A different form chosen by the planner | Principle (literal source, zero drift) is locked; planner owns the exact file/dispatcher shape within that — delegated per `feedback_delegate_implementation_choices` |
+
+### 7. Validation Architecture — ADDENDUM (extends the §Validation Architecture map above)
+
+The owed tests change the machine test map. Add these rows to the planner's VALIDATION.md (the originals above are unchanged; these are ADDITIVE — instantiate them fully per `feedback_instantiate_validation_md_from_research`, do NOT leave as a stub or plan-checker Check-8e will block):
+
+| Req ID | Behavior | Test Type | Automated Command | Exists? |
+|--------|----------|-----------|-------------------|---------|
+| PLAYER-02 (DV-2) | REG-47-01 cross-runtime handoff stays fixed (perm regression — T-A) | machine: integration | `npx vitest run tests/runtime/<reg-4701-perm>.spec.ts` (new; analog `tests/runtime/d13-43-load-smoke.spec.ts`) | ❌ Wave 0 — new file owed |
+| PLAYER-02 (DV-1a) | Routing selects 4.2 vs 4.3 modal off `summary.runtimeTag`; alias resolves distinct cores (T-B) | machine: unit | `npx vitest run tests/runtime/<dual-viewer-routing>.spec.ts` (new; analog `tests/runtime/runtime-distinctness.spec.ts`) | ❌ Wave 0 — new file owed |
+| PLAYER-02 (DV-RISK-1) | DV-3 4.2 constraint-mix fixtures parse clean via the aliased 4.2 player core; throw via canonical 4.3 (T-C standing guard) | machine: integration | `npx vitest run tests/runtime/<dv1-42-parse-guard>.spec.ts` (new; analog `tests/runtime43/runtime43-d03.spec.ts`) | ❌ Wave 0 — new file owed |
+| PLAYER-02 (DV-NOTE) | Frozen `AnimationPlayerModal42` mounts + resilient bounds path (T-D) | machine: unit | `npx vitest run tests/renderer/animation-player-modal-42.spec.tsx` (new; from `9f967d2:` pre-`e08a2a3` mock, retargeted to `spine-player-42`) | ❌ Wave 0 — new file owed |
+
+**Wave 0 gap (DV-1 addendum):** 4 new test files owed (T-A..T-D above). All have direct in-repo analogs (no new framework/fixtures — DV-3 fixtures all already in-repo). No `vitest.config.ts` / `electron.vite.config.ts` change required. The §1c(a) dual-stack-bundle grep should be promoted to a `/gsd-verify-work` build-gate assertion (GA-2 mitigation).
