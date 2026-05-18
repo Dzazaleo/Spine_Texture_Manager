@@ -7,10 +7,11 @@
  * aria-modal + aria-labelledby + outer overlay onClick={onClose} + inner
  * stopPropagation + useFocusTrap hook (Tab cycle + document-level Esc).
  *
- * Wraps `@esotericsoftware/spine-player@4.2.111` (4.2.111 exact pin for
- * spine-core dedup per RESEARCH Pitfall 1). The player is constructed inside
- * a `useEffect` keyed on (summary, loaderMode, open); cleanup calls
- * `player.dispose()` guarded by a `disposed` flag (Pitfall 5 double-dispose).
+ * Wraps `@esotericsoftware/spine-player@4.3.0` (exact pin, sibling-aligned to
+ * the frozen-canonical spine-core@4.3.0 — Phase 47 PLAYER-01 bump). The player
+ * is constructed inside a `useEffect` keyed on (summary, loaderMode, open);
+ * cleanup calls `player.dispose()` guarded by a `disposed` flag (Pitfall 5
+ * double-dispose).
  *
  * Asset feed (RESEARCH Pattern 2 — mode-agnostic shape):
  *   - Atlas-source (`summary.atlasPath !== null` AND `loaderMode !== 'atlas-less'`):
@@ -24,14 +25,16 @@
  *
  * Transport (RESEARCH Pattern 4 — VIEWER-06):
  *   - play / pause invoke the player methods directly.
- *   - scrub computes the delta to target time, calls animationState.update +
- *     apply, skeleton.update + updateWorldTransform with the Physics.update
- *     literal `2` (CLAUDE.md fact #3), then writes player.playTime =
- *     targetTime.
+ *   - scrub computes the delta off the public TrackEntry.trackTime (Phase 47
+ *     T6 — SpinePlayer.playTime is private in 4.3.0), calls
+ *     animationState.update + apply, skeleton.update + updateWorldTransform
+ *     with the Physics.update literal `2` (CLAUDE.md fact #3). scrubPercent
+ *     React state is the UI source of truth (no playTime write-back).
  *
  * Skin switching (RESEARCH Pattern 3 — VIEWER-05):
- *   - setSkinByName THEN setSlotsToSetupPose in that exact order. Without
- *     setSlotsToSetupPose, attachments from the previous skin remain bound.
+ *   - setSkin THEN setupPoseSlots in that exact order (Phase 47 T2/T4 rename;
+ *     4.3 setSkin JSDoc mandates setupPoseSlots after setSkin). Without
+ *     setupPoseSlots, attachments from the previous skin remain bound.
  *
  * Layer 3 invariant: imports only from react + clsx + ../../../shared/types.js
  * + ../hooks/useFocusTrap + @esotericsoftware/spine-player.
@@ -43,8 +46,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
-  MixBlend,
-  MixDirection,
   Physics,
   Skeleton,
   SpinePlayer,
@@ -217,8 +218,8 @@ function makeProbe(p: SpinePlayer): Skeleton | null {
   if (!live) return null;
   const probe = new Skeleton(live.data);
   const skinName = live.skin?.name;
-  if (skinName) probe.setSkinByName(skinName);
-  probe.setSlotsToSetupPose();
+  if (skinName) probe.setSkin(skinName);
+  probe.setupPoseSlots();
   return probe;
 }
 
@@ -239,7 +240,7 @@ function sampleAnimationBounds(
     const probe = makeProbe(p);
     const anim = probe && p.skeleton?.data.findAnimation(animationName);
     if (!probe || !anim) return null;
-    probe.setToSetupPose();
+    probe.setupPose();
     const steps = 64;
     const dur = anim.duration || 0;
     const dt = dur ? dur / steps : 0;
@@ -252,7 +253,11 @@ function sampleAnimationBounds(
     const size = new Vector2();
     const temp: number[] = [];
     for (let i = 0, t = 0; i < steps; i++, t += dt) {
-      anim.apply(probe, t, t, false, [], 1, MixBlend.setup, MixDirection.mixIn);
+      // 4.3 10-arg apply (verified Animation.d.ts:93; cross-confirmed
+      // spine-player@4.3.0 Player.js:644). The 4.2 8-arg form's setup-blend
+      // arg maps to fromSetup=true and the mix-in direction arg maps to
+      // out=false; new args loop=false, add=false, appliedPose=false.
+      anim.apply(probe, t, t, false, [], 1, /*fromSetup*/ true, /*add*/ false, /*out*/ false, /*appliedPose*/ false);
       probe.updateWorldTransform(Physics.update);
       probe.getBounds(off, size, temp);
       if (finiteBox(off, size)) {
@@ -279,7 +284,7 @@ function sampleSetupBounds(p: SpinePlayer): Bounds | null {
   try {
     const probe = makeProbe(p);
     if (!probe) return null;
-    probe.setToSetupPose();
+    probe.setupPose();
     probe.updateWorldTransform(Physics.update);
     const off = new Vector2();
     const size = new Vector2();
@@ -464,13 +469,38 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
         // on disk, but Chrome/Electron's PNG decoder UN-premultiplies during
         // the `Image`-element decode path that spine-player uses
         // (assetManager.loadTexture → `new Image()` → `texImage2D`), so the
-        // in-memory texture is always straight alpha here. Setting
-        // premultipliedAlpha:true makes spine-player's shader pick
-        // srcFunc=gl.ONE (Player.js:13167) and transparent-white border
-        // pixels (255,255,255,0) blend as opaque white — the artifact ring
-        // around mesh attachments the user reproduced on SIMPLE_TEST.
-        premultipliedAlpha: false,
+        // in-memory texture is always straight alpha here.
+        //
+        // [Rule 3 — Phase 47 RESEARCH deviation, source-verified] RESEARCH
+        // D-05 T7 / GL section asserted `config.premultipliedAlpha` is still
+        // wired to texture creation in 4.3.0. The installed spine-player@4.3.0
+        // FALSIFIES this: `premultipliedAlpha` was REMOVED from
+        // `SpinePlayerConfig` entirely (Player.d.ts:31-91 has no such member;
+        // passing it is a TS2353 error). The straight-vs-PMA decision now lives
+        // wholly in the texture loader: spine-webgl@4.3.0 `AssetManager`
+        // constructs `(image, pma = false) => new GLTexture(context, image,
+        // pma)` (AssetManager.js:33) and `Player.js:211` calls
+        // `loadTextureAtlas(config.atlas)` with NO pma arg, so every page
+        // texture loads with pma=false → `GLTexture.js:88
+        // gl.pixelStorei(UNPACK_PREMULTIPLY_ALPHA_WEBGL, !false)` = true →
+        // WebGL premultiplies the straight-alpha texture on upload, the
+        // renderer then multiplies vertex color by alpha and blends. That is
+        // the SAME mathematically-correct straight-alpha end-state the old
+        // `premultipliedAlpha:false` config produced (RESEARCH GL section
+        // reasoning), now the hardcoded AssetManager default. The correct 4.3.0
+        // migration is therefore to DROP the (now-nonexistent) config key — the
+        // straight-alpha intent is preserved by the library default, and this
+        // is the minimal, lowest-risk change (it does not fight the default).
+        // The Phase 41 G-03 white-halo guard is re-verified empirically by the
+        // D-02 owner GL-alpha UAT (Plan 02) on SIMPLE_TEST + skeleton2.
         alpha: false,
+        // T7 (Phase 47): preserveDrawingBuffer is REQUIRED in
+        // spine-player@4.3.0 (Player.d.ts:72). `false` matches the pre-bump
+        // effective default — spine-player only reads it as `new
+        // ManagedWebGLRenderingContext(canvas, { alpha: config.alpha,
+        // preserveDrawingBuffer: config.preserveDrawingBuffer })`
+        // (Player.js:191).
+        preserveDrawingBuffer: false,
         // Auto-fit neutralizer (see CameraState doc). spine-player calls this
         // every frame AFTER it sets ITS camera and BEFORE it draws — so
         // overwriting camera here is what actually renders. We freeze to a
@@ -485,7 +515,7 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
             if (!boundsRef.current) {
               let b: Bounds | null = null;
               const animName =
-                p.animationState?.getCurrent(0)?.animation?.name;
+                p.animationState?.getTrack(0)?.animation?.name;
               if (animName) b = sampleAnimationBounds(p, animName);
               if (!b) b = sampleSetupBounds(p);
               boundsRef.current = b ?? FALLBACK_BOUNDS;
@@ -546,6 +576,11 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
             return;
           }
           playerRef.current = p;
+          // T8 (Phase 47): p.skeleton is Skeleton|null in 4.3.0
+          // (Player.d.ts:125). The success callback runs post-load so it is
+          // non-null here; the guard satisfies the stricter type while
+          // preserving the existing behavior (no skeleton => nothing to wire).
+          if (!p.skeleton) return;
           const animations = p.skeleton.data.animations.map((a) => a.name);
           const skins = p.skeleton.data.skins.map((s) => s.name);
           setAvailableAnimations(animations);
@@ -555,13 +590,15 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
           setActiveAnimation(initialAnim);
           setActiveSkin(initialSkin);
           // Default open state per D-04b: first animation + first skin +
-          // play + loop on. setSkinByName THEN setSlotsToSetupPose per
-          // Pattern 3 (without setSlotsToSetupPose, attachments from a
-          // prior skin remain bound to slots).
+          // play + loop on. setSkin THEN setupPoseSlots per Pattern 3
+          // (4.3 setSkin JSDoc mandates setupPoseSlots after setSkin;
+          // without it, attachments from a prior skin remain bound to slots
+          // — memory project_strict_loadermode_separation). Call order
+          // preserved across the T2/T4 rename.
           if (initialAnim) p.setAnimation(initialAnim, true);
           if (initialSkin) {
-            p.skeleton.setSkinByName(initialSkin);
-            p.skeleton.setSlotsToSetupPose();
+            p.skeleton.setSkin(initialSkin);
+            p.skeleton.setupPoseSlots();
           }
           setPlayerState('ready');
         },
@@ -611,7 +648,7 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   // last good box so zoom/pan stay fixed across animations (the core ask) and
   // the viewer never crashes.
   const refreshBounds = useCallback((p: SpinePlayer) => {
-    const animName = p.animationState?.getCurrent(0)?.animation?.name;
+    const animName = p.animationState?.getTrack(0)?.animation?.name;
     const b = animName ? sampleAnimationBounds(p, animName) : null;
     if (b) {
       boundsRef.current = b;
@@ -637,13 +674,13 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   );
 
   // Skin change handler (Pattern 3 — VIEWER-05). Call order matters: name
-  // first, then setSlotsToSetupPose to rebind the new skin's attachments.
+  // first, then setupPoseSlots to rebind the new skin's attachments.
   const onSkinChange = useCallback(
     (name: string) => {
       const p = playerRef.current;
       if (!p?.skeleton) return;
-      p.skeleton.setSkinByName(name);
-      p.skeleton.setSlotsToSetupPose();
+      p.skeleton.setSkin(name);
+      p.skeleton.setupPoseSlots();
       setActiveSkin(name);
       refreshBounds(p);
     },
@@ -664,20 +701,28 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   // the vendored built-in slider's logic (line 14330-14338).
   const onScrub = useCallback((percentage: number) => {
     const p = playerRef.current;
-    if (!p?.animationState) return;
-    const entry = p.animationState.getCurrent(0);
-    if (!entry) return;
+    if (!p?.animationState || !p.skeleton) return;
+    // T5 (Phase 47): the removed 4.2 current-track accessor -> getTrack(0)
+    // (AnimationState.d.ts:169).
+    const entry = p.animationState.getTrack(0);
+    if (!entry || !entry.animation) return;
     p.pause();
     const duration = entry.animation.duration;
     const targetTime = duration * percentage;
-    const delta = targetTime - p.playTime;
+    // T6 (Phase 47): SpinePlayer's play-time field is private (Player.d.ts:120)
+    // — no public setter. Drive the seek off the public TrackEntry surface:
+    // entry.trackTime (TrackEntry.d.ts:271, the closest analog to the old
+    // private field) is the delta base; scrubPercent React state remains the
+    // UI source of truth so the private write-back is DROPPED. No private-field
+    // escape-hatch cast is used (latent break + code-review reject — RESEARCH
+    // "Don't Hand-Roll"); only the public TrackEntry API.
+    const delta = targetTime - entry.trackTime;
     p.animationState.update(delta);
     p.animationState.apply(p.skeleton);
     p.skeleton.update(delta);
     // 2 === Physics.update enum value (CLAUDE.md fact #3); the sampler uses
     // the same literal.
     p.skeleton.updateWorldTransform(2);
-    p.playTime = targetTime;
     setScrubPercent(percentage);
     setIsPaused(true);
   }, []);
