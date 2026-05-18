@@ -1,6 +1,6 @@
 # Spine Texture Manager
 
-Desktop app (Electron + TypeScript + React) that reads Spine 4.2+ skeleton JSON and computes the peak world-space render scale for every attachment, across every animation and skin. Used by Spine animators to right-size source textures per-asset, then export an optimized `images/` folder ready to re-pack or ship as loose images (atlas-less).
+Desktop app (Electron + TypeScript + React) that reads Spine 4.2 and 4.3 skeleton JSON and computes the peak world-space render scale for every attachment, across every animation and skin. Used by Spine animators to right-size source textures per-asset, then export an optimized `images/` folder ready to re-pack or ship as loose images (atlas-less).
 
 Latest release: [v1.3.6](https://github.com/Dzazaleo/Spine_Texture_Manager/releases/latest) — see [INSTALL.md](INSTALL.md) for download + first-launch instructions.
 
@@ -12,7 +12,7 @@ For developers (build from source): clone the repo, `npm install`, `npm run dev`
 
 ## What it does
 
-- Reads a Spine 4.2+ skeleton JSON in either supported delivery shape:
+- Reads a Spine 4.2 and 4.3 skeleton JSON in either supported delivery shape:
   - **Atlas-source mode** — `.json` + companion `.atlas` + atlas page PNGs. The atlas must be exported from Spine with **Rotation** unchecked; rotated regions are not yet supported (planned for v1.4) and load with a clear error.
   - **Atlas-less mode** — `.json` + a loose `images/` folder (no `.atlas`). This is the workflow Esoteric officially recommends; the app synthesizes a virtual atlas from the loose images.
 - Samples every animation across every skin at 120 Hz (configurable in Settings) using the official Spine runtime math (`computeWorldVertices` after `updateWorldTransform(Physics.update)`).
@@ -26,7 +26,7 @@ For developers (build from source): clone the repo, `npm install`, `npm run dev`
 ## Requirements
 
 - macOS 13+ or Windows 10/11 64-bit. (Linux is build-capable from source but not shipped — no UAT yet.)
-- Spine editor 4.2 or later for the input skeleton JSON. (3.x and earlier are hard-rejected at load time with a typed error.)
+- Spine editor 4.2 or 4.3 for the input skeleton JSON. Spine 4.1 and earlier, and Spine 4.4 and later, are hard-rejected at load time with a typed error.
 
 ## Commands (developer)
 
