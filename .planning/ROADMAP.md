@@ -183,8 +183,8 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
   2. The viewer renders a 4.2 fixture correctly via the frozen spine-player@4.2.111 path AND a 4.3 fixture via the migrated spine-player@4.3.0 path (DV-1/DV-2 dual-runtime; the original single-runtime 4.3-only-player model was falsified — spine-core@4.3.0 categorically cannot parse 4.2 split-array constraint JSON), GL straight-alpha is independently re-verified (the sharp/libvips PMA reasoning does NOT transfer to spine-webgl GL — no dark-fringe/double-multiply halo on SIMPLE_TEST), and the 5 carried Phase 41 HUMAN-UATs are re-run (on the migrated 4.3 leg + the frozen 4.2 leg per the DV-3 matrix). *(PLAYER-02)*
 **Plans**: 4 plans (47-01 PLAYER-01 complete; then the DV-1..DV-3 gap-closure set 47-03/04/05 after the gap re-discussion superseded the original single-runtime 47-02 — sequential on the main tree, worktree-incompatible owner checkpoint).
 - [x] 47-01-PLAN.md — PLAYER-01: spine-player exact-pin bump 4.2.111->4.3.0 + the full 8-touchpoint AnimationPlayerModal.tsx Pose-API migration (D-04 line-255 1:1 + D-05 T1-T8) + the lockstep test-mock migration, as one atomic unit (typecheck:web 22->0, 11 renderer suites RED->GREEN) *(PLAYER-01)*
-- [ ] 47-03-PLAN.md — PLAYER-02 (DV-1/DV-1a/DV-NOTE): dual-runtime viewer — npm-alias trio + frozen v1.5.1 4.2-leg modal + runtimeTag routing seam + dispatcher + T-D spec *(PLAYER-02)*
-- [ ] 47-04-PLAN.md — PLAYER-02 (DV-2/Q4): T-A/T-B/T-C headless guards + DV-2 ROADMAP/REQUIREMENTS rewording + 47-VALIDATION coherent rewrite *(PLAYER-02)*
+- [x] 47-03-PLAN.md — PLAYER-02 (DV-1/DV-1a/DV-NOTE): dual-runtime viewer — npm-alias trio + frozen v1.5.1 4.2-leg modal + runtimeTag routing seam + dispatcher + T-D spec *(PLAYER-02)*
+- [x] 47-04-PLAN.md — PLAYER-02 (DV-2/Q4): T-A/T-B/T-C headless guards + DV-2 ROADMAP/REQUIREMENTS rewording + 47-VALIDATION coherent rewrite *(PLAYER-02)*
 - [ ] 47-05-PLAN.md — PLAYER-02 (DV-3/D-02/D-08): DV-3-matrix 47-HUMAN-UAT revision + the blocking owner checkpoint:human-action live-UAT (gates v1.6 close, D-01) + in-place flip of 41-HUMAN-UAT.md (subsumes 47-02 Tasks 2-3) *(PLAYER-02)*
 > 47-02-PLAN.md is SUPERSEDED by the DV-1..DV-3 gap re-discussion (its D-09-matrix 47-HUMAN-UAT.md is re-authored to the DV-3 matrix in 47-05; its owner-checkpoint + 41-flip Tasks are subsumed by 47-05). 47-01 is unchanged (the 4.3 leg).
 **UI hint**: no (D-07 overturned the speculative pre-scout `UI hint: yes` — Phase 47 is `--skip-ui`: a dependency bump + 1:1 import migration + regression of the *existing* viewer; the visual acceptance contract is the 5-UAT + GL-alpha owner checkpoint, not a UI-SPEC)
@@ -207,7 +207,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 2/5 | In Progress|  |
+| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 3/5 | In Progress|  |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 

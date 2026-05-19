@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-19T08:33:00.000Z"
-last_activity: 2026-05-19 -- 47-03 COMPLETE (DV-1 dual-runtime viewer + GA-1 @ts-nocheck amendment)
+last_updated: "2026-05-19T08:49:30.000Z"
+last_activity: 2026-05-19 -- 47-04 COMPLETE (T-A/T-B/T-C dual-runtime headless guards + DV-2 reword + 47-VALIDATION coherent rewrite)
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 24
-  completed_plans: 21
+  total_plans: 25
+  completed_plans: 22
   percent: 88
 ---
 
@@ -18,11 +18,13 @@ progress:
 ## Current Position
 
 Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — EXECUTING
-Plan: 47-03 COMPLETE — next 47-04 (wave 4)
-Status: Executing Phase 47 (DV-1 dual-runtime viewer landed; GA-1 amendment locked)
-Last activity: 2026-05-19 -- 47-03 COMPLETE (DV-1 dual-runtime viewer + GA-1 @ts-nocheck amendment)
+Plan: 47-04 COMPLETE — next 47-05 (wave 5, blocking owner checkpoint)
+Status: Executing Phase 47 (dual-runtime viewer landed + machine-guarded; only the owner visual UAT remains)
+Last activity: 2026-05-19 -- 47-04 COMPLETE (T-A/T-B/T-C dual-runtime headless guards + DV-2 reword + 47-VALIDATION coherent rewrite)
 
-Next: **`/gsd-execute-phase 47` — continue the 3-wave gap closure: 47-04 (wave 4, depends 47-03) → 47-05 (wave 5, blocking owner checkpoint).** **v1.6 milestone close remains HELD per D-01 (STRICT, no revert fallback)** — on the 47-05 blocking owner `checkpoint:human-action`, against the DV-3 matrix.
+Next: **`/gsd-execute-phase 47` — run the final wave: 47-05 (wave 5, depends 47-03+47-04, autonomous:false, MAIN-TREE-SEQUENTIAL).** **v1.6 milestone close remains HELD per D-01 (STRICT, no revert fallback)** — on the 47-05 blocking owner `checkpoint:human-action`, against the DV-3 matrix.
+
+**47-04 DONE (DV-2/Q4 — the machine half of PLAYER-02):** `c3e676a` Task 1 (T-A `tests/runtime/reg4701-buildsummary-handoff.spec.ts` — the deleted REG-47-01 `_dbg-` throwaway is now a permanent git-tracked cross-runtime-handoff guard; drives the full `loadSkeleton→sampleSkeleton→buildSummary` chain; 4.3 no `reading 'r'` + `runtimeTag` 4.3, 4.2 control `runtimeTag` 4.2; GREEN 2/2) → `a9170ef` Task 2 (T-B `dual-viewer-routing.spec.ts` jsdom — resolution arm: `spine-player-42`→spine-core@4.2.111 lacking `Slider`/`BonePose` vs canonical 4.3.0; dispatcher arm: `runtimeTag` `4.2`→`AnimationPlayerModal42`/`4.3`→migrated, + a router-source no-re-detection guard; T-C `dv1-42-parse-guard.spec.ts` node — all 4 DV-3 fixtures (SIMPLE_TEST path / CHJWC transform / TQORW ik+transform+events / TEST_03 ik+transform+physics) parse CLEAN via spine-player-42 bare core AND THROW via canonical 4.3.0; GREEN 14/14) → `4c6aad5` Task 3 (DV-2 reword PLAYER-02 in ROADMAP SC#2 + REQUIREMENTS + Traceability — SAME ID, no PLAYER-03, the GL-straight-alpha + 5-carried-UAT clauses preserved verbatim-in-substance, the falsified single-runtime wording removed; ROADMAP Phase 47 plan-list re-sequenced to 47-01/03/04/05 + the explicit 47-02-SUPERSEDED note; `47-VALIDATION.md` coherently REWRITTEN — superseded D-09 Plan-02 Per-Task rows + the falsified single-runtime-4.3-player Manual-Only rows REPLACED by the RESEARCH-§7 T-A..T-D + DV-3 owner-checkpoint rows, the 47-01 PLAYER-01 rows retained, DV-NOTE rows use the AMENDED `@ts-nocheck` wording; grep `47-02-0`==0 AND `through the 4.3 player`==0 in all 3 docs). **2 Rule-3 in-scope auto-fixes** (T-C real sibling AtlasAttachmentLoader over the plan's permitted "null/AtlasAttachmentLoader" branch; DV-2/47-VALIDATION meta-prose reworded so the forbidden literal substrings are file-wide absent). **Blast-radius PASS — `git diff --name-only 08fa8fd..HEAD` = exactly the 3 new `tests/runtime/*.spec.ts` + `.planning/ROADMAP.md` + `.planning/REQUIREMENTS.md` + `47-VALIDATION.md`; ZERO `src/`, zero bundler/tsconfig/dependency/CSP/CORS.** Full `npx vitest run` 138 files / 1371 passed / 0 failures — no NEW failures vs the 47-03 post-state (the documented MixBlend import suites are green here). Full record in `47-04-SUMMARY.md`. ROADMAP `roadmap.update-plan-progress 47 47-04 complete` → updated (summary_count 3/5). gsd-sdk `state.*` session/decision handlers benign-no-op on this hand-written STATE.md (memory `project_gsd_sdk_state_session_fields_absent`) — metrics/decisions captured authoritatively in `47-04-SUMMARY.md`.
 
 **47-03 DONE (DV-1/DV-1a/DV-NOTE — the dual-runtime viewer implementation half):** `325a6d2` Task 1 (npm-alias trio `spine-player-42`/`spine-webgl-42` nesting 4.2.111 player→webgl→core off canonical 4.3.0, lockfile-verified; `SkeletonSummary.runtimeTag` REQUIRED field ← `load.runtime.tag`) → `c1a3672` Task 2 (byte-verbatim frozen v1.5.1 `AnimationPlayerModal42.tsx` via `git show 9f967d2:` redirect+2-seds + owner-sanctioned `@ts-nocheck` sentinel; `AnimationPlayerModalRouter` dispatches purely on `summary.runtimeTag`; AppShell mounts the router) → `85488b7` Task 3 (T-D `animation-player-modal-42.spec.tsx`, GREEN 22/22) → `0f83c83` Rule-1 (retarget the Phase-41 AppShell wiring guard to the router — direct consequence of the plan-mandated rewiring). **GA-1 FALSIFIED + owner-resolved:** the literal v1.5.1 modal carries 11 strict-TS errors INTRINSIC to its own genuine 4.2.111 surface (v1.5.1 shipped green on tests+runtime, never strict `typecheck:web`; NOT 4.3 type-bleed — alias isolation verified, 0 errors outside the frozen file). OWNER decided (AskUserQuestion 2026-05-19) the **`@ts-nocheck` sentinel** option; **DV-NOTE re-scoped to "byte-verbatim body + 2 seds + 1 sanctioned `@ts-nocheck` sentinel"** — dated amendment APPENDED to `47-CONTEXT.md` (downstream 47-04/47-05 must consume the amended wording, no relitigation; the 47-05 owner UAT remains the binding visual gate per D-02). Blast-radius all PASS: zero `src/core/`; 4.3 leg (`6b3c57e`/`e08a2a3`) byte-untouched; no CSP/CORS; no bundler/tsconfig alias; `typecheck:web` 0; renderer suite 42 files/323 passed/0 failures. Full record in `47-03-SUMMARY.md`. ROADMAP `roadmap.update-plan-progress 47 47-03 complete` → updated (summary_count 2/5). gsd-sdk `state.*` session/decision handlers benign-no-op on this hand-written STATE.md (memory `project_gsd_sdk_state_session_fields_absent`) — metrics/decisions captured authoritatively in `47-03-SUMMARY.md`.
 
