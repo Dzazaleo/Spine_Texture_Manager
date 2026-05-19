@@ -1,0 +1,21 @@
+# Deterministic line endings for cross-platform byte-identity test gates.
+#
+# Windows CI runners default to core.autocrlf=true. Without this file the
+# committed-LF text fixtures get checked out with CRLF on Windows, which
+# breaks SHA256 / byte-identity assertions:
+#   - tests/main/repack.loose-parity.spec.ts  (SIMPLE_TEST.atlas baseline)
+#   - tests/fixtures/repack-baselines.json     (hash baselines)
+#   - fixtures/SLIDER_4_3/NOTES.txt            (slider triangulation)
+# Scoped to the fixture/baseline text types on purpose (no repo-wide
+# `* text=auto`) so this never triggers a surprise mass renormalization.
+# Image assets are marked binary so they are never EOL/encoding-normalized
+# (protects the PNG SHA256 baselines).
+
+*.atlas  text eol=lf
+*.json   text eol=lf
+*.txt    text eol=lf
+
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.webp   binary

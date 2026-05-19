@@ -34,6 +34,10 @@ describe('CLI runtime — GAP-43-CLI-SEAM resolver falsifier', () => {
           encoding: 'utf8',
           timeout: 90_000,
           stdio: ['ignore', 'pipe', 'pipe'],
+          // Windows: the `npx` binary is `npx.cmd`; execFileSync without a
+          // shell ENOENTs. shell:true makes Windows resolve it via cmd.exe
+          // and is a benign no-op on POSIX (args have no shell metachars).
+          shell: true,
         });
       } catch (e) {
         // execFileSync throws on non-zero exit; capture stdout+stderr so the

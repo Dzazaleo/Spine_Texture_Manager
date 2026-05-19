@@ -1007,7 +1007,10 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     // but per-row is skipped in atlas mode). Use a default impl that
     // resolves for atlas sentinels and rejects for anything else.
     vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
-      const pathStr = typeof p === 'string' ? p : String(p);
+      // Normalize separators: the product builds probe paths with path.join,
+      // so on Windows it passes `\`-separated paths to access(); the mock's
+      // `endsWith('a/b')` checks below assume `/`. No-op on POSIX.
+      const pathStr = (typeof p === 'string' ? p : String(p)).replace(/\\/g, '/');
       if (
         pathStr.endsWith('test_repack/test_repack.png') ||
         pathStr.endsWith('test_repack/test_repack.atlas')
@@ -1053,7 +1056,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
       );
       // Loose-mode per-row paths must NOT appear (atlas-only mode).
       expect(
-        result.conflicts.some((c) => c.endsWith('images/CIRCLE.png')),
+        result.conflicts.some((c) => c.replace(/\\/g, '/').endsWith('images/CIRCLE.png')),
       ).toBe(false);
     }
   });
@@ -1062,7 +1065,10 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const fsPromises = await import('node:fs/promises');
     // Atlas page 0 sentinel + 2 multi-page entries on disk.
     vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
-      const pathStr = typeof p === 'string' ? p : String(p);
+      // Normalize separators: the product builds probe paths with path.join,
+      // so on Windows it passes `\`-separated paths to access(); the mock's
+      // `endsWith('a/b')` checks below assume `/`. No-op on POSIX.
+      const pathStr = (typeof p === 'string' ? p : String(p)).replace(/\\/g, '/');
       if (pathStr.endsWith('test_repack.png')) {
         return undefined as unknown as void;
       }
@@ -1123,7 +1129,10 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     // The probe must skip atlas-mode derivation entirely; loose-mode per-row
     // paths under outDir/images/ are the only thing checked.
     vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
-      const pathStr = typeof p === 'string' ? p : String(p);
+      // Normalize separators: the product builds probe paths with path.join,
+      // so on Windows it passes `\`-separated paths to access(); the mock's
+      // `endsWith('a/b')` checks below assume `/`. No-op on POSIX.
+      const pathStr = (typeof p === 'string' ? p : String(p)).replace(/\\/g, '/');
       if (
         pathStr.endsWith('test_repack/test_repack.png') ||
         pathStr.endsWith('test_repack/test_repack.atlas')
@@ -1174,7 +1183,10 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
     const fsPromises = await import('node:fs/promises');
     // BOTH the atlas sentinels AND the loose per-row path exist on disk.
     vi.mocked(fsPromises.access).mockImplementation(async (p: unknown) => {
-      const pathStr = typeof p === 'string' ? p : String(p);
+      // Normalize separators: the product builds probe paths with path.join,
+      // so on Windows it passes `\`-separated paths to access(); the mock's
+      // `endsWith('a/b')` checks below assume `/`. No-op on POSIX.
+      const pathStr = (typeof p === 'string' ? p : String(p)).replace(/\\/g, '/');
       if (
         pathStr.endsWith('test_repack/test_repack.png') ||
         pathStr.endsWith('test_repack/test_repack.atlas') ||
@@ -1214,7 +1226,7 @@ describe('handleProbeExportConflicts + handleStartExport overwrite flag (Gap-Fix
       // All three present.
       expect(result.conflicts.some((c) => c.endsWith('test_repack.png'))).toBe(true);
       expect(result.conflicts.some((c) => c.endsWith('test_repack.atlas'))).toBe(true);
-      expect(result.conflicts.some((c) => c.endsWith('images/CIRCLE.png'))).toBe(
+      expect(result.conflicts.some((c) => c.replace(/\\/g, '/').endsWith('images/CIRCLE.png'))).toBe(
         true,
       );
     }

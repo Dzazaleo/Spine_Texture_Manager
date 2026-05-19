@@ -163,6 +163,10 @@ describe('sampler-worker — Wave 1 spawn smoke (GAP-43-PROD-SEAM falsifier)', (
         cwd: pathResolve(__dirname, '../..'),
         stdio: 'ignore',
         timeout: 240_000,
+        // Windows: `npx` is `npx.cmd`; execFileSync without a shell ENOENTs
+        // (→ build never runs → worker .cjs not emitted → hard-fail). shell:true
+        // resolves it via cmd.exe; benign no-op on POSIX.
+        shell: true,
       });
     } catch {
       // Expected: non-zero exit on the Phase-47 spine-player MixBlend abort,
