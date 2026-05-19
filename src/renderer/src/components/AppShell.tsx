@@ -64,7 +64,7 @@ import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
-import { AnimationPlayerModal } from '../modals/AnimationPlayerModal';
+import { AnimationPlayerModalRouter } from '../modals/AnimationPlayerModalRouter';
 import { SaveQuitDialog, type SaveQuitDialogProps } from '../modals/SaveQuitDialog';
 import { SettingsDialog } from '../modals/SettingsDialog';
 import { HelpDialog } from '../modals/HelpDialog';
@@ -2543,7 +2543,7 @@ export function AppShell({
           Project-change cleanup (VIEWER-08 — Pitfall 6) is handled by the
           [summary]-keyed useEffect inserted near the localSummary reset. */}
       {animationViewerOpen && (
-        <AnimationPlayerModal
+        <AnimationPlayerModalRouter
           open={true}
           summary={effectiveSummary}
           loaderMode={loaderMode}
