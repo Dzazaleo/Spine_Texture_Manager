@@ -32,7 +32,9 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "sharp": "^0.34.5",
-    "spine-core-42": "npm:@esotericsoftware/spine-core@4.2.111"
+    "spine-core-42": "npm:@esotericsoftware/spine-core@4.2.111",
+    "spine-player-42": "npm:@esotericsoftware/spine-player@4.2.111",
+    "spine-webgl-42": "npm:@esotericsoftware/spine-webgl@4.2.111"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",

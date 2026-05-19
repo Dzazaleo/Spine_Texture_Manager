@@ -789,6 +789,16 @@ export interface SkeletonSummary {
    * Re-queried atomically on every load and resample.
    */
   hasImagesDir: boolean;
+  /**
+   * DV-1a (Phase 47 gap) — the loader-resolved runtime tag, sourced from
+   * load.runtime.tag (src/core/runtime). The Animation Viewer dispatcher
+   * routes on THIS explicit identity (4.2 → frozen spine-player@4.2.111
+   * modal, 4.3 → migrated spine-player@4.3.0 modal) and MUST NOT re-detect
+   * the version from the JSON. Required (compile-time routing contract —
+   * locks feedback_explicit_identity_over_inference; same bug-class as
+   * REG-47-01's cross-runtime handoff).
+   */
+  runtimeTag: '4.2' | '4.3';
   bones: { count: number; names: string[] };
   slots: { count: number };
   /** Count + per-class-name bucket (e.g. {RegionAttachment: 3, MeshAttachment: 1}). */

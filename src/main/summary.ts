@@ -543,6 +543,13 @@ export function buildSummary(
   return {
     skeletonPath: load.skeletonPath,
     atlasPath: load.atlasPath,
+    // DV-1a (Phase 47 gap) — the loader-resolved runtime tag, threaded
+    // explicitly from the already-bound `rt` (= load.runtime, bound at the
+    // REG-47-01 fix ~line 325, null-guarded above). The Animation Viewer
+    // dispatcher routes on THIS explicit identity, never re-detecting the
+    // version (locks feedback_explicit_identity_over_inference; same
+    // bug-class as REG-47-01's cross-runtime handoff). Purely additive.
+    runtimeTag: rt.tag,
     bones: {
       count: skeletonData.bones.length,
       names: skeletonData.bones.map((b) => b.name),
