@@ -71,7 +71,7 @@ import {
   SpineLoaderError,
   SpineVersionUnsupportedError,
 } from '../../src/core/errors.js';
-import { handleRuntime } from '../../src/core/runtime/types.js';
+import { handleRuntime, type OpaqueSkeletonData } from '../../src/core/runtime/types.js';
 
 const FIXTURE_38 = path.resolve('fixtures/SPINE_3_8_TEST/SPINE_3_8_TEST.json');
 const FIXTURE_42 = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
@@ -173,7 +173,7 @@ describe('Phase 44 DISP-01/03 (D-11): loadSkeleton ROUTES a STABLE Spine 4.3 fix
     // skeletonData handle (__rt, read via handleRuntime). A 4.3-routed load
     // MUST be branded by the 4.3 runtime — this is the dispatch-target proof
     // (not merely "did not throw").
-    expect(handleRuntime(load.skeletonData)).toBe('4.3');
+    expect(handleRuntime(load.skeletonData as unknown as OpaqueSkeletonData)).toBe('4.3');
   });
 
   it('the routed LoadResult is fully populated (parsed via the 4.3 runtime, not rejected)', () => {
@@ -214,7 +214,7 @@ describe('Phase 44 DISP-01/03 (D-11): loadSkeleton ROUTES a STABLE Spine 4.3 fix
     // dispatch flip must not collaterally mis-route the 4.2 golden).
     expect(() => loadSkeleton(FIXTURE_42)).not.toThrow();
     const load = loadSkeleton(FIXTURE_42);
-    expect(handleRuntime(load.skeletonData)).toBe('4.2');
+    expect(handleRuntime(load.skeletonData as unknown as OpaqueSkeletonData)).toBe('4.2');
   });
 });
 

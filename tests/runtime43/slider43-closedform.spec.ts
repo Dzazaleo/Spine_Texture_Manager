@@ -36,6 +36,16 @@ import { buildLoadSlider43, sample } from './baseline-driver.js';
 // @esotericsoftware/spine-core@4.3.0 through the UNCHANGED
 // updateWorldTransform('update') path.
 const PHASE_46_BASE_SHA = '1a2016f';
+// Upper bound is PINNED to Phase 46's completion commit (ed6d124,
+// `docs(phase-46): evolve PROJECT.md`), symmetric to the base
+// (1a2016f = the docs(phase-45) completion commit). The original plan
+// diffed `BASE..HEAD`, which is a time-bomb: this is a permanently
+// installed regression test, but `..HEAD` made the assertion fail forever
+// the instant ANY later phase touched src/core/ (e7db8fe/2ff135a/etc. all
+// legitimately did). The SC#2 proof is a HISTORICAL fact about Phase 46's
+// own diff, so it must be bounded to Phase 46's commit range. ed6d124 is a
+// permanent ancestor of HEAD — this range is now immutable and correct.
+const PHASE_46_END_SHA = 'ed6d124';
 
 const NOTES_TXT = path.resolve(__dirname, '..', '..', 'fixtures/SLIDER_4_3/NOTES.txt');
 
@@ -159,7 +169,7 @@ describe('SLIDER_4_3 closed-form (SLIDER-02 — peak == hand-derived 4.0; D-05 t
     // SC#2 proof is invalidated.
     const changed = execFileSync(
       'git',
-      ['diff', '--name-only', PHASE_46_BASE_SHA + '..HEAD', '--', 'src/core/'],
+      ['diff', '--name-only', PHASE_46_BASE_SHA + '..' + PHASE_46_END_SHA, '--', 'src/core/'],
       { cwd: path.resolve(__dirname, '..', '..'), encoding: 'utf8' },
     )
       .split('\n')

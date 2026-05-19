@@ -60,7 +60,7 @@ import {
 // that drives the GATED loader so we prove the dispatch ROUTES a 4.3 file
 // instead of rejecting it.
 import { loadSkeleton } from '../../src/core/loader.js';
-import { handleRuntime } from '../../src/core/runtime/types.js';
+import { handleRuntime, type OpaqueSkeletonData } from '../../src/core/runtime/types.js';
 
 const REPO_ROOT = resolve(__dirname, '..', '..');
 
@@ -242,7 +242,7 @@ describe('Phase 44 D-11: the GATED loader ROUTES the committed 4.3 leg (skeleton
     // Dispatch-target proof: the LoadResult's opaque skeletonData handle
     // carries the threaded runtime identity (__rt). A 4.3-routed load MUST
     // be branded by the 4.3 runtime — not merely "did not throw".
-    expect(handleRuntime(load.skeletonData)).toBe('4.3');
+    expect(handleRuntime(load.skeletonData as unknown as OpaqueSkeletonData)).toBe('4.3');
 
     // Same structural "parsed, not rejected" proof the direct arm uses
     // (bones[]/skins[] non-empty) so the route+parse evidence is consistent.

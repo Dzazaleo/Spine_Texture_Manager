@@ -253,6 +253,10 @@ function makeSummary(
     hasImagesDir: false,
     elapsedMs: 0,
     editorFps: 30,
+    // Phase 47 RT-02 — required runtimeTag on SkeletonSummary. Drift-helper
+    // tests don't exercise runtime identity; inert '4.2' stub satisfies the
+    // contract.
+    runtimeTag: '4.2',
   } as SkeletonSummary;
 }
 

@@ -11,7 +11,33 @@
     "scripts/**/*.ts",
     "tests/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "out", "release", "temp", "coverage"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out",
+    "release",
+    "temp",
+    "coverage",
+    // Renderer-integration spec: statically imports the React router
+    // (AnimationPlayerModalRouter.tsx → AnimationPlayerModal*.tsx → useFocusTrap.ts),
+    // all DOM code. This no-DOM node program (lib: ES2022, types: node) cannot
+    // typecheck it. It is a .ts file so it falls into the tests/**/*.ts glob;
+    // every other renderer test is .spec.tsx and already outside both tsc
+    // programs (vitest-only). Keep this one consistent with that convention.
+    "tests/runtime/dual-viewer-routing.spec.ts",
+    // v1.0-era ad-hoc debug entrypoints (scripts/probe-*.ts,
+    // diagnose-cam-physics.ts). Not product code, not tests, not run in CI,
+    // not imported by anything. They were written against the old spine-ts
+    // API and have drifted hard against the 4.3 runtime types. Scratch
+    // tooling is intentionally not type-gated; cli.ts and
+    // register-esm-adapter-resolver.ts (real scripts) stay checked.
+    "scripts/probe-*.ts",
+    "scripts/diagnose-cam-physics.ts",
+    // Gitignored local scratch (vitest --trace scratchpad). Never in a
+    // fresh clone so CI never sees it; this guard keeps local
+    // typecheck:node == CI instead of reddening on throwaway trace files.
+    "tests/_trace_tmp/**"
+  ],
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
