@@ -1,6 +1,16 @@
 /**
  * Phase 41 — AppShell Animation Viewer wiring source-grep tests.
  *
+ * Phase 47 DV-1 amendment (47-03, 2026-05-19): the Animation Viewer became
+ * DUAL-RUNTIME. AppShell no longer mounts <AnimationPlayerModal> directly —
+ * it mounts <AnimationPlayerModalRouter> (the runtimeTag dispatcher: 4.2 →
+ * frozen v1.5.1 spine-player@4.2.111 modal, 4.3 → 47-01 migrated
+ * spine-player@4.3.0 modal). The 3 wiring-contract assertions ((1) import,
+ * (9) mount props, (10) mount ordering) are retargeted to the router; the
+ * behavioral invariants they guard (identical props pass-through, mount AFTER
+ * <AtlasPreviewModal>) are PRESERVED — the router takes the byte-identical
+ * prop contract. The other 10 assertions are router-agnostic, byte-unchanged.
+ *
  * Mirrors tests/renderer/app-shell-atlas-state.spec.tsx (Plan 40-07 pattern).
  * AppShell.tsx is too large (2500+ lines) for jsdom render; instead we read
  * the file as text and run regex assertions against the 7 insertion sites
@@ -23,10 +33,10 @@ function appShellSource(): string {
 }
 
 describe('Phase 41 — AppShell Animation Viewer wiring', () => {
-  it("(1) imports AnimationPlayerModal from '../modals/AnimationPlayerModal'", () => {
+  it("(1) imports AnimationPlayerModalRouter from '../modals/AnimationPlayerModalRouter' (Phase 47 DV-1 dual-runtime dispatcher)", () => {
     const src = appShellSource();
     expect(
-      /import\s+\{\s*AnimationPlayerModal\s*\}\s+from\s+['"]\.\.\/modals\/AnimationPlayerModal['"]/.test(src),
+      /import\s+\{\s*AnimationPlayerModalRouter\s*\}\s+from\s+['"]\.\.\/modals\/AnimationPlayerModalRouter['"]/.test(src),
     ).toBe(true);
   });
 
@@ -92,20 +102,20 @@ describe('Phase 41 — AppShell Animation Viewer wiring', () => {
     expect(animationViewerIdx).toBeLessThan(documentationIdx);
   });
 
-  it('(9) <AnimationPlayerModal> mount has summary={effectiveSummary} + loaderMode={loaderMode} + onClose', () => {
+  it('(9) <AnimationPlayerModalRouter> mount has summary={effectiveSummary} + loaderMode={loaderMode} + onClose (DV-1 — identical prop contract)', () => {
     const src = appShellSource();
     expect(
-      /<AnimationPlayerModal[\s\S]{0,400}summary=\{effectiveSummary\}[\s\S]{0,400}loaderMode=\{loaderMode\}/.test(src),
+      /<AnimationPlayerModalRouter[\s\S]{0,400}summary=\{effectiveSummary\}[\s\S]{0,400}loaderMode=\{loaderMode\}/.test(src),
     ).toBe(true);
     expect(
-      /<AnimationPlayerModal[\s\S]{0,600}onClose=\{\s*\(\s*\)\s*=>\s*setAnimationViewerOpen\(\s*false\s*\)\s*\}/.test(src),
+      /<AnimationPlayerModalRouter[\s\S]{0,600}onClose=\{\s*\(\s*\)\s*=>\s*setAnimationViewerOpen\(\s*false\s*\)\s*\}/.test(src),
     ).toBe(true);
   });
 
-  it('(10) <AnimationPlayerModal> JSX appears AFTER <AtlasPreviewModal> in source', () => {
+  it('(10) <AnimationPlayerModalRouter> JSX appears AFTER <AtlasPreviewModal> in source', () => {
     const src = appShellSource();
     const atlasModalIdx = src.indexOf('<AtlasPreviewModal');
-    const viewerModalIdx = src.indexOf('<AnimationPlayerModal');
+    const viewerModalIdx = src.indexOf('<AnimationPlayerModalRouter');
     expect(atlasModalIdx).toBeGreaterThan(-1);
     expect(viewerModalIdx).toBeGreaterThan(-1);
     expect(viewerModalIdx).toBeGreaterThan(atlasModalIdx);
