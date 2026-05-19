@@ -37,7 +37,7 @@
  * it is the DV-RISK-1 distinctness/parse probe, NOT a repoint target.
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 // The alias-isolated 4.2.111 player; its bare `@esotericsoftware/spine-core`
 // import resolves to the NESTED 4.2.111 core (DV-1; verified 47-RESEARCH §1).
@@ -87,8 +87,22 @@ function readFixture(base: string): { json: unknown; atlasText: string } {
   };
 }
 
+// Fixture-presence partition. CHJWC_SYMBOLS / TQORW_SYMBOLS / TEST_03 are real
+// client Spine projects deliberately gitignored — present on a maintainer's
+// machine, ABSENT on a clean CI clone. SIMPLE_TEST is the committed in-repo
+// golden and is always present, so the DV-RISK-1 split is STILL guarded on CI
+// for that fixture; the client rigs run the guard locally and self-skip on CI
+// (visible as skipped, not silently dropped). User-chosen 2026-05-19 over
+// publishing client art to a public repo. See memory
+// feedback_gitignore_fixtures_check_test_refs.
+const fixturePresent = (base: string): boolean =>
+  existsSync(resolve(REPO_ROOT, base + '.json')) &&
+  existsSync(resolve(REPO_ROOT, base + '.atlas'));
+const PRESENT_FIXTURES = DV3_FIXTURES.filter((f) => fixturePresent(f.base));
+const ABSENT_FIXTURES = DV3_FIXTURES.filter((f) => !fixturePresent(f.base));
+
 describe('Phase 47 T-C: DV-3 4.2 constraint-mix fixtures — clean via spine-player-42, throw via canonical 4.3 (DV-RISK-1 standing guard)', () => {
-  it.each(DV3_FIXTURES)(
+  it.each(PRESENT_FIXTURES)(
     '$name ($constraintMix): parses CLEAN through spine-player-42 bare core',
     ({ base }) => {
       const { json, atlasText } = readFixture(base);
@@ -120,7 +134,7 @@ describe('Phase 47 T-C: DV-3 4.2 constraint-mix fixtures — clean via spine-pla
     },
   );
 
-  it.each(DV3_FIXTURES)(
+  it.each(PRESENT_FIXTURES)(
     '$name ($constraintMix): THROWS through canonical @esotericsoftware/spine-core@4.3.0 (the gap is real)',
     ({ base }) => {
       const { json, atlasText } = readFixture(base);
@@ -138,6 +152,16 @@ describe('Phase 47 T-C: DV-3 4.2 constraint-mix fixtures — clean via spine-pla
           'constraint fixture — if it ever parses clean the proven gap has ' +
           'changed and the DV-1 dual-runtime premise must be re-validated',
       ).toThrow();
+    },
+  );
+
+  // Absent (gitignored client rig, not on CI) — emitted as explicit skips so
+  // the report shows them rather than silently dropping coverage. Empty (no
+  // registration) on a maintainer machine where all fixtures are present.
+  it.skip.each(ABSENT_FIXTURES)(
+    '$name ($constraintMix): SKIPPED — gitignored client fixture absent (runs locally only)',
+    () => {
+      /* fixture not in repo; guarded locally where present */
     },
   );
 
