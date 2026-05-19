@@ -419,6 +419,41 @@ async function buildAssetFeed(
   return { skeletonUrl, atlasUrl: 'synthetic.atlas', rawDataURIs };
 }
 
+/**
+ * Initial-skin policy (2026-05-19 amendment, AskUserQuestion — supersedes the
+ * prior skins[0] default in BOTH viewer legs).
+ *
+ * spine-core stores skins in JSON order, so skins[0] is the project's
+ * authored "default" skin. On a skin-driven rig (every body part lives in a
+ * named skin; `default` holds only skin-independent extras — e.g.
+ * fixtures/DEMON, whose `default` is a single small horn) opening on skins[0]
+ * renders a near-blank canvas. Instead we open on the FULLEST skin — the one
+ * declaring the most attachments — with ties broken by JSON order (strict `>`
+ * ⇒ first-wins). For a conventional rig (all art in `default`) `default` has
+ * the most attachments so this is a no-op; only skin-driven rigs change.
+ * availableSkins still lists every skin in JSON order — only the initial
+ * selection moves. Structurally typed (not the spine `Skin` import) so the
+ * exact-same helper drops into the @ts-nocheck'd 4.2 leg unchanged.
+ */
+function pickInitialSkin(
+  skins: ReadonlyArray<{
+    name: string;
+    getAttachments(): ReadonlyArray<unknown>;
+  }>,
+): string {
+  if (skins.length === 0) return '';
+  let best = skins[0];
+  let bestCount = best.getAttachments().length;
+  for (let i = 1; i < skins.length; i++) {
+    const count = skins[i].getAttachments().length;
+    if (count > bestCount) {
+      best = skins[i];
+      bestCount = count;
+    }
+  }
+  return best.name;
+}
+
 export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -641,10 +676,15 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
           setAvailableAnimations(animations);
           setAvailableSkins(skins);
           const initialAnim = animations[0] ?? '';
-          const initialSkin = skins[0] ?? '';
+          // 2026-05-19 amendment: open on the FULLEST skin, not skins[0]. The
+          // JSON-order skins[0] is the authored "default" skin, which on
+          // skin-driven rigs holds only skin-independent extras → near-blank
+          // canvas. pickInitialSkin = most-attachments, JSON-order tiebreak
+          // (a no-op for conventional rigs whose `default` is the fullest).
+          const initialSkin = pickInitialSkin(p.skeleton.data.skins);
           setActiveAnimation(initialAnim);
           setActiveSkin(initialSkin);
-          // Default open state per D-04b: first animation + first skin +
+          // Default open state per D-04b: first animation + fullest skin +
           // play + loop on. setSkin THEN setupPoseSlots per Pattern 3
           // (4.3 setSkin JSDoc mandates setupPoseSlots after setSkin;
           // without it, attachments from a prior skin remain bound to slots

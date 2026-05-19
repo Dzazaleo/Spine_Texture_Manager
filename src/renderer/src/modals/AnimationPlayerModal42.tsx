@@ -9,7 +9,10 @@
 // 3rd transform per the 47-03 GA-1 escalation (AskUserQuestion 2026-05-19):
 // DV-NOTE re-scoped to "byte-verbatim body + 2 seds + 1 @ts-nocheck sentinel".
 // Visual correctness is the binding contract of the 47-05 owner UAT
-// (CONTEXT D-02), not tsc. Zero behavioral drift; body is byte-verbatim.
+// (CONTEXT D-02), not tsc. The body was byte-verbatim; it now carries owner-
+// sanctioned behavioral amendments shared verbatim with the 4.3 leg: the
+// `f N` frame-readout and the fullest-skin initial-pick (both 2026-05-19,
+// AskUserQuestion — the latter supersedes the skins[0] open default).
 /**
  * Phase 41 — Spine Animation Viewer modal.
  *
@@ -379,6 +382,34 @@ async function buildAssetFeed(
   return { skeletonUrl, atlasUrl: 'synthetic.atlas', rawDataURIs };
 }
 
+/**
+ * Initial-skin policy — owner-sanctioned 2026-05-19 amendment, byte-identical
+ * to the 4.3 leg's pickInitialSkin (AnimationPlayerModal.tsx). Open on the
+ * FULLEST skin (most attachments, JSON-order tiebreak via strict `>`) instead
+ * of skins[0]: skins[0] is the authored "default" skin, which on skin-driven
+ * rigs holds only skin-independent extras → near-blank canvas. No-op for
+ * conventional rigs whose `default` is the fullest skin. availableSkins still
+ * lists every skin in JSON order; only the initial selection moves.
+ */
+function pickInitialSkin(
+  skins: ReadonlyArray<{
+    name: string;
+    getAttachments(): ReadonlyArray<unknown>;
+  }>,
+): string {
+  if (skins.length === 0) return '';
+  let best = skins[0];
+  let bestCount = best.getAttachments().length;
+  for (let i = 1; i < skins.length; i++) {
+    const count = skins[i].getAttachments().length;
+    if (count > bestCount) {
+      best = skins[i];
+      bestCount = count;
+    }
+  }
+  return best.name;
+}
+
 export function AnimationPlayerModal42(props: AnimationPlayerModal42Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -571,10 +602,13 @@ export function AnimationPlayerModal42(props: AnimationPlayerModal42Props) {
           setAvailableAnimations(animations);
           setAvailableSkins(skins);
           const initialAnim = animations[0] ?? '';
-          const initialSkin = skins[0] ?? '';
+          // 2026-05-19 amendment: open on the FULLEST skin, not skins[0]
+          // (skins[0] is the authored "default" skin → near-blank canvas on
+          // skin-driven rigs). Mirrors the 4.3 leg verbatim.
+          const initialSkin = pickInitialSkin(p.skeleton.data.skins);
           setActiveAnimation(initialAnim);
           setActiveSkin(initialSkin);
-          // Default open state per D-04b: first animation + first skin +
+          // Default open state per D-04b: first animation + fullest skin +
           // play + loop on. setSkinByName THEN setSlotsToSetupPose per
           // Pattern 3 (without setSlotsToSetupPose, attachments from a
           // prior skin remain bound to slots).

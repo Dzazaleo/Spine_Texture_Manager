@@ -19,7 +19,8 @@
  *                 sequence (animationState.update + apply + skeleton.update
  *                 + updateWorldTransform(2)). Scrub is now TrackEntry-driven
  *                 (Phase 47 T6 — the private play-time write-back is dropped).
- *                 Default open state is animations[0] + skins[0] + loop on.
+ *                 Default open state is animations[0] + the fullest skin
+ *                 (most attachments, JSON-order tiebreak; 2026-05-19) + loop.
  *   - VIEWER-08 — Project-change cleanup contract: useEffect dep array
  *                 includes summary identity (asserted indirectly via the
  *                 'remount on summary change' test below — Plan 03 wires
@@ -136,7 +137,14 @@ function defaultSpinePlayerImpl(_container: HTMLElement, config: any) {
     skeleton: {
       data: {
         animations: [{ name: 'idle' }, { name: 'walk' }],
-        skins: [{ name: 'default' }, { name: 'red' }],
+        // pickInitialSkin (2026-05-19 amendment) reads getAttachments().length
+        // and opens on the FULLEST skin. 'default' is authored empty here (the
+        // skin-driven-rig case, e.g. fixtures/DEMON) so the viewer must fall
+        // back to 'red' instead of the near-blank skins[0].
+        skins: [
+          { name: 'default', getAttachments: () => [] },
+          { name: 'red', getAttachments: () => [{}, {}] },
+        ],
         findAnimation: vi.fn((name: string) => ({
           name,
           duration: 1,
@@ -633,7 +641,7 @@ describe('AnimationPlayerModal — animation + skin switching (VIEWER-05)', () =
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('AnimationPlayerModal — playback transport (VIEWER-06)', () => {
-  it('default open state primes setAnimation with animations[0] + setSkin with skins[0]', async () => {
+  it('default open state primes setAnimation with animations[0] + setSkin with the fullest skin (empty skins[0] falls back)', async () => {
     render(
       <AnimationPlayerModal
         open={true}
@@ -647,9 +655,10 @@ describe('AnimationPlayerModal — playback transport (VIEWER-06)', () => {
     // First call to setAnimation should be the default ('idle', true).
     const setAnim = inst.player.setAnimation as ReturnType<typeof vi.fn>;
     expect(setAnim.mock.calls[0]).toEqual(['idle', true]);
-    // setSkin should have been called with 'default' (Phase 47 T2).
+    // 'default' is authored empty, 'red' has 2 attachments → pickInitialSkin
+    // opens on the fullest skin ('red'), not the near-blank skins[0].
     const setSkin = inst.player.skeleton.setSkin as ReturnType<typeof vi.fn>;
-    expect(setSkin.mock.calls[0]).toEqual(['default']);
+    expect(setSkin.mock.calls[0]).toEqual(['red']);
   });
 
   it('clicking the play/pause button toggles between player.play() and player.pause()', async () => {
