@@ -389,6 +389,12 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
   const [activeSkin, setActiveSkin] = useState<string>('');
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [scrubPercent, setScrubPercent] = useState<number>(0);
+  // Dopesheet-style current-frame readout (seconds → frames via
+  // SkeletonData.fps, the editor's dopesheet rate; CLAUDE.md fact #1).
+  const [currentFrame, setCurrentFrame] = useState<number>(0);
+  // Last committed integer frame — dedupes the rAF poll so React renders are
+  // bounded by the animation's frame rate, not the display refresh rate.
+  const lastFrameRef = useRef<number>(-1);
 
   // User-controlled camera (Phase 41+ — see CameraState doc). Lives in a ref
   // so the per-frame config.update reads it WITHOUT triggering React renders.
@@ -439,6 +445,8 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
     setActiveSkin('');
     setIsPaused(false);
     setScrubPercent(0);
+    setCurrentFrame(0);
+    lastFrameRef.current = -1;
     cameraRef.current = { zoom: 1, x: 0, y: 0, initialized: false };
     dragRef.current = null;
     boundsRef.current = null;
@@ -723,9 +731,42 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
     // 2 === Physics.update enum value (CLAUDE.md fact #3); the sampler uses
     // the same literal.
     p.skeleton.updateWorldTransform(2);
+    const frame = Math.round(targetTime * (p.skeleton.data.fps || 30));
+    lastFrameRef.current = frame;
+    setCurrentFrame(frame);
     setScrubPercent(percentage);
     setIsPaused(true);
   }, []);
+
+  // Live timeline poll. spine-player exposes no per-frame React hook we may
+  // use — config.update is the camera path and MUST NOT setState per frame
+  // (see the CameraState doc) — so we run our own rAF loop while the modal is
+  // open and the player is ready. It reads ONLY the public TrackEntry surface
+  // (getAnimationTime already handles looping/clamping) and commits state only
+  // when the integer frame changes, so the slider thumb and the `f N` readout
+  // advance in lock-step during playback and stay put while paused/scrubbed.
+  useEffect(() => {
+    if (!props.open || playerState !== 'ready') return;
+    let raf = 0;
+    const tick = () => {
+      const p = playerRef.current;
+      const entry = p?.animationState?.getTrack(0);
+      if (entry && entry.animation && p?.skeleton) {
+        const fps = p.skeleton.data.fps || 30;
+        const time = entry.getAnimationTime();
+        const duration = entry.animation.duration;
+        const frame = Math.round(time * fps);
+        if (frame !== lastFrameRef.current) {
+          lastFrameRef.current = frame;
+          setCurrentFrame(frame);
+          setScrubPercent(duration > 0 ? time / duration : 0);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [props.open, playerState]);
 
   // Mouse-wheel zoom, anchored to the cursor (the world point under the
   // pointer stays put). Native non-passive listener — React's onWheel is
@@ -943,6 +984,13 @@ export function AnimationPlayerModal(props: AnimationPlayerModalProps) {
             className="flex-1 ml-3"
             aria-label="Animation timeline"
           />
+
+          <span
+            className="text-xs text-fg-muted w-12 text-right tabular-nums"
+            aria-label={`Current frame ${currentFrame}`}
+          >
+            f {currentFrame}
+          </span>
         </div>
 
         {/* Zoom / pan control row. The viewer no longer auto-zooms per
