@@ -36,11 +36,9 @@
  *     UV coordinates that span the page bitmap's post-rotation extent
  *     (TextureAtlas.js:164-167).
  *   - `offsets:offsetX,offsetY,originalW,originalH` is emitted
- *     UNCONDITIONALLY for every region. Repack does NOT apply strip-
- *     whitespace, so offsetX = offsetY = 0 and originalW/H == bounds.W/H
- *     == origW/origH. We emit it explicitly (rather than relying on the
- *     parser's auto-backfill `originalWidth = region.width` at
- *     TextureAtlas.js:152-155) because that backfill propagates POST-
+ *     UNCONDITIONALLY for every region. We emit it explicitly (rather than
+ *     relying on the parser's auto-backfill `originalWidth = region.width`
+ *     at TextureAtlas.js:152-155) because that backfill propagates POST-
  *     rotation dims when bounds carries them — which then feeds into our
  *     analyzer's `actualSourceW/H` and produces asymmetric sourceRatio /
  *     single-axis shrink on the Global tab.
@@ -48,6 +46,31 @@
  *     `region.rotated === false`, OMIT the rotate line entirely (do NOT
  *     emit a rotate-false line). REPACK-06 acceptance: with rotation off,
  *     NO `.atlas` entry contains a rotate-true line.
+ *
+ * Strip-whitespace metadata round-trip (REPACK-12 — debug session
+ * `atlas-rotation-neck-oversized`, 2026-05-19):
+ *   - The `offsets:` line now carries `region.offsetX,region.offsetY,
+ *     region.origCanvasW,region.origCanvasH` — the SOURCE atlas's
+ *     strip-whitespace metadata, scaled by the same per-axis factor the
+ *     region's pixels were resized by (computed in repack-worker.ts
+ *     scaleSourceMeta). When the source atlas was Spine-exported WITH
+ *     strip-whitespace this preserves the source's original-to-packed
+ *     PROPORTION, which the runtime uses to derive render size (JSON dims ÷
+ *     originalWidth, per project_spine_4_2_atlas_json_precedence). Dropping
+ *     it (the pre-fix `offsets:0,0,packedW,packedH`) collapsed
+ *     `originalWidth` onto the trimmed+resized size — the proportion went
+ *     from `srcOrig/srcTrim` to 1.0, inflating every strip-whitespace-
+ *     trimmed region by its own trim factor (NECK: source proportion
+ *     1148/711 ≈ 1.615 → 1.0 ⇒ ~1.6× oversized; observed 1148/609 ≈
+ *     1.885× — the visible UAT bug).
+ *   - `bounds:` is UNCHANGED — still `x,y,origW,origH` (the PRE-rotation
+ *     canonical packed rect). Only the `offsets:` line changed.
+ *   - BACK-COMPAT: when the source had no strip-whitespace the worker sets
+ *     `origCanvasW===origW`, `origCanvasH===origH`, `offsetX===offsetY===0`
+ *     (repack.ts defaults), so this emits the IDENTICAL
+ *     `offsets:0,0,origW,origH` line as the pre-REPACK-12 code. The
+ *     REPACK-06 rotation byte-baseline and every non-trimmed atlas are
+ *     byte-for-byte unchanged.
  *
  * Defensive: throws if `projectName` contains `:` (would corrupt page-
  * header parsing — RESEARCH §Landmines #5).
@@ -108,16 +131,24 @@ export function buildAtlasText(input: AtlasWriterInput): string {
       // bounds:X,Y,W,H — W,H are PRE-rotation canonical dims (libgdx
       // convention, verified against Spine-exported rotated atlases). The
       // parser combines bounds with the rotate flag to span the correct
-      // page rect (TextureAtlas.js:67-71 + :164-167).
+      // page rect (TextureAtlas.js:67-71 + :164-167). UNCHANGED by
+      // REPACK-12 — strip-whitespace only affects the offsets line.
       lines.push(`bounds:${region.x},${region.y},${region.origW},${region.origH}`);
-      // offsets:offsetX,offsetY,originalW,originalH — strip-whitespace is
-      // OFF in repack, so offsets are 0,0 and originalW/H == origW/H.
-      // Emitted UNCONDITIONALLY so spine-core does NOT auto-backfill
-      // originalWidth from region.width (TextureAtlas.js:152-155). That
-      // backfill produces wrong dims when bounds != orig (e.g. for any
-      // future strip-whitespace path), and silently corrupted our
-      // analyzer's actualSourceW/H map until the 2026-05-15 fix.
-      lines.push(`offsets:0,0,${region.origW},${region.origH}`);
+      // offsets:offsetX,offsetY,originalW,originalH — REPACK-12: carry the
+      // SOURCE atlas's strip-whitespace metadata (scaled by the pixel-resize
+      // factor in repack-worker.ts). Equals 0,0,origW,origH when the source
+      // had no strip-whitespace (repack.ts defaults srcOrig*→pack*,
+      // srcOffset*→0), so this is byte-identical to the pre-fix line for
+      // every non-trimmed region (REPACK-06 rotation byte-baseline
+      // preserved). For a strip-whitespace source it preserves the source's
+      // original-to-packed proportion the runtime uses to derive render
+      // size, instead of collapsing originalWidth onto the trimmed+resized
+      // packed size. Emitted UNCONDITIONALLY so spine-core does NOT
+      // auto-backfill originalWidth from region.width
+      // (TextureAtlas.js:152-155).
+      lines.push(
+        `offsets:${region.offsetX},${region.offsetY},${region.origCanvasW},${region.origCanvasH}`,
+      );
       if (region.rotated) {
         lines.push('rotate:true');
       }

@@ -40,13 +40,64 @@
  *     present (TextureAtlas.js:152-155), which corrupts downstream peak-
  *     ratio math if we hand it post-rotation `bounds:` dims. See debug
  *     session `atlas-repack-output-bugs` (2026-05-15).
+ *
+ * Strip-whitespace metadata carry-through (REPACK-12 — debug session
+ * `atlas-rotation-neck-oversized`, 2026-05-19):
+ *   - When the SOURCE atlas was Spine-exported WITH strip-whitespace, its
+ *     region declares a logical canvas (`originalWidth/Height`) LARGER than
+ *     the trimmed packed rect, with the trimmed pixels positioned at
+ *     `offsetX/offsetY`. The repack-worker extracts ONLY the trimmed page
+ *     rect and `fit:'fill'`-resizes it to outW/outH, so the packed bytes are
+ *     the trimmed artwork stretched into the quad. Runtime render size is
+ *     governed by `region.originalWidth` vs the JSON attachment dims
+ *     (project_spine_4_2_atlas_json_precedence). If repack drops the logical
+ *     size and emits `offsets:0,0,packedW,packedH`, `originalWidth`
+ *     collapses onto the trimmed+resized size — the original→packed
+ *     PROPORTION (which the runtime preserves) goes from `srcOrig/srcTrim`
+ *     to 1.0 → the region inflates by exactly that trim factor → grossly
+ *     oversized render (NECK: source proportion 1148/711 ≈ 1.615 collapsed
+ *     to 1.0 → ~1.6× too big; observed ratio 1148/609 ≈ 1.885).
+ *   - `RepackInput` now carries `srcOrigW/srcOrigH` (the source atlas's
+ *     logical canvas dims) and `srcOffsetX/srcOffsetY` (the trim offsets),
+ *     each ALREADY scaled by the same per-axis factor the trimmed pixels
+ *     were resized by (computed in repack-worker.scaleSourceMeta), so the
+ *     emitted region is a faithful resized replica of the source region —
+ *     the original→packed proportion (and thus the render size) is
+ *     PRESERVED across repack.
+ *   - When the source had NO strip-whitespace, the worker passes
+ *     `srcOrigW===packW`, `srcOrigH===packH`, `srcOffsetX===srcOffsetY===0`,
+ *     so the atlas writer emits the SAME `offsets:0,0,packedW,packedH` line
+ *     as before — byte-identical to the pre-fix non-trimmed path (REPACK-06
+ *     rotation byte-baseline preserved).
  */
 import { MaxRectsPacker } from 'maxrects-packer';
 
 export interface RepackInput {
   regionName: string;
+  /** POST-resize trimmed page-rect width (sharp-emits-truth read-back). */
   packW: number;
+  /** POST-resize trimmed page-rect height (sharp-emits-truth read-back). */
   packH: number;
+  /**
+   * REPACK-12 — the source atlas region's LOGICAL canvas width, scaled by
+   * the same per-axis factor the trimmed pixels were resized by. Equals
+   * `packW` when the source had no strip-whitespace (then offsets are 0).
+   * The atlas writer emits this as `originalWidth` in the `offsets:` line so
+   * the source's original-to-packed proportion (which the runtime uses to
+   * derive render size) is preserved across repack. Defaults to `packW` if
+   * omitted (back-compat for synthetic test inputs).
+   */
+  srcOrigW?: number;
+  /** REPACK-12 — source logical canvas height (scaled). See srcOrigW. */
+  srcOrigH?: number;
+  /**
+   * REPACK-12 — source atlas region's libgdx bottom-left trim offsetX,
+   * scaled by the same factor as the pixels. 0 when no strip-whitespace.
+   * Defaults to 0 if omitted.
+   */
+  srcOffsetX?: number;
+  /** REPACK-12 — source trim offsetY (scaled). 0 when no strip-whitespace. */
+  srcOffsetY?: number;
 }
 
 export interface RepackOptions {
@@ -73,6 +124,19 @@ export interface RepackedRegion {
   origW: number;
   /** PRE-rotation canonical height (= the RepackInput.packH). See origW. */
   origH: number;
+  /**
+   * REPACK-12 — the source atlas region's LOGICAL canvas width (scaled by
+   * the pixel-resize factor), forwarded from RepackInput.srcOrigW. The
+   * atlas writer emits this as the `originalWidth` field of the `offsets:`
+   * line. Equals `origW` when the source had no strip-whitespace.
+   */
+  origCanvasW: number;
+  /** REPACK-12 — source logical canvas height (scaled). See origCanvasW. */
+  origCanvasH: number;
+  /** REPACK-12 — scaled source trim offsetX (0 when no strip-whitespace). */
+  offsetX: number;
+  /** REPACK-12 — scaled source trim offsetY (0 when no strip-whitespace). */
+  offsetY: number;
   rotated: boolean;
 }
 
@@ -158,6 +222,11 @@ export function computeRepack(inputs: RepackInput[], opts: RepackOptions): Repac
   //         `rect.height` are ALREADY post-rotation per .d.ts:97-98.
   //         `origW`/`origH` recover the PRE-rotation canonical dims from the
   //         carried RepackInput (the user-supplied packW/packH).
+  //         `origCanvasW/H` + `offsetX/Y` forward the source atlas's
+  //         strip-whitespace metadata (REPACK-12). They default to the
+  //         trimmed packed dims + 0 offsets when the caller omits them
+  //         (source had no strip-whitespace), so the atlas writer emits the
+  //         identical `offsets:0,0,packedW,packedH` line as before.
   const pages: RepackPage[] = [];
   const regions: RepackedRegion[] = [];
   packer.bins.forEach((bin, pageIndex) => {
@@ -173,6 +242,13 @@ export function computeRepack(inputs: RepackInput[], opts: RepackOptions): Repac
         h: rect.height,
         origW: inp.packW,
         origH: inp.packH,
+        // REPACK-12: default to packed dims + 0 offsets (no strip-whitespace)
+        // so the writer's `offsets:` line is byte-identical to the pre-fix
+        // path unless the worker supplied real source-atlas logical dims.
+        origCanvasW: inp.srcOrigW ?? inp.packW,
+        origCanvasH: inp.srcOrigH ?? inp.packH,
+        offsetX: inp.srcOffsetX ?? 0,
+        offsetY: inp.srcOffsetY ?? 0,
         rotated: (rect as unknown as { rot?: boolean }).rot === true,
       });
     }
