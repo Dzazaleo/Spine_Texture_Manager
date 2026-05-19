@@ -53,7 +53,7 @@ import type {
   OpaqueAtlas,
 } from './types.js';
 import type { SpineRuntime } from './runtime.js';
-import { SilentSkipAttachmentLoader } from '../synthetic-atlas.js';
+import { makeSilentSkipAttachmentLoader } from '../synthetic-atlas.js';
 import { normalizeSpine43ConstraintMixDefaults } from '../../shared/spine43-constraint-mix-normalize.js';
 
 // ─── Internal type aliases ───────────────────────────────────────────────────
@@ -93,14 +93,29 @@ export function create(): SpineRuntime {
 
     parseSkeleton(parsedJson: unknown, atlas: OpaqueAtlas, atlasLess: boolean): OpaqueSkeletonData {
       // Source: SkeletonJson.d.ts:47,48 — readSkeletonData signature identical to 4.2.
-      // SilentSkipAttachmentLoader extends the 4.2 AtlasAttachmentLoader; the
-      // 4.3 AtlasAttachmentLoader interface is structurally compatible for our
-      // use (atlas-less branch is not exercised by the 4.3 owner rig). The
-      // `as unknown as AtlasAttachmentLoader` cast mirrors runtime-42.ts and is
-      // the single sanctioned boundary cast (RESEARCH §Pattern 1 note).
+      //
+      // debug-fix images-src-noop-stmproj-crash (2026-05-19): the SilentSkip
+      // loader MUST extend the **4.3** AtlasAttachmentLoader here, not the 4.2
+      // one. The prior code reused the 4.2-bound `SilentSkipAttachmentLoader`
+      // and assumed "the 4.3 atlas-less branch is not exercised by the 4.3
+      // owner rig" — FALSIFIED: the user's atlas-less workflow on a 4.3 rig
+      // (loaderMode='atlas-less' persisted into the .stmproj) routes the 4.3
+      // SkeletonJson through this loader with the 4.3 5-arg signature
+      // (skin, placeholder, name, path, sequence), arg-shifting the old 4-arg
+      // override and crashing in 4.2 loadSequence ("reading 'length'").
+      // `makeSilentSkipAttachmentLoader(<4.3 AtlasAttachmentLoader>)` makes
+      // `super.*` (incl. findRegions/loadSequence + Sequence object identity)
+      // the matching-major 4.3 implementation; the arity-aware override
+      // normalizes the 5-arg call. The `as unknown as AtlasAttachmentLoader`
+      // cast mirrors runtime-42.ts and is the single sanctioned boundary cast
+      // (RESEARCH §Pattern 1 note).
+      const SilentSkip43 = makeSilentSkipAttachmentLoader(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        AtlasAttachmentLoader as unknown as new (atlas: any) => any,
+      );
       const rawAtlas = unwrapHandle<InstanceType<typeof TextureAtlas>>(atlas);
       const loader = atlasLess
-        ? (new SilentSkipAttachmentLoader(
+        ? (new SilentSkip43(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             rawAtlas as any,
           ) as unknown as AtlasAttachmentLoader)

@@ -54,27 +54,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  AtlasAttachmentLoader,
-  type Attachment,
-  type MeshAttachment,
-  type RegionAttachment,
-  type Skin,
-} from 'spine-core-42';
+import { AtlasAttachmentLoader } from 'spine-core-42';
 import { readPngDims } from './png-header.js';
 import { MissingImagesDirError } from './errors.js';
-
-// `Sequence` is not re-exported from the spine-core package root (verified
-// against node_modules/@esotericsoftware/spine-core/dist/index.d.ts:1-50 —
-// only Attachment, AttachmentLoader, BoundingBoxAttachment, ClippingAttachment,
-// MeshAttachment, PathAttachment, PointAttachment, RegionAttachment are
-// re-exported from `./attachments/`). The AtlasAttachmentLoader signature
-// references it nominally but does not surface it. Rather than deep-import
-// from `@esotericsoftware/spine-core/dist/attachments/Sequence.js` (couples
-// us to internal paths), we use a structural placeholder — the override
-// only forwards `sequence` through to `super.*`, never inspecting it, so a
-// nominal-type alias is sufficient for the signature contract.
-type SpineSequence = unknown;
 
 export interface SynthResult {
   /** Generated libgdx atlas text — feed to `new TextureAtlas(text)`. */
@@ -327,56 +309,122 @@ function walkSyntheticRegionPaths(parsedJson: unknown): Set<string> {
  *
  * Subclasses spine-core's AtlasAttachmentLoader so happy-path behavior is
  * inherited identically; only the two methods that throw are overridden.
+ *
+ * --------------------------------------------------------------------------
+ * debug-fix images-src-noop-stmproj-crash (2026-05-19) — DUAL-RUNTIME SEAM.
+ *
+ * v1.6 is dual-runtime (Spine 4.2 via `spine-core-42`, 4.3 via
+ * `@esotericsoftware/spine-core`). This module statically imports the **4.2**
+ * `AtlasAttachmentLoader`, but `runtime-43.parseSkeleton(atlasLess=true)`
+ * routes the **4.3** `SkeletonJson` through a SilentSkip loader. The 4.2 and
+ * 4.3 `AttachmentLoader` method signatures DIVERGE:
+ *
+ *   4.2  newRegionAttachment(skin, name, path, sequence)              // 4 args
+ *   4.3  newRegionAttachment(skin, placeholder, name, path, sequence) // 5 args
+ *
+ * (Verified: spine-core-42 AtlasAttachmentLoader.js:54 vs
+ * @esotericsoftware/spine-core AtlasAttachmentLoader.js:61 +
+ * SkeletonJson.js:525/556.) Two consequences, both fixed here:
+ *
+ *   1. ARG-SHIFT: under the 4.3 reader, the old 4-param override bound its
+ *      `sequence` parameter to 4.3's `path` STRING. `string != null`, so the
+ *      D-09 null-guard was bypassed and 4.2 `loadSequence` did
+ *      `("string").regions.length` → "Cannot read properties of undefined
+ *      (reading 'length')". The overrides below are now ARITY-AWARE: they
+ *      normalize to `{ attachmentPath, sequence }` for either signature and
+ *      forward the ORIGINAL `arguments` to `super.*` so the actual base
+ *      class receives the exact shape IT expects.
+ *
+ *   2. BASE-CLASS MISMATCH: forwarding 4.3-shaped calls (incl. 4.3 `Sequence`
+ *      objects) into the **4.2** `super.loadSequence` is still wrong (4.2
+ *      `Sequence` ≠ 4.3 `Sequence`). So `SilentSkipAttachmentLoader` is now a
+ *      base-parametric FACTORY: `makeSilentSkipAttachmentLoader(Base)` lets
+ *      `runtime-43` pass the **4.3** `AtlasAttachmentLoader` (so `super.*` is
+ *      the 4.3 base) while `runtime-42` keeps the 4.2 one. The 4.2 leg is
+ *      byte-behavior-identical (4-arg in → 4-arg `super`); only the
+ *      previously-broken 4.3 atlas-less leg changes.
+ * --------------------------------------------------------------------------
  */
-export class SilentSkipAttachmentLoader extends AtlasAttachmentLoader {
-  // @ts-expect-error — spine-core's stock signature returns non-nullable
-  // RegionAttachment; we narrow to nullable for D-09 silent-skip. The
-  // SkeletonJson reader already handles null returns gracefully
-  // (SkeletonJson.js:371-372, 404-405). Sequence is also typed
-  // non-nullable in stock but `null` is the runtime value when a JSON
-  // attachment has no sequence: block (Pitfall 7).
-  newRegionAttachment(
-    skin: Skin,
-    name: string,
-    attachmentPath: string,
-    sequence: SpineSequence | null,
-  ): Attachment | null {
-    // Sequence-aware silent-skip (debug-fix spine-sequence-undercount, 2026-05-08):
-    // when sequence is non-null, the basePath itself need not be findable —
-    // stock AtlasAttachmentLoader.newRegionAttachment short-circuits the
-    // basePath findRegion call and dispatches to loadSequence (per-frame
-    // paths) instead. Mirror that flow: defer to super and let loadSequence
-    // throw if a per-frame path is missing. The synthesizer registers all N
-    // composed paths, so this is the happy-path expectation.
-    if (sequence === null || sequence === undefined) {
-      if (this.atlas.findRegion(attachmentPath) === null) return null;
-    }
-    return super.newRegionAttachment(
-      skin,
-      name,
-      attachmentPath,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sequence as any,
-    ) as RegionAttachment;
-  }
 
-  // @ts-expect-error — same nullable-narrowing as newRegionAttachment.
-  newMeshAttachment(
-    skin: Skin,
-    name: string,
-    attachmentPath: string,
-    sequence: SpineSequence | null,
-  ): Attachment | null {
-    // Sequence-aware silent-skip — same rationale as newRegionAttachment above.
-    if (sequence === null || sequence === undefined) {
-      if (this.atlas.findRegion(attachmentPath) === null) return null;
-    }
-    return super.newMeshAttachment(
-      skin,
-      name,
-      attachmentPath,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sequence as any,
-    ) as MeshAttachment;
-  }
+// Structural shape of an AtlasAttachmentLoader-like base. Both spine-core-42
+// and @esotericsoftware/spine-core 4.3 satisfy this nominally; the override
+// only needs `.atlas.findRegion` + the two `new*Attachment` supers.
+interface AtlasAttachmentLoaderLike {
+  atlas: { findRegion(path: string): unknown };
+  newRegionAttachment(...args: unknown[]): unknown;
+  newMeshAttachment(...args: unknown[]): unknown;
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AtlasAttachmentLoaderCtor = new (atlas: any) => AtlasAttachmentLoaderLike;
+
+/**
+ * Normalize a `new{Region,Mesh}Attachment` call to `{ attachmentPath,
+ * sequence }` regardless of which spine-core major invoked it.
+ *
+ *   4.2 (4 args): (skin, name, path, sequence)
+ *   4.3 (5 args): (skin, placeholder, name, path, sequence)
+ *
+ * Discriminated purely on `args.length` — 4.3's reader ALWAYS passes 5
+ * positional args (SkeletonJson.js:525/556), 4.2's ALWAYS passes 4
+ * (AtlasAttachmentLoader.js:54). `sequence` is the trailing arg in both.
+ */
+function normalizeAttachmentArgs(args: unknown[]): {
+  attachmentPath: string;
+  sequence: unknown;
+} {
+  if (args.length >= 5) {
+    // 4.3 — (skin, placeholder, name, path, sequence)
+    return { attachmentPath: args[3] as string, sequence: args[4] };
+  }
+  // 4.2 — (skin, name, path, sequence)
+  return { attachmentPath: args[2] as string, sequence: args[3] };
+}
+
+/**
+ * Base-parametric SilentSkip factory. `runtime-42` passes the 4.2
+ * `AtlasAttachmentLoader`; `runtime-43` passes the 4.3 one. The returned
+ * class subclasses the supplied base so `super.*` (incl. `loadSequence` /
+ * `findRegions`) is always the matching-major implementation.
+ */
+export function makeSilentSkipAttachmentLoader(Base: AtlasAttachmentLoaderCtor) {
+  return class SilentSkipAttachmentLoaderImpl extends (Base as AtlasAttachmentLoaderCtor) {
+    // Variadic to accept BOTH the 4.2 (4-arg) and 4.3 (5-arg) signatures.
+    // Forwards the ORIGINAL arguments to `super.*` so the matching-major
+    // base gets the exact shape it expects (Sequence object identity is
+    // preserved per-major because `Base` is the same-major loader).
+    newRegionAttachment(...args: unknown[]): unknown {
+      const { attachmentPath, sequence } = normalizeAttachmentArgs(args);
+      // D-09 silent-skip: only when there is NO sequence (a plain region
+      // whose single PNG is genuinely absent). With a sequence, the
+      // synthesizer registered all N composed frame paths — defer to super
+      // and let it resolve them (the synthetic atlas always has stub
+      // regions for missing PNGs, so super does not throw).
+      if (sequence === null || sequence === undefined) {
+        if (this.atlas.findRegion(attachmentPath) === null) return null;
+      }
+      return (super.newRegionAttachment as (...a: unknown[]) => unknown)(
+        ...args,
+      );
+    }
+
+    newMeshAttachment(...args: unknown[]): unknown {
+      const { attachmentPath, sequence } = normalizeAttachmentArgs(args);
+      if (sequence === null || sequence === undefined) {
+        if (this.atlas.findRegion(attachmentPath) === null) return null;
+      }
+      return (super.newMeshAttachment as (...a: unknown[]) => unknown)(
+        ...args,
+      );
+    }
+  };
+}
+
+/**
+ * 4.2-bound default — preserves the historical import surface for
+ * `runtime-42.ts` and existing tests (tests/core/synthetic-atlas.spec.ts).
+ * Byte-behavior-identical to the pre-2026-05-19 class for the 4.2 (4-arg)
+ * call path.
+ */
+export const SilentSkipAttachmentLoader = makeSilentSkipAttachmentLoader(
+  AtlasAttachmentLoader as unknown as AtlasAttachmentLoaderCtor,
+);
