@@ -54,6 +54,7 @@ import type {
 } from './types.js';
 import type { SpineRuntime } from './runtime.js';
 import { SilentSkipAttachmentLoader } from '../synthetic-atlas.js';
+import { normalizeSpine43ConstraintMixDefaults } from '../../shared/spine43-constraint-mix-normalize.js';
 
 // ─── Internal type aliases ───────────────────────────────────────────────────
 //
@@ -104,6 +105,16 @@ export function create(): SpineRuntime {
             rawAtlas as any,
           ) as unknown as AtlasAttachmentLoader)
         : new AtlasAttachmentLoader(rawAtlas);
+      // debug-fix viewer-43-42-constraint-parse (2026-05-19): mirror
+      // spine-core@4.3.0 SkeletonJson chained mix{Y,ScaleY} <- mix{X,ScaleX}
+      // defaults at the JSON level so a secondary-axis-only transform
+      // constraint (y/scaleY output, no x/scaleX output, no explicit mixY/
+      // mixScaleY) does not collapse to mix=0 and silently kill the IK chain
+      // it drives. Shared chokepoint with the 4.3 viewer leg
+      // (AnimationPlayerModal.tsx) so the Scale table and viewer cannot
+      // diverge. In-place, idempotent, never overwrites an author-set mix;
+      // a non-4.3 / constraints-array-less parsedJson is a structural no-op.
+      normalizeSpine43ConstraintMixDefaults(parsedJson);
       const data = new SkeletonJson(loader).readSkeletonData(parsedJson);
       return brandHandle<OpaqueSkeletonData>(data, '4.3');
     },

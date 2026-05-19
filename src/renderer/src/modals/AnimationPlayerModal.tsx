@@ -57,6 +57,7 @@ import type {
   ViewerAssetFeedResponse,
 } from '../../../shared/types.js';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { normalizeSpine43ConstraintMixDefaults } from '../../../shared/spine43-constraint-mix-normalize.js';
 
 export interface AnimationPlayerModalProps {
   open: boolean;
@@ -342,6 +343,49 @@ function readMetrics(
  * app-image:// URL and keyed under '<regionName>.png' (vendored line 5862
  * resolves <regionName>.png against the atlas's rawDataURIs map).
  */
+/**
+ * debug-fix viewer-43-42-constraint-parse (2026-05-19) — viewer leg of the
+ * dual-seam spine-core@4.3.0 chained-mix-default shim (shared chokepoint:
+ * src/shared/spine43-constraint-mix-normalize.ts; core leg lives in
+ * runtime-43.ts:parseSkeleton). This modal is the 4.3-only leg
+ * (AnimationPlayerModalRouter routes tag==='4.2' to the frozen
+ * AnimationPlayerModal42 leg, so a 4.2 JSON never reaches here).
+ *
+ * spine-player fetches `config.skeleton` itself; to apply the shim before
+ * its bundled SkeletonJson parses the JSON, we fetch the skeleton URL here
+ * (the app-image:// scheme is registered supportFetchAPI:true —
+ * src/main/index.ts:109), normalize the parsed object, and hand the result
+ * back INLINE via rawDataURIs keyed by the skeleton URL. spine-player's
+ * Downloader.downloadText resolves rawDataUris[url] before any network
+ * fetch (spine-player.js:5749), so it parses our normalized text and never
+ * re-reads the on-disk file. Mirrors the existing rawDataURIs
+ * synthetic.atlas inline-feed idiom. On any fetch/parse failure we fall
+ * back to the bare URL (spine-player then fetches+parses the raw file —
+ * identical to pre-fix behavior; no regression introduced by the shim path
+ * itself).
+ */
+async function inlineNormalizedSkeleton(
+  skeletonUrl: string,
+  rawDataURIs: Record<string, string>,
+): Promise<void> {
+  try {
+    const res = await fetch(skeletonUrl);
+    if (!res.ok) return;
+    const json: unknown = JSON.parse(await res.text());
+    normalizeSpine43ConstraintMixDefaults(json);
+    // base64-of-UTF-8 → spine-player Downloader.dataUriToString does
+    // atob(...) then JSON.parse (spine-player.js:5717-5728); this idiom
+    // round-trips UTF-8 through that atob path (matches the proven
+    // atlasTextDataUri scheme, ipc.ts:1287-1289).
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(json))));
+    rawDataURIs[skeletonUrl] = 'data:application/json;base64,' + b64;
+  } catch {
+    // Leave rawDataURIs untouched — spine-player fetches the raw file
+    // (pre-fix behavior). The core runtime-43 leg still applies the shim,
+    // so this is a viewer-render-fidelity fallback only, never a crash.
+  }
+}
+
 async function buildAssetFeed(
   summary: SkeletonSummary,
   loaderMode: 'auto' | 'atlas-less',
@@ -354,7 +398,9 @@ async function buildAssetFeed(
 
   if (!isAtlasLess) {
     const atlasUrl = await window.api.pathToImageUrl(summary.atlasPath as string);
-    return { skeletonUrl, atlasUrl, rawDataURIs: {} };
+    const rawDataURIs: Record<string, string> = {};
+    await inlineNormalizedSkeleton(skeletonUrl, rawDataURIs);
+    return { skeletonUrl, atlasUrl, rawDataURIs };
   }
 
   const feed: ViewerAssetFeedResponse = await window.api.getViewerAssetFeed(
@@ -369,6 +415,7 @@ async function buildAssetFeed(
   for (const [regionName, absPath] of Object.entries(feed.regionPaths)) {
     rawDataURIs[regionName + '.png'] = await window.api.pathToImageUrl(absPath);
   }
+  await inlineNormalizedSkeleton(skeletonUrl, rawDataURIs);
   return { skeletonUrl, atlasUrl: 'synthetic.atlas', rawDataURIs };
 }
 
