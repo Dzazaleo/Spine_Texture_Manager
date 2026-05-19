@@ -3,134 +3,168 @@ status: pending
 phase: 47-spine-player-4-3-0-bump-viewer-regression
 source: [47-VERIFICATION.md]
 started: 2026-05-18
-updated: 2026-05-18
+updated: 2026-05-19
 approved_by:
 approved_at:
 ---
 
 ## Current Test
 
-[REGRESSION at Test 2 — owner UAT session halted 2026-05-18. The 4.2 leg
-(`SIMPLE_TEST.json`) loads & renders through the bumped spine-player@4.3.0
-player; the 4.3 leg (`skeleton2.json`) FAILS to open with
-`Cannot read properties of undefined (reading 'r')`. v1.6 milestone close is
-HELD per D-01 (no revert fallback — D-03). The phase does NOT complete; the
-regression is under triage — see the `## Regression` section below.]
+[all 7 DV-3 dual-runtime tests pending — owner runs the real Electron app and
+signs each off; v1.6 milestone close is HELD per D-01 (STRICT, no revert
+fallback) until every test below is owner-signed `passed`.]
 
 ## Setup
 
-- **App build:** Run `npm run dev` from the project root. Use the Electron dev
-  app, **not** the production installer — the spine-player@4.3.0 bump + the
-  AnimationPlayerModal Pose-API migration live in renderer source (Plan 01
-  commits `9f967d2`/`6b3c57e`/`e08a2a3`), not in any persisted electron-builder
-  artifact.
-- **Fixtures (the D-09 FIXED render pair — do NOT substitute):**
-  `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (the 4.2 GL-alpha canary — the rig
-  Phase 41 G-03 was *reproduced* on; CIRCLE/SQUARE/TRIANGLE region + mesh
-  attachments with transparent border pixels) **+**
-  `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (`spine:"4.3.01"` — the 4.3
-  ORCL-01 SIMPLE_TEST-equivalent sibling). The D-05 internal-touchpoint audit
-  added **NO** extra rig (no alpha/render risk flagged — confirmed in
-  `47-01-SUMMARY.md` Deviations + the RESEARCH D-05 verdict), so the pair is
-  exactly these two.
+- **App build:** Run `npm run dev` from the project root. Use the **Electron dev
+  app**, NOT the production installer — the dual-runtime viewer lives in
+  renderer source (47-01 `9f967d2`/`6b3c57e`; 47-03 `325a6d2`/`c1a3672`), not in
+  any persisted electron-builder artifact.
+- **Fixtures (the DV-3 dual-runtime matrix — do NOT substitute; this REPLACES
+  the superseded D-09 render pair):**
+  - **4.2 leg** — routes to the FROZEN spine-player@4.2.111 path
+    (`AnimationPlayerModal42`, the byte-verbatim literal v1.5.1 modal):
+    - `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` — the GL straight-alpha
+      hard-floor canary (CIRCLE/SQUARE/TRIANGLE region + mesh attachments with
+      transparent border pixels; has a path constraint); `spine:"4.2.43"`.
+    - `fixtures/CHJ/CHJWC_SYMBOLS.json` — transform-constraint-only;
+      `spine:"4.2.43"`.
+    - `fixtures/3Queens/TQORW_SYMBOLS.json` — ik + transform + events;
+      `spine:"4.2.43"`.
+    - `fixtures/MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json` — ik + transform +
+      **physics** (the most 4.2/4.3-divergent constraint mix); `spine:"4.2.43"`.
+  - **4.3 leg** — routes to the MIGRATED spine-player@4.3.0 path
+    (`AnimationPlayerModal`, 47-01 `6b3c57e`):
+    - `fixtures/SIMPLE_PROJECT_43/skeleton2.json` — `spine:"4.3.01"`.
+- **What landed (so this UAT is the visual half of an already-machine-green
+  surface):** 47-03 made the viewer DUAL-RUNTIME — a pure npm-alias trio
+  (`spine-player-42` + `spine-webgl-42` + the existing `spine-core-42`) nests
+  the whole 4.2.111 player→webgl→core graph off canonical 4.3.0; the frozen
+  `AnimationPlayerModal42.tsx` is the literal v1.5.1 4.2-leg modal;
+  `AnimationPlayerModalRouter.tsx` dispatches SOLELY on
+  `summary.runtimeTag` (the core's already-resolved identity — no JSON sniff);
+  AppShell mounts the router. 47-04 machine-guarded it headlessly: T-A
+  (REG-47-01 cross-runtime handoff), T-B (routing + alias-distinctness), T-C
+  (4.2-parse over all 4 DV-3 fixtures: clean-via-`spine-player-42` /
+  throw-via-canonical-4.3.0), T-D (frozen-modal spec) all GREEN. **jsdom has no
+  WebGL — the GL halo, same-framing parity (D-06), the alias-isolated-4.2-player
+  -actually-renders DV-RISK-1 split-brain, the constraint-mix (incl. physics)
+  render, scrub synchrony, GL leak, real-fs error UI, atlas-less parity, and
+  File-menu suppression are ONLY observable by the owner rendering the DV-3
+  matrix in a real GL context. This file is that visual half.**
 - **Reset between tests:** close the Animation Viewer modal and reload the
   project between each test (do not chain state across tests unless a test
   explicitly says so).
 
 ## Tests
 
-### 1. GL straight-alpha re-verify on the 4.3 player (the hard floor — NEVER skip)
+### 1. GL straight-alpha re-verify on BOTH legs (the hard floor — NEVER skip)
 
-setup: `npm run dev`. Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, click
-the Animation Viewer toolbar button to open the modal. Then (second leg) reload
-and load `fixtures/SIMPLE_PROJECT_43/skeleton2.json`, open the viewer.
+setup: `npm run dev`. Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (routes to
+the FROZEN spine-player@4.2.111 path — `AnimationPlayerModal42`), click the
+Animation Viewer toolbar button to open the modal. Then (second leg) reset and
+load `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (routes to the MIGRATED
+spine-player@4.3.0 path — `AnimationPlayerModal`), open the viewer.
 
-expected: Inspect the mesh-attachment edges — the CIRCLE/SQUARE/TRIANGLE
-region + mesh attachments whose border pixels are transparent — against the
-`#232732` panel-surface background. PASS = those edges anti-alias **cleanly**
-into the background with **no opaque-white (or bright) ring/fringe** and **no
-dark/double-darkened seam** on the semi-transparent pixels. The render must be
-**visually identical to the v1.5.1 (spine-player 4.2.111) render of the same rig
-at the same pose/zoom** — no auto-fit / zoom / position drift (D-06 same-framing
-parity; framing drift is itself a regression). Then load `skeleton2.json` (the
-4.3 leg) and confirm the **same clean-edge result** (this rules out a
-4.3-fixture-specific texture/atlas interaction). The Phase 41 G-03 signature to
-watch for: transparent-white border pixels `(255,255,255,0)` rendering as opaque
-white.
+expected: Inspect the mesh-attachment edges — the region + mesh attachments
+whose border pixels are transparent — against the `#232732` panel-surface
+background, **on BOTH legs**. PASS = those edges anti-alias **cleanly** into the
+background with **no opaque-white (or bright) ring/fringe** and **no
+dark/double-darkened seam** on the semi-transparent pixels. The 4.2-leg render
+must be **visually identical to the owner-accepted v1.5.1 (spine-player 4.2.111)
+viewer of the same rig at the same pose/zoom** — no auto-fit / zoom / position
+drift (D-06 same-framing parity; the 4.2 leg is the BYTE-STABLE v1.5.1 no-op, so
+any framing drift is itself a routing/alias-load defect, not a renderer change).
+The Phase 41 G-03 signature to watch for: transparent-white border pixels
+`(255,255,255,0)` rendering as opaque white. **Record each leg's edge result
+SEPARATELY — do NOT average the two legs into a single pass/fail.**
 
-why_human: jsdom has no WebGL — this artifact is *only* observable by
-rendering in a real GL context. The straight-alpha mechanism **moved** between
-4.2.111 and 4.3.0: spine-webgl's `PolygonBatcher.setBlendMode`'s `pma` argument
-was deleted; the straight-vs-PMA decision is now made at texture upload
-(`GLTexture` `gl.pixelStorei(UNPACK_PREMULTIPLY_ALPHA_WEBGL, !pma)`). The
-Phase 41 G-03 root-cause note cites the now-**deleted** 4.2.111 code path
-("`srcFunc=gl.ONE` Player.js:13167") — do **not** reason from it. **This test is
-ALSO the binding empirical acceptance gate for the Plan 01 Wave-1 Rule-3
-deviation:** RESEARCH D-05 T7's instruction to keep `premultipliedAlpha: false`
-in the `SpinePlayerConfig` literal was source-falsified — that key was
-**removed entirely** from spine-player@4.3.0's `SpinePlayerConfig` type, so the
-migration (commit `6b3c57e`) dropped it; the straight-alpha behavioral
-end-state is **unchanged** but is now produced by the spine-webgl
-`AssetManager` hardcoded `pma=false` default rather than by a config knob (see
-`47-01-SUMMARY.md` "Deviations from Plan" → Deviation 1). That correctness
-argument is a 4-factor analytical claim ("the math says it's fine") across a
-major version — exactly the class of claim that must be confirmed by eyes on
-the rendered canvas, not assumed. The `sharp`/`libvips` PMA reasoning
-(`project_pma_no_op_in_current_stack`) does **not** transfer to this GL path,
-and `scripts/pma-probe.mjs` (the sharp/libvips sentinel) does **not** cover it.
-**Capture a screenshot of the `SIMPLE_TEST` render and embed/link it in this
-test entry** so the observation is durable and re-checkable — the screenshot is
-the auditable evidence both for PLAYER-02's GL-alpha criterion and for the
-dropped-config-key deviation. If a halo/fringe appears: do NOT self-fix in this
-checkpoint — record the artifact + a screenshot, note that the 4.3.0 lever is
-`pma` → `UNPACK_PREMULTIPLY_ALPHA_WEBGL` (per RESEARCH "GL Straight-Alpha"),
-and report it as a regression (v1.6 close stays held per D-01).
+**CROSS-LEG ASYMMETRY is the specific risk locus to watch for and report (per
+47-01-SUMMARY Deviation 1):** the two legs reach straight-alpha by DIFFERENT
+mechanisms. The 4.2 leg reaches it via the explicit `premultipliedAlpha:false`
+`SpinePlayerConfig` key (the frozen v1.5.1 modal, unchanged — zero drift per the
+amended DV-NOTE). The 4.3 leg reaches it via a DIFFERENT mechanism:
+`premultipliedAlpha` was REMOVED from the spine-player@4.3.0 `SpinePlayerConfig`
+type (it is not a member — 47-01 Deviation 1 dropped it) and straight-alpha now
+comes from the spine-webgl@4.3.0 `AssetManager` `pma=false` default
+(`UNPACK_PREMULTIPLY_ALPHA_WEBGL = !pma`). Same intended end-state, two
+different code paths. The highest-value owner observation is therefore a
+**cross-leg ASYMMETRY**: if ONE leg's mesh edges are clean and the OTHER leg's
+are haloed/fringed (especially the 4.3 leg, where the mechanism moved), that
+asymmetry is the exact signature of the Deviation-1 risk and MUST be reported as
+a regression (v1.6 close stays HELD per D-01).
 
-result: [blocked] — 4.2 leg: `SIMPLE_TEST.json` loaded and rendered through the
-spine-player@4.3.0 player without a crash (owner: "opened correctly"); the
-explicit clean-edge / no-halo verdict + the durable screenshot were NOT yet
-captured. 4.3 leg: BLOCKED — `skeleton2.json` fails to open (see Test 2). Test 1
-cannot be signed (and the Plan-01 Rule-3 `premultipliedAlpha`-removal deviation
-cannot be empirically cleared) until the Test 2 regression is fixed.
+why_human: jsdom has no WebGL — this artifact is *only* observable by rendering
+in a real GL context. The straight-alpha mechanism MOVED between 4.2.111 and
+4.3.0 spine-webgl (`PolygonBatcher.setBlendMode`'s `pma` arg deleted; the
+straight-vs-PMA decision moved to `GLTexture` upload
+`UNPACK_PREMULTIPLY_ALPHA_WEBGL = !pma`). The `sharp`/`libvips` PMA reasoning
+(`project_pma_no_op_in_current_stack`) does NOT transfer to this GL path, and
+`scripts/pma-probe.mjs` (the sharp/libvips sentinel) does NOT cover it — and
+because the two legs reach straight-alpha by DIFFERENT mechanisms (Deviation 1),
+the math-says-it's-fine correctness argument is exactly the class of claim that
+must be confirmed by the owner's eyes on BOTH rendered canvases compared side by
+side, not assumed. **Capture a screenshot of EACH leg's render
+(`SIMPLE_TEST` 4.2 leg + `skeleton2` 4.3 leg) and embed/link both in this test
+entry** so the observation is durable, re-checkable, and the cross-leg asymmetry
+is visible. If a halo/fringe appears: do NOT self-fix in this checkpoint —
+record which leg + the artifact + the screenshot, note the 4.3.0 lever is
+`pma` → `UNPACK_PREMULTIPLY_ALPHA_WEBGL` (per RESEARCH "GL Straight-Alpha"), and
+report it as a regression.
+
+result: [pending]
 
 ---
 
-### 2. D-09 render pair — both the 4.2 and the 4.3 fixture render correctly through the 4.3 player (PLAYER-02 SC#1)
+### 2. DV-3 routing + alias-isolation — each fixture loads in the RIGHT player and RENDERS
 
-setup: `npm run dev`. (Leg A) Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`
-(4.2), open the Animation Viewer. (Leg B) Reload, load
-`fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3), open the Animation Viewer.
+setup: `npm run dev`. Load EACH 4.2-leg fixture in turn —
+`fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, `fixtures/CHJ/CHJWC_SYMBOLS.json`,
+`fixtures/3Queens/TQORW_SYMBOLS.json`,
+`fixtures/MON_FILES/EXPORT/TEST_03/4.2/TEST_03.json` — opening the Animation
+Viewer on each (reset between fixtures). Then load
+`fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3 leg) and open the viewer.
 
-expected: Each fixture's skeleton paints its first animation **looping
-continuously** in the near-fullscreen card against the `#232732`
-panel-surface background — **no blank canvas**, **no 1×1px collapse**
-(Pitfall 8), **no DevTools error spam**. Both legs must render correctly through
-the single bumped spine-player@4.3.0 player.
+expected: This is the core DV-1 acceptance test. **Record a per-fixture RENDERED
+verdict (not an "opened" proxy — the `feedback_uat_opened_is_not_rendered`
+lesson: a load/open proxy is NOT acceptance; the pass condition is the fixture
+visibly RENDERING animation through the CORRECT player).**
 
-why_human: cross-major GL render correctness on the two fixed D-09 fixtures;
-jsdom has no WebGL and cannot render either leg.
+- For EACH 4.2-leg fixture (SIMPLE_TEST, CHJWC_SYMBOLS, TQORW_SYMBOLS,
+  TEST_03): it routes to the **frozen spine-player@4.2.111 path**
+  (`AnimationPlayerModal42`), the **alias-isolated 4.2 player ACTUALLY LOADS**
+  (the DV-RISK-1 split-brain is the single most likely failure), and the rig's
+  first animation **paints looping continuously** against the `#232732`
+  background — no blank canvas, no 1×1px collapse, no DevTools error spam.
+  **The FAIL condition the dual-runtime fix must eliminate:** the viewer does
+  NOT show the terminal overlay `Could not load skeleton data` /
+  `Transform/IK/Path constraint not found` (or any
+  `Cannot read properties of undefined`) — that overlay is the EXACT gap
+  (debug `viewer-43-42-constraint-parse`) the dual-runtime fix closes; its
+  absence on these 4.2 constraint fixtures is the proof DV-1 worked. **TEST_03
+  must visibly show its physics-constraint-bearing motion** (the most
+  4.2/4.3-divergent mix — the strongest alias-isolation evidence).
+- For the 4.3-leg fixture (skeleton2.json): it routes to the **migrated
+  spine-player@4.3.0 path** (`AnimationPlayerModal`) and renders its first
+  animation looping correctly (this is the REG-47-01 `reading 'r'` symptom's
+  must-not-reappear leg — owner-observed broken 2026-05-18, fixed `53e480c`).
 
-result: **REGRESSION (owner-observed 2026-05-18).** Leg A
-(`fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, 4.2) renders correctly through the
-bumped spine-player@4.3.0 player. **Leg B
-(`fixtures/SIMPLE_PROJECT_43/skeleton2.json`, 4.3) FAILS to open** — the viewer
-shows: `Unknown: Cannot read properties of undefined (reading 'r')` /
-`Dropped: skeleton2.json`. Triage (headless repro, 2026-05-18): the bundled
-spine-core@4.3.0 `SkeletonJson` + the new-format `skeleton2.atlas` parse
-`skeleton2.json` **cleanly** (`bones=14 slots=7 skins=1 anims=4`) — so this is
-**NOT** a spine-core skeleton/atlas parse fault. The fault is in the
-**viewer/modal layer** (the Plan 01 spine-player@4.3.0 migration and/or the
-`AnimationPlayerModal` asset-feed / render / `sampleAnimationBounds` path),
-manifesting only on the 4.3 fixture. v1.6 close HELD per D-01; no revert (D-03
-— the bump is mechanically non-revertible). Root-cause + fix tracked as a
-Phase 47 gap.
+why_human: the cross-version routing + the alias-isolated 4.2 player
+actually-rendering + the constraint-mix (incl. physics) are GL-context-only;
+jsdom cannot render; this is the exact gap the dual-runtime fix closes. T-B/T-C
+machine-guard the routing decision + the 4.2-parse headlessly, but only the
+owner's eyes in a real GL context confirm the alias-isolated player actually
+PAINTS each constraint-mix rig.
+
+result: [pending]
 
 ---
 
 ### 3. VIEWER-05 + VIEWER-06 visible animation/skin switch + scrub-pose synchrony (forward AND backward)
 
-setup: Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`, open the Animation
-Viewer, let it loop.
+setup: Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2 leg, frozen path),
+open the Animation Viewer, let it loop. Then repeat on
+`fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3 leg, migrated path).
 
 expected: While the viewer is open and looping, changing the Animation
 dropdown to a different animation makes the character pose update on the next
@@ -140,38 +174,44 @@ corresponding time and pauses playback. Forward AND backward scrub both produce
 coherent poses (see WR-05 note in 41-REVIEW.md — backward scrub uses negative
 `animationState.update(delta)` which spine-runtime may glitch on).
 
-why_human: Plan 01's T6 touchpoint reworked the scrub from the private
-`p.playTime` write-back to a `TrackEntry.trackTime`-driven seek (RESEARCH D-05
-T6 / Pitfall 5 / Assumption A1) — behavioral equivalence is *reasoned*, not
-machine-tested (jsdom has no GL); **forward + backward scrub-pose synchrony is
-the only valid acceptance gate** for that rework.
+why_human: on the 4.2 leg the scrub is the byte-stable v1.5.1 private
+`p.playTime` path (the frozen modal — unchanged); on the 4.3 leg it is the
+47-01-T6 `TrackEntry.trackTime`-driven rework (private `p.playTime` write-back
+DROPPED, `scrubPercent` React state is the UI source of truth). Both must be
+coherent. Behavioral equivalence is *reasoned*, not machine-tested (jsdom has no
+GL); forward + backward scrub-pose synchrony on BOTH legs is the only valid
+acceptance gate for the rework.
 
 result: [pending]
 
 ---
 
-### 4. VIEWER-08 real GL leak verification across 10 open/close cycles
+### 4. VIEWER-08 real GL leak verification across 10 open/close cycles (dual-stack)
 
-setup: Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json`. Open the Animation
-Viewer; watch DevTools → Performance Monitor → GPU Memory.
+setup: Load `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2 leg). Open the
+Animation Viewer; watch DevTools → Performance Monitor → GPU Memory. Then
+repeat the full cycle on `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3 leg).
 
 expected: Open the viewer, close it, repeat 10 times. DevTools Performance
 Monitor → GPU Memory stays flat across the cycle; chrome://memory does not grow
 unboundedly. Switching to a different project while the viewer is open closes
-the modal cleanly (no GL warning in DevTools console).
+the modal cleanly (no GL warning in DevTools console). **Cycle on BOTH a 4.2
+fixture AND skeleton2.json** — two full spine-player/webgl/core graphs are now
+bundled (the DV-1 dual-stack); confirm no GPU growth across EITHER path.
 
-why_human: GPU memory growth across real open/close cycles is only
-observable in a real GL context — jsdom cannot allocate or track GL resources.
+why_human: GPU memory growth across real open/close cycles is only observable
+in a real GL context — jsdom cannot allocate or track GL resources; and the
+dual-stack means two distinct WebGL contexts must each release cleanly.
 
 result: [pending]
 
 ---
 
-### 5. VIEWER-09 real-fs malformed/missing-asset terminal error UI (D-04 must-not-regress)
+### 5. VIEWER-09 real-fs malformed/missing-asset terminal error UI (the D-04 must-not-regress check)
 
 setup: Take a copy of a project; truncate a few bytes off the end of its
 `.json`, OR remove a referenced PNG from its `images/` folder. Point the viewer
-at it.
+at it — exercise this on BOTH a 4.2-leg project AND skeleton2.json's tree.
 
 expected: Point the viewer at a project with a corrupted .json (truncate a
 few bytes off the end), or remove a referenced PNG from images/. The viewer
@@ -179,25 +219,26 @@ renders the verbatim terminal error overlay ("Unable to load the animation
 viewer" + body + Close button) with controls disabled. Closing the modal works;
 no DevTools crash.
 
-**Additional D-04 acceptance line (must-not-regress):** the content-less /
-STOP-state animation path still **degrades gracefully** — the viewer shows the
-terminal error overlay / returns cleanly and does **NOT** fatal-crash via
-spine-player's native `showError`. The custom resilient `sampleAnimationBounds`
-`null`-return (return `null` instead of the fatal `showError` that kills the
-whole player) is preserved under the migrated `apply()` (D-04 invariant;
-RESEARCH D-04 proved the line-255 apply() migration does not regress it; the
-resilient try/catch + null-return guards were kept byte-unchanged in Plan 01,
-commit `6b3c57e`).
+**Additional D-04 acceptance line (must-not-regress, BOTH legs):** the
+content-less / STOP-state animation path still **degrades gracefully** — the
+viewer shows the terminal error overlay / returns cleanly and does **NOT**
+fatal-crash via spine-player's native `showError`. The custom resilient
+`sampleAnimationBounds` `null`-return (return `null` instead of the fatal
+`showError` that kills the whole player) is preserved on BOTH legs: the 4.2 leg
+IS the literal v1.5.1 source (resilient path verbatim); the 4.3 leg's resilient
+try/catch + null-return guards were kept byte-unchanged in 47-01 (`6b3c57e`,
+D-04 invariant).
 
-why_human: real-fs corruption + the resilient-path behavior under the
-migrated `apply()` is only verifiable by feeding a real broken project to the
-running app — jsdom cannot exercise the on-disk read + GL fallback.
+why_human: real-fs corruption + the resilient-path behavior under the migrated
+`apply()` AND the frozen v1.5.1 path is only verifiable by feeding a real broken
+project to the running app — jsdom cannot exercise the on-disk read + GL
+fallback.
 
 result: [pending]
 
 ---
 
-### 6. VIEWER-04 atlas-less visual parity with atlas-source (S12 / Pitfall-4 asset-origin re-confirm)
+### 6. VIEWER-04 atlas-less visual parity (S12 / Pitfall-4 asset-origin re-confirm)
 
 setup: Load a project that uses atlas-less `loaderMode` — no `.atlas` file
 present, only `.json` + an `images/` folder — same character/poses as its
@@ -212,9 +253,9 @@ why_human: atlas-less `rawDataURIs` parent-relative resolution is an S12
 render-behavior touchpoint (spine-player@4.3.0's `AssetManager`+`rawDataURIs`
 model is API-stable but the Pose rewrite is a major). This UAT *also*
 **re-confirms** that the asset path resolves under the **UNCHANGED** Phase 41
-CSP / `app-image://` origin scope (`connect-src 'self' app-image:` +
-the main-process ACAO header) — it does **not** broaden it (security guardrail;
-RESEARCH Pitfall 4 / T-47-05). If the asset path fails to resolve, that is
+CSP / `app-image://` origin scope (`connect-src 'self' app-image:` + the
+main-process ACAO header) — it does **not** broaden it (security guardrail;
+RESEARCH Pitfall 4 / T-47-17). If the asset path fails to resolve, that is
 reported as a regression — the origin scope is **not** widened to "fix" it.
 
 result: [pending]
@@ -242,57 +283,44 @@ result: [pending]
 
 total: 7
 passed: 0
-issues: 1
-pending: 5
+issues: 0
+pending: 7
 skipped: 0
-blocked: 1
+blocked: 0
 
-(Owner UAT session 2026-05-18 HALTED at Test 2: Test 2 = regression [issues:1],
-Test 1 = blocked behind it [blocked:1], Tests 3-7 not run [pending:5]. NOT
-signed — `status: pending`, `approved_by` blank. Per D-01 v1.6 close is HELD;
-the phase does not complete until the Test 2 regression is fixed and every item
-is re-run + signed `passed`.)
-
-## Regression
-
-**REG-47-01 — `skeleton2.json` (4.3) fails to open in the Animation Viewer.**
-
-- **Observed (owner, real Electron app, 2026-05-18):** loading
-  `fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json` (4.2) renders correctly; loading
-  `fixtures/SIMPLE_PROJECT_43/skeleton2.json` (4.3) shows
-  `Unknown: Cannot read properties of undefined (reading 'r')` /
-  `Dropped: skeleton2.json`. The 4.2 leg works through the *same* bumped
-  spine-player@4.3.0 player — the failure is 4.3-fixture-specific.
-- **Triage (headless repro, 2026-05-18):** spine-core@4.3.0 `SkeletonJson` +
-  `AtlasAttachmentLoader` + the new-format `skeleton2.atlas` parse
-  `skeleton2.json` cleanly (`bones=14 slots=7 skins=1 anims=4`). The app *core*
-  dual-runtime already parses this fixture (runtime-43 tests green). Therefore
-  the fault is **NOT** spine-core parsing — it is in the **viewer/modal layer**:
-  the Plan 01 spine-player@4.3.0 migration (`AnimationPlayerModal.tsx` T1–T8,
-  commit `6b3c57e`) and/or the modal asset-feed (`buildAssetFeed`) /
-  `SpinePlayer` render path. `reading 'r'` is a `Color`-shaped access on
-  `undefined` (a slot/attachment/region color or `backgroundColor`), surfacing
-  only on the 4.3 fixture in a real GL context.
-- **Disposition:** Phase 47 does NOT complete. PLAYER-01 machine track is green
-  but PLAYER-02 (this owner contract) is RED. v1.6 milestone close HELD per
-  D-01 (no revert fallback — D-03). Root-cause + fix is a Phase 47 gap (see the
-  orchestrator routing: `/gsd-debug` to root-cause the viewer-layer `reading
-  'r'` on 4.3 fixtures, then `/gsd-plan-phase 47 --gaps`). The Plan 01 Rule-3
-  `premultipliedAlpha`-removal deviation also remains empirically uncleared
-  until Test 1 can be run (it is blocked behind this regression).
+(Task 2 — the owner — runs the real Electron dev app, executes all 7
+DV-3-matrix tests live on the dual-runtime viewer, and flips these counters at
+sign-off. Per D-01 v1.6 milestone close is HELD until every test here is signed
+`passed` and the front-matter is signed `approved_by: user` — no revert
+fallback, D-03 proved the bump is mechanically non-revertible; DV-1 ADDED the
+alias-isolated 4.2 stack rather than reverting.)
 
 ## Provenance
 
-Tests 3-7 = the 5 carried Phase 41 UATs (`41-HUMAN-UAT.md` tests 2-6) re-run on
-the spine-player@4.3.0 player. Tests 1-2 are the Phase 47 additions: the GL
-straight-alpha re-verify (Test 1 — which Phase 41 *resolved* as G-03; Phase 47
-*re-verifies* it on the new GL path, and it doubles as the empirical acceptance
-gate for the Plan 01 Rule-3 `premultipliedAlpha`-key-removal deviation) + the
-D-09 4.2/4.3 render-pair (Test 2 — PLAYER-02 SC#1). Per D-08, this file **and**
-the in-place flip of `41-HUMAN-UAT.md`'s 5 pending items preserve **both** audit
-trails (the original Phase 41 record + the Phase 47 re-run record). Per D-02
-this UAT is executed under an explicit in-phase `checkpoint:human-action`
-(gate=blocking); per D-01 v1.6 milestone close is HELD until every item here is
-signed `passed` (no revert fallback — D-03 proved the bump is mechanically
-non-revertible). Per D-07 (`--skip-ui`) this 7-item + GL-alpha owner checkpoint
-**is** the visual acceptance contract — there is no UI-SPEC.
+REVISED 2026-05-19 from the superseded D-09 render-pair (47-02 Task 1,
+`fdcef30`) to the DV-3 dual-runtime matrix per the Gap Re-Discussion
+(DV-1..DV-3). The old single-runtime "a 4.2 fixture renders through the 4.3
+player" premise was FALSIFIED — spine-player@4.3.0's bundled spine-core@4.3.0
+categorically cannot parse ANY 4.2 split-array constraint JSON (even
+SIMPLE_TEST throws); the fix is DV-1's dual-runtime viewer (the frozen
+spine-player@4.2.111 4.2 leg + the migrated spine-player@4.3.0 4.3 leg, the
+npm-alias trio, the runtimeTag dispatcher — 47-03/47-04). Tests 3-7 = the 5
+carried Phase 41 UATs (`41-HUMAN-UAT.md` tests 2-6, `expected:` prose verbatim)
+re-run on the dual-runtime viewer; tests 1-2 are the GL straight-alpha
+re-verify (with the explicit cross-leg `premultipliedAlpha:false`-config-vs
+-`pma=false`-AssetManager-default asymmetry risk locus, per 47-01-SUMMARY
+Deviation 1) + the DV-3 routing/alias-isolation matrix (SIMPLE_TEST +
+CHJWC_SYMBOLS + TQORW_SYMBOLS + TEST_03 via the frozen 4.2.111 path + skeleton2
+via the migrated 4.3.0 path). The UAT's real job is NOT re-proving the
+byte-identical 4.2 renderer — it is proving (1) routing sends each version to
+the right player off the core tag, (2) the alias-isolated 4.2 player ACTUALLY
+LOADS (the DV-RISK-1 split-brain), (3) the constraint-mix (incl. physics)
+renders. Per D-08 this file AND the in-place flip of `41-HUMAN-UAT.md`'s 5
+pending items preserve BOTH audit trails (the original Phase 41 record + the
+Phase 47 dual-runtime re-run record). Per D-02 this UAT is executed under an
+explicit in-phase `checkpoint:human-action` (gate=blocking); per D-01 v1.6
+milestone close is HELD until every item here is signed `passed` (no revert
+fallback — D-03). Per D-07 (`--skip-ui`) this 7-item + GL-alpha owner checkpoint
+**is** the visual acceptance contract — there is no UI-SPEC. This SUPERSEDES
+47-02 (its never-run owner-checkpoint + 41-flip Tasks are this plan's
+Tasks 2-3; no 47-02-SUMMARY is owed — 47-02 is closed by supersession).
