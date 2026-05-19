@@ -8,7 +8,8 @@ updated: 2026-05-15T17:09:00Z
 
 ## Current Test
 
-[items 2, 3, 4, 5, 6 still pending — run /gsd-verify-work 41 to resume]
+[all items resolved — tests 2-6 re-run + owner-signed on the dual-runtime viewer
+in Phase 47; see 47-HUMAN-UAT.md (owner-signed 2026-05-19)]
 
 ## Tests
 
@@ -34,33 +35,45 @@ gaps:
 
 ### 2. VIEWER-05 + VIEWER-06 visible animation/skin switch + scrub-pose synchrony
 expected: While the viewer is open and looping, changing the Animation dropdown to a different animation makes the character pose update on the next frame; changing the Skin dropdown rebinds attachments with no leftover slot bleed from the previous skin; dragging the scrub bar moves the pose to the corresponding time and pauses playback. Forward AND backward scrub both produce coherent poses (see WR-05 note in 41-REVIEW.md — backward scrub uses negative `animationState.update(delta)` which spine-runtime may glitch on).
-result: [pending]
+result: resolved — re-run on the dual-runtime viewer in Phase 47; see 47-HUMAN-UAT.md test 3 (owner-signed 2026-05-19)
 
 ### 3. VIEWER-08 real GL leak verification across 10 open/close cycles
 expected: Open the viewer, close it, repeat 10 times. DevTools Performance Monitor → GPU Memory stays flat across the cycle; chrome://memory does not grow unboundedly. Switching to a different project while the viewer is open closes the modal cleanly (no GL warning in DevTools console).
-result: [pending]
+result: resolved — re-run on the dual-runtime viewer in Phase 47; see 47-HUMAN-UAT.md test 4 (owner-signed 2026-05-19)
 
 ### 4. VIEWER-09 real-fs malformed/missing asset terminal error UI
 expected: Point the viewer at a project with a corrupted .json (truncate a few bytes off the end), or remove a referenced PNG from images/. The viewer renders the verbatim terminal error overlay ("Unable to load the animation viewer" + body + Close button) with controls disabled. Closing the modal works; no DevTools crash.
-result: [pending]
+result: resolved — re-run on the dual-runtime viewer in Phase 47; see 47-HUMAN-UAT.md test 5 (owner-signed 2026-05-19)
 
 ### 5. VIEWER-04 atlas-less visual parity with atlas-source
 expected: Load a project that uses atlas-less loaderMode (no .atlas file present, only .json + images/ folder). The viewer renders the same character at the same poses as the atlas-source equivalent. No region misalignment, no color/PMA glitch, no missing slot.
-result: [pending]
+result: resolved — re-run on the dual-runtime viewer in Phase 47; see 47-HUMAN-UAT.md test 6 (owner-signed 2026-05-19)
 
 ### 6. File menu auto-suppression contract (08.2 D-184) while viewer is open
 expected: With the viewer open, the OS-native File menu shows Save / Save As / Reload disabled (greyed out). Cmd-S keyboard accelerator is a no-op while the modal is up. Closing the modal restores the menu items.
-result: [pending]
+result: resolved — re-run on the dual-runtime viewer in Phase 47; see 47-HUMAN-UAT.md test 7 (owner-signed 2026-05-19)
 
 ## Summary
 
 total: 6
-passed: 1
+passed: 6
 issues: 0
-pending: 5
+pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
 
 See `gaps:` block under test 1. G-01, G-02, G-03 all resolved.
+
+## Phase 47 Resolution Pointer
+
+Tests 2-6 (the 5 visual/host-blocked items left pending at v1.5.1 Phase 41
+close) were re-run on the Phase 47 DUAL-RUNTIME Animation Viewer and
+owner-signed `passed` 2026-05-19. See
+`.planning/phases/47-spine-player-4-3-0-bump-viewer-regression/47-HUMAN-UAT.md`
+(the owner-signed DV-3 dual-runtime matrix). Mapping: 41 test 2 → 47 test 3;
+41 test 3 → 47 test 4; 41 test 4 → 47 test 5; 41 test 5 → 47 test 6;
+41 test 6 → 47 test 7. The original Phase 41 `expected:` prose above AND the
+test-1 G-01/G-02/G-03 `gaps:` provenance (`fixed_in: 6600761 / f772427 /
+b40b338`) are PRESERVED in place — both audit trails are intact (D-08).
