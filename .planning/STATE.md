@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: milestone_complete
-last_updated: "2026-05-19T09:47:57.638Z"
-last_activity: 2026-05-19 -- 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
+last_updated: "2026-05-19T10:52:23.000Z"
+last_activity: 2026-05-19 -- POST-COMPLETION FIX (folded into v1.6, owner-classified): `e7db8fe` fix(loader) — reject pre-release Spine exports (4.3-beta `appliedPose` crash → typed SpineVersionUnsupportedError); found during post-47-05 owner validation, lands in the v1.6 cut (branch still un-tagged); milestone status unchanged. See `.planning/debug/resolved/spine-43-beta-appliedpose-null.md`. // 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
 progress:
   total_phases: 6
   completed_phases: 6
