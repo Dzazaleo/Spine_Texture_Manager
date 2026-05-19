@@ -95,7 +95,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 - [x] **Phase 44: Loader Dispatch + Equivalence Oracle + 4.3 Fixture Authoring** - Rejecter→dispatcher routing; owner-exported in-repo 4.3 fixtures; same-rig cross-runtime equivalence proof within 1e-4 (completed 2026-05-18)
 - [x] **Phase 45: Dispatcher User-Facing Flip + Copy/Docs Sweep** - Flip the "re-export as 4.2" reject to supported-4.3 only after the path works; sweep every stale surface; invert the 6 guard-test files preserving the narrowed throw cases (completed 2026-05-18)
 - [x] **Phase 46: Slider Constraint Validation + 4.3 Performance Budget** - Closed-form slider oracle fixture; record a measured 4.3-specific wall-time regression budget against the N2.2 contract (completed 2026-05-18 — 46-01 SLIDER-01/02 + 46-02 PERF-01; verification PASSED 3/3, D-05 triangulation closed at 4.0)
-- [ ] **Phase 47: spine-player 4.3.0 Bump + Viewer Regression** - Decoupled, revertible viewer bump; drop removed `MixBlend`/`MixDirection`; re-run the 5 carried Phase 41 HUMAN-UATs on the 4.3 player
+- [x] **Phase 47: spine-player 4.3.0 Bump + Viewer Regression** - Decoupled, revertible viewer bump; drop removed `MixBlend`/`MixDirection`; re-run the 5 carried Phase 41 HUMAN-UATs on the 4.3 player (completed 2026-05-19)
 
 ## Phase Details
 
@@ -207,7 +207,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 4/5 | In Progress|  |
+| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 4/5 | Complete    | 2026-05-19 |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 

@@ -71,7 +71,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 ### spine-player Viewer Bump (PLAYER)
 
 - [x] **PLAYER-01**: `@esotericsoftware/spine-player` is bumped 4.2.111 → 4.3.0; the removed `MixBlend` / `MixDirection` imports are dropped from `AnimationPlayerModal.tsx` and migrated to the new apply model.
-- [ ] **PLAYER-02**: The viewer renders a 4.2 fixture correctly via the frozen spine-player@4.2.111 path AND a 4.3 fixture via the migrated spine-player@4.3.0 path (DV-1/DV-2 dual-runtime — reworded from the falsified single-runtime 4.3-only-player wording; same requirement, NOT a new ID), GL straight-alpha is re-verified, and the 5 carried Phase 41 HUMAN-UATs are re-run (DV-3 matrix: the migrated 4.3 leg + the frozen 4.2 leg).
+- [x] **PLAYER-02**: The viewer renders a 4.2 fixture correctly via the frozen spine-player@4.2.111 path AND a 4.3 fixture via the migrated spine-player@4.3.0 path (DV-1/DV-2 dual-runtime — reworded from the falsified single-runtime 4.3-only-player wording; same requirement, NOT a new ID), GL straight-alpha is re-verified, and the 5 carried Phase 41 HUMAN-UATs are re-run (DV-3 matrix: the migrated 4.3 leg + the frozen 4.2 leg).
 
 ### Continuous Integration (CI)
 
@@ -144,7 +144,7 @@ Which phases cover which requirements. Populated by gsd-roadmapper.
 | UX-01 | Phase 45 | Complete |
 | UX-02 | Phase 45 | Complete |
 | PLAYER-01 | Phase 47 | Complete |
-| PLAYER-02 | Phase 47 | Pending |
+| PLAYER-02 | Phase 47 | Complete |
 | CI-01 | Phase 42 | Complete |
 | PERF-01 | Phase 46 | Complete |
 

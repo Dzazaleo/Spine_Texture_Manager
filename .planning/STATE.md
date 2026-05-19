@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
-status: executing
+status: milestone_complete
 last_updated: "2026-05-19T09:47:57.638Z"
 last_activity: 2026-05-19 -- 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 24
   completed_plans: 24
   percent: 100
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — ALL PLANS COMPLETE (awaiting orchestrator phase verification)
-Plan: 47-05 COMPLETE — Phase 47 plan set DONE (47-01 ✓ · 47-03 ✓ · 47-04 ✓ · 47-05 ✓ · 47-02 SUPERSEDED by 47-05)
-Status: Phase 47 plans all complete; owner DV-3 UAT signed all 7 passed; **v1.6 D-01 milestone-close hold RELEASED** (the gate it was conditioned on is now owner-signed)
-Last activity: 2026-05-19 -- 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
+Phase: 47
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-19
 
 Next: **orchestrator-owned Phase 47 verification (`/gsd-verify-work 47`), then v1.6 milestone close.** The D-01 STRICT no-revert hold was conditioned on the 47-05 blocking owner `checkpoint:human-action` — the owner ran the real `npm run dev` Electron app against the full DV-3 dual-runtime matrix and signed all 7 tests `passed` (blanket verbal approval, faithfully transcribed; Phase 46 precedent). That gate is **SATISFIED**; no revert was needed (DV-1 ADDED the alias-isolated 4.2 stack). PLAYER-02 (reworded per DV-2) visually completed.
 
