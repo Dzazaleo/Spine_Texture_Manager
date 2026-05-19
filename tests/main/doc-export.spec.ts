@@ -109,7 +109,7 @@ describe('renderDocumentationHtml (DOC-04)', () => {
 
   it('omits the Events card when summary.events.count === 0', () => {
     const html = renderDocumentationHtml(makeMinimalPayload());
-    expect(html).not.toMatch(/card-header events/);
+    expect(html).not.toMatch(/ref-card-head events/);
   });
 
   it('renders the Events card when summary.events.count > 0', () => {
@@ -122,7 +122,7 @@ describe('renderDocumentationHtml (DOC-04)', () => {
       events: [{ name: 'shoot', description: 'Fires when ammo expended' }],
     };
     const html = renderDocumentationHtml(makeMinimalPayload({ summary, documentation: doc }));
-    expect(html).toMatch(/card-header events/);
+    expect(html).toMatch(/ref-card-head events/);
     expect(html).toContain('shoot');
     expect(html).toContain('Fires when ammo expended');
   });
@@ -131,7 +131,7 @@ describe('renderDocumentationHtml (DOC-04)', () => {
     const html = renderDocumentationHtml(
       makeMinimalPayload({ skeletonBasename: 'hello_world' }),
     );
-    expect(html).toContain('Spine Documentation /');
+    expect(html).toContain('Spine Documentation');
     expect(html).toContain('HELLO_WORLD');
   });
 
@@ -158,13 +158,13 @@ describe('renderDocumentationHtml (DOC-04)', () => {
     expect(html).toContain('MIX TIME');
     expect(html).toContain('LOOP');
     expect(html).toContain('NOTES');
-    expect(html).toContain('Track 0');
-    expect(html).toContain('Track 1');
+    expect(html).toContain('TRACK 0');
+    expect(html).toContain('TRACK 1');
     expect(html).toContain('walk');
     expect(html).toContain('0.25s');
     expect(html).toContain('loop-pill');
-    // loop=false → em-dash placeholder cell.
-    expect(html).toMatch(/<td[^>]*>—<\/td>/);
+    // loop=false → muted dash placeholder span.
+    expect(html).toContain('loop-dash');
   });
 
   it('renders the Optimization Config card with safety buffer + savings', () => {

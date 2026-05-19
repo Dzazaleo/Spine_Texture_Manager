@@ -181,88 +181,189 @@ function formatDateDDMMYYYY(ms: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Inline SVG glyphs — viewBox=20×20, stroke=currentColor (Phase 19 D-08
-// pattern; the parent's text color drives the visual). Locked per
-// 20-CONTEXT.md D-19.
+// Inline SVG glyphs.
+//
+// 2026-05-19: the locked 20-CONTEXT.md D-17 palette and D-18 layout were
+// superseded by a user-approved "exact visual match" reskin against the
+// reference design (Unity_Documentation/spine-documentation-2 Skeletons).
+// The DELIVERY contract is unchanged and still LOCKED — one self-contained
+// .html, zero network, inline <style> + inline SVG (no CDN React/Tailwind/
+// Babel like the reference file used). Only the visual design changed.
+//
+// stroke=currentColor so the parent element's CSS `color` drives each
+// glyph's tint (Phase 19 D-08 pattern). `icon(body, size)` stamps a glyph
+// at a given pixel box; viewBox stays 20×20 regardless of size.
 // ---------------------------------------------------------------------------
 
-const SVG_OPEN =
-  '<svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" width="16" height="16">';
+function icon(body: string, size: number): string {
+  return `<svg viewBox="0 0 20 20" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
 
-const GLYPH = {
-  clock: `${SVG_OPEN}<circle cx="10" cy="10" r="7"/><path d="M10 6 v4 l3 2"/></svg>`,
-  bone: `${SVG_OPEN}<path d="M5 8 a2 2 0 0 1 2 -2 h6 a2 2 0 0 1 2 2 v4 a2 2 0 0 1 -2 2 h-6 a2 2 0 0 1 -2 -2 z"/></svg>`,
-  layeredStack: `${SVG_OPEN}<path d="M2 6 l8 -3 8 3 -8 3 z"/><path d="M2 10 l8 3 8 -3"/><path d="M2 14 l8 3 8 -3"/></svg>`,
-  shield: `${SVG_OPEN}<path d="M10 3 L4 5 v5 c0 4 3 6 6 7 3 -1 6 -3 6 -7 V5 z"/></svg>`,
-  speech: `${SVG_OPEN}<path d="M3 4 h14 v9 h-7 l-4 3 v-3 H3 z"/></svg>`,
-  bell: `${SVG_OPEN}<path d="M5 13 v-3 a5 5 0 0 1 10 0 v3 l1 2 H4 z"/></svg>`,
-  doc: `${SVG_OPEN}<path d="M5 2 h7 l3 3 v13 H5 z"/><path d="M12 2 v3 h3"/></svg>`,
-  image: `${SVG_OPEN}<rect x="2" y="3" width="16" height="14" rx="1"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14 l4 -4 4 3 4 -5 4 4 v5"/></svg>`,
-  film: `${SVG_OPEN}<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M9 7 l4 3 -4 3 z"/></svg>`,
-  lightning: `${SVG_OPEN}<path d="M11 2 L4 11 h5 l-2 7 7 -9 h-5 z"/></svg>`,
-  map: `${SVG_OPEN}<path d="M2 5 l5 -2 6 2 5 -2 v12 l-5 2 -6 -2 -5 2 z"/><path d="M7 3 v14 M13 5 v14"/></svg>`,
+const PATH = {
+  doc: '<path d="M5 2 h7 l3 3 v13 H5 z"/><path d="M12 2 v3 h3"/><path d="M7.5 11 h5 M7.5 14 h5"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6 v4 l3 2"/>',
+  bone: '<path d="M5 8 a2 2 0 0 1 2 -2 h6 a2 2 0 0 1 2 2 v4 a2 2 0 0 1 -2 2 h-6 a2 2 0 0 1 -2 -2 z"/>',
+  layers:
+    '<path d="M10 2 l8 4 -8 4 -8 -4 z"/><path d="M2 10 l8 4 8 -4"/><path d="M2 14 l8 4 8 -4"/>',
+  shield: '<path d="M10 2.5 L4 5 v4.5 c0 4 3 6.5 6 7.5 3 -1 6 -3.5 6 -7.5 V5 z"/>',
+  speech: '<path d="M3 4 h14 v10 h-8 l-4 3 v-3 H3 z"/>',
+  scaling:
+    '<path d="M3 17 L17 3"/><path d="M9 3 h8 v8"/><rect x="3" y="11" width="6" height="6" rx="1"/>',
+  image:
+    '<rect x="2" y="3" width="16" height="14" rx="1.5"/><circle cx="7" cy="8" r="1.5"/><path d="M2.5 14 l4 -4 4 3 4 -5 3 3"/>',
+  film: '<rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 7.5 h14 M3 12.5 h14 M7 3 v14 M13 3 v14"/>',
+  lightning: '<path d="M11 2 L4 11 h5 l-2 7 7 -9 h-5 z"/>',
+  map: '<path d="M2 5 l5 -2 6 2 5 -2 v12 l-5 2 -6 -2 -5 2 z"/><path d="M7 3 v14 M13 5 v14"/>',
 };
 
 // ---------------------------------------------------------------------------
-// Inline <style> block — locked palette per 20-CONTEXT.md D-17.
-// Self-contained: no @font-face, no @import, no remote url(). System font
-// stack uses local OS fonts only.
+// Inline <style> block — reference-matched palette + layout (see glyph note
+// above for the D-17/D-18 supersession). Self-contained: no @font-face,
+// no @import, no remote url(). System font stack uses local OS fonts only.
+// Tailwind utility classes from the reference are translated to plain CSS
+// so the output renders identically with ZERO runtime dependencies.
 // ---------------------------------------------------------------------------
 
 const STYLE_BLOCK = `<style>
 :root {
-  --bg: #1c1917;
-  --card: #23201d;
-  --border: rgba(168, 162, 158, 0.18);
-  --terracotta: #e06b55;
-  --blue: #5fa8d4;
-  --green: #5fa866;
-  --muted: #a8a29e;
-  --fg: #f5f5f4;
+  --bg: #1e1e23;
+  --fg: #e5e7eb;
+  --white: #ffffff;
+  --accent: #ff5c5c;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-700-50: rgba(55, 65, 81, 0.5);
+  --gray-700-30: rgba(55, 65, 81, 0.3);
+  --gray-800: #1f2937;
+  --gray-800-30: rgba(31, 41, 55, 0.3);
+  --gray-800-40: rgba(31, 41, 55, 0.4);
+  --gray-800-50: rgba(31, 41, 55, 0.5);
+  --gray-800-80: rgba(31, 41, 55, 0.8);
+  --gray-900-50: rgba(17, 24, 39, 0.5);
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --purple-400: #c084fc;
+  --yellow-400: #facc15;
+  --yellow-500: #eab308;
+  --green-400: #4ade80;
+  --blue-900-30: rgba(30, 58, 138, 0.3);
+  --blue-700-30: rgba(29, 78, 216, 0.3);
+  --white-5: rgba(255, 255, 255, 0.05);
+  --black-20: rgba(0, 0, 0, 0.2);
 }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 32px; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }
-.hero { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-.hero-title { font-size: 24px; font-weight: 600; }
-.hero-name { color: var(--terracotta); }
-.chip-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; color: var(--muted); }
-.chip svg { color: var(--blue); }
-.row { display: flex; gap: 16px; margin-bottom: 16px; }
-.card { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
-.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 16px; font-weight: 600; }
-.card-header svg { color: var(--green); }
-.card-header.bones svg, .card-header.events svg { color: var(--terracotta); }
-.card-header.skins svg { color: var(--blue); }
-.card-header.tracks svg { color: var(--terracotta); }
-.card-header.notes svg { color: var(--blue); }
-.loop-pill { display: inline-flex; align-items: center; padding: 2px 6px; font-size: 10px; font-family: monospace; border-radius: 4px; background-color: rgba(95, 168, 212, 0.15); color: var(--blue); }
-.track-divider { display: flex; align-items: center; gap: 8px; font-family: monospace; font-size: 12px; color: var(--terracotta); margin-top: 12px; margin-bottom: 4px; }
-.track-divider::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--terracotta); }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; font-size: 11px; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
-td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
-.entry-name { font-family: monospace; color: var(--terracotta); }
-.entry-name.skin { color: var(--blue); }
-.entry-name.track { color: var(--fg); }
-.entry-desc { color: var(--muted); margin-top: 2px; font-size: 12px; }
-.notes-pre { white-space: pre-wrap; font-family: inherit; color: var(--muted); margin: 0; }
-.config-value { font-family: monospace; font-size: 28px; color: var(--fg); }
-.config-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.config-sublabel { font-size: 10px; color: var(--muted); margin-top: 2px; }
-.entry-list { list-style: none; padding: 0; margin: 0; }
-.entry-list li { margin-bottom: 12px; }
-.empty-state { font-style: italic; color: var(--muted); font-size: 13px; }
+body { margin: 0; padding: 24px; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent); color: #fff; }
+.doc { max-width: 1152px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+
+.header { display: flex; flex-direction: column; gap: 16px; border-bottom: 1px solid var(--gray-700); padding-bottom: 24px; }
+.title { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.025em; color: var(--white); }
+.title svg { color: var(--accent); flex-shrink: 0; }
+.title .sep { color: var(--gray-500); margin: 0 8px; }
+.title .name { color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; font-size: 14px; font-family: monospace; color: var(--gray-400); }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; background: var(--black-20); border: 1px solid var(--white-5); border-radius: 9999px; }
+.chip svg { width: 14px; height: 14px; }
+.chip.img svg { color: var(--blue-400); }
+.chip.film svg { color: var(--purple-400); }
+.chip.zap svg { color: var(--yellow-400); }
+.chip.map svg { color: var(--green-400); }
+
+.grid3 { display: grid; grid-template-columns: 1fr; gap: 24px; }
+.card { background: var(--gray-800-50); border: 1px solid var(--gray-700); border-radius: 12px; padding: 20px; }
+.card.optim { display: flex; flex-direction: column; justify-content: space-between; }
+.sec-mini { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sec-mini svg { width: 20px; height: 20px; }
+.sec-mini h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.sec-mini.shield { color: var(--green-400); }
+.sec-mini.scaling, .sec-mini.notes { color: var(--blue-400); }
+.big-value { font-size: 30px; font-weight: 700; color: var(--white); }
+.sub-label { margin: 0; font-size: 14px; color: var(--gray-400); }
+.divider-top { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--gray-700-50); }
+.notes-card { margin-bottom: 0; }
+.notes-card .sec-mini { margin-bottom: 12px; }
+.notes-body { font-size: 14px; color: var(--fg); white-space: pre-wrap; line-height: 1.625; margin: 0; font-family: inherit; }
+.notes-empty { margin: 0; font-size: 14px; color: var(--gray-500); font-style: italic; }
+
+.table-card { background: var(--gray-800-30); border: 1px solid var(--gray-700); border-radius: 12px; overflow: hidden; }
+.table-card-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--gray-800); border-bottom: 1px solid var(--gray-700); }
+.table-card-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 700; color: var(--white); }
+.table-card-head svg { width: 20px; height: 20px; color: var(--gray-400); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; text-align: left; border-collapse: collapse; }
+thead tr { background: var(--gray-900-50); font-size: 12px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; }
+th { padding: 12px 24px; border-bottom: 1px solid var(--gray-700); font-weight: 400; }
+th.col-mix { width: 128px; text-align: center; }
+th.col-loop { width: 96px; text-align: center; }
+th.col-name { width: 33.333%; }
+tbody.track-group { border-bottom: 1px solid var(--gray-700-50); }
+tbody.track-group:last-of-type { border-bottom: 0; }
+td { padding: 12px 24px; border-bottom: 1px solid var(--gray-700-30); font-size: 14px; vertical-align: top; }
+.track-group tr:last-child td { border-bottom: 0; }
+tr.track-row td { padding: 8px 24px; background: var(--gray-800-40); }
+.track-tag { display: flex; align-items: center; gap: 8px; font-family: monospace; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+.track-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: var(--accent); }
+tr.anim-row { transition: background-color 0.15s; }
+tr.anim-row:hover { background: var(--white-5); }
+td.cell-name { font-size: 14px; font-weight: 500; color: var(--fg); padding-left: 40px; }
+td.cell-mix, td.cell-loop { text-align: center; }
+.mix-val { font-family: monospace; font-size: 14px; color: var(--gray-300); }
+.mix-none { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); opacity: 0.6; }
+.loop-pill { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: var(--blue-900-30); color: var(--blue-300); border: 1px solid var(--blue-700-30); }
+.loop-dash { font-size: 12px; color: var(--gray-600); opacity: 0.5; }
+td.cell-notes { font-size: 14px; color: var(--gray-400); }
+.notes-blank { font-style: italic; opacity: 0.2; }
+.table-empty { padding: 32px 24px; text-align: center; font-style: italic; color: var(--gray-500); }
+
+.grid-ref { display: grid; grid-template-columns: 1fr; gap: 24px; }
+.ref-card { background: var(--gray-800-30); border: 1px solid var(--gray-700); border-radius: 12px; overflow: hidden; height: fit-content; }
+.ref-card-head { padding: 12px 20px; background: var(--gray-800-80); border-bottom: 1px solid var(--gray-700); }
+.ref-card-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 700; color: var(--white); }
+.ref-card-head svg { width: 18px; height: 18px; }
+.ref-card-head.bones svg { color: var(--gray-400); }
+.ref-card-head.events svg { color: var(--yellow-400); }
+.ref-card-head.skins svg { color: var(--blue-400); }
+.ref-list > div { padding: 16px; border-top: 1px solid var(--gray-700-50); }
+.ref-list > div:first-child { border-top: 0; }
+.ref-name { font-family: monospace; font-size: 14px; margin-bottom: 4px; }
+.ref-card.bones .ref-name { color: var(--gray-300); }
+.ref-card.events .ref-name { color: var(--yellow-500); }
+.ref-card.skins .ref-name { color: var(--blue-400); }
+.ref-desc { font-size: 14px; color: var(--gray-400); }
+.ref-desc .none { font-style: italic; opacity: 0.5; }
+.ref-empty { padding: 16px; font-size: 14px; font-style: italic; color: var(--gray-500); }
+
+.footer { padding-top: 48px; text-align: center; }
+.footer p { margin: 0; font-size: 12px; color: var(--gray-600); }
+
+@media (min-width: 768px) {
+  body { padding: 48px; }
+  .header { flex-direction: row; align-items: flex-end; justify-content: space-between; }
+  .title { font-size: 36px; }
+  .grid3 { grid-template-columns: repeat(3, 1fr); }
+  .notes-card { grid-column: span 2; }
+}
+@media (min-width: 1024px) {
+  .grid-ref { grid-template-columns: repeat(3, 1fr); }
+}
 </style>`;
 
 // ---------------------------------------------------------------------------
 // Section renderers.
 // ---------------------------------------------------------------------------
 
-function renderHero(skeletonName: string): string {
-  return `<div class="hero">
-    ${GLYPH.doc}
-    <div class="hero-title">Spine Documentation / <span class="hero-name">${escapeHtml(skeletonName)}</span></div>
+function renderHeader(skeletonName: string, payload: DocExportPayload): string {
+  return `<div class="header">
+    <div>
+      <h1 class="title">
+        ${icon(PATH.doc, 32)}
+        <span>Spine Documentation <span class="sep">/</span> <span class="name">${escapeHtml(skeletonName)}</span></span>
+      </h1>
+      ${renderChipStrip(payload)}
+    </div>
   </div>`;
 }
 
@@ -292,12 +393,12 @@ function renderChipStrip(payload: DocExportPayload): string {
   const optimizedAssets = payload.summary.regions.length;
   const atlasPages = payload.atlasPreview.totalPages;
   const maxPagePx = computeMaxPagePx(payload.atlasPreview);
-  return `<div class="chip-strip">
-    <span class="chip">${GLYPH.clock}Generated: ${escapeHtml(generated)}</span>
-    <span class="chip">${GLYPH.image}${imagesUtilized} Images Utilized</span>
-    <span class="chip">${GLYPH.film}${animationsConfigured} Animations Configured</span>
-    <span class="chip">${GLYPH.lightning}${optimizedAssets} Optimized Assets</span>
-    <span class="chip">${GLYPH.map}${atlasPages} Atlas Pages (${maxPagePx}px)</span>
+  return `<div class="chips">
+    <span class="chip">${icon(PATH.clock, 14)}<span>Generated: ${escapeHtml(generated)}</span></span>
+    <span class="chip img">${icon(PATH.image, 14)}<span>${imagesUtilized} Images Utilized</span></span>
+    <span class="chip film">${icon(PATH.film, 14)}<span>${animationsConfigured} Animations Configured</span></span>
+    <span class="chip zap">${icon(PATH.lightning, 14)}<span>${optimizedAssets} Optimized Assets</span></span>
+    <span class="chip map">${icon(PATH.map, 14)}<span>${atlasPages} Atlas Pages (${maxPagePx}px)</span></span>
   </div>`;
 }
 
@@ -323,52 +424,76 @@ function renderOptimizationConfigCard(payload: DocExportPayload): string {
   const safetyDisplay = `${safetyBuffer}`;
   const savingsPct = payload.exportPlanSavingsPct;
   const savingsDisplay = savingsPct === null ? '—' : `${savingsPct.toFixed(1)}%`;
-  return `<div class="card">
-    <div class="card-header"><span>${GLYPH.shield}</span><span>Optimization Config</span></div>
-    <div class="config-value">${escapeHtml(safetyDisplay)}%</div>
-    <div class="config-label">Safety Buffer</div>
-    <div class="config-value" style="margin-top:16px;">${escapeHtml(savingsDisplay)}</div>
-    <div class="config-label">Space Savings</div>
-    <div class="config-sublabel">Estimated Reduction</div>
+  return `<div class="card optim">
+    <div>
+      <div class="sec-mini shield">${icon(PATH.shield, 20)}<h3>Optimization Config</h3></div>
+      <div class="big-value">${escapeHtml(safetyDisplay)}%</div>
+      <p class="sub-label">Safety Buffer</p>
+    </div>
+    <div class="divider-top">
+      <div class="sec-mini scaling">${icon(PATH.scaling, 20)}<h3>Space Savings</h3></div>
+      <div class="big-value">${escapeHtml(savingsDisplay)}</div>
+      <p class="sub-label">Estimated Reduction</p>
+    </div>
   </div>`;
 }
 
 function renderGeneralNotesCard(notes: string): string {
-  return `<div class="card">
-    <div class="card-header notes"><span>${GLYPH.speech}</span><span>General Notes</span></div>
-    <pre class="notes-pre">${escapeHtml(notes)}</pre>
+  const trimmed = notes.trim();
+  const body =
+    trimmed.length > 0
+      ? `<pre class="notes-body">${escapeHtml(notes)}</pre>`
+      : `<p class="notes-empty">No general implementation notes provided.</p>`;
+  return `<div class="card notes-card">
+    <div class="sec-mini notes">${icon(PATH.speech, 20)}<h3>General Notes</h3></div>
+    ${body}
   </div>`;
 }
 
 function renderTracksCard(tracks: AnimationTrackEntry[]): string {
+  const head = `<div class="table-card-head"><h2>${icon(PATH.clock, 20)}Animation Tracks</h2></div>`;
+  const thead =
+    '<thead><tr><th class="col-name">ANIMATION NAME</th><th class="col-mix">MIX TIME</th><th class="col-loop">LOOP</th><th>NOTES</th></tr></thead>';
+
   if (tracks.length === 0) {
-    return `<div class="card">
-      <div class="card-header tracks"><span>${GLYPH.clock}</span><span>Animation Tracks</span></div>
-      <p class="empty-state">No animation tracks configured.</p>
+    return `<div class="table-card">
+      ${head}
+      <div class="table-wrap"><table>${thead}<tbody><tr><td class="table-empty" colspan="4">No tracks configured.</td></tr></tbody></table></div>
     </div>`;
   }
-  // Group entries by trackIndex; render in ascending order (D-05).
+
+  // Group entries by trackIndex; render in ascending order (D-05). One
+  // <tbody> per track so the inter-track hairline matches the reference.
   const indices = Array.from(new Set(tracks.map((t) => t.trackIndex))).sort(
     (a, b) => a - b,
   );
-  let body =
-    '<table><thead><tr><th>ANIMATION NAME</th><th>MIX TIME</th><th>LOOP</th><th>NOTES</th></tr></thead><tbody>';
+  let body = '';
   for (const idx of indices) {
-    body += `<tr><td colspan="4"><div class="track-divider">Track ${idx}</div></td></tr>`;
+    let rows = `<tr class="track-row"><td colspan="4"><span class="track-tag"><span class="track-dot"></span>TRACK ${idx}</span></td></tr>`;
     for (const entry of tracks.filter((t) => t.trackIndex === idx)) {
-      const loopCell = entry.loop ? '<span class="loop-pill">LOOP</span>' : '—';
-      body += `<tr>
-        <td><span class="entry-name track">${escapeHtml(entry.animationName)}</span></td>
-        <td>${escapeHtml(`${entry.mixTime}s`)}</td>
-        <td>${loopCell}</td>
-        <td class="entry-desc">${escapeHtml(entry.notes)}</td>
+      const mixCell =
+        entry.mixTime === 0
+          ? '<span class="mix-none">No Mix Time</span>'
+          : `<span class="mix-val">${escapeHtml(`${entry.mixTime}s`)}</span>`;
+      const loopCell = entry.loop
+        ? '<span class="loop-pill">Loop</span>'
+        : '<span class="loop-dash">-</span>';
+      const notesCell =
+        entry.notes.length > 0
+          ? escapeHtml(entry.notes)
+          : '<span class="notes-blank"></span>';
+      rows += `<tr class="anim-row">
+        <td class="cell-name">${escapeHtml(entry.animationName)}</td>
+        <td class="cell-mix">${mixCell}</td>
+        <td class="cell-loop">${loopCell}</td>
+        <td class="cell-notes">${notesCell}</td>
       </tr>`;
     }
+    body += `<tbody class="track-group">${rows}</tbody>`;
   }
-  body += '</tbody></table>';
-  return `<div class="card">
-    <div class="card-header tracks"><span>${GLYPH.clock}</span><span>Animation Tracks</span></div>
-    ${body}
+  return `<div class="table-card">
+    ${head}
+    <div class="table-wrap"><table>${thead}${body}</table></div>
   </div>`;
 }
 
@@ -385,22 +510,25 @@ function renderEntryListCard(
   entries: Array<{ name: string; description: string }>,
   emptyMessage: string | null,
 ): string {
-  const skinExtra = headerClass === 'skins' ? ' skin' : '';
+  const head = `<div class="ref-card-head ${headerClass}"><h3>${glyph}${escapeHtml(title)}</h3></div>`;
   if (entries.length === 0 && emptyMessage !== null) {
-    return `<div class="card">
-      <div class="card-header ${headerClass}"><span>${glyph}</span><span>${escapeHtml(title)}</span></div>
-      <p class="empty-state">${escapeHtml(emptyMessage)}</p>
+    return `<div class="ref-card ${headerClass}">
+      ${head}
+      <p class="ref-empty">${escapeHtml(emptyMessage)}</p>
     </div>`;
   }
   const items = entries
-    .map(
-      (e) =>
-        `<li><div class="entry-name${skinExtra}">${escapeHtml(e.name)}</div><div class="entry-desc">${escapeHtml(e.description)}</div></li>`,
-    )
+    .map((e) => {
+      const desc =
+        e.description.length > 0
+          ? escapeHtml(e.description)
+          : '<span class="none">No description</span>';
+      return `<div><div class="ref-name">${escapeHtml(e.name)}</div><div class="ref-desc">${desc}</div></div>`;
+    })
     .join('');
-  return `<div class="card">
-    <div class="card-header ${headerClass}"><span>${glyph}</span><span>${escapeHtml(title)}</span></div>
-    <ul class="entry-list">${items}</ul>
+  return `<div class="ref-card ${headerClass}">
+    ${head}
+    <div class="ref-list">${items}</div>
   </div>`;
 }
 
@@ -419,15 +547,28 @@ export function renderDocumentationHtml(payload: DocExportPayload): string {
   // Mirrors the user's screenshot reference (no events → no card section).
   const showEventsCard = payload.summary.events.count > 0;
 
-  let body = '';
-  body += renderHero(skeletonName);
-  body += renderChipStrip(payload);
-  body += `<div class="row">${renderOptimizationConfigCard(payload)}${renderGeneralNotesCard(payload.documentation.generalNotes)}</div>`;
-  body += `<div class="row">${renderTracksCard(payload.documentation.animationTracks)}</div>`;
-  body += `<div class="row">${renderEntryListCard('bones', GLYPH.bone, 'Control Bones', documentedBones, 'No control bones documented.')}${renderEntryListCard('skins', GLYPH.layeredStack, 'Skins', skins, null)}</div>`;
+  // Reference grid: Control Bones | Events | Skins (Events only when the
+  // skeleton declares events; Bones always renders, with an empty-state
+  // when nothing is documented).
+  let refCards = renderEntryListCard(
+    'bones',
+    icon(PATH.bone, 18),
+    'Control Bones',
+    documentedBones,
+    'No control bones documented.',
+  );
   if (showEventsCard) {
-    body += renderEntryListCard('events', GLYPH.bell, 'Events', events, null);
+    refCards += renderEntryListCard('events', icon(PATH.lightning, 18), 'Events', events, null);
   }
+  refCards += renderEntryListCard('skins', icon(PATH.layers, 18), 'Skins', skins, null);
+
+  const body = `<div class="doc">
+${renderHeader(skeletonName, payload)}
+<div class="grid3">${renderOptimizationConfigCard(payload)}${renderGeneralNotesCard(payload.documentation.generalNotes)}</div>
+${renderTracksCard(payload.documentation.animationTracks)}
+<div class="grid-ref">${refCards}</div>
+<div class="footer"><p>Generated by Spine Texture Manager</p></div>
+</div>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
