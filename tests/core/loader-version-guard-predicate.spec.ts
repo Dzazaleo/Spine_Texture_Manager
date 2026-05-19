@@ -133,7 +133,10 @@ describe('checkSpineVersion (Phase 12 / Plan 05 / F3)', () => {
  *   4.3.01 + constraints[]            → '4.3'
  *   4.2-from-4.3.01 + transform/path  → '4.2'  (D-07 suffix-tolerant; ORCL-02 4.2 leg)
  *   4.2.43 + transform               → '4.2'  (existing 4.2 golden — regression-safe)
- *   4.3.91-beta + constraints[]      → '4.3'  (was reject; now routes)
+ *   4.3.91-beta + constraints[]      → REJECT 'prerelease' (debug-fix spine-43-beta-appliedpose-null 2026-05-19:
+ *                                       a NON-STABLE editor build can author a rig the stable spine-core
+ *                                       runtime crashes on at updateWorldTransform — pre-release token is the
+ *                                       deterministic reject signal; was a route, now a typed reject)
  */
 describe('resolveRuntimeTag (Phase 44 / DISP-01/02/03 / D-06/07/08/09)', () => {
   describe('positive routing (returns a RuntimeTag)', () => {
@@ -151,8 +154,17 @@ describe('resolveRuntimeTag (Phase 44 / DISP-01/02/03 / D-06/07/08/09)', () => {
       ).toBe('4.2');
     });
 
-    it("resolveRuntimeTag('4.3.73-beta', {constraints:[]}, P) === '4.3' (D-09 beta band, D-07 suffix-tolerant)", () => {
-      expect(resolveRuntimeTag('4.3.73-beta', { constraints: [] }, SKEL)).toBe('4.3');
+    it("resolveRuntimeTag('4.3.73-beta', {constraints:[]}, P) THROWS 'prerelease' (debug-fix spine-43-beta-appliedpose-null 2026-05-19 — an in-band 4.3.x PRE-RELEASE token is now a typed reject, NOT a route: a non-stable editor build can emit a rig spine-core stable crashes on)", () => {
+      expect(() => resolveRuntimeTag('4.3.73-beta', { constraints: [] }, SKEL)).toThrow(
+        SpineVersionUnsupportedError,
+      );
+      try {
+        resolveRuntimeTag('4.3.73-beta', { constraints: [] }, SKEL);
+      } catch (err) {
+        expect((err as SpineVersionUnsupportedError).detectedVersion).toBe(
+          'prerelease:4.3.73-beta',
+        );
+      }
     });
 
     it("resolveRuntimeTag('4.3.0', {}, P) === '4.3' (D-08: constraint-less 4.3 is VALID — NOT a contradiction)", () => {

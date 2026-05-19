@@ -31,6 +31,20 @@
  *     routing a 4.2 JSON → runtime-42 and a 4.3 JSON → runtime-43, decided
  *     BEFORE atlas-resolve + rt.parseSkeleton. The loader stays
  *     spine-core-import-free (RT-02 preserved).
+ *   - debug-fix spine-43-beta-appliedpose-null (2026-05-19): `resolveRuntimeTag`
+ *     additionally rejects an in-band (4.2.x/4.3.x) PRE-RELEASE token
+ *     (`-beta`/`-rc`/`-alpha`/etc. suffix on the leading semver) with the
+ *     'prerelease' sentinel. A non-stable Spine editor build can emit a
+ *     structurally-invalid rig (e.g. a root-targeting IK constraint whose
+ *     chain root has no parent bone) that the SHIPPED spine-core stable
+ *     runtime dereferences unconditionally (`IkConstraint.apply1`:
+ *     `bone.bone.parent.appliedPose`) and throws on at the FIRST
+ *     `updateWorldTransform` — surfacing as the opaque
+ *     `Unknown: Cannot read properties of null (reading 'appliedPose')`
+ *     toast. The pre-release token is the deterministic, cheap, honest
+ *     signal for this class; we reject it at the single dispatch gate with
+ *     an actionable re-export-from-stable message instead of letting the
+ *     broken rig reach the sampler.
  */
 
 import * as fs from 'node:fs';
@@ -86,6 +100,49 @@ interface AtlasRegionsView {
  */
 interface SkeletonDataFpsView {
   fps: number;
+}
+
+/**
+ * debug-fix spine-43-beta-appliedpose-null (2026-05-19) — pre-release-token
+ * detector for the dispatch gate.
+ *
+ * Spine stamps stable editor exports with a plain `major.minor.patch` token
+ * (`4.3.01`, `4.2.111`). Pre-release editor builds append a hyphenated
+ * pre-release suffix per semver convention (`4.3.91-beta`, `4.2.0-rc.1`,
+ * `4.3.0-alpha`). We only need to recognise the SHAPE: a hyphen after the
+ * leading numeric core (the same core `^(\d+)\.(\d+)` the band classifier
+ * already consumes), with at least one non-digit pre-release identifier
+ * following. We must NOT match the legitimate editor token
+ * `4.2-from-4.3.01` (the 4.3-editor re-export-as-4.2 marker, project memory
+ * `project_spine_4_3_editor_atlas_format_editor_driven`) — that hyphen is
+ * followed by `from-...`, NOT a semver pre-release identifier on the SAME
+ * version core. The regex anchors the hyphen immediately after an OPTIONAL
+ * `.patch`, so `4.2-from-4.3.01` (hyphen right after the minor, no patch,
+ * suffix `from-4.3.01`) is still classified pre-release ONLY if the suffix
+ * is a pre-release-style identifier — see the guard below which additionally
+ * excludes the `from-` editor marker explicitly.
+ *
+ * Pure string inspection — no DOM/fs/Electron; RT-02 spine-core-import-free
+ * invariant preserved.
+ *
+ * @param version the value of `skeleton.spine` (already known non-null and
+ *   to have a parseable leading major.minor by the caller).
+ * @returns true if `version` carries a semver pre-release suffix.
+ */
+export function isPrereleaseSpineToken(version: string): boolean {
+  // Core: leading major.minor with an OPTIONAL .patch, then a hyphen, then a
+  // pre-release identifier. `4.3.91-beta` → match; `4.2.0-rc.1` → match;
+  // `4.3.01` → no match; `4.2.111` → no match.
+  const m = version.match(/^\d+\.\d+(?:\.\d+)?-([0-9A-Za-z.-]+)$/);
+  if (m === null) return false;
+  const suffix = m[1];
+  // The 4.3-editor "re-export as Version 4.2" marker is `4.2-from-4.3.01`
+  // (project memory project_spine_4_3_editor_atlas_format_editor_driven) —
+  // a SANCTIONED stable token, NOT a pre-release. Its suffix begins with
+  // `from-`. Exclude it explicitly so a legitimate downgrade re-export is
+  // never mis-rejected as a beta.
+  if (suffix.startsWith('from-')) return false;
+  return true;
 }
 
 /**
@@ -207,6 +264,8 @@ export function checkSpine43Schema(parsedJson: unknown, skeletonPath: string): v
  *     - major<4 || (4 && minor<2)   → throw <version>          (UNCHANGED — Phase 12 F3; :123-125)
  *     - (4 && minor>=4) || major>=5 → throw <version>          (NEW D-09 ≥4.4 arm — Pitfall 2: SPLIT OUT of the
  *                                                               old bundled ≥4.3 throw, NOT folded/deleted)
+ *     - in-band 4.2.x/4.3.x w/ a    → throw 'prerelease'       (debug-fix spine-43-beta-appliedpose-null,
+ *       PRE-RELEASE suffix                                       2026-05-19 — see isPrereleaseSpineToken)
  *     - 4 && minor===2              → tentative tag '4.2'
  *     - 4 && minor===3              → tentative tag '4.3'       (was a throw at :127-130; now routes)
  *
@@ -232,7 +291,7 @@ export function checkSpine43Schema(parsedJson: unknown, skeletonPath: string): v
  * @param parsedJson   the once-parsed JSON.parse(jsonText) result (typed unknown).
  * @param skeletonPath the absolute path to the skeleton JSON (for the error envelope).
  * @returns the resolved `RuntimeTag` ('4.2' | '4.3') for `pickRuntime`.
- * @throws SpineVersionUnsupportedError on <4.2 / unknown / malformed / ≥4.4 / contradiction.
+ * @throws SpineVersionUnsupportedError on <4.2 / unknown / malformed / ≥4.4 / pre-release / contradiction.
  */
 export function resolveRuntimeTag(
   version: string | null,
@@ -266,6 +325,31 @@ export function resolveRuntimeTag(
     // delete `minor>=3` and let 4.3 fall through unguarded; a hypothetical
     // ≥4.4 export must hit the typed rejecter, NOT the 4.3 runtime.
     throw new SpineVersionUnsupportedError(version, skeletonPath);
+  }
+  // debug-fix spine-43-beta-appliedpose-null (2026-05-19) — PRE-RELEASE arm.
+  //
+  // Only IN-BAND (4.2.x / 4.3.x) tokens reach this point (the <4.2 and ≥4.4
+  // arms above already threw with the existing wording — DO NOT relocate
+  // this above them; an out-of-band pre-release like `4.4.0-beta` must keep
+  // its existing ≥4.4 "re-export as Version 4.3 (or 4.2)" message, not the
+  // new pre-release one). A pre-release suffix on an otherwise-supported
+  // 4.2.x/4.3.x core means the file came from a NON-STABLE Spine editor
+  // build. The SHIPPED spine-core stable runtime trusts the rig shape
+  // unconditionally in places (verified: spine-core@4.3.0
+  // IkConstraint.apply1 does `bone.bone.parent.appliedPose` with a
+  // documented `noNonNullAssertion: reference runtime` bypass); a beta
+  // editor can author a structurally-invalid rig (the
+  // fixtures/SPINE_4_3_TEST root-targeting parentless-IK case) that this
+  // dereferences as `null.appliedPose` and throws on at the FIRST
+  // `updateWorldTransform` in the sampler — swallowed by handleSkeletonLoad
+  // into the opaque `Unknown: Cannot read properties of null (reading
+  // 'appliedPose')` toast. Detect the pre-release token here — the cheap,
+  // deterministic, honest signal — and surface an actionable
+  // re-export-from-stable message instead of letting the broken rig reach
+  // the sampler. 'prerelease' is a NEW sentinel handled by the
+  // SpineVersionUnsupportedError constructor (errors.ts D-10 classification).
+  if (isPrereleaseSpineToken(version)) {
+    throw new SpineVersionUnsupportedError('prerelease:' + version, skeletonPath);
   }
   // Only 4.2.x and 4.3.x reach here (D-09 split).
   const tag: RuntimeTag = minor === 3 ? '4.3' : '4.2';
@@ -389,9 +473,9 @@ export function loadSkeleton(
   }
   // The SINGLE gate + dispatch. resolveRuntimeTag throws the typed
   // SpineVersionUnsupportedError for null / malformed / <4.2 / ≥4.4 /
-  // contradiction (every pre-flip throw-case preserved) and otherwise
-  // returns the validated '4.2'|'4.3' tag — it NEVER falls through to a
-  // default runtime (T-44-03/04/05 mitigation).
+  // pre-release / contradiction (every pre-flip throw-case preserved) and
+  // otherwise returns the validated '4.2'|'4.3' tag — it NEVER falls through
+  // to a default runtime (T-44-03/04/05 mitigation).
   const rt = pickRuntime(resolveRuntimeTag(spineFieldForDispatch, parsedJson, skeletonPath));
 
   // Phase 22 DIMS-01 — walk parsedJson.skins[*].attachments to harvest
