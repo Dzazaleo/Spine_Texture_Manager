@@ -3,26 +3,28 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-19T08:49:30.000Z"
-last_activity: 2026-05-19 -- 47-04 COMPLETE (T-A/T-B/T-C dual-runtime headless guards + DV-2 reword + 47-VALIDATION coherent rewrite)
+last_updated: "2026-05-19T09:47:57.638Z"
+last_activity: 2026-05-19 -- 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 25
-  completed_plans: 22
-  percent: 88
+  total_plans: 24
+  completed_plans: 24
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — EXECUTING
-Plan: 47-04 COMPLETE — next 47-05 (wave 5, blocking owner checkpoint)
-Status: Executing Phase 47 (dual-runtime viewer landed + machine-guarded; only the owner visual UAT remains)
-Last activity: 2026-05-19 -- 47-04 COMPLETE (T-A/T-B/T-C dual-runtime headless guards + DV-2 reword + 47-VALIDATION coherent rewrite)
+Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — ALL PLANS COMPLETE (awaiting orchestrator phase verification)
+Plan: 47-05 COMPLETE — Phase 47 plan set DONE (47-01 ✓ · 47-03 ✓ · 47-04 ✓ · 47-05 ✓ · 47-02 SUPERSEDED by 47-05)
+Status: Phase 47 plans all complete; owner DV-3 UAT signed all 7 passed; **v1.6 D-01 milestone-close hold RELEASED** (the gate it was conditioned on is now owner-signed)
+Last activity: 2026-05-19 -- 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
 
-Next: **`/gsd-execute-phase 47` — run the final wave: 47-05 (wave 5, depends 47-03+47-04, autonomous:false, MAIN-TREE-SEQUENTIAL).** **v1.6 milestone close remains HELD per D-01 (STRICT, no revert fallback)** — on the 47-05 blocking owner `checkpoint:human-action`, against the DV-3 matrix.
+Next: **orchestrator-owned Phase 47 verification (`/gsd-verify-work 47`), then v1.6 milestone close.** The D-01 STRICT no-revert hold was conditioned on the 47-05 blocking owner `checkpoint:human-action` — the owner ran the real `npm run dev` Electron app against the full DV-3 dual-runtime matrix and signed all 7 tests `passed` (blanket verbal approval, faithfully transcribed; Phase 46 precedent). That gate is **SATISFIED**; no revert was needed (DV-1 ADDED the alias-isolated 4.2 stack). PLAYER-02 (reworded per DV-2) visually completed.
+
+**47-05 DONE (DV-3/D-02/D-08 — the binding visual gate, the last v1.6 deliverable):** `71bb6ee` Task 1 (47-HUMAN-UAT.md revised from the superseded D-09 pair to the 7-test DV-3 dual-runtime matrix — landed pre-checkpoint, verified-not-redone) → `2e77597` Task 2 (owner DV-3 UAT sign-off transcribed: `status: passed`, `approved_by: user`, `approved_at: 2026-05-19`, all 7 `result: passed`, Summary 7/0; the owner ran the real Electron app against both legs — 4.2 frozen spine-player@4.2.111 [SIMPLE_TEST + CHJWC_SYMBOLS + TQORW_SYMBOLS + TEST_03] + 4.3 migrated spine-player@4.3.0 [skeleton2] — and gave a blanket verbal approval "done, all seems good"; recorded HONESTLY with a `## Sign-off Provenance` note as a transcribed blanket approval NOT a fabricated per-line signature, plus an honest documented residual that Test-1 GL-alpha per-leg screenshots were NOT captured/embedded — not fabricated, not a blocker since the owner is the D-02 authority and approved; `OWNER_SIGNED_OK`) → `475f37a` Task 3 (D-08 in-place flip of `41-HUMAN-UAT.md` tests 2-6 → `result: resolved` with a 47-HUMAN-UAT.md pointer [41→47 map: t2→t3, t3→t4, t4→t5, t5→t6, t6→t7], `## Current Test` + Summary [passed 6 / pending 0] updated; the original Phase-41 `expected:` prose AND the test-1 `gaps:` block [G-01 `6600761` / G-02 `f772427` / G-03 `b40b338`] PRESERVED in place — both audit trails intact; `FLIP41_OK`). **Blast-radius PASS — `git diff --name-only 0825b90..HEAD` = EXACTLY the 2 `*-HUMAN-UAT.md` files; ZERO `src/`, ZERO `tests/`, zero package.json/lockfile/bundler/tsconfig/CSP.** 2 deviations, both the orchestrator-mandated faithful-transcription contract (blanket verbal sign-off recorded honestly as such; screenshot-absent documented not fabricated) — no Rule-1/2/3 auto-fix (no code/tests touched), no checkpoint hit (owner sign-off pre-given), no LOCKED decision relitigated. **47-02 disposition: SUPERSEDED by 47-05 — no `47-02-SUMMARY.md` owed (closed by supersession; recorded authoritatively in `47-05-SUMMARY.md`, the plan's contracted home for that record).** Full record in `47-05-SUMMARY.md`. ROADMAP `roadmap.update-plan-progress 47 47-05 complete` → updated (47-05 `[x]`, Phase 47 4/5, summary_count 4). gsd-sdk `state.advance-plan` benign-errors on this hand-written STATE.md (memory `project_gsd_sdk_state_session_fields_absent`) — Current Position updated directly here; metrics/decisions captured authoritatively in `47-05-SUMMARY.md`.
 
 **47-04 DONE (DV-2/Q4 — the machine half of PLAYER-02):** `c3e676a` Task 1 (T-A `tests/runtime/reg4701-buildsummary-handoff.spec.ts` — the deleted REG-47-01 `_dbg-` throwaway is now a permanent git-tracked cross-runtime-handoff guard; drives the full `loadSkeleton→sampleSkeleton→buildSummary` chain; 4.3 no `reading 'r'` + `runtimeTag` 4.3, 4.2 control `runtimeTag` 4.2; GREEN 2/2) → `a9170ef` Task 2 (T-B `dual-viewer-routing.spec.ts` jsdom — resolution arm: `spine-player-42`→spine-core@4.2.111 lacking `Slider`/`BonePose` vs canonical 4.3.0; dispatcher arm: `runtimeTag` `4.2`→`AnimationPlayerModal42`/`4.3`→migrated, + a router-source no-re-detection guard; T-C `dv1-42-parse-guard.spec.ts` node — all 4 DV-3 fixtures (SIMPLE_TEST path / CHJWC transform / TQORW ik+transform+events / TEST_03 ik+transform+physics) parse CLEAN via spine-player-42 bare core AND THROW via canonical 4.3.0; GREEN 14/14) → `4c6aad5` Task 3 (DV-2 reword PLAYER-02 in ROADMAP SC#2 + REQUIREMENTS + Traceability — SAME ID, no PLAYER-03, the GL-straight-alpha + 5-carried-UAT clauses preserved verbatim-in-substance, the falsified single-runtime wording removed; ROADMAP Phase 47 plan-list re-sequenced to 47-01/03/04/05 + the explicit 47-02-SUPERSEDED note; `47-VALIDATION.md` coherently REWRITTEN — superseded D-09 Plan-02 Per-Task rows + the falsified single-runtime-4.3-player Manual-Only rows REPLACED by the RESEARCH-§7 T-A..T-D + DV-3 owner-checkpoint rows, the 47-01 PLAYER-01 rows retained, DV-NOTE rows use the AMENDED `@ts-nocheck` wording; grep `47-02-0`==0 AND `through the 4.3 player`==0 in all 3 docs). **2 Rule-3 in-scope auto-fixes** (T-C real sibling AtlasAttachmentLoader over the plan's permitted "null/AtlasAttachmentLoader" branch; DV-2/47-VALIDATION meta-prose reworded so the forbidden literal substrings are file-wide absent). **Blast-radius PASS — `git diff --name-only 08fa8fd..HEAD` = exactly the 3 new `tests/runtime/*.spec.ts` + `.planning/ROADMAP.md` + `.planning/REQUIREMENTS.md` + `47-VALIDATION.md`; ZERO `src/`, zero bundler/tsconfig/dependency/CSP/CORS.** Full `npx vitest run` 138 files / 1371 passed / 0 failures — no NEW failures vs the 47-03 post-state (the documented MixBlend import suites are green here). Full record in `47-04-SUMMARY.md`. ROADMAP `roadmap.update-plan-progress 47 47-04 complete` → updated (summary_count 3/5). gsd-sdk `state.*` session/decision handlers benign-no-op on this hand-written STATE.md (memory `project_gsd_sdk_state_session_fields_absent`) — metrics/decisions captured authoritatively in `47-04-SUMMARY.md`.
 
