@@ -34,6 +34,13 @@ jobs:
         os: [ubuntu-latest, windows-2022, macos-14]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          # fetch-depth: 0 is CRITICAL — `npm run test` includes git-archaeology
+          # guards (SAFE-01 D-09 `git merge-base --is-ancestor`,
+          # slider43-closedform SC#2 `git diff <base>..<phase-end>`) that need
+          # FULL history. Mirrors ci.yml:81. Without it the release Test job
+          # fails on the same commit ci.yml passes (shallow clone → bad revision).
+          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: 22
