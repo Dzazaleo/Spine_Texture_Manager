@@ -647,7 +647,6 @@ function SectionsPane({ draft, summary, onChange }: SectionsPaneProps) {
       <ControlBonesSubSection draft={draft} summary={summary} onChange={onChange} />
       <SkinsSubSection draft={draft} summary={summary} onChange={onChange} />
       <GeneralNotesSubSection draft={draft} onChange={onChange} />
-      <SafetyBufferSubSection draft={draft} onChange={onChange} />
     </div>
   );
 }
@@ -838,51 +837,6 @@ function GeneralNotesSubSection({
         rows={6}
         className="w-full bg-surface border border-border rounded-md px-2 py-2 text-sm text-fg font-sans focus:outline-none focus-visible:outline-2 focus-visible:outline-accent resize-y"
       />
-    </section>
-  );
-}
-
-function SafetyBufferSubSection({
-  draft,
-  onChange,
-}: {
-  draft: Documentation;
-  onChange: (next: Documentation) => void;
-}) {
-  // Phase 30 closure plan 30-05 — CR-04 fix (Option C). Pre-Phase-30 this
-  // section had a writable input (range 0-100, step 0.5) that ONLY drove
-  // the HTML report's "Optimization Config" card — the v1.2 input copy
-  // ("Metadata only. Captured in the HTML export; export math wiring
-  // deferred to a future phase.") explicitly told users the value did
-  // NOT drive export math. Phase 30 introduces a TOP-LEVEL safetyBufferPercent
-  // that DOES drive export math AND now drives the HTML report (per
-  // doc-export.ts:291 read-source change in plan 30-05). The two fields
-  // share a name but represent different concepts at different ranges
-  // (legacy 0-100 metadata vs new 0-25 functional); the cleanest UX is to
-  // surface ONE control in the Optimize dialog and convert this section
-  // to an informational pointer.
-  //
-  // The legacy Documentation.safetyBufferPercent field stays present in
-  // src/core/documentation.ts (no schema migration; backward-compat per
-  // CLAUDE.md schema-additive lock) but is no longer consumed by any UI
-  // surface or export-pipeline read. v1.2-era projects with non-zero
-  // values continue to round-trip through the .stmproj — they just stop
-  // showing up in the HTML report.
-  //
-  // onChange is intentionally NOT called from this section anymore — the
-  // input is read-only (no longer editable). draft remains in scope for
-  // future re-introduction or migration logic if needed.
-  void onChange;
-  void draft;
-  return (
-    <section>
-      <h3 className="text-base font-semibold text-fg mb-1">Safety Buffer</h3>
-      <p className="text-xs text-fg-muted mb-3">
-        Moved to Optimize dialog. Open <strong>File → Optimize Assets</strong> and
-        set <strong>Quality → Safety buffer</strong> to control the percentage
-        applied to all exports. The value entered there drives both the export
-        math and this HTML report's "Optimization Config" card.
-      </p>
     </section>
   );
 }
