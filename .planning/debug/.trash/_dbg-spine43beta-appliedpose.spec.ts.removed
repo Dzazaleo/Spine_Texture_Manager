@@ -1,0 +1,111 @@
+// THROWAWAY DEBUG SPEC — debug session spine-43-beta-appliedpose-null.
+// Drives the FULL app load pipeline (loadSkeleton → sampleSkeleton →
+// buildSummary, plus the ipc.ts classifier replicated inline so we do NOT
+// import Electron's app) on the 4.3-beta fixture to recover the swallowed
+// `Cannot read properties of null (reading 'appliedPose')` stack.
+// DELETE after verification — never git-tracked (the `_dbg-` prefix marks it).
+
+import { describe, it } from 'vitest';
+import * as path from 'node:path';
+import { loadSkeleton } from '../../src/core/loader.js';
+import { sampleSkeleton } from '../../src/core/sampler.js';
+import { buildSummary } from '../../src/main/summary.js';
+import { SpineVersionUnsupportedError } from '../../src/core/errors.js';
+
+const BETA = path.resolve(
+  __dirname,
+  '../../fixtures/SPINE_4_3_TEST/SPINE_4_3_TEST.json',
+);
+const STABLE = path.resolve(
+  __dirname,
+  '../../fixtures/SIMPLE_PROJECT_43/skeleton2.json',
+);
+
+// Replicates handleSkeletonLoad's catch/classify (ipc.ts:633-669) WITHOUT
+// importing ipc.ts (which transitively pulls Electron `app`).
+function classifyLoad(jsonPath: string): { ok: boolean; kind?: string; message?: string } {
+  try {
+    const load = loadSkeleton(jsonPath);
+    const sampled = sampleSkeleton(load);
+    buildSummary(load, sampled, 0);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof SpineVersionUnsupportedError) {
+      return { ok: false, kind: 'SpineVersionUnsupportedError', message: err.message };
+    }
+    return {
+      ok: false,
+      kind: 'Unknown',
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+describe('_dbg spine43beta appliedPose', () => {
+  it('classified envelope (BETA) — reproduce the toast', () => {
+    const res = classifyLoad(BETA);
+    // eslint-disable-next-line no-console
+    console.log('[BETA envelope]', JSON.stringify(res));
+  });
+
+  it('raw pipeline (BETA) — recover the unswallowed Node stack', () => {
+    try {
+      const load = loadSkeleton(BETA);
+      // eslint-disable-next-line no-console
+      console.log('[BETA] loadSkeleton OK; runtime tag =', load.runtime?.tag);
+      const sampled = sampleSkeleton(load);
+      // eslint-disable-next-line no-console
+      console.log('[BETA] sampleSkeleton OK; peaks =', sampled.globalPeaks.size);
+      buildSummary(load, sampled, 0);
+      // eslint-disable-next-line no-console
+      console.log('[BETA] buildSummary OK');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.log('[BETA RAW THROW]', (err as Error).name, '::', (err as Error).message);
+      // eslint-disable-next-line no-console
+      console.log('[BETA RAW STACK]\n' + (err as Error).stack);
+    }
+  });
+
+  it('isolated SkeletonJson-only parse of the beta JSON (4.3.0 stable)', async () => {
+    const fs = await import('node:fs');
+    const sc = await import('@esotericsoftware/spine-core');
+    const json = JSON.parse(fs.readFileSync(BETA, 'utf8'));
+    try {
+      const atlas = new sc.TextureAtlas(
+        '\n\nstub.png\nsize: 1,1\nformat: RGBA8888\nfilter: Linear,Linear\nrepeat: none\n',
+      );
+      for (const p of atlas.pages) p.setTexture(new sc.FakeTexture(null as never));
+      const loader = new sc.AtlasAttachmentLoader(atlas);
+      const data = new sc.SkeletonJson(loader).readSkeletonData(json);
+      // eslint-disable-next-line no-console
+      console.log(
+        '[BETA isolated parse OK] bones=' + data.bones.length +
+          ' constraints(ik=' + data.ikConstraints.length +
+          ')',
+      );
+      try {
+        const sk = new sc.Skeleton(data);
+        sk.updateWorldTransform(sc.Physics.update);
+        // eslint-disable-next-line no-console
+        console.log('[BETA isolated Skeleton+uWT OK]');
+      } catch (e2) {
+        // eslint-disable-next-line no-console
+        console.log('[BETA isolated Skeleton THROW]', (e2 as Error).message);
+        // eslint-disable-next-line no-console
+        console.log((e2 as Error).stack);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.log('[BETA isolated parse THROW]', (e as Error).message);
+      // eslint-disable-next-line no-console
+      console.log((e as Error).stack);
+    }
+  });
+
+  it('control: stable 4.3.01 must pass the same chain', () => {
+    const res = classifyLoad(STABLE);
+    // eslint-disable-next-line no-console
+    console.log('[STABLE envelope]', JSON.stringify(res));
+  });
+});
