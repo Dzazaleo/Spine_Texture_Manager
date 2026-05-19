@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
 status: executing
-last_updated: "2026-05-18T23:33:35.915Z"
-last_activity: 2026-05-18 -- Phase 47 planning complete
+last_updated: "2026-05-19T08:33:00.000Z"
+last_activity: 2026-05-19 -- 47-03 COMPLETE (DV-1 dual-runtime viewer + GA-1 @ts-nocheck amendment)
 progress:
   total_phases: 6
   completed_phases: 5
@@ -17,18 +17,21 @@ progress:
 
 ## Current Position
 
-Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — GAP-CLOSURE PLANNED (ready to execute)
-Plan: 3 new gap plans 47-03/04/05 (DV-1 dual-runtime viewer) — 47-01 COMPLETE (retained 4.3 leg, byte-untouched); **47-02 SUPERSEDED by 47-05**
-Status: Ready to execute — gap plans verified (plan-checker iter1 1 BLOCKER+3 WARN → revised `8985c4a` → iter2 VERIFICATION PASSED, regression sweep clean)
-Last activity: 2026-05-19 -- Phase 47 gap-closure planning complete
+Phase: 47 (spine-player-4-3-0-bump-viewer-regression) — EXECUTING
+Plan: 47-03 COMPLETE — next 47-04 (wave 4)
+Status: Executing Phase 47 (DV-1 dual-runtime viewer landed; GA-1 amendment locked)
+Last activity: 2026-05-19 -- 47-03 COMPLETE (DV-1 dual-runtime viewer + GA-1 @ts-nocheck amendment)
 
-Next: **`/gsd-execute-phase 47` — execute the 3-wave dual-runtime-viewer gap closure (47-03 → 47-04 → 47-05).** **v1.6 milestone close remains HELD per D-01 (STRICT, no revert fallback)** — now on the 47-05 blocking owner `checkpoint:human-action`, re-sequenced to run AFTER DV-1 lands and against the DV-3 matrix.
+Next: **`/gsd-execute-phase 47` — continue the 3-wave gap closure: 47-04 (wave 4, depends 47-03) → 47-05 (wave 5, blocking owner checkpoint).** **v1.6 milestone close remains HELD per D-01 (STRICT, no revert fallback)** — on the 47-05 blocking owner `checkpoint:human-action`, against the DV-3 matrix.
+
+**47-03 DONE (DV-1/DV-1a/DV-NOTE — the dual-runtime viewer implementation half):** `325a6d2` Task 1 (npm-alias trio `spine-player-42`/`spine-webgl-42` nesting 4.2.111 player→webgl→core off canonical 4.3.0, lockfile-verified; `SkeletonSummary.runtimeTag` REQUIRED field ← `load.runtime.tag`) → `c1a3672` Task 2 (byte-verbatim frozen v1.5.1 `AnimationPlayerModal42.tsx` via `git show 9f967d2:` redirect+2-seds + owner-sanctioned `@ts-nocheck` sentinel; `AnimationPlayerModalRouter` dispatches purely on `summary.runtimeTag`; AppShell mounts the router) → `85488b7` Task 3 (T-D `animation-player-modal-42.spec.tsx`, GREEN 22/22) → `0f83c83` Rule-1 (retarget the Phase-41 AppShell wiring guard to the router — direct consequence of the plan-mandated rewiring). **GA-1 FALSIFIED + owner-resolved:** the literal v1.5.1 modal carries 11 strict-TS errors INTRINSIC to its own genuine 4.2.111 surface (v1.5.1 shipped green on tests+runtime, never strict `typecheck:web`; NOT 4.3 type-bleed — alias isolation verified, 0 errors outside the frozen file). OWNER decided (AskUserQuestion 2026-05-19) the **`@ts-nocheck` sentinel** option; **DV-NOTE re-scoped to "byte-verbatim body + 2 seds + 1 sanctioned `@ts-nocheck` sentinel"** — dated amendment APPENDED to `47-CONTEXT.md` (downstream 47-04/47-05 must consume the amended wording, no relitigation; the 47-05 owner UAT remains the binding visual gate per D-02). Blast-radius all PASS: zero `src/core/`; 4.3 leg (`6b3c57e`/`e08a2a3`) byte-untouched; no CSP/CORS; no bundler/tsconfig alias; `typecheck:web` 0; renderer suite 42 files/323 passed/0 failures. Full record in `47-03-SUMMARY.md`. ROADMAP `roadmap.update-plan-progress 47 47-03 complete` → updated (summary_count 2/5). gsd-sdk `state.*` session/decision handlers benign-no-op on this hand-written STATE.md (memory `project_gsd_sdk_state_session_fields_absent`) — metrics/decisions captured authoritatively in `47-03-SUMMARY.md`.
 
 **The gap (closed by this plan set):** 47-01's single-runtime spine-player@4.3.0 viewer categorically cannot parse ANY Spine 4.2 constraint-bearing project (debug `viewer-43-42-constraint-parse`, root-caused: 4.3's unified `root.constraints[]` vs 4.2's separate `root.ik/transform/path/physics`, SkeletonJson.js:129). v1.5.1 rendered 4.2 fine; the 47-01 bump regressed it. The sibling REG-47-01 buildSummary cross-runtime load bug was separately FIXED (`53e480c`). Gap re-discussion `015c9d1` locked **DV-1..DV-3 + DV-RISK-1 + DV-NOTE** in `47-CONTEXT.md`: the viewer becomes **DUAL-RUNTIME** mirroring the core's `pickRuntime` split — 4.2 → frozen v1.5.1 spine-player@4.2.111 + the pre-migration modal, **alias-isolated**; 4.3 → the already-landed migrated path (`6b3c57e`, RETAINED byte-untouched); routing off the core's already-computed runtime tag (DV-1a, explicit identity — same bug-class as REG-47-01).
 
 **DV-RISK-1 resolved: ACHIEVABLE-AS-IS** (focused gap-research, `47-RESEARCH.md` §555+ GAP ADDENDUM — NOT a discuss escalation): a PURE `package.json` npm-alias trio (`spine-player-42` + `spine-webgl-42` alongside existing `spine-core-42`) nests the whole 4.2.111 player→webgl→core graph off canonical 4.3.0 — NO Vite/vitest alias, NO shim, NO `overrides`; empirically proven (SIMPLE_TEST parses clean via the aliased player, throws via canonical 4.3.0). Original `47-RESEARCH.md` 1–551 still binds the 4.3 leg ONLY.
 
 **The 3 gap plans (3 waves, all PLAYER-02 reworded per DV-2 — same ID, traceability intact):**
+
 - **47-03** (wave 3): DV-1/DV-1a/DV-NOTE — the npm-alias trio (RESEARCH §1c verbatim) + `SkeletonSummary.runtimeTag: '4.2'|'4.3'` REQUIRED-field thread (the 2 sanctioned non-renderer files `src/shared/types.ts` + `src/main/summary.ts`, additive, populated from `load.runtime.tag`) + byte-verbatim frozen `AnimationPlayerModal42.tsx` (materialized via `git show 9f967d2:…` shell-redirect + 2 sed edits, == 6b3c57e^) + the `runtimeTag` dispatcher + AppShell wiring + the T-D frozen-modal spec. Blast-radius gates: ZERO `src/core/`, the 4.3 leg (`6b3c57e`/`e08a2a3`) byte-untouched.
 - **47-04** (wave 4, depends 47-03): Q4 headless guards T-A (permanent REG-47-01 handoff) / T-B (dual-runtime routing) / T-C (4.2-parse over all 4 DV-3 fixtures) + DV-2 PLAYER-02 rewording in ROADMAP/REQUIREMENTS/Traceability (descope-guarded, same ID) + the RESEARCH §7 `47-VALIDATION.md` coherent REPLACE-fold (Check-8e safe; 2 post-fold negative greps).
 - **47-05** (wave 5, depends 47-03+47-04, **autonomous:false, MAIN-TREE-SEQUENTIAL, no worktree** — Phase 46 precedent): revise `47-HUMAN-UAT.md` to the DV-3 dual-runtime matrix (4.2 leg = SIMPLE_TEST + CHJ/CHJWC_SYMBOLS + 3Queens/TQORW_SYMBOLS + MON_FILES/TEST_03; 4.3 leg = SIMPLE_PROJECT_43/skeleton2.json; per-fixture expected-player assertion + the cross-leg straight-alpha asymmetry callout) + the **blocking owner `checkpoint:human-action`** + the in-place D-08 flip of `41-HUMAN-UAT.md`. **SUBSUMES 47-02's never-run Tasks 2-3 + re-authors its Task-1 47-HUMAN-UAT (the old D-09 7-test matrix is falsified/superseded).**

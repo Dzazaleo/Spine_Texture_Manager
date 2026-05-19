@@ -204,7 +204,7 @@ Phases execute in numeric order: 42 → 43 → 44 → 45 → 46 → 47 (47 depen
 | 44. Loader Dispatch + Equivalence Oracle + 4.3 Fixtures | v1.6 | 5/4 | Complete    | 2026-05-18 |
 | 45. Dispatcher Flip + Copy/Docs Sweep | v1.6 | 2/2 | Complete    | 2026-05-18 |
 | 46. Slider Validation + 4.3 Perf Budget | v1.6 | 2/2 | Complete    | 2026-05-18 |
-| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 1/2 | In Progress|  |
+| 47. spine-player 4.3.0 Bump + Viewer Regression | v1.6 | 2/5 | In Progress|  |
 
 (Phases 0–35 are collapsed under their respective milestones above. Per-phase details live in each milestone's archive.)
 

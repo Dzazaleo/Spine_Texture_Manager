@@ -422,5 +422,57 @@ clarifications captured so they aren't relitigated.
 
 ---
 
+## Amendment 2026-05-19 — GA-1 falsified (47-03 owner decision)
+
+*Appended by the 47-03 executor (continuation) — does NOT rewrite the
+locked DV-1..DV-3 / DV-NOTE above; it re-scopes DV-NOTE per an owner
+AskUserQuestion decision. Downstream 47-04/47-05 MUST consume this amended
+DV-NOTE wording — no relitigation.*
+
+**GA-1 (47-RESEARCH §6 / the 47-03 plan's `<interfaces>` claim "the frozen
+sibling compiles unchanged against 4.2.111 types") was EMPIRICALLY
+FALSIFIED** and the falsification was orchestrator-confirmed against the
+genuine installed `@esotericsoftware/spine-player@4.2.111` `.d.ts`:
+
+- The source-ref `9f967d2:src/renderer/src/modals/AnimationPlayerModal.tsx`
+  **is correct** — git proved `9f967d2` never touched the modal, so that
+  blob is the literal byte-identical shipped-green v1.5.1 modal. Do NOT
+  look for a different ref; the materialization recipe is sound.
+- BUT v1.5.1 shipped green on **tests + runtime, never strict
+  `typecheck:web`** (that gate is a 47-01-era contract). The literal
+  v1.5.1 modal carries **11 strict-TS errors INTRINSIC to its own genuine
+  4.2.111 surface — NOT 4.3 type-bleed**. Alias isolation is verified
+  perfect: `typecheck:web` produced exactly 11 errors, ALL inside
+  `AnimationPlayerModal42.tsx`, ZERO elsewhere. The 11:
+  `preserveDrawingBuffer` required-but-missing (×1); `p.skeleton` /
+  `entry.animation` possibly-null unguarded (×8); `p.playTime`
+  private-access (×2).
+
+**OWNER DECISION (AskUserQuestion, 2026-05-19): option "@ts-nocheck
+sentinel".** Resolution = add ONE deterministic leading `// @ts-nocheck`
+documenting-header block to `AnimationPlayerModal42.tsx` as a sanctioned
+**3rd transform**. Body stays byte-verbatim; NO logic edits; NO project
+tsconfig change.
+
+**DV-NOTE is hereby re-scoped:** from *"byte-verbatim + ONLY 2 seds"* →
+**"byte-verbatim body + 2 seds + 1 sanctioned `@ts-nocheck` sentinel"**.
+The frozen modal's visual correctness remains gated by the **47-05 owner
+UAT (D-02)**, not tsc — that is the binding visual contract; the
+`@ts-nocheck` only acknowledges that strict `typecheck:web` is the wrong
+oracle for a frozen owner-accepted v1.5.1 artifact.
+
+The amended Task-2 acceptance oracle: `diff <(redirect|sed) modal42`
+equals EXACTLY the prepended sentinel block (`0a1,12`) and nothing else
+(the ~1000-line body byte-identical) — verified in 47-03.
+
+*(The T-D spec — same class of frozen-by-redirect v1.5.1 artifact under
+the identical rationale — did NOT need the parallel sentinel: test files
+are vitest-typed, not in `tsconfig.web.json`'s build graph, so it never
+hit the strict-`typecheck:web` wall; it materialized clean via pure
+redirect+seds and passes GREEN 22/22.)*
+
+---
+
 *Phase: 47-spine-player-4-3-0-bump-viewer-regression*
 *Context gathered: 2026-05-18*
+*Amended: 2026-05-19 (47-03 GA-1 owner decision)*
