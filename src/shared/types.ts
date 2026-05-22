@@ -1438,6 +1438,30 @@ export interface Api {
     },
   ) => Promise<ExportResponse>;
   /**
+   * Phase 49 EXPORT-01 — run a single-scale variant export. The renderer passes
+   * the live `summary` + the scale `s` + the user's FULL active export config
+   * (D-07); MAIN builds the s-scaled plan via scaleSummaryPeaks + bakes the JSON
+   * and writes `{parentDir}/{NAME}@{s}x/`. `effectiveOverrides` crosses the wire
+   * as `[regionName, pct]` ENTRIES (structured-clone cannot send a Map; main
+   * reconstructs `new Map(entries)`). D-08: main rejects s>=1 / NaN / <=0 with a
+   * typed VariantScaleError (the renderer pre-disables Export as defense-in-depth).
+   */
+  exportVariant: (
+    summary: SkeletonSummary,
+    s: number,
+    parentDir: string,
+    overwrite: boolean,
+    sharpenEnabled: boolean,
+    outputMode: 'loose' | 'atlas' | 'both',
+    atlasOpts: {
+      maxPageSize: 1024 | 2048 | 4096 | 8192;
+      allowRotation: boolean;
+      padding: number;
+    },
+    effectiveOverrides: [string, number][],
+    safetyBufferPercent: number,
+  ) => Promise<ExportResponse>;
+  /**
    * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
    * The renderer calls this BEFORE startExport so it can mount a
    * ConflictDialog listing exact files that would be overwritten,

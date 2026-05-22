@@ -63,6 +63,10 @@ import { runExport } from './image-worker.js';
 // block can fs.rm-sweep every artifact on any throw — the atomic-or-fail
 // rollback contract from RESEARCH §Landmines #7+#8.
 import { runRepack, type AtlasOpts } from './repack-worker.js';
+// Phase 49 EXPORT-01 — the single-scale variant export orchestrator. A NEW
+// channel (variant:export) delegates here; handleStartExport / export:start are
+// byte-untouched (D-04 "shipped Optimize flow untouched").
+import { handleExportVariant } from './variant-export.js';
 // UAT Round 3 (2026-05-15) — shared atlas-target derivation. probe and
 // runRepack MUST agree byte-for-byte on filenames or the probe is moot.
 import { deriveProjectName, pageFilename } from './atlas-paths.js';
@@ -128,6 +132,7 @@ import type {
   LoadResponse,
   ProbeConflictsResponse,
   SerializableError,
+  SkeletonSummary,
   ViewerAssetFeedResponse,
 } from '../shared/types.js';
 
@@ -1044,6 +1049,45 @@ export function registerIpcHandlers(): void {
         ? (atlasOpts as AtlasOpts)
         : { maxPageSize: 4096, allowRotation: false, padding: 2 },
     ),
+  );
+  // Phase 49 EXPORT-01 — NEW `variant:export` channel (RESEARCH §Flag 5: a new
+  // channel is cleaner than overloading the already-6-arg export:start, and
+  // honors D-04). Coerces the same opts ladder as export:start PLUS the new `s`
+  // (number) + `parentDir` (string) + `effectiveOverrides` (wire entries
+  // [regionName, pct][] → Map) + `safetyBufferPercent` (number). The renderer
+  // (Plan 02) picks the PARENT folder; the {NAME}@{s}x/ subfolder is appended
+  // main-side. export:start / handleStartExport are NOT touched (D-04).
+  ipcMain.handle('variant:export',
+    async (
+      evt,
+      summary,
+      s,
+      parentDir,
+      overwrite,
+      sharpenEnabled,
+      outputMode,
+      atlasOpts,
+      effectiveOverrides,
+      safetyBufferPercent,
+    ) =>
+      handleExportVariant(
+        evt,
+        summary as SkeletonSummary,
+        Number(s),
+        typeof parentDir === 'string' ? parentDir : '',
+        overwrite === true,
+        sharpenEnabled === true,
+        outputMode === 'loose' || outputMode === 'atlas' || outputMode === 'both'
+          ? outputMode
+          : 'loose',
+        atlasOpts && typeof atlasOpts === 'object'
+          ? (atlasOpts as AtlasOpts)
+          : { maxPageSize: 4096, allowRotation: false, padding: 2 },
+        Array.isArray(effectiveOverrides)
+          ? new Map(effectiveOverrides as [string, number][])
+          : new Map<string, number>(),
+        Number(safetyBufferPercent) || 0,
+      ),
   );
   ipcMain.on('export:cancel', () => {
     // D-115: cooperative cancel. Flag is read on every iteration of the
