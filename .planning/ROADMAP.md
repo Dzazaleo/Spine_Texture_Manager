@@ -100,7 +100,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 **Milestone Goal:** From one full-size Spine export, produce faithful scaled-down rig variants — each a complete drop-in package (scaled skeleton JSON + scaled atlas + resized textures, in its own folder) sized to the peak render demand of that smaller rig, dual-runtime (4.2 + 4.3) and dual-mode (atlas-source + atlas-less).
 
 - [x] **Phase 48: Core Scale-Bake Module + Regression Oracle** - Promote the spike `baker.mjs` to a Layer-3-pure `core/` JSON→JSON bake mirroring `SkeletonJson.scale`; finish the constraint-timeline curve channels; wire the field-identity oracle as a CI test across a fixture matrix incl. a deform-heavy rig (completed 2026-05-22)
-- [ ] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified
+- [x] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified (completed 2026-05-22)
 - [ ] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase)
 - [ ] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale
 
@@ -145,8 +145,8 @@ Plans:
 - [x] 49-01-PLAN.md — variant ENGINE + IPC: pure `scaleSummaryPeaks` (peak-only A1) + `VariantScaleError` (D-08) + first-ever atomic skeleton-JSON writer (L-03) + `handleExportVariant` (bake → `{NAME}@{s}x/` → write-JSON-first → `buildExportPlan` UNCHANGED → dispatch under one rollback Set) + `variant:export` channel + preload binding; Wave-0 tests V1 sizing / V2 source-immutable / V5 guard [wave 1, EXPORT-01/02/03/05]
 
 **Wave 2** *(both depend on 49-01; disjoint files → parallel)*
-- [ ] 49-02-PLAN.md — renderer: NEW "Export Variant…" toolbar action (D-04) + single-pane tab-ready `VariantDialog` reusing Optimize config controls + a basic numeric scale field (D-05/D-06) inheriting the full active config (D-07); invokes `window.api.exportVariant` [wave 2, depends 49-01, EXPORT-01/03]
-- [ ] 49-03-PLAN.md — package + faithfulness + matrix: per-mode drop-in layout + clean `{NAME}` basenames + JSON-in-all-modes + oversize-forced rollback (V3/V4), drop-in faithfulness oracle (geometry + cross-resolve + `s×` world-AABB, V6), dual-runtime × dual-mode matrix (V7), Layer-3 arch anchor (V8); reuses committed fixtures, NO new fixture dir [wave 2, depends 49-01, EXPORT-01/03/05]
+- [x] 49-02-PLAN.md — renderer: NEW "Export Variant…" toolbar action (D-04) + single-pane tab-ready `VariantDialog` reusing Optimize config controls + a basic numeric scale field (D-05/D-06) inheriting the full active config (D-07); invokes `window.api.exportVariant` [wave 2, depends 49-01, EXPORT-01/03]
+- [x] 49-03-PLAN.md — package + faithfulness + matrix: per-mode drop-in layout + clean `{NAME}` basenames + JSON-in-all-modes + oversize-forced rollback (V3/V4), drop-in faithfulness oracle (geometry + cross-resolve + `s×` world-AABB, V6), dual-runtime × dual-mode matrix (V7), Layer-3 arch anchor (V8); reuses committed fixtures, NO new fixture dir [wave 2, depends 49-01, EXPORT-01/03/05]
 
 ### Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input
 **Goal**: Give the animator an intuitive way to choose a scale — anchor it to the rig's overall setup-pose bounding box and let them enter either a factor or a target pixel dimension and see the other.
@@ -185,6 +185,6 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
-| 49. Single-Scale Variant Export | v1.7 | 1/3 | In Progress|  |
+| 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete   | 2026-05-22 |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 0/2 | Not started | - |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
