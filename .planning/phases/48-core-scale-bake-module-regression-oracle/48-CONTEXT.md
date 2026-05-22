@@ -71,6 +71,27 @@ rig-bounds + two-way scale↔dimension UI (Phase 50), batch fan-out (Phase 51). 
   `.atlas` under `fixtures/`), NOT synthetic test-time injection — more legible/reviewable and
   reusable by the Phase 49–51 export tests. (Phase 37 RGBA2 / Phase 46 `buildLoadSlider43`
   injection precedent exists but is deliberately NOT the chosen path here.)
+- **D-06a — FIXTURE-COMMIT SAFETY (planner: MAKE THIS AN EXPLICIT, SEPARATE TASK).** The fixtures
+  the oracle depends on live under gitignored/untracked paths (`fixtures/MON_FILES/` is dir-excluded;
+  `fixtures/DEMON/` is untracked). `git add` under an ignored path **silently no-ops** → tests pass
+  locally, files never commit, CI clones clean → fixture missing. This is the exact v1.3.1
+  CI-break landmine ([[feedback_gitignore_fixtures_check_test_refs]]). Defense, in order:
+  1. **Root-cause fix (preferred): COPY the `.json` + `.atlas` into a NEW, non-ignored fixtures dir**
+     (e.g. `fixtures/SCALE_BAKE_4_3/` + `fixtures/SCALE_BAKE_4_2/`). No `.gitignore` negation (git
+     cannot re-include a child of a dir-excluded path — `fixtures/MON_FILES/` would need rewriting
+     into a fragile descend-then-reinclude chain); the PNGs aren't in the new dir so they can't be
+     staged; self-documenting. (DEMON is untracked-not-ignored → if kept in place, ADD a `*.png`
+     ignore or `git add fixtures/DEMON/` stages 107 MB.)
+  2. **Prove tracked, not just on-disk:** `git check-ignore <file>` prints nothing; `git ls-files
+     --error-unmatch <file>` succeeds post-commit; `git archive HEAD | tar -t | grep <file>` (or a
+     temp clone) shows it in the committed tree — the authoritative "would CI see it?" check.
+  3. **No silent skip:** the oracle test MUST hard-fail with "fixture not found" if a file is absent
+     — **NO `skipIf(!exists)`** (a skip green-washes a missing fixture; same class as the SAMPLER
+     `skipIf(CI)` and UAT-opened-≠-rendered false-greens — [[feedback_uat_opened_is_not_rendered]]).
+     Optionally add a tiny standing guard asserting each fixture path exists.
+  4. **Authoritative signal is the watched per-OS CI run** (ci.yml AND release.yml — they diverge;
+     [[feedback_release_yml_diverges_from_ci_yml]], [[feedback_verify_whole_ci_surface_locally]]).
+     Local green ≠ CI green.
 
 ### Channel-Proof Depth
 - **D-07:** **Fix-and-verify ALL three** finished channels — every one gets an in-repo fixture the
