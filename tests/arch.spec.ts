@@ -392,3 +392,60 @@ describe('Phase 48 Layer 3: src/core/scale-bake.ts is pure (no DOM/Electron/shar
     expect(text, `${filePath} must not reference DOM globals`).not.toMatch(/\b(document|window)\./);
   });
 });
+
+// Phase 49 (V8 / L-03) — defense-in-depth named anchors for the variant export
+// core/main split. Mirrors the Phase-48 scale-bake anchor precedent above. The
+// broad src/core/** fs/sharp scanner (lines 148-178) already covers
+// scale-summary-peaks.ts with NO carve-out; this NAMED block makes a Phase-49-
+// specific purity regression LOUD (a future edit that adds an fs import to the
+// peak-only helper fails with a clear, Phase-49-labeled message). And it locks
+// the first-ever skeleton-JSON writer to main/ (L-03): the only file in the app
+// that WRITES a skeleton JSON must live main-side, never in pure-TS core/.
+// Plain content-grep (no commit range) — range-free, time-bomb-free (memory
+// project_phase46_sliderguard_pinned).
+describe('Phase 49 Layer-3: variant export respects the core/main split', () => {
+  it('src/core/scale-summary-peaks.ts is Layer-3 pure (no node:fs/sharp/electron)', () => {
+    const filePath = 'src/core/scale-summary-peaks.ts';
+    let text = '';
+    try { text = readFileSync(filePath, 'utf8'); } catch { return; } // tolerate ENOENT
+    expect(
+      text,
+      `${filePath} must not import sharp / node:fs / electron (Layer-3 purity, L-03)`,
+    ).not.toMatch(
+      /from ['"]sharp['"]|from ['"]node:fs(\/promises)?['"]|from ['"]fs(\/promises)?['"]|from ['"]electron['"]/,
+    );
+    expect(text, `${filePath} must not reference DOM globals`).not.toMatch(/\b(document|window)\./);
+  });
+
+  it('the skeleton-JSON writer lives in main/, not core/ (L-03 — first-ever skeleton-JSON write is main-side)', () => {
+    // The atomic skeleton-JSON writer is the single file in the app that WRITES a
+    // skeleton JSON. It MUST be main-side (node:fs lives in main/), never in
+    // pure-TS core/. This anchor fails LOUD if the writer is ever moved/duplicated
+    // into core/ (which would drag node:fs into a Layer-3 module).
+    expect(
+      readFileSync('src/main/skeleton-json-writer.ts', 'utf8').length,
+      'src/main/skeleton-json-writer.ts must exist (the main-side skeleton-JSON writer, L-03)',
+    ).toBeGreaterThan(0);
+    let coreWriterExists = false;
+    try {
+      readFileSync('src/core/skeleton-json-writer.ts', 'utf8');
+      coreWriterExists = true;
+    } catch {
+      coreWriterExists = false;
+    }
+    expect(
+      coreWriterExists,
+      'src/core/skeleton-json-writer.ts must NOT exist — the skeleton-JSON writer is main-side only (L-03)',
+    ).toBe(false);
+    // Belt-and-braces: no src/core/** file matches *skeleton*json*writ* (the
+    // writer must not creep into core under a renamed path).
+    const coreFiles = globSync('src/core/**/*.ts');
+    const writerInCore = coreFiles.filter((f) =>
+      /skeleton.*json.*writ/i.test(f.replace(/\\/g, '/')),
+    );
+    expect(
+      writerInCore,
+      `a skeleton-JSON writer crept into src/core/: ${writerInCore.join(', ')} — it must be main-side (L-03)`,
+    ).toEqual([]);
+  });
+});
