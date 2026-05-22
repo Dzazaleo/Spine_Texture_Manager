@@ -101,7 +101,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 
 - [x] **Phase 48: Core Scale-Bake Module + Regression Oracle** - Promote the spike `baker.mjs` to a Layer-3-pure `core/` JSON→JSON bake mirroring `SkeletonJson.scale`; finish the constraint-timeline curve channels; wire the field-identity oracle as a CI test across a fixture matrix incl. a deform-heavy rig (completed 2026-05-22)
 - [x] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified (completed 2026-05-22)
-- [ ] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase)
+- [x] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase) (completed 2026-05-22)
 - [ ] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale
 
 ## Phase Details
@@ -164,7 +164,7 @@ Plans:
 - [x] 50-01-PLAN.md — `computeSetupPoseBounds` (Layer-3-pure, dual-runtime all-skins setup-pose AABB union, D-05/D-06/D-07) + degenerate `null` guard + additive `SkeletonSummary.bbox` seam in summary.ts/types.ts + V1-V7 [wave 1, SCALEUI-02]
 
 **Wave 2** *(depends on 50-01 — reads `summary.bbox`)*
-- [ ] 50-02-PLAN.md — enrich the `VariantDialog` Scale card IN PLACE (D-09): bbox W×H reference line + three coupled aspect-locked inputs (factor/W/H, uniform, D-01/D-02/D-03) + over-range allow-but-disable-Export (D-04) + pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers + V8-V12 [wave 2, depends 50-01, SCALEUI-01]
+- [x] 50-02-PLAN.md — enrich the `VariantDialog` Scale card IN PLACE (D-09): bbox W×H reference line + three coupled aspect-locked inputs (factor/W/H, uniform, D-01/D-02/D-03) + over-range allow-but-disable-Export (D-04) + pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers + V8-V12 [wave 2, depends 50-01, SCALEUI-01]
 
 ### Phase 51: Batch Variant Export
 **Goal**: Fan one master out to many resolutions in a single operation — N scales → N folders — reusing the single-scale export per scale.
@@ -189,5 +189,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
-| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 1/2 | In Progress|  |
+| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete   | 2026-05-22 |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
