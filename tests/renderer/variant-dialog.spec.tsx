@@ -114,9 +114,13 @@ function buildProps(
 }
 
 describe('VariantDialog — Phase 49 EXPORT-01', () => {
-  it('renders the basic numeric scale field showing the controlled value', () => {
+  it('renders the numeric scale (factor) field showing the controlled value', () => {
+    // Phase 50 SCALEUI-01 enriched this control IN PLACE (D-09): the field's
+    // identity is preserved (id="variant-scale-input", controlled by props.scale)
+    // but its visible label changed "Scale:" → "Factor:" as the px target fields
+    // joined it. The factor display is displayFactor(s) === Number(s.toFixed(4)).
     render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
-    const input = screen.getByLabelText(/Scale:/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.type).toBe('number');
     expect(input.value).toBe('0.5');

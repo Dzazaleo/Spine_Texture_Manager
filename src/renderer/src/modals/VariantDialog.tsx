@@ -43,6 +43,7 @@ import type {
   SkeletonSummary,
 } from '../../../shared/types.js';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { displayFactor, pxFromScale, scaleFromPx } from './variant-scale-derive';
 
 type DialogState = 'pre-flight' | 'in-progress' | 'complete';
 
@@ -103,6 +104,14 @@ export function VariantDialog(props: VariantDialogProps) {
   const [summary, setSummary] = useState<ExportSummary | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Phase 50 SCALEUI-01 — the px field the user is actively editing, plus the
+  // raw string they have typed into it. While a px field is active we render its
+  // RAW text (not the rounded re-derivation of s) so the edited axis never
+  // round-trip-drifts (D-02 / RESEARCH Pitfall 4). When no px field is active,
+  // both px fields show pxFromScale(s, axis). Cleared on blur.
+  const [activePxField, setActivePxField] = useState<'w' | 'h' | null>(null);
+  const [activePxRaw, setActivePxRaw] = useState<string>('');
+
   const startBtnRef = useRef<HTMLButtonElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -117,6 +126,23 @@ export function VariantDialog(props: VariantDialogProps) {
   // D-08 cheap renderer pre-check (defense-in-depth; main owns the gate).
   const scaleInvalid =
     !Number.isFinite(props.scale) || props.scale <= 0 || props.scale >= 1;
+
+  // Phase 50 SCALEUI-01 — the setup-pose reference axes from 50-01. Arrives via
+  // `summary={summary}` (AppShell.tsx) with ZERO new wiring. `null` = degenerate
+  // rig (no textured geometry) → the px fields disable, the factor stays usable.
+  // Normalize a missing/falsy field (a non-finite axis or a pre-50-01-shaped
+  // summary) to `null` so the degenerate-rig path also covers it (threat
+  // T-50-FIN — no Infinity/NaN can reach scaleFromPx). All checks below test
+  // `=== null` / `!== null` against this normalized value.
+  const rawBbox = props.summary.bbox;
+  const bbox =
+    rawBbox != null &&
+    Number.isFinite(rawBbox.w) &&
+    Number.isFinite(rawBbox.h) &&
+    rawBbox.w > 0 &&
+    rawBbox.h > 0
+      ? rawBbox
+      : null;
 
   const onStart = useCallback(async () => {
     // Cheap renderer guard (the button is already disabled, but defense-in-
@@ -296,25 +322,52 @@ export function VariantDialog(props: VariantDialogProps) {
           {headerTitle}
         </h2>
 
-        {/* D-05 — basic numeric scale field. Single labeled input; inline hint
-            + disabled Export when out of (0,1). Phase 50 enriches this control
-            (px two-way binding) in place — do NOT over-build it now. */}
+        {/* Phase 50 SCALEUI-01 — enriched Scale card (D-09: in place, NO tabs,
+            no structural refactor; Phase 51 adds tabs later). The basic numeric
+            scale field is replaced by the setup-pose bbox reference line + three
+            coupled, aspect-locked inputs (factor / target-W px / target-H px).
+            The factor `s` is the single source of truth the Phase-49 export path
+            consumes (D-02); the px fields are views (px = round(s × axis)).
+            Typed px targets are honored EXACTLY via scaleFromPx (D-03, no snap);
+            `s` is never rounded — only the display is. Over-range (s ≥ 1) is
+            allowed: the existing `scaleInvalid` pre-check (defense-in-depth)
+            disables Export + shows the inline hint, the authoritative reject
+            stays main-side VariantScaleError (D-04). Reads props.summary.bbox
+            (50-01) — ZERO new IPC/props. Layer-3: NO core/ or formatScaleToken
+            import; the px↔s math is the renderer-local variant-scale-derive.ts.
+            Tailwind v4 literal-class discipline (Pitfall 5): every className is a
+            string literal copied verbatim from the existing field/OptimizeDialog. */}
         <div className="border border-border rounded-md bg-surface p-3 mb-4">
           <span className="text-xs text-fg-muted mb-2 block">Variant scale</span>
+
+          {/* Bbox reference line. Display-rounded; the px↔s math below uses the
+              UNROUNDED bbox.w/h (display rounding ≠ math rounding, RESEARCH Open
+              Q1). bbox == null degrades gracefully (RESEARCH Open Q2). */}
+          <p className="text-xs text-fg-muted mb-2">
+            {bbox !== null
+              ? `Setup-pose size: ${Math.round(bbox.w)} × ${Math.round(bbox.h)} px`
+              : 'Setup-pose size: unavailable (no textured geometry)'}
+          </p>
+
+          {/* Factor field — controlled by props.scale (the canonical s). */}
           <label
             htmlFor="variant-scale-input"
-            className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+            className="flex items-center gap-2 mb-2 text-xs text-fg cursor-pointer"
           >
-            Scale:
+            Factor:
             <input
               id="variant-scale-input"
               type="number"
               step="0.05"
               min="0"
               max="0.99"
-              value={props.scale}
+              value={displayFactor(props.scale)}
               onChange={(e) => {
                 const parsed = parseFloat(e.target.value);
+                // Editing the factor clears any active px raw-edit so both px
+                // fields re-derive from the new s.
+                setActivePxField(null);
+                setActivePxRaw('');
                 props.onScaleChange(Number.isFinite(parsed) ? parsed : 0);
               }}
               disabled={state === 'in-progress'}
@@ -323,6 +376,100 @@ export function VariantDialog(props: VariantDialogProps) {
             />
             <span className="text-fg-muted">× source</span>
           </label>
+
+          {/* Target Width field (px). When actively edited, shows the RAW typed
+              string (no round-trip drift, D-02); otherwise pxFromScale(s, w).
+              Disabled (and blank) when bbox is null (degenerate rig). The px→s
+              divide is guarded `bbox != null && bbox.w > 0` (threat T-50-FIN). */}
+          <label
+            htmlFor="variant-target-width"
+            className="flex items-center gap-2 mb-2 text-xs text-fg cursor-pointer"
+          >
+            Width:
+            <input
+              id="variant-target-width"
+              data-testid="variant-target-width"
+              type="number"
+              min={0}
+              step={1}
+              value={
+                bbox === null
+                  ? ''
+                  : activePxField === 'w'
+                    ? activePxRaw
+                    : pxFromScale(props.scale, bbox.w)
+              }
+              onFocus={() => {
+                if (bbox !== null) {
+                  setActivePxField('w');
+                  setActivePxRaw(String(pxFromScale(props.scale, bbox.w)));
+                }
+              }}
+              onBlur={() => {
+                setActivePxField(null);
+                setActivePxRaw('');
+              }}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setActivePxField('w');
+                setActivePxRaw(raw);
+                const parsed = parseFloat(raw);
+                if (bbox !== null && bbox.w > 0 && Number.isFinite(parsed)) {
+                  props.onScaleChange(scaleFromPx(parsed, bbox.w));
+                }
+              }}
+              disabled={state === 'in-progress' || bbox === null}
+              title="Target width in pixels. Sets the scale factor exactly (px ÷ setup-pose width); height follows aspect-locked."
+              className="w-16 bg-surface border border-border text-fg px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-fg-muted">px</span>
+          </label>
+
+          {/* Target Height field (px) — symmetric with bbox.h. */}
+          <label
+            htmlFor="variant-target-height"
+            className="flex items-center gap-2 text-xs text-fg cursor-pointer"
+          >
+            Height:
+            <input
+              id="variant-target-height"
+              data-testid="variant-target-height"
+              type="number"
+              min={0}
+              step={1}
+              value={
+                bbox === null
+                  ? ''
+                  : activePxField === 'h'
+                    ? activePxRaw
+                    : pxFromScale(props.scale, bbox.h)
+              }
+              onFocus={() => {
+                if (bbox !== null) {
+                  setActivePxField('h');
+                  setActivePxRaw(String(pxFromScale(props.scale, bbox.h)));
+                }
+              }}
+              onBlur={() => {
+                setActivePxField(null);
+                setActivePxRaw('');
+              }}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setActivePxField('h');
+                setActivePxRaw(raw);
+                const parsed = parseFloat(raw);
+                if (bbox !== null && bbox.h > 0 && Number.isFinite(parsed)) {
+                  props.onScaleChange(scaleFromPx(parsed, bbox.h));
+                }
+              }}
+              disabled={state === 'in-progress' || bbox === null}
+              title="Target height in pixels. Sets the scale factor exactly (px ÷ setup-pose height); width follows aspect-locked."
+              className="w-16 bg-surface border border-border text-fg px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-fg-muted">px</span>
+          </label>
+
           {scaleInvalid && (
             <p className="mt-2 text-xs text-[color:var(--color-danger)]">
               Variants are scaled-down — enter a value between 0 and 1.
