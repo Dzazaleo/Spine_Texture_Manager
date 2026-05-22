@@ -137,13 +137,16 @@ Plans:
   2. Variant texture sizes are derived as `s × master_peak` (each variant sized to its own smaller render demand) by reusing the existing `buildExportPlan` + image-worker + atlas-writer pipeline; the source project is never modified. *(EXPORT-02)*
   3. Variant export respects the existing output mode (`loose | atlas | both`): the scaled JSON is the one always-present new artifact, and textures/atlas follow the chosen mode. *(EXPORT-03)*
   4. Variant export works for both atlas-source and atlas-less projects, and for both Spine 4.2 and 4.3 rigs (the baked variant behaves identically to the master at the smaller size — faithfulness bar). *(EXPORT-05)*
-**Plans**: TBD
-**Note**: Output-folder naming convention is an open product decision for `/gsd-discuss-phase` (NOT a roadmap blocker). Per-attachment override sharing across scales is deferred (Future Requirements) — single-scale lands first.
+**Plans**: 3 plans (2 waves)
+**Note**: Output-folder naming locked at discuss (D-01/D-02 — `{PARENT}/{NAME}@{s}x/` with clean inner basenames). Per-attachment override sharing across scales is deferred (Future Requirements, L-05) — single-scale lands first.
 
 Plans:
-- [ ] 49-01: TBD — variant package orchestration: bake → write scaled JSON → size textures via `s × master_peak`
-- [ ] 49-02: TBD — wire into the existing export/atlas-writer pipeline respecting `loose | atlas | both`
-- [ ] 49-03: TBD — dual-runtime + dual-mode (atlas-source / atlas-less) coverage + source-never-modified guard
+**Wave 1**
+- [ ] 49-01-PLAN.md — variant ENGINE + IPC: pure `scaleSummaryPeaks` (peak-only A1) + `VariantScaleError` (D-08) + first-ever atomic skeleton-JSON writer (L-03) + `handleExportVariant` (bake → `{NAME}@{s}x/` → write-JSON-first → `buildExportPlan` UNCHANGED → dispatch under one rollback Set) + `variant:export` channel + preload binding; Wave-0 tests V1 sizing / V2 source-immutable / V5 guard [wave 1, EXPORT-01/02/03/05]
+
+**Wave 2** *(both depend on 49-01; disjoint files → parallel)*
+- [ ] 49-02-PLAN.md — renderer: NEW "Export Variant…" toolbar action (D-04) + single-pane tab-ready `VariantDialog` reusing Optimize config controls + a basic numeric scale field (D-05/D-06) inheriting the full active config (D-07); invokes `window.api.exportVariant` [wave 2, depends 49-01, EXPORT-01/03]
+- [ ] 49-03-PLAN.md — package + faithfulness + matrix: per-mode drop-in layout + clean `{NAME}` basenames + JSON-in-all-modes + oversize-forced rollback (V3/V4), drop-in faithfulness oracle (geometry + cross-resolve + `s×` world-AABB, V6), dual-runtime × dual-mode matrix (V7), Layer-3 arch anchor (V8); reuses committed fixtures, NO new fixture dir [wave 2, depends 49-01, EXPORT-01/03/05]
 
 ### Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input
 **Goal**: Give the animator an intuitive way to choose a scale — anchor it to the rig's overall setup-pose bounding box and let them enter either a factor or a target pixel dimension and see the other.
