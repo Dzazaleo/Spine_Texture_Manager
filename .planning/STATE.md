@@ -2,27 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: executing
+status: ready_to_plan
 last_updated: "2026-05-22T12:01:12.745Z"
-last_activity: 2026-05-22 -- Phase 48 execution started
+last_activity: 2026-05-22 -- Phase 48 COMPLETE + verified (4/4 must-haves, oracle green)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
   completed_plans: 0
-  percent: 0
+  percent: 25
 ---
 
 # State
 
 ## Current Position
 
-Phase: 48 (core-scale-bake-module-regression-oracle) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 48
-Last activity: 2026-05-22 -- Phase 48 execution started
+Phase: 49
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-22
 
-Next: **`/gsd-plan-phase 48`** (Phase 48 is the de-risked core scale-bake; CONTEXT.md now locks the fixture + channel-proof + scale-range + unknown-construct decisions). v1.7 is driven by SEED-010 + spikes 001–003 (`.planning/spikes/`) — the JSON scale-bake is PROVEN field-identical to Spine's own scaling on 4.2 + 4.3; promote the spike `baker.mjs` to a Layer-3 `core/` module + wire the regression oracle as a CI test (incl. a deform-heavy fixture). v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
+Next: **`/gsd-discuss-phase 49`** (recommended) or **`/gsd-plan-phase 49`** — Phase 49 is Single-Scale Variant Export (one scale → one folder: scaled JSON + resized textures + scaled atlas; `variant_peak = s × master_peak`; dual-runtime + dual-mode; source JSON never modified). It consumes the Phase-48 bake module directly.
+
+**Phase 48 COMPLETE + verified 2026-05-22 (4/4 must-haves, BAKE-01..04 Complete).** Delivered `src/core/scale-bake.ts` — a Layer-3-pure (zero imports), non-mutating JSON→JSON similarity bake `bake(json,s)` + `ScaleBakeError`, field-identical to spine-core `SkeletonJson.scale` across both schemas (4.2 split + 4.3 unified), with all three BAKE-03 constraint-timeline curve channels (IK softness `cy` idx 5/7 only, PATH position/spacing length-mode setup+timeline, slider remap) + scaled-default injection (physics.limit→5000×s, referenceScale→100×s; physics x/y untouched) + D-09/D-10 guards. The decisive sampling-free oracle `tests/scale-bake.spec.ts` (`parse(bake(orig,s),1) ≡ parse(orig,SkeletonJson.scale=s)`, live reference, NO golden numbers) runs in CI across 8 rigs × 3 scales [0.5, 0.26, 2.0] — GREEN on first run (the bake was already field-identical). 8 oracle fixtures committed json+atlas-only (zero PNGs, D-04), proven git-tracked. **3 waves, 4 plans, all autonomous; 2 orchestrator post-merge gate fixes:** (1) extended the locked SAFE-01 `SAFE01_EXCLUDED_PREFIXES` denylist in `tests/safe01/discover-fixtures.ts` with the SCALE_BAKE_* dirs (same class as Phase 44 skeleton2_42 / Phase 46 spineboy_4.3 — newly git-tracked oracle fixtures with no frozen golden leak into the enumeration/baseline gates; **planning blind spot — no Phase-48 plan co-required it**), (2) localized `any` cast in the oracle's `parseAt()` for the dual-runtime union-of-modules typecheck error (vitest-green but tsc-red; executor self-check ran vitest only, not typecheck:node). Code review 0 blocker / 2 warn / 3 info (WR-01 oracle-compare-overclaim falsified by the verifier under symmetric+length-strict hardening — only divergence is the id-keyed timelineIds StringSet, which SC#1 excludes). Final: typecheck 0, full suite 141 files / 1450 passed / 0 failures. v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
 
 ---
 

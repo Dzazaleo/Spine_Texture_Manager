@@ -25,10 +25,10 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Scale-Bake Core (BAKE)
 
-- [ ] **BAKE-01**: The app produces a scaled skeleton JSON whose parsed `SkeletonData` is field-identical to the original parsed at Spine's own `SkeletonJson.scale = s` (verified by the round-trip oracle as a CI test, excluding parse-assigned ids).
-- [ ] **BAKE-02**: The scale-bake produces faithful output for both Spine 4.2 and Spine 4.3 skeleton JSON (dual schema — split `transform/ik/path/physics[]` and unified `constraints[]`).
-- [ ] **BAKE-03**: The scale-bake correctly handles every constraint construct including the remaining constraint-timeline curve channels (IK `softness` curve; PATH `position`/`spacing` timelines in length mode) and the scaled-default injections (`physics.limit`, `referenceScale`).
-- [ ] **BAKE-04**: The regression oracle runs in CI across a fixture matrix that includes a deform-heavy rig and at least one all-constraint-types rig per runtime; the bake module stays Layer-3 pure (no DOM/Electron/sharp).
+- [x] **BAKE-01**: The app produces a scaled skeleton JSON whose parsed `SkeletonData` is field-identical to the original parsed at Spine's own `SkeletonJson.scale = s` (verified by the round-trip oracle as a CI test, excluding parse-assigned ids).
+- [x] **BAKE-02**: The scale-bake produces faithful output for both Spine 4.2 and Spine 4.3 skeleton JSON (dual schema — split `transform/ik/path/physics[]` and unified `constraints[]`).
+- [x] **BAKE-03**: The scale-bake correctly handles every constraint construct including the remaining constraint-timeline curve channels (IK `softness` curve; PATH `position`/`spacing` timelines in length mode) and the scaled-default injections (`physics.limit`, `referenceScale`).
+- [x] **BAKE-04**: The regression oracle runs in CI across a fixture matrix that includes a deform-heavy rig and at least one all-constraint-types rig per runtime; the bake module stays Layer-3 pure (no DOM/Electron/sharp).
 
 ### Variant Export (EXPORT)
 
@@ -67,10 +67,10 @@ Maps every v1.7 REQ-ID to exactly one phase. Coverage: 11/11 mapped, no orphans,
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| BAKE-01 | Phase 48 | Pending |
-| BAKE-02 | Phase 48 | Pending |
-| BAKE-03 | Phase 48 | Pending |
-| BAKE-04 | Phase 48 | Pending |
+| BAKE-01 | Phase 48 | Complete |
+| BAKE-02 | Phase 48 | Complete |
+| BAKE-03 | Phase 48 | Complete |
+| BAKE-04 | Phase 48 | Complete |
 | EXPORT-01 | Phase 49 | Pending |
 | EXPORT-02 | Phase 49 | Pending |
 | EXPORT-03 | Phase 49 | Pending |
