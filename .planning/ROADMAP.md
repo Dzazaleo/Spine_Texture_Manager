@@ -115,12 +115,13 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
   2. The oracle passes on a fixture matrix that covers both schemas (4.2 split `transform/ik/path/physics[]` and 4.3 unified `constraints[]`), **includes a deform-heavy 4.2 rig** (e.g. `fixtures/MON_FILES/EXPORT/TEST_01/4.2` or `fixtures/3Queens` — DEMON 4.3 has zero deform and gives false confidence alone), and includes at least one all-constraint-types rig per runtime. *(BAKE-02, BAKE-04)*
   3. The bake correctly handles every constraint construct including the finite remaining constraint-timeline curve channels — IK `softness` timeline curve (`cy` scaled, paired `mix` channel left unscaled) and PATH `position`/`spacing` timelines in length mode — plus the scaled-default injections (`physics.limit` → 5000×s, `referenceScale` → 100×s when absent; physics `x`/`y` are NOT length-scaled). *(BAKE-03)*
   4. The bake module imports no DOM, Electron, or `sharp` and is green under `tests/arch.spec.ts` (Layer-3 purity); the source JSON is never mutated (the bake is a pure transform returning new JSON). *(BAKE-04)*
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
 
 Plans:
-- [ ] 48-01: TBD — promote `baker.mjs` rules to `core/` bake module (dual-schema setup-side; scaled-default injection)
-- [ ] 48-02: TBD — finish constraint-timeline curve channels (IK softness curve; PATH position/spacing length-mode)
-- [ ] 48-03: TBD — wire the field-identity oracle as a CI test across the deform-heavy + all-constraint fixture matrix; arch-spec Layer-3 anchor
+- [ ] 48-01-PLAN.md — promote `baker.mjs` → `src/core/scale-bake.ts` (dual-schema setup-side: bones/constraints/attachments + scaled-default injection) + D-09 degenerate-`s` guard + D-10 assert-known guard [wave 1, BAKE-01/02/04]
+- [ ] 48-02-PLAN.md — fixture-commit-safety (D-06a, explicit task: COPY DEMON+TEST_01+TEST_03 json+atlas-only into new non-ignored dirs, prove tracked) + author the synthetic 4.3 path-Fixed fixture (D-05) [wave 1, BAKE-04]
+- [ ] 48-03-PLAN.md — finish the 3 constraint-timeline curve channels: slider remap slope + PATH position/spacing length-mode (setup+timeline) + IK softness-curve cy (channel-specific) [wave 2, depends 48-01, BAKE-03]
+- [ ] 48-04-PLAN.md — wire the field-identity oracle `tests/scale-bake.spec.ts` across the matrix (hard-fail-on-missing, no skipIf) + optional arch-spec Layer-3 anchor + full-suite green [wave 3, depends 48-02+48-03, BAKE-01/02/03/04]
 
 ### Phase 49: Single-Scale Variant Export
 **Goal**: Deliver the first end-user value — export one scaled-down variant to a chosen folder as a complete, drop-in package, reusing the existing export-sizing + atlas-writer pipeline and sizing textures arithmetically (`variant_peak = s × master_peak`, never by re-sampling the variant).
@@ -175,7 +176,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 0/3 | Not started | - |
+| 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 0/4 | Not started | - |
 | 49. Single-Scale Variant Export | v1.7 | 0/3 | Not started | - |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 0/2 | Not started | - |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
