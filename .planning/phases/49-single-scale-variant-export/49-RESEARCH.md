@@ -577,19 +577,22 @@ Checked `.claude/skills/` and `.agents/skills/` — **neither directory exists**
 | A4 | Reusing `fixtures/SIMPLE_PROJECT` (real PNG) for the pixel-path tests + the json+atlas-only 4.3 fixtures for oracle/layout gives sufficient EXPORT-05 coverage without a new committed fixture dir. | Validation / Fixture Matrix | If full 4.3-pixel resize coverage is mandated, a placeholder-PNG fixture + SAFE-01 denylist edit is needed (a known, bounded cost — Pitfall 5). |
 | A5 | A new `variant:export` IPC channel is cleaner than extending `export:start`; final call is the planner's (discretion D). | Research Flag 5 | None — both work; extending `export:start` risks coupling the variant's bake/JSON-write into the shipped Optimize path (which D-04 says to leave untouched). |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Which `s`-injection interpretation (peak-only vs scale-everything) does the faithfulness bar require?**
    - What we know: linear override math makes the raw stage identical; clamp/cap diverge; "for s<1 the clamp essentially never binds" (D-07).
    - What's unclear: whether D-07's "variant row effectiveScale = s × master effectiveScale" means scale the *demand* (peak-only, recommended A1) or scale the *post-clamp result* (scale-everything).
    - Recommendation: lock peak-only (literal reading + faithful render), write the EXPORT-02 assertion for it, and verify against the spike `s×` world-AABB bar. The planner should state the chosen interpretation in the plan's `must_haves.truths` and cite D-07.
+   - **(RESOLVED 2026-05-22):** A1 peak-only LOCKED — `scaleSummaryPeaks` multiplies only `peakScale*`/X/Y by `s` (plan 49-01 `must_haves.truths`, cites D-07 + L-02); verified against the spike-003 `s×` world-AABB bar (plan 49-03 V6).
 
 2. **Should the conflict probe be widened to report `{NAME}.json`, or should the JSON writer do its own existence check?**
    - What we know: D-03 reuses the existing overwrite/conflict-reprobe flow; `runExport`/`runRepack` do per-artifact `allowOverwrite`-gated checks.
    - What's unclear: the probe (`probeExportConflicts`) currently enumerates loose/atlas targets, not a skeleton JSON.
    - Recommendation: widen the probe to include `{NAME}.json` for uniform ConflictDialog coverage (most consistent with D-03); OR add a JSON existence check in the writer mirroring the worker pattern. Either satisfies D-03; the planner picks one.
+   - **(RESOLVED 2026-05-22):** No probe widening. D-03 is satisfied by the main-side source-collision guard + the workers' per-artifact `allowOverwrite`-gated checks; the variant picker (`onConfirmStartVariant`, plan 49-02) opens the parent folder only and invents no new ConflictDialog.
 
 3. **CLI path for variant export?** (discretion) — not required for EXPORT-01 (the basic UI covers it). If it falls out cheaply (the orchestration is main-side and pure-composable), a `npm run cli` variant subcommand is possible — but it would route through `loadSkeleton` to build a summary, re-introducing the per-entrypoint verification concern ([[feedback_verify_all_entrypoint_runtimes_of_a_perruntime_seam]]) for the CLI. Recommend deferring unless trivial.
+   - **(RESOLVED 2026-05-22):** CLI variant subcommand DEFERRED — out of scope for Phase 49 (the basic UI in plan 49-02 covers EXPORT-01); it would re-introduce the per-entrypoint runtime-verification concern, so it is not built this phase.
 
 ## Sources
 
