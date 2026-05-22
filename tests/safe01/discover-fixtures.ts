@@ -136,6 +136,22 @@ const SAFE01_EXCLUDED_PREFIXES = [
   // class to the SIMPLE_PROJECT_43/SLIDER_4_3 entries above; mechanism is the
   // same PATTERNS-recommended path-prefix denylist.
   'fixtures/spineboy_4.3/', // D-04 (46-02): redistributable PERF-01 4.3 rig — git-tracked + 4.3-routing; excluded from frozen SAFE-01 set/byte-gate
+  // D-04 Phase-48 extension (same locked doctrine: a NEWLY git-tracked fixture
+  // dir NOT in the frozen _manifest.json has no committed SAFE-01 golden to
+  // byte-compare against — auto-including it FALSELY trips the frozen-set
+  // enumeration (+N) AND the safe01-baseline gitTracked arm (HARD throw: no
+  // golden by design). 48-02 commits the SCALE_BAKE oracle-input matrix
+  // (TEST_01/TEST_03 4.2 deform rigs, the DEMON 4.3 rig, and the synthetic 4.3
+  // PATH_FIXED rig) as redistributable json+atlas-only inputs for the Phase-48
+  // scale-bake regression oracle. Their protection is the 48-04 bake oracle
+  // (parse(bake(orig,s),1) ≡ parse(orig,SkeletonJson.scale=s)), NOT the frozen
+  // 4.2.111 SAFE-01 byte-gate; verified NOT in _manifest.json. Identical class
+  // to the SIMPLE_PROJECT_43/spineboy_4.3 entries above (the doctrine's "no
+  // committed golden" root applies to 4.2-routing dirs too, line 84-89);
+  // mechanism is the same PATTERNS-recommended path-prefix denylist.
+  'fixtures/SCALE_BAKE_4_2/', // D-04 (48): scale-bake oracle 4.2 deform-rig inputs (TEST_01, TEST_03)
+  'fixtures/SCALE_BAKE_4_3/', // D-04 (48): scale-bake oracle 4.3 rig input (DEMON SKINS_SPINE_V02)
+  'fixtures/SCALE_BAKE_PATH_43/', // D-04 (48): synthetic 4.3 PathConstraint Fixed-mode oracle input (D-05)
 ] as const;
 
 export function discover(): DiscoveryResult {
