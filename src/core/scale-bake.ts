@@ -113,16 +113,28 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
     } else if (type === 'ik') {
       if (typeof c.softness === 'number') c.softness *= s;
     } else if (type === 'path') {
-      if (typeof c.limit === 'number') c.limit *= s;
-      if (c.positionMode !== 'percent' && typeof c.position === 'number') c.position *= s;
-      if ((c.spacingMode === 'length' || c.spacingMode === 'proportional') && typeof c.spacing === 'number')
-        c.spacing *= s;
+      // Source-faithful setup-pose mode-gating (SkeletonJson.js:269-278). enumValue is
+      // case-insensitive, so normalize before comparing. Defaults: positionMode "Percent",
+      // spacingMode "Length". position scales ONLY in Fixed; spacing ONLY in Length||Fixed
+      // (the percent-default position mode and the non-length/non-fixed spacing mode both stay
+      // x1 — the spike's paraphrased gates were wrong; 48-04 oracle is the field-identity proof).
+      const pm = (c.positionMode || 'percent').toLowerCase();
+      const sm = (c.spacingMode || 'length').toLowerCase();
+      if (pm === 'fixed' && typeof c.position === 'number') c.position *= s;
+      if ((sm === 'length' || sm === 'fixed') && typeof c.spacing === 'number') c.spacing *= s;
     } else if (type === 'physics') {
       // physics x/y are NOT scaled by spine (they're not length offsets). Only limit is.
       c.limit = (typeof c.limit === 'number' ? c.limit : 5000) * s;
+    } else if (type === 'slider') {
+      // 4.3-only slider remap (SkeletonJson.js:327-337). The remap reads only happen when a
+      // bone is bound. propertyScale(property) = s for spatial x/y, else 1. `from` scales by
+      // propertyScale; `scale` is a SLOPE so it DIVIDES by propertyScale.
+      if (c.bone) {
+        const ps = spatial(c.property) ? s : 1;
+        if (typeof c.from === 'number') c.from *= ps;
+        if (typeof c.scale === 'number') c.scale /= ps;
+      }
     }
-    // NOTE (Phase 48-01): the slider setup branch + the path setup mode-gating
-    // fix land in Plan 48-02. The `path` branch above is the verbatim spike form.
   }
   for (const skin of j.skins || []) {
     for (const slotName of Object.keys(skin.attachments || {})) {
@@ -171,7 +183,41 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
           }
     for (const keys of Object.values(anim.ik || {}) as any[]) {
       if (!Array.isArray(keys)) continue;
-      for (const k of keys) if (typeof k.softness === 'number') k.softness *= s;
+      for (const k of keys) {
+        if (typeof k.softness === 'number') k.softness *= s; // value
+        // The IK keyframe `curve` is a flat 8-float, 2-channel array:
+        // [mixCx,mixCy,mixCx2,mixCy2, softCx,softCy,softCx2,softCy2]. Spine scales cy only
+        // for the SOFTNESS channel (value-index 1 -> readCurve i=4 -> cy at curve[5],curve[7]);
+        // the MIX channel cy (value-index 0 -> curve[1],curve[3]) stays ×1 (SkeletonJson.js:916-921,
+        // readCurve:1370-1382). Do NOT use the generic scaleCurve here — it would corrupt the mix cy.
+        if (Array.isArray(k.curve) && k.curve.length >= 8) {
+          k.curve[5] *= s;
+          k.curve[7] *= s;
+        }
+      }
+    }
+    // PATH position/spacing TIMELINE walk (animations[a].path[constraintName][channel]). Gate by the
+    // owning constraint's mode (case-normalized), mirroring the setup gate: position scales iff
+    // positionMode Fixed; spacing scales iff Length||Fixed; the mix channel is never scaled
+    // (SkeletonJson.js:994/999). Resolve the constraint by name across the schema bridge — 4.3 unified
+    // j.constraints[] (type==='path') OR 4.2 split j.path[]. Path position/spacing timelines are
+    // SINGLE-channel, so the generic scaleCurve is correct here (unlike the 2-channel IK timeline).
+    for (const [constraintName, channels] of Object.entries(anim.path || {}) as [string, any][]) {
+      const pc =
+        (j.constraints || []).find((c: any) => c.name === constraintName && c.type === 'path') ||
+        (j.path || []).find((c: any) => c.name === constraintName);
+      const pm = ((pc && pc.positionMode) || 'percent').toLowerCase();
+      const sm = ((pc && pc.spacingMode) || 'length').toLowerCase();
+      for (const [chan, keys] of Object.entries(channels as any) as [string, any][]) {
+        if (!Array.isArray(keys)) continue;
+        const scaleThis =
+          (chan === 'position' && pm === 'fixed') || (chan === 'spacing' && (sm === 'length' || sm === 'fixed'));
+        if (!scaleThis) continue; // mix channel + non-scaled modes: leave ×1
+        for (const k of keys) {
+          if (typeof k.value === 'number') k.value *= s;
+          scaleCurve(k.curve, s);
+        }
+      }
     }
   }
   return j;

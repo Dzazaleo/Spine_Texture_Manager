@@ -132,3 +132,193 @@ describe('scale-bake — Task 2: D-10 assert-known on type discriminators', () =
     expect(out).toBeDefined(); // no throw — unknown timelines silently skipped
   });
 });
+
+describe('scale-bake — Task 1 (48-03): slider remap branch + source-faithful PATH setup mode-gating', () => {
+  // Slider remap (4.3 only; SkeletonJson.js:333-336). Spatial property -> from ×s, scale ÷s; non-spatial ×1.
+  it('4.3 slider with bone + spatial property x: from ×s, scale ÷s (slope)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', bone: 'b', property: 'x', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(5); // 10 × 0.5
+    expect(out.constraints[0].scale).toBe(8); // 4 / 0.5 (slope = ÷ps)
+  });
+
+  it('4.3 slider with bone + non-spatial property rotate: from and scale unchanged (propertyScale = 1)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', bone: 'b', property: 'rotate', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(10); // ×1
+    expect(out.constraints[0].scale).toBe(4); // ÷1
+  });
+
+  it('4.3 slider with NO bone: no remap reads happen (from/scale untouched)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', property: 'x', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(10); // no bone -> remap not read
+    expect(out.constraints[0].scale).toBe(4);
+  });
+
+  // PATH setup-pose mode-gating (SkeletonJson.js:274-279). position iff Fixed; spacing iff Length||Fixed.
+  it('path positionMode fixed scales position ×s', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: 'fixed', position: 100 }] },
+      0.5,
+    );
+    expect(out.constraints[0].position).toBe(50);
+  });
+
+  it('path positionMode percent (and absent default) leaves position ×1', () => {
+    const pct = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: 'percent', position: 100 }] },
+      0.5,
+    );
+    expect(pct.constraints[0].position).toBe(100);
+    const absent = bake({ skeleton: {}, constraints: [{ type: 'path', name: 'p', position: 100 }] }, 0.5);
+    expect(absent.constraints[0].position).toBe(100); // default Percent -> ×1
+  });
+
+  it('path spacingMode length OR fixed scales spacing ×s; proportional leaves ×1 (the spike bug)', () => {
+    const len = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'length', spacing: 100 }] },
+      0.5,
+    );
+    expect(len.constraints[0].spacing).toBe(50);
+    const fix = bake({ skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'fixed', spacing: 100 }] }, 0.5);
+    expect(fix.constraints[0].spacing).toBe(50);
+    const prop = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'proportional', spacing: 100 }] },
+      0.5,
+    );
+    expect(prop.constraints[0].spacing).toBe(100); // proportional NOT scaled
+  });
+
+  it('mode comparison is case-insensitive (Fixed / FIXED / fixed all gate the same)', () => {
+    for (const mode of ['Fixed', 'FIXED', 'fixed']) {
+      const out = bake(
+        { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: mode, position: 100 }] },
+        0.5,
+      );
+      expect(out.constraints[0].position, `positionMode=${mode}`).toBe(50);
+    }
+  });
+});
+
+describe('scale-bake — Task 2 (48-03): IK softness-timeline curve cy + PATH position/spacing timeline walk', () => {
+  // IK softness-timeline curve cy: scale ONLY the softness channel cy (curve index 5,7);
+  // the mix channel cy (index 1,3) stays x1 (SkeletonJson.js:916-921 + readCurve i=value<<2,cy=i+1/i+3).
+  it('IK keyframe 8-float curve: scales index 5 and 7 only; index 1 and 3 (mix cy) unchanged; softness value x s', () => {
+    const out = bake(
+      {
+        skeleton: {},
+        animations: {
+          anim1: { ik: { ikC: [{ mix: 0, softness: 10, curve: [0.3, 0.5, 0.9, 0.7, 0.3, 0.5, 0.9, 0.7] }] } },
+        },
+      },
+      0.5,
+    );
+    const k = out.animations.anim1.ik.ikC[0];
+    expect(k.softness).toBe(5); // value x s
+    // mix channel cy (index 1,3) unchanged:
+    expect(k.curve[1]).toBe(0.5);
+    expect(k.curve[3]).toBe(0.7);
+    // softness channel cy (index 5,7) scaled x s:
+    expect(k.curve[5]).toBe(0.25);
+    expect(k.curve[7]).toBe(0.35);
+    // cx values (index 0,2,4,6) never scaled:
+    expect(k.curve).toMatchObject({ 0: 0.3, 2: 0.9, 4: 0.3, 6: 0.9 });
+  });
+
+  it('IK keyframe with a short / non-8-float curve is left alone (no index-out-of-bounds)', () => {
+    const stepped = bake(
+      { skeleton: {}, animations: { a: { ik: { c: [{ softness: 10, curve: 'stepped' }] } } } },
+      0.5,
+    );
+    expect(stepped.animations.a.ik.c[0].curve).toBe('stepped');
+    expect(stepped.animations.a.ik.c[0].softness).toBe(5);
+    const short = bake(
+      { skeleton: {}, animations: { a: { ik: { c: [{ softness: 10, curve: [0.1, 0.2, 0.3, 0.4] }] } } } },
+      0.5,
+    );
+    expect(short.animations.a.ik.c[0].curve).toEqual([0.1, 0.2, 0.3, 0.4]); // < 8 floats -> untouched
+  });
+
+  // PATH position/spacing TIMELINE walk, gated by the owning constraint mode (case-normalized).
+  it('path position timeline scales value+cy iff positionMode Fixed', () => {
+    const out = bake(
+      {
+        skeleton: {},
+        constraints: [{ type: 'path', name: 'p', positionMode: 'fixed', spacingMode: 'percent' }],
+        animations: { a: { path: { p: { position: [{ time: 0, value: 100, curve: [0.1, 0.2, 0.3, 0.4] }] } } } },
+      },
+      0.5,
+    );
+    const k = out.animations.a.path.p.position[0];
+    expect(k.value).toBe(50); // value x s
+    expect(k.curve).toEqual([0.1, 0.1, 0.3, 0.2]); // single-channel scaleCurve: cy (idx 1,3) x s
+  });
+
+  it('path position timeline NOT scaled when positionMode percent', () => {
+    const out = bake(
+      {
+        skeleton: {},
+        constraints: [{ type: 'path', name: 'p', positionMode: 'percent' }],
+        animations: { a: { path: { p: { position: [{ time: 0, value: 100, curve: [0.1, 0.2, 0.3, 0.4] }] } } } },
+      },
+      0.5,
+    );
+    const k = out.animations.a.path.p.position[0];
+    expect(k.value).toBe(100); // x1
+    expect(k.curve).toEqual([0.1, 0.2, 0.3, 0.4]); // x1
+  });
+
+  it('path spacing timeline scales value+cy iff spacingMode Length or Fixed; mix timeline never scaled', () => {
+    const len = bake(
+      {
+        skeleton: {},
+        constraints: [{ type: 'path', name: 'p', spacingMode: 'length' }],
+        animations: {
+          a: {
+            path: {
+              p: {
+                spacing: [{ time: 0, value: 100, curve: [0.1, 0.2, 0.3, 0.4] }],
+                mix: [{ time: 0, value: 0.5, curve: [0.1, 0.2, 0.3, 0.4] }],
+              },
+            },
+          },
+        },
+      },
+      0.5,
+    );
+    expect(len.animations.a.path.p.spacing[0].value).toBe(50);
+    expect(len.animations.a.path.p.spacing[0].curve).toEqual([0.1, 0.1, 0.3, 0.2]);
+    // mix channel never scaled:
+    expect(len.animations.a.path.p.mix[0].value).toBe(0.5);
+    expect(len.animations.a.path.p.mix[0].curve).toEqual([0.1, 0.2, 0.3, 0.4]);
+
+    const prop = bake(
+      {
+        skeleton: {},
+        constraints: [{ type: 'path', name: 'p', spacingMode: 'proportional' }],
+        animations: { a: { path: { p: { spacing: [{ time: 0, value: 100 }] } } } },
+      },
+      0.5,
+    );
+    expect(prop.animations.a.path.p.spacing[0].value).toBe(100); // proportional -> x1
+  });
+
+  it('path timeline gate resolves the owning constraint from 4.2 split j.path[] too', () => {
+    const out = bake(
+      {
+        skeleton: {},
+        path: [{ name: 'p', positionMode: 'fixed' }], // 4.2 split-array constraint
+        animations: { a: { path: { p: { position: [{ time: 0, value: 100 }] } } } },
+      },
+      0.5,
+    );
+    expect(out.animations.a.path.p.position[0].value).toBe(50);
+  });
+});
