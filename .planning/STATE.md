@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: executing
-last_updated: "2026-05-22T15:01:03.417Z"
-last_activity: 2026-05-22 -- Phase 49 planning complete
+last_updated: "2026-05-22T15:11:18.324Z"
+last_activity: 2026-05-22 -- Phase 49 execution started
 progress:
   total_phases: 4
   completed_phases: 1
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 49
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 49 planning complete
+Phase: 49 (single-scale-variant-export) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 49
+Last activity: 2026-05-22 -- Phase 49 execution started
 
 Next: **`/gsd-execute-phase 49`** — Phase 49 (Single-Scale Variant Export) is PLANNED: **3 plans / 2 waves, all autonomous.** Wave 1 = 49-01 (variant engine: pure `scaleSummaryPeaks` peak-only + `VariantScaleError` D-08 + first-ever atomic skeleton-JSON writer L-03 + `handleExportVariant` + `variant:export` IPC/preload). Wave 2 (both depend 49-01, disjoint) = 49-02 (renderer "Export Variant…" single-pane dialog reusing Optimize config + a basic numeric scale field) + 49-03 (package-layout/rollback + drop-in faithfulness oracle + dual-runtime×dual-mode matrix + Layer-3 arch anchor). Research + VALIDATION (V1–V8, task-bound) + PATTERNS done; plan-checker **PASSED iter-2** (iter-1 found 2 cross-plan blockers → fixed `fdd6180`: the typed `Api.exportVariant` member in `src/shared/types.ts` + the picker-only `onConfirmStartVariant` keyed to `variantDialogState`). Locked: `variant_peak = s × master_peak` (peak-only A1, D-07); `buildExportPlan` + atlas-writer pipeline reused UNCHANGED; source JSON never modified; `{PARENT}/{NAME}@{s}x/` clean basenames; reuses committed fixtures (SIMPLE_PROJECT 4.2 + SLIDER_4_3/XTRA01/02 4.3) — **no new fixture dir, SAFE-01 landmine avoided.** One non-blocking note for execute: 49-01 must `import { runRepack, type AtlasOpts } from './repack-worker.js'` (no named `AtlasOpts` in types.ts; the plan's `typecheck:node`=0 acceptance criterion self-corrects; model at `ipc.ts:65`).
 
@@ -65,7 +65,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 48 — core-scale-bake-module-regression-oracle
+**Current focus:** Phase 49 — single-scale-variant-export
 
 ## Last Completed Milestone
 
