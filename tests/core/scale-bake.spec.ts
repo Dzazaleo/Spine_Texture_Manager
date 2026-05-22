@@ -132,3 +132,77 @@ describe('scale-bake — Task 2: D-10 assert-known on type discriminators', () =
     expect(out).toBeDefined(); // no throw — unknown timelines silently skipped
   });
 });
+
+describe('scale-bake — Task 1 (48-03): slider remap branch + source-faithful PATH setup mode-gating', () => {
+  // Slider remap (4.3 only; SkeletonJson.js:333-336). Spatial property -> from ×s, scale ÷s; non-spatial ×1.
+  it('4.3 slider with bone + spatial property x: from ×s, scale ÷s (slope)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', bone: 'b', property: 'x', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(5); // 10 × 0.5
+    expect(out.constraints[0].scale).toBe(8); // 4 / 0.5 (slope = ÷ps)
+  });
+
+  it('4.3 slider with bone + non-spatial property rotate: from and scale unchanged (propertyScale = 1)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', bone: 'b', property: 'rotate', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(10); // ×1
+    expect(out.constraints[0].scale).toBe(4); // ÷1
+  });
+
+  it('4.3 slider with NO bone: no remap reads happen (from/scale untouched)', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'slider', name: 's', property: 'x', from: 10, scale: 4 }] },
+      0.5,
+    );
+    expect(out.constraints[0].from).toBe(10); // no bone -> remap not read
+    expect(out.constraints[0].scale).toBe(4);
+  });
+
+  // PATH setup-pose mode-gating (SkeletonJson.js:274-279). position iff Fixed; spacing iff Length||Fixed.
+  it('path positionMode fixed scales position ×s', () => {
+    const out = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: 'fixed', position: 100 }] },
+      0.5,
+    );
+    expect(out.constraints[0].position).toBe(50);
+  });
+
+  it('path positionMode percent (and absent default) leaves position ×1', () => {
+    const pct = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: 'percent', position: 100 }] },
+      0.5,
+    );
+    expect(pct.constraints[0].position).toBe(100);
+    const absent = bake({ skeleton: {}, constraints: [{ type: 'path', name: 'p', position: 100 }] }, 0.5);
+    expect(absent.constraints[0].position).toBe(100); // default Percent -> ×1
+  });
+
+  it('path spacingMode length OR fixed scales spacing ×s; proportional leaves ×1 (the spike bug)', () => {
+    const len = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'length', spacing: 100 }] },
+      0.5,
+    );
+    expect(len.constraints[0].spacing).toBe(50);
+    const fix = bake({ skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'fixed', spacing: 100 }] }, 0.5);
+    expect(fix.constraints[0].spacing).toBe(50);
+    const prop = bake(
+      { skeleton: {}, constraints: [{ type: 'path', name: 'p', spacingMode: 'proportional', spacing: 100 }] },
+      0.5,
+    );
+    expect(prop.constraints[0].spacing).toBe(100); // proportional NOT scaled
+  });
+
+  it('mode comparison is case-insensitive (Fixed / FIXED / fixed all gate the same)', () => {
+    for (const mode of ['Fixed', 'FIXED', 'fixed']) {
+      const out = bake(
+        { skeleton: {}, constraints: [{ type: 'path', name: 'p', positionMode: mode, position: 100 }] },
+        0.5,
+      );
+      expect(out.constraints[0].position, `positionMode=${mode}`).toBe(50);
+    }
+  });
+});

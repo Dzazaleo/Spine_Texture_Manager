@@ -113,16 +113,28 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
     } else if (type === 'ik') {
       if (typeof c.softness === 'number') c.softness *= s;
     } else if (type === 'path') {
-      if (typeof c.limit === 'number') c.limit *= s;
-      if (c.positionMode !== 'percent' && typeof c.position === 'number') c.position *= s;
-      if ((c.spacingMode === 'length' || c.spacingMode === 'proportional') && typeof c.spacing === 'number')
-        c.spacing *= s;
+      // Source-faithful setup-pose mode-gating (SkeletonJson.js:269-278). enumValue is
+      // case-insensitive, so normalize before comparing. Defaults: positionMode "Percent",
+      // spacingMode "Length". position scales ONLY in Fixed; spacing ONLY in Length||Fixed
+      // (the percent-default position mode and the non-length/non-fixed spacing mode both stay
+      // x1 — the spike's paraphrased gates were wrong; 48-04 oracle is the field-identity proof).
+      const pm = (c.positionMode || 'percent').toLowerCase();
+      const sm = (c.spacingMode || 'length').toLowerCase();
+      if (pm === 'fixed' && typeof c.position === 'number') c.position *= s;
+      if ((sm === 'length' || sm === 'fixed') && typeof c.spacing === 'number') c.spacing *= s;
     } else if (type === 'physics') {
       // physics x/y are NOT scaled by spine (they're not length offsets). Only limit is.
       c.limit = (typeof c.limit === 'number' ? c.limit : 5000) * s;
+    } else if (type === 'slider') {
+      // 4.3-only slider remap (SkeletonJson.js:327-337). The remap reads only happen when a
+      // bone is bound. propertyScale(property) = s for spatial x/y, else 1. `from` scales by
+      // propertyScale; `scale` is a SLOPE so it DIVIDES by propertyScale.
+      if (c.bone) {
+        const ps = spatial(c.property) ? s : 1;
+        if (typeof c.from === 'number') c.from *= ps;
+        if (typeof c.scale === 'number') c.scale /= ps;
+      }
     }
-    // NOTE (Phase 48-01): the slider setup branch + the path setup mode-gating
-    // fix land in Plan 48-02. The `path` branch above is the verbatim spike form.
   }
   for (const skin of j.skins || []) {
     for (const slotName of Object.keys(skin.attachments || {})) {
