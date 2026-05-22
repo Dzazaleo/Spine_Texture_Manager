@@ -160,39 +160,69 @@ export function VariantDialog(props: VariantDialogProps) {
 
     setState('in-progress');
     setErrorMessage(null);
-    // Argument order matches the Plan-01 `Api.exportVariant` signature exactly:
-    // (summary, s, parentDir, overwrite, sharpenEnabled, outputMode, atlasOpts,
-    //  effectiveOverrides[], safetyBufferPercent).
-    const response: ExportResponse = await window.api.exportVariant(
-      props.summary,
-      props.scale,
-      parentDir,
-      overwrite,
-      props.sharpenOnExport,
-      props.outputMode,
-      props.atlasOpts,
-      Array.from(props.effectiveOverrides.entries()),
-      props.safetyBufferPercent,
-    );
-    if (response.ok) {
-      setSummary(response.summary);
-      setErrorMessage(null);
-    } else {
-      // Surface the typed error message (VariantScaleError / collision / Unknown).
+    // WR-02: wrap the IPC await in try/catch. After setState('in-progress'),
+    // a rejected promise (unexpected main-side throw) would otherwise leave the
+    // dialog wedged on "Exporting…" forever — ESC + click-outside are no-ops
+    // while in-progress (onCloseSafely), so the user would have no recovery.
+    // On rejection, surface the message + transition to the complete state.
+    try {
+      // Argument order matches the Plan-01 `Api.exportVariant` signature exactly:
+      // (summary, s, parentDir, overwrite, sharpenEnabled, outputMode, atlasOpts,
+      //  effectiveOverrides[], safetyBufferPercent).
+      const response: ExportResponse = await window.api.exportVariant(
+        props.summary,
+        props.scale,
+        parentDir,
+        overwrite,
+        props.sharpenOnExport,
+        props.outputMode,
+        props.atlasOpts,
+        Array.from(props.effectiveOverrides.entries()),
+        props.safetyBufferPercent,
+      );
+      if (response.ok) {
+        setSummary(response.summary);
+        // CR-01: runExport/runRepack do NOT throw on per-row failures (overwrite
+        // collisions, missing sources, sharp errors) — they push entries into
+        // summary.errors[] and return ok:true. Deciding success purely by
+        // !response.ok would render a partial/total failure as success
+        // ("0 files exported"). Mirror OptimizeDialog: treat a non-empty errors
+        // array as a (partial) failure so the per-row errors surface below.
+        setErrorMessage(
+          response.summary.errors.length > 0
+            ? `${response.summary.successes} exported, ${response.summary.errors.length} failed.`
+            : null,
+        );
+      } else {
+        // Surface the typed error message (VariantScaleError / collision /
+        // already-running / Unknown).
+        setSummary({
+          successes: 0,
+          errors: [
+            {
+              kind: 'write-error',
+              path: parentDir,
+              message: response.error.message,
+            },
+          ],
+          outputDir: parentDir,
+          durationMs: 0,
+          cancelled: false,
+        });
+        setErrorMessage(response.error.message);
+      }
+    } catch (err) {
+      // WR-02: the IPC promise rejected (not an envelope) — synthesize a
+      // failure summary so the complete state has something to render.
+      const message = err instanceof Error ? err.message : String(err);
       setSummary({
         successes: 0,
-        errors: [
-          {
-            kind: 'write-error',
-            path: parentDir,
-            message: response.error.message,
-          },
-        ],
+        errors: [{ kind: 'write-error', path: parentDir, message }],
         outputDir: parentDir,
         durationMs: 0,
         cancelled: false,
       });
-      setErrorMessage(response.error.message);
+      setErrorMessage(message);
     }
     setState('complete');
   }, [props]);
@@ -493,6 +523,27 @@ export function VariantDialog(props: VariantDialogProps) {
               </p>
             ) : (
               <p className="text-[color:var(--color-danger)]">{errorMessage}</p>
+            )}
+            {/* CR-01: surface per-row worker failures (overwrite collisions,
+                missing sources, sharp errors) the same way OptimizeDialog does
+                (OptimizeDialog.tsx:1003-1028). Without this list a partial
+                failure (ok:true + non-empty errors[]) showed as success. The
+                summary line gives the succeeded/failed counts; the list gives
+                the per-file path + reason. Both render only when errors exist. */}
+            {summary.errors.length > 0 && (
+              <>
+                <p className="mt-1 text-fg-muted">
+                  {summary.successes} succeeded, {summary.errors.length} failed.
+                </p>
+                <ul className="mt-1 text-[color:var(--color-danger)]">
+                  {summary.errors.map((err, i) => (
+                    <li key={i}>
+                      {err.path ? `${err.path}: ` : ''}
+                      {err.message}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         )}

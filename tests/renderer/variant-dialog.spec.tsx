@@ -150,6 +150,59 @@ describe('VariantDialog — Phase 49 EXPORT-01', () => {
     expect(callArgs[8]).toBe(0); // safetyBufferPercent
   });
 
+  it('CR-01: surfaces per-row worker failures when the IPC returns ok:true with a non-empty errors[]', async () => {
+    // runExport/runRepack do NOT throw on per-row failures (overwrite
+    // collisions, missing sources, sharp errors) — they return ok:true with a
+    // populated summary.errors[]. The dialog must NOT render that as success.
+    exportVariantMock.mockResolvedValueOnce({
+      ok: true,
+      summary: {
+        successes: 0,
+        errors: [
+          {
+            kind: 'overwrite-source',
+            path: '/tmp/parent/SIMPLE_TEST@0.5x/images/CIRCLE.png',
+            message: 'Refusing to overwrite existing file: …/CIRCLE.png',
+          },
+        ],
+        outputDir: '/tmp/parent/SIMPLE_TEST@0.5x',
+        durationMs: 12,
+        cancelled: false,
+      },
+    });
+
+    render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Export Variant/i }));
+    });
+
+    // The failed-count summary line and the per-row error are both visible; the
+    // "0 files exported" success copy is NOT.
+    await waitFor(() => {
+      expect(screen.getByText(/0 succeeded, 1 failed\./i)).toBeTruthy();
+    });
+    expect(screen.getByText(/Refusing to overwrite existing file/i)).toBeTruthy();
+    expect(screen.queryByText(/files? exported\./i)).toBeNull();
+  });
+
+  it('WR-02: a rejected exportVariant promise transitions to the complete error state (no wedged in-progress)', async () => {
+    exportVariantMock.mockRejectedValueOnce(new Error('unexpected main-side throw'));
+
+    render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Export Variant/i }));
+    });
+
+    // The dialog reached the complete state (Close button present) instead of
+    // staying stuck on "Exporting…", and the rejection message is surfaced
+    // (it appears in both the top error line and the synthesized per-row list).
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Close$/i })).toBeTruthy();
+    });
+    expect(screen.getAllByText(/unexpected main-side throw/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/Exporting…/i)).toBeNull();
+  });
+
   it('disables Export and shows the inline hint when scale >= 1 (s = 1.0)', () => {
     render(<VariantDialog {...buildProps({ scale: 1.0 })} />);
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
