@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: executing
-last_updated: "2026-05-22T11:54:50.790Z"
-last_activity: 2026-05-22 -- Phase 48 planning complete
+last_updated: "2026-05-22T12:01:12.745Z"
+last_activity: 2026-05-22 -- Phase 48 execution started
 progress:
   total_phases: 4
   completed_phases: 0
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 48 (Core Scale-Bake + Oracle) — context gathered (not yet planned)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 48 planning complete
+Phase: 48 (core-scale-bake-module-regression-oracle) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 48
+Last activity: 2026-05-22 -- Phase 48 execution started
 
 Next: **`/gsd-plan-phase 48`** (Phase 48 is the de-risked core scale-bake; CONTEXT.md now locks the fixture + channel-proof + scale-range + unknown-construct decisions). v1.7 is driven by SEED-010 + spikes 001–003 (`.planning/spikes/`) — the JSON scale-bake is PROVEN field-identical to Spine's own scaling on 4.2 + 4.3; promote the spike `baker.mjs` to a Layer-3 `core/` module + wire the regression oracle as a CI test (incl. a deform-heavy fixture). v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
 
@@ -63,7 +63,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 47 — spine-player-4-3-0-bump-viewer-regression
+**Current focus:** Phase 48 — core-scale-bake-module-regression-oracle
 
 ## Last Completed Milestone
 
