@@ -26,6 +26,19 @@ findings:
   info: 3
   total: 10
 status: issues_found
+fix_status: critical_warning_fixed
+fixed:
+  - CR-01
+  - WR-01
+  - WR-02
+  - WR-03
+  - WR-04
+  - WR-05
+  - WR-06
+deferred:
+  - IN-01
+  - IN-02
+  - IN-03
 ---
 
 # Phase 49: Code Review Report
@@ -59,6 +72,8 @@ re-entrancy guard, float folder-token artifacts) compound it.
 ## Critical Issues
 
 ### CR-01: Variant export reports per-file failures as success — silent data loss / misleading result
+
+**Status:** FIXED (commits 268e8fd + 2b82b82). Renderer now treats a non-empty `summary.errors[]` as a (partial) failure and lists each per-row error (mirrors OptimizeDialog); `writeSkeletonJsonAtomic` now honors the same `overwrite` gate as the workers, so a re-export with `overwrite=false` no longer silently replaces `{NAME}.json`.
 
 **File:** `src/renderer/src/modals/VariantDialog.tsx:177-197, 476-489`
 **Issue:**
@@ -111,6 +126,8 @@ same `overwrite` gate as the workers so the JSON is not replaced when the images
 
 ### WR-01: `scaleSummaryPeaks` + `buildExportPlan` call sits OUTSIDE the try/catch — uncaught throw rejects the IPC promise
 
+**Status:** FIXED (commit f905f8c). Plan build wrapped in try/catch returning `{ ok: false, error: { kind: 'Unknown', message } }`, consistent with steps 5 & 6.
+
 **File:** `src/main/variant-export.ts:123-126`
 **Issue:**
 The `readFile` (step 5) and `bake` (step 6) calls are individually try/caught and return clean
@@ -124,6 +141,8 @@ rather than the documented `ExportResponse` envelope, breaking the IPC contract 
 `{ ok: false, error: { kind: 'Unknown', message } }`), consistent with steps 5 and 6.
 
 ### WR-02: Renderer awaits `exportVariant` / `onConfirmStart` with no try/catch — a rejected IPC promise wedges the dialog in "in-progress" forever
+
+**Status:** FIXED (commit 2b82b82). The `exportVariant` await is wrapped in try/catch; a rejection synthesizes a failure summary and transitions to the `complete` state. (The `onConfirmStart` await at line 133 runs BEFORE `setState('in-progress')`, so a rejection there cannot wedge the in-progress state — the central wedge risk was the post-`in-progress` `exportVariant` await, which is now guarded.)
 
 **File:** `src/renderer/src/modals/VariantDialog.tsx:133, 166-176`
 **Issue:**
@@ -147,6 +166,8 @@ try {
 
 ### WR-03: `formatScaleToken(String(s))` emits float-artifact folder names (`@0.30000000000000004x`)
 
+**Status:** FIXED (commit f2e1c16). `formatScaleToken` now returns `String(Number(s.toFixed(4)))`; the dialog's `folderHint` + header copy reuse the same inline normalization (the canonical helper lives in a Node module the Layer-3 renderer must not import).
+
 **File:** `src/main/variant-export.ts:49-51, 92`
 **Issue:**
 `formatScaleToken` is `String(s)`. The scale originates from a `<input type="number" step="0.05">`
@@ -162,6 +183,8 @@ to `folderHint` in the dialog (or have the dialog import/reuse the canonical hel
 
 ### WR-04: Source-collision guard only inspects `plan.rows[0]` — bypassed when every row is a passthrough copy
 
+**Status:** FIXED (commit f905f8c). Collision sentinel now derived from `plan.rows[0] ?? plan.passthroughCopies[0]`, covering the all-passthrough project shape the workers still write.
+
 **File:** `src/main/variant-export.ts:130-147`
 **Issue:**
 The "outDir IS the source images dir" guard is gated on `if (plan.rows.length > 0)` and reads only
@@ -176,6 +199,8 @@ matching the set of rows the workers actually write.
 
 ### WR-05: No re-entrancy guard on the variant export channel
 
+**Status:** FIXED (commit f905f8c). Added a module-level `variantExportInFlight` guard (check-first, claim-before-first-await, release-in-finally) mirroring `handleStartExport`'s `exportInFlight`; returns `{ kind: 'already-running' }` on re-entry. D-04: a separate variant-scoped flag (the shipped Optimize flow's slot is byte-untouched), so two concurrent VARIANT exports are serialized. NOTE: a variant export concurrent with an Optimize export is not cross-serialized — fully sharing one slot would require modifying `handleStartExport` (D-04 forbids touching the shipped flow); flagged as residual.
+
 **File:** `src/main/ipc.ts:1060-1091`, `src/main/variant-export.ts:53-64`
 **Issue:**
 `handleStartExport` claims a module-level `exportInFlight` slot to serialize exports
@@ -188,6 +213,8 @@ same output folder. The renderer modal serializes within a single dialog (the bu
 in-flight flag in `handleExportVariant`, returning `{ kind: 'already-running' }` on re-entry.
 
 ### WR-06: IPC boundary does not re-validate `safetyBufferPercent` / scale range that the renderer clamps
+
+**Status:** FIXED (commit f905f8c). `handleExportVariant` now re-validates `safetyBufferPercent` at the trust boundary (NaN/non-finite → 0, `Math.trunc`, clamp to `[0,25]`) before `buildExportPlan`, mirroring the renderer clamp and `validateExportOpts`' contract. Done in the handler (the authoritative boundary for both the IPC handler and direct test callers) rather than only at `ipc.ts:1089`.
 
 **File:** `src/main/ipc.ts:1089`, `src/main/variant-export.ts:62-69`
 **Issue:**
