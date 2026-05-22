@@ -1,21 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
-milestone_name: Spine 4.3 Runtime Port (Dual-Runtime)
-status: milestone_complete
-last_updated: "2026-05-19T10:52:23.000Z"
-last_activity: 2026-05-19 -- POST-COMPLETION FIX (folded into v1.6, owner-classified): `e7db8fe` fix(loader) — reject pre-release Spine exports (4.3-beta `appliedPose` crash → typed SpineVersionUnsupportedError); found during post-47-05 owner validation, lands in the v1.6 cut (branch still un-tagged); milestone status unchanged. See `.planning/debug/resolved/spine-43-beta-appliedpose-null.md`. // 47-05 COMPLETE (owner DV-3 UAT signed all 7 passed; D-08 41-flip; 47-02 superseded; v1.6 D-01 hold RELEASED)
+milestone: v1.7
+milestone_name: Multi-Scale Per-Resolution Variant Exporter
+status: planning
+last_updated: "2026-05-22T00:00:00.000Z"
+last_activity: 2026-05-22 -- v1.7 milestone STARTED (Multi-Scale Per-Resolution Variant Exporter). Roadmapped 4 phases (48-51), 11 reqs mapped (BAKE/EXPORT/SCALEUI). Driven by SEED-010 + spikes 001-003 (faithful JSON scale-bake PROVEN field-identical to Spine's own scaling on 4.2+4.3). Research skipped (spikes ARE the research). v1.6 archived to milestones/v1.6-*. Next: /gsd-plan-phase 48.
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 24
-  completed_plans: 24
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
+
+Phase: 48 (Core Scale-Bake + Oracle) — not started
+Plan: —
+Status: Planning — v1.7 roadmapped (4 phases 48–51, 11 reqs mapped); ready to plan Phase 48
+Last activity: 2026-05-22 — v1.7 milestone started (Multi-Scale Per-Resolution Variant Exporter)
+
+Next: **`/gsd-plan-phase 48`** (or `/gsd-discuss-phase 48` first — Phase 48 is the de-risked core scale-bake). v1.7 is driven by SEED-010 + spikes 001–003 (`.planning/spikes/`) — the JSON scale-bake is PROVEN field-identical to Spine's own scaling on 4.2 + 4.3; promote the spike `baker.mjs` to a Layer-3 `core/` module + wire the regression oracle as a CI test (incl. a deform-heavy fixture). v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
+
+---
+
+### Previous Position (v1.6 — COMPLETE, shipped as v1.6.1)
 
 Phase: 47
 Plan: Not started
@@ -154,9 +165,11 @@ Open decisions D-01 (npm vs vendor) / D-02 (modal vs split-pane vs tab) / D-03 (
 - 2026-05-18 — **Phase 46 COMPLETE + verified + closed (Slider Constraint Validation + 4.3 Performance Budget).** Single wave, 2 plans, run **sequentially on the main tree** (orchestrator disabled worktree isolation for the wave: 46-01 carried a `checkpoint:human-action` requiring the owner to author a fixture file — fundamentally incompatible with agent-worktree isolation + fresh-worktree-per-Task continuation; 46-02 disjoint + cheap so parallel worktrees bought nothing). 46-01 surfaced its checkpoint early; 46-02 (PERF-01, fully autonomous) ran during the owner's editor-read dead time, then a fresh continuation agent resumed 46-01 Task 3 post-checkpoint. **46-01** SLIDER-01/02: `10bd40f` (Task 1: `buildLoadSlider43()` verbatim `buildLoadXtra('fixtures/SLIDER_4_3')` delegation + `46-OWNER-EXPORT-SPEC.md` D-10 spec; 1 Rule-1 plan-internal AC reconciliation) → `622f69c` (Task 2 checkpoint: owner read Esoteric's proprietary Spine 4.3 editor — `slide` end frame t=1.0s, `slider_bone` world Scale X=Y=4.0; orchestrator transcribed the owner's reported numbers into `fixtures/SLIDER_4_3/NOTES.txt` + committed) → `20a61dd` (Task 3: `slider43-closedform.spec.ts` — `square` peakScale/X/Y `toBeCloseTo(4.0,5)` with source-cited derivation from `spine-core@4.3.0 Slider.update()`, D-05 NOTES.txt triangulation loud-fail-on-absence, SC#2 `git diff src/core/` `.toEqual([])` gate; 0 deviations) → `623121a` (metadata). **D-05 triangulation closed: hand-math 4.0 ≡ owner editor 4.0 ≡ sampled runtime 4.0** (three independent implementations, machine-checked). **46-02** PERF-01: `6096951`+`c7bc311` — CI-ENABLED (no `skipIf`) `tests/main/sampler-worker-spineboy43.spec.ts` warmed `runSamplerJob` on the redistributable complex 4.3 rig spineboy-pro (committed, spine 4.3.01, 67/52/11/14), `< BUDGET 1479` hardcoded literal, `[PERF-43]` + ` 606 ms ref` ratio log; 3 correctness-required deviations (Rule-1 BUDGET re-anchor 378→1479 for contended-env calibration / 3× margin kept; Rule-2 committed the rig; Rule-3 extended LOCKED D-04 `SAFE01_EXCLUDED_PREFIXES` with `fixtures/spineboy_4.3/`, same class as 44-01's leak which STATE anticipated). Gates: post-merge full `npm test` **1280 passed / 0 actual failures** (the 11 `tests/renderer/*` MixBlend IMPORT failures are pre-existing, Phase-47-owned, NOT a regression — memory `project_renderer_mixblend_preexisting_failure`); **SC#2 invariant holds — 0 `src/core/`+`src/main/` diff over `1a2016f..HEAD` (the proven absence of slider code IS the deliverable)**; Phase-44 `slider43-smoke.spec.ts` + Girl analog byte-untouched; code review `47e72f2` (0 critical / 2 warning / 3 info — WR-01 NOTES.txt-regex newline-span fragility + WR-02 SC#2 committed-range-only; both non-blocking robustness refinements to plan-specified test code, current content parses correctly, in `46-REVIEW.md`); `46-VERIFICATION.md` **PASSED 3/3** (verifier independently re-derived the closed form vs vendored `spine-core@4.3.0 dist/Slider.js` + ran the Pitfall-2 NOTES.txt-moved-aside negative check). `gsd-sdk phase.complete 46` clean (no SDK miscount this time): completed_phases 5/6, status `ready_to_plan`, next_phase 47, REQUIREMENTS SLIDER-01/SLIDER-02/PERF-01 → Complete. **Phase 47 (spine-player 4.3.0 bump + viewer regression) is the only open v1.6 phase** — owns the pre-existing renderer `MixBlend`/`MixDirection` import failures; decoupled + revertible + sequenced last by roadmap design. Next: `/gsd-discuss-phase 47` (recommended) or `/gsd-plan-phase 47`.
 - 2026-05-19 — **Phase 47 GAP RE-DISCOVERED → re-discussed → gap-closure planned.** After 47-01 landed (spine-player→4.3.0 bump + 8-touchpoint Pose-API migration, `6b3c57e`) the owner UAT exposed two bugs: REG-47-01 (buildSummary fed 4.3 skeletonData to a hardcoded 4.2 ctor — FIXED `53e480c`) and, once that let projects load far enough to reach the viewer, the **single-runtime spine-player@4.3.0 Animation Viewer categorically cannot parse ANY 4.2 constraint-bearing project** (debug `viewer-43-42-constraint-parse`, root-caused: 4.3 unified `root.constraints[]` vs 4.2 separate `root.ik/transform/path/physics`). Owner disposition discuss→plan. Gap re-discussion (`015c9d1`, second pass; D-01..D-09 preserved, D-09 render-pair falsified) locked **DV-1..DV-3 + DV-RISK-1 + DV-NOTE**: viewer becomes DUAL-RUNTIME (4.2 → frozen v1.5.1 spine-player@4.2.111 + pre-migration modal, alias-isolated; 4.3 → the 47-01 migrated path retained byte-untouched; routing off the core `resolveRuntimeTag`). `/gsd-plan-phase 47 --gaps --skip-ui`: a focused gap-researcher resolved **DV-RISK-1 = ACHIEVABLE-AS-IS** (pure `package.json` `spine-player-42`/`spine-webgl-42` alias trio, no Vite/vitest alias/shim — empirically proven; `47-RESEARCH.md` §555+ GAP ADDENDUM appended, original 1–551 binds the 4.3 leg only) — NOT a discuss escalation. Planner wrote 3 gap plans (3 waves): **47-03** (DV-1 alias + frozen `AnimationPlayerModal42.tsx` from `git show 9f967d2:` + `SkeletonSummary.runtimeTag` explicit-identity thread via `src/shared/types.ts`+`src/main/summary.ts` + dispatcher) → **47-04** (Q4 headless tests T-A..T-D + DV-2 PLAYER-02 rewording, same ID, descope-guarded + RESEARCH §7 VALIDATION REPLACE-fold) → **47-05** (DV-3 dual-runtime UAT matrix + the blocking owner `checkpoint:human-action`, main-tree-sequential, + D-08 41-flip; SUBSUMES 47-02 Tasks 2-3). 47-01 byte-untouched; **47-02 SUPERSEDED by 47-05**. Plan-checker iter1 (1 BLOCKER + 3 WARN) → planner revised (`8985c4a`) → iter2 VERIFICATION PASSED, regression sweep clean; plans committed `5d8e5dc`+`8985c4a`. v1.6 close stays HELD per D-01 (STRICT, no revert) on the re-sequenced 47-05 owner checkpoint. Status: executing → gap-closure planned. Next: `/gsd-execute-phase 47`.
 
+- 2026-05-22 — **v1.7 STARTED (Multi-Scale Per-Resolution Variant Exporter).** Driven by SEED-010 (explored 2026-05-21) + spikes 001–003 (all VALIDATED — faithful JSON scale-bake PROVEN field-identical to Spine's own `SkeletonJson.scale` on 4.2 + 4.3, incl. DEMON's worst constraints; baked variant world-AABB exactly s× incl. R_ARM; see `.planning/spikes/`). Research skipped (spikes ARE the research). v1.6 REQUIREMENTS.md + ROADMAP.md archived to `milestones/v1.6-*`; fresh v1.7 REQUIREMENTS.md (11 reqs — BAKE/EXPORT/SCALEUI, all mapped) + ROADMAP.md (4 phases, 48–51) authored by gsd-roadmapper. Continues phase numbering at **Phase 48** (no `--reset-phase-numbers`); prior phase directories retained. Locked: don't scale a bone (full Spine-style similarity bake); variant_peak = s × master_peak; oracle = parse(bake(orig,s),1) ≡ parse(orig,SkeletonJson.scale=s) incl. a deform-heavy fixture. Status: planning → roadmapped. Next: `/gsd-plan-phase 48`.
+
 ---
 
 *This file is authored fresh at milestone start. Prior-milestone phases preserved at `.planning/phases/` (per user choice — not archived to `milestones/*-phases/`).*
 
-**Last Milestone:** v1.5.1 (Spine Animation Viewer) — functionally COMPLETE — 2026-05-15 (Phase 41; 3 plans; 5 visual/host UATs pending, carried to v1.6 Deferred). Prior: v1.5 — SHIPPED 2026-05-15 (5 phases, 23 plans; tag `v1.5.0` pending push).
-**Current Milestone:** v1.6 (Spine 4.3 Runtime Port — Dual-Runtime) — ROADMAPPED — 6 phases (42–47), 26/26 requirements mapped. ROADMAP.md + REQUIREMENTS.md Traceability written 2026-05-16. Next: `/gsd-plan-phase 42`.
+**Last Milestone:** v1.6 (Spine 4.3 Runtime Port — Dual-Runtime) — COMPLETE, shipped as v1.6.1 — 2026-05-19 (Phases 42–47, 24 plans; reqs/roadmap archived to `milestones/v1.6-*`). Prior: v1.5.1 (Spine Animation Viewer) 2026-05-15; v1.5 SHIPPED 2026-05-15.
+**Current Milestone:** v1.7 (Multi-Scale Per-Resolution Variant Exporter) — ROADMAPPED — 4 phases (48–51), 11/11 requirements mapped (BAKE/EXPORT/SCALEUI). PROJECT.md + REQUIREMENTS.md + ROADMAP.md written 2026-05-22; driven by SEED-010 + spikes 001–003. Next: `/gsd-plan-phase 48`.

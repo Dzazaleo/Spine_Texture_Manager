@@ -56,7 +56,29 @@ Animators ship atlases that are as small as they mathematically can be without v
 - ✓ Phase 31 Windows admin DnD release UAT todo — closed Phase 39
 - ✓ Window X-button / Cmd+W dirty-save guard — closed `ef38cd3` during Phase 36 UAT (pre-existing since Phase 8/18, surfaced + fixed in same cycle)
 
-## Current Milestone: v1.6 Spine 4.3 Runtime Port (Dual-Runtime)
+## Current Milestone: v1.7 Multi-Scale Per-Resolution Variant Exporter
+
+**Goal:** From one full-size Spine export, produce faithful scaled-down rig variants — each a complete drop-in package (scaled skeleton JSON + scaled atlas + resized textures, in its own folder) sized to the peak render demand of that smaller rig. Activates SEED-010 (explored 2026-05-21; core de-risked by spikes 001–003).
+
+**Target features:**
+- Core scale-bake: a JSON→JSON transform mirroring spine-core `SkeletonJson.scale`, dual-runtime (4.2 + 4.3) / dual-schema, with the field-identity oracle wired as a CI test (incl. a deform-heavy fixture); finishes the remaining constraint-timeline curve channels.
+- Variant sizing: `variant_peak = s × master_peak` (arithmetic; the bake is a proven true similarity — never re-sample a variant).
+- Single-scale variant export: one scale → one folder (scaled JSON + resized textures + scaled atlas), respecting the existing `loose | atlas | both` output mode; reuses the existing export + atlas-writer pipeline.
+- Two-way scale↔dimension input on the setup-pose rig bounds (enter a factor or a target px, see the other).
+- Batch: N scales → N folders + folder-naming UX.
+
+**Locked design facts (from SEED-010 + spikes 001–003, do not relitigate):**
+1. **Don't scale a bone** (root explodes +316..619% on DEMON R_ARM; pivot leaves ±20–50% constraint residual) — produce variants via a **full Spine-style similarity bake** (= `SkeletonJson.scale` as a JSON→JSON transform). PROVEN field-identical to Spine's own scaling on 4.2 + 4.3.
+2. **variant_peak = s × master_peak** (exact). The sampler's `peakScale` is invariant under the bake (measurement blind spot) — NEVER size a variant by sampling it.
+3. **Faithfulness bar:** scaled variant behaves identically to the master (proven achievable end-to-end — DEMON world-AABB exactly s× incl. constraint-driven R_ARM).
+4. **Regression oracle:** `parse(bake(orig,s),1)` ≡ `parse(orig, SkeletonJson.scale=s)`, run across a fixture matrix incl. a deform-heavy rig (DEMON 4.3 has no deform → false confidence).
+5. Dual-runtime (4.2 + 4.3) + both loader modes (atlas-source + atlas-less) are hard requirements; `core/` stays pure-TS (Layer-3 invariant). First feature to ever make the app **write** a skeleton JSON; source JSON never modified.
+
+**Open product decisions (deferred to discuss-phase, NOT technical unknowns):** output-folder naming convention; whether per-attachment overrides are shared or independent per scale; exact two-way-input UX.
+
+**Phase numbering:** Continues from v1.6. Starts at **Phase 48** (no `--reset-phase-numbers`). Prior phase directories retained in `.planning/phases/`.
+
+## Previous Milestone: v1.6 Spine 4.3 Runtime Port (Dual-Runtime) — COMPLETE (shipped as v1.6.1)
 
 **Goal:** Port the skeleton/animation math from a single spine-core 4.2 runtime to a dual-runtime architecture that loads and correctly samples both Spine 4.2 and Spine 4.3 skeleton JSON, routed by detected skeleton version. Activates SEED-006 (trigger fired 2026-05-16: `npm view @esotericsoftware/spine-core@latest` → `4.3.0`).
 
@@ -81,9 +103,9 @@ Animators ship atlases that are as small as they mathematically can be without v
 
 **Phase numbering:** Continues from v1.5.1. Starts at **Phase 42** (no `--reset-phase-numbers`). Prior phase directories retained in `.planning/phases/`.
 
-## Next Milestone: v1.7 (TBD)
+## Next Milestone: v1.8 (TBD)
 
-**Status:** unscoped. Likely scope draws from the deferred / backlog list — Phase 40 polish carry-forward (8 items: WR-03/04/05/07 + IN-01..04 from `40-REVIEW.md`), 5 open Phase 41 viewer HUMAN-UATs, atlas-repack maturity pass on real-user rigs, a 4.2 deprecation decision (post-v1.6 dual-runtime maturity), documentation refresh. Re-validate at `/gsd-new-milestone` time.
+**Status:** unscoped (v1.7 = Multi-Scale Variant Exporter is now the current milestone). Candidate scope draws from the deferred / backlog list — Phase 40 polish carry-forward (8 items: WR-03/04/05/07 + IN-01..04 from `40-REVIEW.md`), 5 open Phase 41 viewer HUMAN-UATs, atlas-repack maturity pass on real-user rigs, a 4.2 deprecation decision (post-v1.6 dual-runtime maturity), documentation refresh, plus v1.7 Future items (per-scale override behavior, variant presets, what-if preview). Re-validate at `/gsd-new-milestone` time.
 
 **Out of scope (continued exclusions):**
 - Linux build/UAT (dropped at v1.3 ship; per `project_linux_deferred` memory)
