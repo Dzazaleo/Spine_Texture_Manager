@@ -223,7 +223,11 @@ export async function handleExportVariant(
     try {
       // Write the baked variant JSON FIRST so a later texture throw rolls it back
       // via the shared sweep (T-49-ROLLBACK / EXPORT-03 always-written).
-      await writeSkeletonJsonAtomic(join(outDir, `${NAME}.json`), baked, written);
+      // CR-01: pass `overwrite` so the JSON honors the SAME gate the workers
+      // enforce — a re-export into an existing folder with overwrite=false now
+      // refuses (throws → rolled back → surfaced) instead of silently replacing
+      // {NAME}.json while the textures are refused.
+      await writeSkeletonJsonAtomic(join(outDir, `${NAME}.json`), baked, written, overwrite);
 
       let looseSummary: ExportSummary | undefined;
       let repackSummary: ExportSummary | undefined;
