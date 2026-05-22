@@ -41,13 +41,21 @@ import type {
 
 /**
  * Phase 49 D-02 — the ONE canonical scale-token helper. Renders the scale that
- * the `{NAME}@{s}x/` folder carries. JS number-to-string strips trailing zeros:
- * `String(0.5) === '0.5'`, `String(0.26) === '0.26'`. This is the single source
- * of truth for the token; Plan 03 references it BY NAME.
+ * the `{NAME}@{s}x/` folder carries. This is the single source of truth for the
+ * token; Plan 03 references it BY NAME, and the renderer's `folderHint` reuses it
+ * (WR-03) so the display copy never diverges from the on-disk folder name.
+ *
+ * WR-03: the scale arrives from a `<input type="number" step="0.05">` whose
+ * native step-up accumulates IEEE-754 error (e.g. stepping to 0.3 yields
+ * `0.30000000000000004`). A bare `String(s)` would leak that float artifact into
+ * the folder name (`SIMPLE_TEST@0.30000000000000004x/`). Rounding to 4 decimals
+ * and re-parsing strips both the artifact AND trailing zeros, restoring the clean
+ * `@{s}x` convention. `Number(s.toFixed(4))` keeps the trailing-zero-strip that
+ * `String()` already gave (`0.5 → '0.5'`, `0.30000000000000004 → '0.3'`).
  *   CANONICAL CONTRACT: formatScaleToken(0.5) === '0.5'.
  */
 export function formatScaleToken(s: number): string {
-  return String(s);
+  return String(Number(s.toFixed(4)));
 }
 
 export async function handleExportVariant(

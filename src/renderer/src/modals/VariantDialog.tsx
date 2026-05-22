@@ -226,12 +226,21 @@ export function VariantDialog(props: VariantDialogProps) {
       .split(/[\\/]/)
       .pop()
       ?.replace(/\.json$/i, '') ?? 'project';
-  const folderHint = `${projectName}@${props.scale}x`;
+  // WR-03: mirror main's formatScaleToken normalization so the display copy
+  // matches the real on-disk folder name. The scale arrives from a
+  // `step="0.05"` numeric input whose native step-up accumulates IEEE-754 error
+  // (e.g. 0.30000000000000004); a raw `${props.scale}` would render that
+  // artifact. Rounding to 4 decimals + re-parsing strips it AND trailing zeros
+  // (0.5 → '0.5'). NOTE: kept inline (not imported) — the canonical helper lives
+  // in src/main/variant-export.ts, a Node module the Layer-3 renderer must not
+  // pull in; this 1-liner is the byte-identical normalization.
+  const scaleToken = String(Number(props.scale.toFixed(4)));
+  const folderHint = `${projectName}@${scaleToken}x`;
 
   const headerTitle =
     state === 'complete'
       ? errorMessage === null
-        ? `Variant exported — ${projectName}@${props.scale}x`
+        ? `Variant exported — ${projectName}@${scaleToken}x`
         : 'Variant export failed'
       : state === 'in-progress'
         ? `Exporting variant — ${folderHint}`
