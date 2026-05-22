@@ -183,7 +183,41 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
           }
     for (const keys of Object.values(anim.ik || {}) as any[]) {
       if (!Array.isArray(keys)) continue;
-      for (const k of keys) if (typeof k.softness === 'number') k.softness *= s;
+      for (const k of keys) {
+        if (typeof k.softness === 'number') k.softness *= s; // value
+        // The IK keyframe `curve` is a flat 8-float, 2-channel array:
+        // [mixCx,mixCy,mixCx2,mixCy2, softCx,softCy,softCx2,softCy2]. Spine scales cy only
+        // for the SOFTNESS channel (value-index 1 -> readCurve i=4 -> cy at curve[5],curve[7]);
+        // the MIX channel cy (value-index 0 -> curve[1],curve[3]) stays ×1 (SkeletonJson.js:916-921,
+        // readCurve:1370-1382). Do NOT use the generic scaleCurve here — it would corrupt the mix cy.
+        if (Array.isArray(k.curve) && k.curve.length >= 8) {
+          k.curve[5] *= s;
+          k.curve[7] *= s;
+        }
+      }
+    }
+    // PATH position/spacing TIMELINE walk (animations[a].path[constraintName][channel]). Gate by the
+    // owning constraint's mode (case-normalized), mirroring the setup gate: position scales iff
+    // positionMode Fixed; spacing scales iff Length||Fixed; the mix channel is never scaled
+    // (SkeletonJson.js:994/999). Resolve the constraint by name across the schema bridge — 4.3 unified
+    // j.constraints[] (type==='path') OR 4.2 split j.path[]. Path position/spacing timelines are
+    // SINGLE-channel, so the generic scaleCurve is correct here (unlike the 2-channel IK timeline).
+    for (const [constraintName, channels] of Object.entries(anim.path || {}) as [string, any][]) {
+      const pc =
+        (j.constraints || []).find((c: any) => c.name === constraintName && c.type === 'path') ||
+        (j.path || []).find((c: any) => c.name === constraintName);
+      const pm = ((pc && pc.positionMode) || 'percent').toLowerCase();
+      const sm = ((pc && pc.spacingMode) || 'length').toLowerCase();
+      for (const [chan, keys] of Object.entries(channels as any) as [string, any][]) {
+        if (!Array.isArray(keys)) continue;
+        const scaleThis =
+          (chan === 'position' && pm === 'fixed') || (chan === 'spacing' && (sm === 'length' || sm === 'fixed'));
+        if (!scaleThis) continue; // mix channel + non-scaled modes: leave ×1
+        for (const k of keys) {
+          if (typeof k.value === 'number') k.value *= s;
+          scaleCurve(k.curve, s);
+        }
+      }
     }
   }
   return j;
