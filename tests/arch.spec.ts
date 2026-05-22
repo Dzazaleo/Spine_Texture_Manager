@@ -393,6 +393,24 @@ describe('Phase 48 Layer 3: src/core/scale-bake.ts is pure (no DOM/Electron/shar
   });
 });
 
+// Phase 50 (V7 / T-50-LAYER) — Layer-3 named anchor for the new pure
+// setup-bounds module. The existing src/core/** fs/sharp scanner (lines 148-178)
+// already covers setup-bounds.ts with NO carve-out; this named block makes a
+// Phase-50-specific purity regression visible at PR-review time. Plain
+// content-grep (no commit range) — range-free, time-bomb-free (memory
+// project_phase46_sliderguard_pinned). ENOENT-tolerant like the Phase-48 analog.
+describe('Phase 50 Layer 3: src/core/setup-bounds.ts is pure (no DOM/Electron/sharp/node:fs)', () => {
+  it('does not import sharp, node:fs, electron, or DOM globals', () => {
+    const filePath = 'src/core/setup-bounds.ts';
+    let text = '';
+    try { text = readFileSync(filePath, 'utf8'); } catch { return; } // tolerate ENOENT
+    expect(text, `${filePath} must not import sharp`).not.toMatch(/from ['"]sharp['"]/);
+    expect(text, `${filePath} must not import node:fs`).not.toMatch(/from ['"]node:fs(\/promises)?['"]/);
+    expect(text, `${filePath} must not import electron`).not.toMatch(/from ['"]electron['"]/);
+    expect(text, `${filePath} must not reference DOM globals`).not.toMatch(/\b(document|window)\./);
+  });
+});
+
 // Phase 49 (V8 / L-03) — defense-in-depth named anchors for the variant export
 // core/main split. Mirrors the Phase-48 scale-bake anchor precedent above. The
 // broad src/core/** fs/sharp scanner (lines 148-178) already covers
