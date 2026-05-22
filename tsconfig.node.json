@@ -25,6 +25,14 @@
     // every other renderer test is .spec.tsx and already outside both tsc
     // programs (vitest-only). Keep this one consistent with that convention.
     "tests/runtime/dual-viewer-routing.spec.ts",
+    // Phase 50 (SCALEUI-01) renderer two-way scale↔dimension helper spec:
+    // a .ts file under tests/renderer/ that imports the renderer-local module
+    // src/renderer/src/modals/variant-scale-derive.ts, which is not in this
+    // node program's include. Same case as dual-viewer-routing above — a .ts
+    // renderer test caught by the tests/**/*.ts glob. Keep it vitest-only,
+    // consistent with the .spec.tsx renderer-test convention (its component
+    // sibling variant-twoway.spec.tsx is already outside both tsc programs).
+    "tests/renderer/variant-twoway.spec.ts",
     // v1.0-era ad-hoc debug entrypoints (scripts/probe-*.ts,
     // diagnose-cam-physics.ts). Not product code, not tests, not run in CI,
     // not imported by anything. They were written against the old spine-ts
