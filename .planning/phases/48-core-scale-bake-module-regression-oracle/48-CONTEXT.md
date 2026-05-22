@@ -41,19 +41,32 @@ rig-bounds + two-way scale↔dimension UI (Phase 50), batch fan-out (Phase 51). 
   ik×8 path×14 physics×51`; **deform×18**). Single rig that closes deform + PATH + all-four 4.2
   constraint types in one shot. This is the rig that defeats the "DEMON 4.3 has zero deform → false
   confidence" trap the roadmap warns about.
-- **D-04:** **Both DEMON and TEST_01 are committed as JSON + `.atlas` ONLY — their PNGs are
-  EXCLUDED** (DEMON PNGs = 107 MB, TEST_01 PNGs = 4 MB; JSON+atlas = 1.3 MB + 712 KB). The bake
-  and the oracle never read PNG bytes (CLAUDE.md fact #4 — the math phase doesn't decode PNGs;
-  atlas metadata suffices). Implementation: add `.gitignore` negation entries that un-ignore the
-  specific `.json`/`.atlas` while keeping `*.png` ignored. **MUST verify the committed fixtures are
-  actually tracked + reachable on a fresh clone before relying on them** (memory
-  `feedback_gitignore_fixtures_check_test_refs` + `feedback_verify_whole_ci_surface_locally` — a
-  gitignored regression fixture silently broke CI at v1.3.1).
-- **D-05:** Authored standalone synthetic fixtures are produced **only for residual gaps** after
-  DEMON + TEST_01 + the tracked redistributables — known candidates: a **4.3 PATH constraint**
-  (DEMON has none) and a **PATH position/spacing length-mode TIMELINE** if TEST_01 does not animate
-  them. Researcher must confirm coverage before authoring; do not author what an anchor already
-  exercises.
+- **D-04:** **Fixtures are committed as JSON + `.atlas` ONLY — ALL PNGs EXCLUDED.** The
+  PNG-exclusion IS the IP-protection mechanism: the OWNER's only confidentiality concern is the
+  **authored pixel art** falling into others' hands; the `.atlas` is plain text (region names + page
+  dims + UV rects + page *filename* reference — **no pixel data**), and the rig structure is not the
+  sensitive asset. The bake + oracle never read PNG bytes (CLAUDE.md fact #4 — math phase doesn't
+  decode PNGs; a stub TextureLoader from `.atlas` metadata suffices; confirmed `loader.ts:802` "PNG
+  IHDR reads do NOT happen in atlas-source mode"). DEMON PNGs = 107 MB, TEST_01 PNGs = 4 MB; the
+  committed JSON+atlas = 1.3 MB + 712 KB. **Oracle implementation note:** build the atlas directly
+  from the `.atlas` text (e.g. `new Spine.TextureAtlas(atlasText, stubLoader)`), do NOT rely on the
+  loader disk-probing for a page PNG — keeps the oracle bulletproof with PNGs absent. Implementation:
+  add `.gitignore` negation entries that un-ignore the specific `.json`/`.atlas` while keeping
+  `*.png` ignored. **MUST verify the committed fixtures are actually tracked + reachable on a fresh
+  clone before relying on them** (memory `feedback_gitignore_fixtures_check_test_refs` +
+  `feedback_verify_whole_ci_surface_locally` — a gitignored regression fixture silently broke CI at
+  v1.3.1).
+- **D-04a (IP clarification, 2026-05-22):** Because only PNGs carry the confidential art, the
+  fixture matrix is **NOT IP-constrained** — the `.json` + `.atlas` of **ANY in-house rig** the owner
+  has may be committed freely. Prefer the best real rigs (DEMON 4.3, TEST_01 4.2 are the chosen
+  anchors); other private rigs (3Queens, Girl, other MON_FILES exports) are now equally available
+  json+atlas-only if a residual gap needs them.
+- **D-05:** Residual coverage gaps after DEMON + TEST_01 + the tracked redistributables — known
+  candidates: a **4.3 PATH constraint** (DEMON has none) and a **PATH position/spacing length-mode
+  TIMELINE** if TEST_01 does not animate them. **Per D-04a, prefer closing these with a REAL in-house
+  rig (json+atlas only)** — e.g. any 4.3 rig with a path constraint — rather than a synthetic fixture.
+  Author a standalone synthetic fixture ONLY if no available real rig covers the gap. Researcher must
+  confirm coverage before authoring; do not author what an anchor already exercises.
 - **D-06:** Gap-fillers, when needed, are **standalone committed fixtures** (real `.json` + minimal
   `.atlas` under `fixtures/`), NOT synthetic test-time injection — more legible/reviewable and
   reusable by the Phase 49–51 export tests. (Phase 37 RGBA2 / Phase 46 `buildLoadSlider43`
@@ -211,9 +224,10 @@ rig-bounds + two-way scale↔dimension UI (Phase 50), batch fan-out (Phase 51). 
   we control. It generates its reference side LIVE (re-parse at `scale=s`) — there are NO
   hand-computed golden values, which is exactly why authored fixtures are low-risk here.
 - The fixture matrix the roadmap text named (`DEMON` / `MON_FILES(TEST_01)` / `3Queens` / `Girl`)
-  was all gitignored or untracked proprietary data (174M–465M) at discuss time. DEMON + TEST_01 are
-  now made public (JSON+atlas only); `3Queens` (57M) and `Girl` (29M) remain private and are NOT
-  used — TEST_01 supersedes them as the deform-heavy 4.2 anchor.
+  was all gitignored or untracked proprietary data (174M–465M) at discuss time — but only the PNGs
+  carry the confidential art (D-04a), so committing JSON+atlas-only makes ANY of them usable. DEMON +
+  TEST_01 are the chosen anchors; `3Queens` (57M) and `Girl` (29M) are equally available json+atlas-
+  only if a residual gap needs them (TEST_01 supersedes them as the deform-heavy 4.2 anchor for now).
 
 </specifics>
 
@@ -224,8 +238,12 @@ rig-bounds + two-way scale↔dimension UI (Phase 50), batch fan-out (Phase 51). 
   but v1.7 is scaled-down-only; surfacing upscaling would be a future-milestone product decision.
 - **Per-attachment override sharing across scales** — already roadmap-deferred to v1.7 Future /
   beyond Phase 49 single-scale; not a Phase 48 concern.
-- **`3Queens` / `Girl` proprietary rigs as public fixtures** — not needed once TEST_01 is the 4.2
-  anchor; left private. (Revisit only if a future deform/path edge case needs them.)
+- **`3Queens` / `Girl` rigs** — available json+atlas-only per D-04a if a residual gap needs them;
+  not currently used (TEST_01 is the deform-heavy 4.2 anchor).
+- **Placeholder PNGs for Phase 49–51 export tests** — if a later phase wants to exercise the actual
+  sharp texture-resize pipeline end-to-end on a real rig, commit same-dimension recolored/scrambled
+  placeholder PNGs (owner's recolor idea) so the pipeline has real bytes without shipping authored
+  art. A Phase-49 decision; Phase 48 needs no PNGs at all.
 
 None — discussion otherwise stayed within phase scope.
 
