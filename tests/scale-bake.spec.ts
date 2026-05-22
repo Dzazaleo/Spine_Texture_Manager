@@ -100,8 +100,18 @@ function parseAt(
   scale: number,
   Spine: typeof sc42 | typeof sc43,
 ): unknown {
-  const atlas = new Spine.TextureAtlas(atlasText); // single-arg ctor
-  const sj = new Spine.SkeletonJson(new Spine.AtlasAttachmentLoader(atlas));
+  // `Spine` is one of the two sanctioned runtime modules (call-site contract),
+  // but TS collapses `typeof sc42 | typeof sc43` constructor unions to the
+  // INTERSECTION of their param types (AttachmentLoader42 & AttachmentLoader43,
+  // TextureAtlas42 & TextureAtlas43 — both unsatisfiable: the 4.2/4.3
+  // newRegionAttachment arities + protected Texture._image diverge), even though
+  // each runtime branch is internally consistent at construction time. Localize
+  // an `any` to the build site to sidestep the union-of-modules typing hazard
+  // (same class as the shared-42-base-subclass dual-runtime note); the param
+  // type above still guarantees only sc42/sc43 reach here.
+  const S = Spine as any;
+  const atlas = new S.TextureAtlas(atlasText); // single-arg ctor
+  const sj = new S.SkeletonJson(new S.AtlasAttachmentLoader(atlas));
   sj.scale = scale; // the reference side uses SkeletonJson's OWN scaling
   return sj.readSkeletonData(JSON.parse(jsonText));
 }
