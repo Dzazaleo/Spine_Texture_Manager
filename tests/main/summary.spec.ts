@@ -146,3 +146,31 @@ describe('Phase 31 LOAD-05/06/07 — buildSummary filesystem-state probes', () =
     expect(cloned.hasImagesDir).toBe(summary.hasImagesDir);
   });
 });
+
+// Phase 50 Plan 01 (V6 / SCALEUI-02 / T-50-FIN) — the SkeletonSummary.bbox seam.
+// buildSummary computes the setup-pose all-skins bbox ONCE via the already-bound
+// `rt` and surfaces it on the summary the renderer reads (no new IPC channel).
+// The field is `{w,h} | null`: a degenerate rig returns null (Pitfall 1), never a
+// non-finite `-Infinity` that would break the structuredClone IPC ferry.
+describe('Phase 50 SCALEUI-02 — SkeletonSummary.bbox seam', () => {
+  it('bbox is finite-or-null and structuredClone-safe on SIMPLE_TEST', () => {
+    const summary = buildSummaryAt(FIXTURE_JSON, 'auto');
+
+    // structuredClone is the same algorithm Electron uses to ferry the
+    // SkeletonSummary across IPC. A non-finite or non-cloneable value here would
+    // throw / corrupt the renderer — assert the finite-or-null contract on the
+    // round-tripped value (T-50-FIN).
+    const cloned = structuredClone(summary);
+    expect(
+      cloned.bbox === null ||
+        (Number.isFinite(cloned.bbox.w) && Number.isFinite(cloned.bbox.h)),
+      'bbox must be null or carry two finite numbers (structuredClone-safe)',
+    ).toBe(true);
+
+    // SIMPLE_TEST is a normal textured rig, so bbox is non-null + finite + > 0.
+    expect(cloned.bbox, 'SIMPLE_TEST bbox should be non-null').not.toBeNull();
+    expect(Number.isFinite(cloned.bbox!.w) && Number.isFinite(cloned.bbox!.h)).toBe(true);
+    expect(cloned.bbox!.w).toBeGreaterThan(0);
+    expect(cloned.bbox!.h).toBeGreaterThan(0);
+  });
+});

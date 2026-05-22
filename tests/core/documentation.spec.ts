@@ -257,6 +257,10 @@ function makeSummary(
     // tests don't exercise runtime identity; inert '4.2' stub satisfies the
     // contract.
     runtimeTag: '4.2',
+    // Phase 50 SCALEUI-02 — required setup-pose bbox on SkeletonSummary.
+    // Drift-helper tests don't exercise the bbox surface; null stub satisfies
+    // the {w,h}|null contract.
+    bbox: null,
   } as SkeletonSummary;
 }
 

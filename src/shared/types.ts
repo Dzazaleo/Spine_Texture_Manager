@@ -799,6 +799,17 @@ export interface SkeletonSummary {
    * REG-47-01's cross-runtime handoff).
    */
   runtimeTag: '4.2' | '4.3';
+  /**
+   * Phase 50 SCALEUI-02 — setup-pose all-skins bounding box (W×H px), computed
+   * via `load.runtime` in summary.ts (D-05 we compute it ourselves, never the
+   * untrusted editor `skeleton.width/height` header; D-06 all-skins manifest
+   * union; D-07 dual-runtime adapter, no hardcoded ctor). `null` = degenerate rig
+   * (no textured geometry) — Pitfall 1 / T-50-FIN. structuredClone-safe (two
+   * numbers | null) so it ferries cleanly across IPC. The Wave-2 two-way
+   * scale↔dimension control (50-02) reads this as its reference axes; the
+   * renderer consumes the precomputed value and never imports core/.
+   */
+  bbox: { w: number; h: number } | null;
   bones: { count: number; names: string[] };
   slots: { count: number };
   /** Count + per-class-name bucket (e.g. {RegionAttachment: 3, MeshAttachment: 1}). */
