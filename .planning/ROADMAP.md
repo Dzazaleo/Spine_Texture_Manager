@@ -142,7 +142,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 49-01-PLAN.md — variant ENGINE + IPC: pure `scaleSummaryPeaks` (peak-only A1) + `VariantScaleError` (D-08) + first-ever atomic skeleton-JSON writer (L-03) + `handleExportVariant` (bake → `{NAME}@{s}x/` → write-JSON-first → `buildExportPlan` UNCHANGED → dispatch under one rollback Set) + `variant:export` channel + preload binding; Wave-0 tests V1 sizing / V2 source-immutable / V5 guard [wave 1, EXPORT-01/02/03/05]
+- [x] 49-01-PLAN.md — variant ENGINE + IPC: pure `scaleSummaryPeaks` (peak-only A1) + `VariantScaleError` (D-08) + first-ever atomic skeleton-JSON writer (L-03) + `handleExportVariant` (bake → `{NAME}@{s}x/` → write-JSON-first → `buildExportPlan` UNCHANGED → dispatch under one rollback Set) + `variant:export` channel + preload binding; Wave-0 tests V1 sizing / V2 source-immutable / V5 guard [wave 1, EXPORT-01/02/03/05]
 
 **Wave 2** *(both depend on 49-01; disjoint files → parallel)*
 - [ ] 49-02-PLAN.md — renderer: NEW "Export Variant…" toolbar action (D-04) + single-pane tab-ready `VariantDialog` reusing Optimize config controls + a basic numeric scale field (D-05/D-06) inheriting the full active config (D-07); invokes `window.api.exportVariant` [wave 2, depends 49-01, EXPORT-01/03]
@@ -185,6 +185,6 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
-| 49. Single-Scale Variant Export | v1.7 | 0/3 | Not started | - |
+| 49. Single-Scale Variant Export | v1.7 | 1/3 | In Progress|  |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 0/2 | Not started | - |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
