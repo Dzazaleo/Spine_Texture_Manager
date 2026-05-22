@@ -75,6 +75,16 @@ function scaleVertices(att: any, verticesLength: number, s: number) {
   }
 }
 
+// D-10 recognized type discriminators (assert-known). The guard fires ONLY on
+// the two discriminators that decide HOW geometry scales: attachment.type and
+// constraint.type. Timeline names are NOT asserted (the bake allow-lists
+// scalable timelines and silently skips the rest by design — see the animations
+// loop). `region` is the when-absent attachment default. `linkedmesh` is a
+// recognized no-own-geometry type (inherits source geometry) — recognized, NOT
+// scaled, NOT a throw.
+const ATTACHMENT_TYPES = new Set(['region', 'mesh', 'path', 'boundingbox', 'clipping', 'point', 'linkedmesh']);
+const CONSTRAINT_TYPES = new Set(['transform', 'ik', 'path', 'physics', 'slider']);
+
 export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
   // D-09 — direction-agnostic degenerate-`s` guard: reject ONLY s<=0/NaN/±Infinity.
   if (!Number.isFinite(s) || s <= 0) throw new ScaleBakeError(`scale must be finite > 0, got ${s}`);
@@ -84,6 +94,10 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
   j.skeleton.referenceScale = (typeof j.skeleton.referenceScale === 'number' ? j.skeleton.referenceScale : 100) * s;
   for (const b of j.bones || []) for (const f of ['length', 'x', 'y']) if (typeof b[f] === 'number') b[f] *= s;
   for (const [type, c] of constraintsOf(j)) {
+    // D-10 — assert-known on the constraint.type discriminator (4.3 unified). The
+    // 4.2 split arrays only ever push the known labels, so this fires only on a
+    // genuinely unrecognized 4.3 c.type.
+    if (!CONSTRAINT_TYPES.has(type)) throw new ScaleBakeError(`unknown constraint type: ${type}`);
     if (type === 'transform') {
       for (const f of ['x', 'y']) if (typeof c[f] === 'number') c[f] *= s;
       for (const [srcProp, from] of Object.entries(c.properties || {}) as [string, any][]) {
@@ -114,6 +128,8 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
     for (const slotName of Object.keys(skin.attachments || {})) {
       for (const a of Object.values(skin.attachments[slotName]) as any[]) {
         const type = a.type || 'region';
+        // D-10 — assert-known on the attachment.type discriminator.
+        if (!ATTACHMENT_TYPES.has(type)) throw new ScaleBakeError(`unknown attachment type: ${type}`);
         if (type === 'region') {
           for (const f of ['x', 'y', 'width', 'height']) if (typeof a[f] === 'number') a[f] *= s;
         } else if (type === 'mesh') {
@@ -143,7 +159,8 @@ export function bake(json: SkeletonJsonRaw, s: number): SkeletonJsonRaw {
         }
       }
     // Deform timelines live under attachments[skin][slot][attachment].deform on BOTH 4.2 and 4.3
-    // (NOT anim.deform). Scale the keyframe `vertices` offsets ×s; `offset` is an index (no scale);
+    // (NOT the legacy top-level deform key — RESEARCH Pitfall 1: baker.mjs is the corrected walk).
+    // Scale the keyframe `vertices` offsets ×s; `offset` is an index (no scale);
     // the deform `curve` is a normalized 0..1 mix bezier — do NOT scale it.
     for (const skinMap of Object.values(anim.attachments || {}) as any[])
       for (const slotMap of Object.values(skinMap) as any[])
