@@ -106,7 +106,6 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
 
   it('with override: variant overridden row = (pct/100) × s × peak (linear, not s × clamp((pct/100)×peak))', () => {
     const s = 0.5;
-    const pct = 50;
     const summary = buildSyntheticSummary();
 
     // BIG peak 2.0: (50/100) × 0.5 × 2.0 = 0.5 (escapes clamp). The WRONG

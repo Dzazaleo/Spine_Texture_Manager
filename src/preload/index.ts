@@ -117,6 +117,38 @@ const api: Api = {
     ),
 
   /**
+   * Phase 49 EXPORT-01 — single-scale variant export. The renderer passes the
+   * live `summary` + scale `s` + the user's full active export config (D-07);
+   * MAIN bakes the s-scaled JSON and writes `{parentDir}/{NAME}@{s}x/`.
+   * `effectiveOverrides` crosses as `[regionName, pct]` entries (a Map is not
+   * structured-clone-transferable; main reconstructs `new Map(entries)`). The
+   * renderer reuses the existing pickOutputDirectory for the PARENT pick.
+   */
+  exportVariant: (
+    summary,
+    s,
+    parentDir,
+    overwrite,
+    sharpenEnabled,
+    outputMode,
+    atlasOpts,
+    effectiveOverrides,
+    safetyBufferPercent,
+  ) =>
+    ipcRenderer.invoke(
+      'variant:export',
+      summary,
+      s,
+      parentDir,
+      overwrite === true,
+      sharpenEnabled === true,
+      outputMode,
+      atlasOpts,
+      effectiveOverrides,
+      safetyBufferPercent,
+    ),
+
+  /**
    * Gap-Fix Round 3 (2026-04-25) — pre-start conflict probe. The renderer
    * (AppShell) calls this BEFORE startExport so it can mount a
    * ConflictDialog listing the exact files that would be overwritten and
