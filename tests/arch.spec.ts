@@ -375,3 +375,20 @@ describe('Phase 43 RT-02: sampler.ts/bounds.ts/loader.ts must not import a spine
     expect(offenders, `RT-02 runtime-consuming core files importing spine-core: ${offenders.join(', ')}`).toEqual([]);
   });
 });
+
+// Phase 48 — Layer-3 named anchor for the new pure scale-bake module.
+// The existing src/core/** fs/sharp scanner (lines 148-178) already covers
+// scale-bake.ts with NO carve-out; this named block makes a Phase-48-specific
+// purity regression visible at PR-review time. Plain content-grep (no commit
+// range) — range-free, time-bomb-free (memory project_phase46_sliderguard_pinned).
+describe('Phase 48 Layer 3: src/core/scale-bake.ts is pure (no DOM/Electron/sharp/node:fs)', () => {
+  it('does not import sharp, node:fs, electron, or DOM globals', () => {
+    const filePath = 'src/core/scale-bake.ts';
+    let text = '';
+    try { text = readFileSync(filePath, 'utf8'); } catch { return; } // tolerate ENOENT
+    expect(text, `${filePath} must not import sharp`).not.toMatch(/from ['"]sharp['"]/);
+    expect(text, `${filePath} must not import node:fs`).not.toMatch(/from ['"]node:fs(\/promises)?['"]/);
+    expect(text, `${filePath} must not import electron`).not.toMatch(/from ['"]electron['"]/);
+    expect(text, `${filePath} must not reference DOM globals`).not.toMatch(/\b(document|window)\./);
+  });
+});
