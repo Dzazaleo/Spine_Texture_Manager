@@ -3,26 +3,26 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: planning
-last_updated: "2026-05-22T00:00:00.000Z"
-last_activity: 2026-05-22 -- v1.7 milestone STARTED (Multi-Scale Per-Resolution Variant Exporter). Roadmapped 4 phases (48-51), 11 reqs mapped (BAKE/EXPORT/SCALEUI). Driven by SEED-010 + spikes 001-003 (faithful JSON scale-bake PROVEN field-identical to Spine's own scaling on 4.2+4.3). Research skipped (spikes ARE the research). v1.6 archived to milestones/v1.6-*. Next: /gsd-plan-phase 48.
+last_updated: "2026-05-22T11:08:30.195Z"
+last_activity: 2026-05-22 — Phase 48 context gathered (48-CONTEXT.md, commit d7907b0)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 48 (Core Scale-Bake + Oracle) — not started
+Phase: 48 (Core Scale-Bake + Oracle) — context gathered (not yet planned)
 Plan: —
-Status: Planning — v1.7 roadmapped (4 phases 48–51, 11 reqs mapped); ready to plan Phase 48
-Last activity: 2026-05-22 — v1.7 milestone started (Multi-Scale Per-Resolution Variant Exporter)
+Status: Planning — 48-CONTEXT.md captured (commit d7907b0); ready to plan Phase 48
+Last activity: 2026-05-22 — Phase 48 context gathered (10 decisions: real-rig CI fixture matrix incl. DEMON+TEST_01 made public JSON+atlas-only; fix-and-verify all 3 timeline channels; scale-agnostic core bake; assert-known typed-error guard)
 
-Next: **`/gsd-plan-phase 48`** (or `/gsd-discuss-phase 48` first — Phase 48 is the de-risked core scale-bake). v1.7 is driven by SEED-010 + spikes 001–003 (`.planning/spikes/`) — the JSON scale-bake is PROVEN field-identical to Spine's own scaling on 4.2 + 4.3; promote the spike `baker.mjs` to a Layer-3 `core/` module + wire the regression oracle as a CI test (incl. a deform-heavy fixture). v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
+Next: **`/gsd-plan-phase 48`** (Phase 48 is the de-risked core scale-bake; CONTEXT.md now locks the fixture + channel-proof + scale-range + unknown-construct decisions). v1.7 is driven by SEED-010 + spikes 001–003 (`.planning/spikes/`) — the JSON scale-bake is PROVEN field-identical to Spine's own scaling on 4.2 + 4.3; promote the spike `baker.mjs` to a Layer-3 `core/` module + wire the regression oracle as a CI test (incl. a deform-heavy fixture). v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
 
 ---
 
