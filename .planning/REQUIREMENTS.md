@@ -32,11 +32,11 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Variant Export (EXPORT)
 
-- [ ] **EXPORT-01**: User can export a single scaled-down variant to a chosen folder as a drop-in package — scaled JSON + resized textures + (per output mode) scaled atlas — usable as-is at that size.
-- [ ] **EXPORT-02**: Variant texture sizes are derived as `s × master peak` (each variant sized to its own smaller render demand), reusing the existing export-sizing + atlas-write pipeline; the source project is never modified.
-- [ ] **EXPORT-03**: Variant export respects the existing output mode (`loose | atlas | both`) — the scaled JSON is the one always-present new artifact; textures/atlas follow the chosen mode.
+- [x] **EXPORT-01**: User can export a single scaled-down variant to a chosen folder as a drop-in package — scaled JSON + resized textures + (per output mode) scaled atlas — usable as-is at that size.
+- [x] **EXPORT-02**: Variant texture sizes are derived as `s × master peak` (each variant sized to its own smaller render demand), reusing the existing export-sizing + atlas-write pipeline; the source project is never modified.
+- [x] **EXPORT-03**: Variant export respects the existing output mode (`loose | atlas | both`) — the scaled JSON is the one always-present new artifact; textures/atlas follow the chosen mode.
 - [ ] **EXPORT-04**: User can export multiple scales in one batch run, each variant written to its own folder.
-- [ ] **EXPORT-05**: Variant export works for both atlas-source and atlas-less projects, and for both 4.2 and 4.3 rigs.
+- [x] **EXPORT-05**: Variant export works for both atlas-source and atlas-less projects, and for both 4.2 and 4.3 rigs.
 
 ### Scale Input & Preview (SCALEUI)
 
@@ -71,10 +71,10 @@ Maps every v1.7 REQ-ID to exactly one phase. Coverage: 11/11 mapped, no orphans,
 | BAKE-02 | Phase 48 | Complete |
 | BAKE-03 | Phase 48 | Complete |
 | BAKE-04 | Phase 48 | Complete |
-| EXPORT-01 | Phase 49 | Pending |
-| EXPORT-02 | Phase 49 | Pending |
-| EXPORT-03 | Phase 49 | Pending |
-| EXPORT-05 | Phase 49 | Pending |
+| EXPORT-01 | Phase 49 | Complete |
+| EXPORT-02 | Phase 49 | Complete |
+| EXPORT-03 | Phase 49 | Complete |
+| EXPORT-05 | Phase 49 | Complete |
 | SCALEUI-01 | Phase 50 | Pending |
 | SCALEUI-02 | Phase 50 | Pending |
 | EXPORT-04 | Phase 51 | Pending |
