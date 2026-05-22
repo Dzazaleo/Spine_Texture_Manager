@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: ready_to_plan
-last_updated: "2026-05-22T15:11:18.324Z"
-last_activity: 2026-05-22 -- Phase 49 execution started
+status: executing
+last_updated: "2026-05-22T18:01:32.465Z"
+last_activity: 2026-05-22 -- Phase 50 planning complete
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 4
-  percent: 50
+  total_plans: 9
+  completed_plans: 7
+  percent: 78
 ---
 
 # State
@@ -19,10 +19,12 @@ progress:
 
 Phase: 50
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-22
+Status: Ready to execute
+Last activity: 2026-05-22 -- Phase 50 planning complete
 
-Next: **`/gsd-execute-phase 49`** — Phase 49 (Single-Scale Variant Export) is PLANNED: **3 plans / 2 waves, all autonomous.** Wave 1 = 49-01 (variant engine: pure `scaleSummaryPeaks` peak-only + `VariantScaleError` D-08 + first-ever atomic skeleton-JSON writer L-03 + `handleExportVariant` + `variant:export` IPC/preload). Wave 2 (both depend 49-01, disjoint) = 49-02 (renderer "Export Variant…" single-pane dialog reusing Optimize config + a basic numeric scale field) + 49-03 (package-layout/rollback + drop-in faithfulness oracle + dual-runtime×dual-mode matrix + Layer-3 arch anchor). Research + VALIDATION (V1–V8, task-bound) + PATTERNS done; plan-checker **PASSED iter-2** (iter-1 found 2 cross-plan blockers → fixed `fdd6180`: the typed `Api.exportVariant` member in `src/shared/types.ts` + the picker-only `onConfirmStartVariant` keyed to `variantDialogState`). Locked: `variant_peak = s × master_peak` (peak-only A1, D-07); `buildExportPlan` + atlas-writer pipeline reused UNCHANGED; source JSON never modified; `{PARENT}/{NAME}@{s}x/` clean basenames; reuses committed fixtures (SIMPLE_PROJECT 4.2 + SLIDER_4_3/XTRA01/02 4.3) — **no new fixture dir, SAFE-01 landmine avoided.** One non-blocking note for execute: 49-01 must `import { runRepack, type AtlasOpts } from './repack-worker.js'` (no named `AtlasOpts` in types.ts; the plan's `typecheck:node`=0 acceptance criterion self-corrects; model at `ipc.ts:65`).
+Next: **`/gsd-execute-phase 50`** — Phase 50 (Rig-Bounds + Two-Way Scale↔Dimension Input) is PLANNED: **2 plans / 2 waves, all autonomous.** Wave 1 = 50-01 (SCALEUI-02): NEW `src/core/setup-bounds.ts` `computeSetupPoseBounds` — Layer-3-pure dual-runtime **ALL-SKINS** setup-pose AABB union (generalizes the proven `aggregateWorldAABB` body, swapping slot-bindings → sampler Pass-1.5 manifest loop) with the mandatory `measured===0 → null` degenerate guard (no non-finite ever crosses IPC — RESEARCH Pitfall 1) + additive `SkeletonSummary.bbox: {w,h}|null` computed ONCE in `summary.ts` via the already-bound `rt` (REG-47-01-safe `load.runtime.makeSkeleton`) + V1–V7. Wave 2 = 50-02 (SCALEUI-01, depends 50-01): enrich the `VariantDialog` Scale card **IN PLACE** (D-09, tabs deferred to Phase 51) — bbox W×H reference line + three coupled aspect-locked inputs (factor / target-W / target-H, **uniform-only**) backed by pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers; typed px honored EXACTLY no-snap (D-03), `s` is the single source of truth the export consumes (D-02), over-range `s≥1` allows entry but disables Export + shows the inline hint (D-04, authoritative reject stays main-side `VariantScaleError`); reads `summary.bbox`, **zero new IPC/props** + V8–V12. Research + VALIDATION (V1–V12 task-bound) + PATTERNS (9/9 shipped analogs) done; planned **`--skip-ui`** (in-place enrichment, no UI-SPEC — user choice 2026-05-22); plan-checker **PASSED iter-1** (0 blockers / 0 warnings, all 12 dimensions; decision-coverage 9/9 D-01..D-09). Locked: compute bbox ourselves, NOT the JSON `skeleton.width/height` header (D-05, untrusted editor metadata like `fps`); all-skins union ≥ editor setup-visible subset (D-06 — avoids the "eyes-only setup" trap; empirically SIMPLE_TEST Δ0.0%, skeleton2 +19.3%); dual-runtime via the adapter only never a hardcoded ctor (D-07); editor `width/height` kept only as a test cross-check oracle (D-08). **NO new fixture dir** (bbox math reads no PNG bytes → mode-invariant; degenerate case constructed in-test) — SAFE-01 landmine pre-empted. Plans committed `ce129a2`.
+
+**Phase 49 COMPLETE 2026-05-22 (3/3 plans — EXPORT-01/02/03/05; v1.7 first end-user value).** Single-scale variant export shipped: an "Export Variant…" action bakes a scaled skeleton JSON + sizes textures `variant_peak = s × master_peak` (never re-sampling the variant) into `{PARENT}/{NAME}@{s}x/`, reusing `buildExportPlan` + atlas-writer UNCHANGED across `loose|atlas|both`, dual-runtime + dual-mode; the source JSON is never modified (first feature to ever WRITE a skeleton JSON, via an atomic writer L-03). Wave 1 = 49-01 (engine + `variant:export` IPC/preload + `VariantScaleError` D-08), Wave 2 = 49-02 (renderer single-pane dialog + basic scale field — the field Phase 50 now enriches) + 49-03 (per-mode package layout + rollback + drop-in faithfulness oracle + dual-runtime×dual-mode matrix + Layer-3 anchor). Code review **CR-01** (silent re-export JSON corruption) FIXED before close per user fix-now decision ([[feedback_fix_review_blockers_before_close]]), re-verified **12/12** (`f82178e`); the native folder-picker visual UAT remains the one open carry-forward item. Full detail in `49-*-SUMMARY.md` + ROADMAP.
 
 **Phase 48 COMPLETE + verified 2026-05-22 (4/4 must-haves, BAKE-01..04 Complete).** Delivered `src/core/scale-bake.ts` — a Layer-3-pure (zero imports), non-mutating JSON→JSON similarity bake `bake(json,s)` + `ScaleBakeError`, field-identical to spine-core `SkeletonJson.scale` across both schemas (4.2 split + 4.3 unified), with all three BAKE-03 constraint-timeline curve channels (IK softness `cy` idx 5/7 only, PATH position/spacing length-mode setup+timeline, slider remap) + scaled-default injection (physics.limit→5000×s, referenceScale→100×s; physics x/y untouched) + D-09/D-10 guards. The decisive sampling-free oracle `tests/scale-bake.spec.ts` (`parse(bake(orig,s),1) ≡ parse(orig,SkeletonJson.scale=s)`, live reference, NO golden numbers) runs in CI across 8 rigs × 3 scales [0.5, 0.26, 2.0] — GREEN on first run (the bake was already field-identical). 8 oracle fixtures committed json+atlas-only (zero PNGs, D-04), proven git-tracked. **3 waves, 4 plans, all autonomous; 2 orchestrator post-merge gate fixes:** (1) extended the locked SAFE-01 `SAFE01_EXCLUDED_PREFIXES` denylist in `tests/safe01/discover-fixtures.ts` with the SCALE_BAKE_* dirs (same class as Phase 44 skeleton2_42 / Phase 46 spineboy_4.3 — newly git-tracked oracle fixtures with no frozen golden leak into the enumeration/baseline gates; **planning blind spot — no Phase-48 plan co-required it**), (2) localized `any` cast in the oracle's `parseAt()` for the dual-runtime union-of-modules typecheck error (vitest-green but tsc-red; executor self-check ran vitest only, not typecheck:node). Code review 0 blocker / 2 warn / 3 info (WR-01 oracle-compare-overclaim falsified by the verifier under symmetric+length-strict hardening — only divergence is the id-keyed timelineIds StringSet, which SC#1 excludes). Final: typecheck 0, full suite 141 files / 1450 passed / 0 failures. v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
 

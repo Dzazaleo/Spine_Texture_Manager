@@ -157,7 +157,7 @@ Plans:
   2. The dimension reference shown to the user is the rig's overall **setup-pose bounding box** (width × height in px), computed for both 4.2 and 4.3 rigs. *(SCALEUI-02)*
 **Plans**: 2 plans (2 waves)
 **UI hint**: yes
-**Note**: The exact two-way-input UX (field layout, rounding/lock behavior, per-axis vs longest-edge) is an open product decision for `/gsd-discuss-phase` (NOT a roadmap blocker).
+**Note**: The two-way-input UX (both-W&H-editable aspect-locked, honor-typed-pixels exactly, enrich-inline / defer tabs to Phase 51) was RESOLVED at discuss — see `50-CONTEXT.md` D-01..D-09. Planned `--skip-ui` (in-place enrichment of the existing `VariantDialog`; no UI-SPEC).
 
 Plans:
 **Wave 1**
