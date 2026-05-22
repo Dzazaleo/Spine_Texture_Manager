@@ -58,6 +58,14 @@ export function formatScaleToken(s: number): string {
   return String(Number(s.toFixed(4)));
 }
 
+// WR-05: dedicated re-entrancy guard for the variant export channel, mirroring
+// handleStartExport's module-level `exportInFlight` slot (ipc.ts:179,763,847,997).
+// Two concurrent variant exports would race on the same `written` rollback Sets
+// and output folder; serialize them here. (D-04 keeps the shipped Optimize flow's
+// own `exportInFlight` slot byte-untouched, so this is a separate variant-scoped
+// flag rather than a shared one — the variant path never forks handleStartExport.)
+let variantExportInFlight = false;
+
 export async function handleExportVariant(
   evt: { sender: { send: (channel: string, ...args: unknown[]) => void } },
   summary: SkeletonSummary,
@@ -70,6 +78,15 @@ export async function handleExportVariant(
   effectiveOverrides: ReadonlyMap<string, number> = new Map(),
   safetyBufferPercent: number = 0,
 ): Promise<ExportResponse> {
+  // 0. WR-05: re-entrancy guard — checked FIRST (mirrors ipc.ts:763) so a second
+  //    invocation while a first is pending bails immediately. Claimed below, AFTER
+  //    the synchronous validation guards (steps 1-8) and BEFORE the first await
+  //    (the readFile in step 5 — actually moved into the guarded block) so a bad
+  //    input never poisons the slot. Released in the finally at the bottom.
+  if (variantExportInFlight) {
+    return { ok: false, error: { kind: 'already-running', message: 'A variant export is already in progress.' } };
+  }
+
   // 1. D-08 guard FIRST — at the export EDGE, NOT in core bake() (Phase-48 D-09
   //    preserved: bake stays direction-agnostic). Rejects NaN / <=0 / >=1.
   if (!Number.isFinite(s) || s <= 0 || s >= 1) {
@@ -83,6 +100,18 @@ export async function handleExportVariant(
   if (typeof summary?.skeletonPath !== 'string' || summary.skeletonPath.length === 0) {
     return { ok: false, error: { kind: 'Unknown', message: 'summary.skeletonPath must be a non-empty string' } };
   }
+
+  // 2b. WR-06: re-validate safetyBufferPercent at the trust boundary, mirroring
+  //     the renderer clamp (VariantDialog.tsx:442 → Math.max(0, Math.min(25, …)))
+  //     and the project's "validate at the trust boundary" contract that
+  //     validateExportOpts enforces for the sibling export:start channel. The
+  //     value is passed UNBOUNDED into buildExportPlan otherwise — a misbehaving
+  //     or compromised renderer (the documented trust boundary, ipc.ts:30-32)
+  //     could send safetyBufferPercent: 100000. Coerce NaN/non-finite to 0, floor
+  //     to an integer, and clamp to the documented [0,25] range.
+  const safeBuffer = Number.isFinite(safetyBufferPercent)
+    ? Math.max(0, Math.min(25, Math.trunc(safetyBufferPercent)))
+    : 0;
 
   // 3. Derive {NAME} (basename strips any directory component → no `../`
   //    traversal survives). Reject empty / `:`-bearing names (mirrors
@@ -99,140 +128,170 @@ export async function handleExportVariant(
   //    basenames stay clean {NAME}.* (Pattern 3 / Pitfall 4 — never scale-suffix).
   const outDir = join(parentDir, `${NAME}@${formatScaleToken(s)}x`);
 
-  // 5. Read the source skeleton JSON (main-only fs read; the path is only ever
-  //    read, never written — EXPORT-02 / T-49-SRC).
-  let sourceJson: Record<string, unknown>;
+  // WR-05: claim the re-entrancy slot synchronously, BEFORE the first await (the
+  // readFile in step 5 below), AFTER all synchronous validation so a bad input
+  // never poisons the slot. The finally at the very bottom releases it on every
+  // exit path (success, early-return, or throw). Mirrors ipc.ts:847,997.
+  variantExportInFlight = true;
   try {
-    sourceJson = JSON.parse(await readFile(summary.skeletonPath, 'utf8'));
-  } catch (err) {
-    return {
-      ok: false,
-      error: {
-        kind: 'Unknown',
-        message: `Failed to read source skeleton JSON: ${err instanceof Error ? err.message : String(err)}`,
-      },
-    };
-  }
+    // 5. Read the source skeleton JSON (main-only fs read; the path is only ever
+    //    read, never written — EXPORT-02 / T-49-SRC).
+    let sourceJson: Record<string, unknown>;
+    try {
+      sourceJson = JSON.parse(await readFile(summary.skeletonPath, 'utf8'));
+    } catch (err) {
+      return {
+        ok: false,
+        error: {
+          kind: 'Unknown',
+          message: `Failed to read source skeleton JSON: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      };
+    }
 
-  // 6. bake — core, pure (L-01/L-03). bake clones first → source object untouched.
-  let baked: Record<string, unknown>;
-  try {
-    baked = bake(sourceJson, s) as Record<string, unknown>;
-  } catch (err) {
-    return {
-      ok: false,
-      error: { kind: 'Unknown', message: err instanceof Error ? err.message : String(err) },
-    };
-  }
+    // 6. bake — core, pure (L-01/L-03). bake clones first → source object untouched.
+    let baked: Record<string, unknown>;
+    try {
+      baked = bake(sourceJson, s) as Record<string, unknown>;
+    } catch (err) {
+      return {
+        ok: false,
+        error: { kind: 'Unknown', message: err instanceof Error ? err.message : String(err) },
+      };
+    }
 
-  // 7. Build the s-scaled plan with the export-plan builder UNCHANGED (D-07 /
-  //    EXPORT-02). plan.skeletonPath = summary.skeletonPath so deriveProjectName
-  //    yields clean {NAME}.* (Pattern 3 / Pitfall 4 — do NOT scale-suffix).
-  const plan = buildExportPlan(scaleSummaryPeaks(summary, s), effectiveOverrides, {
-    skeletonPath: summary.skeletonPath,
-    safetyBufferPercent,
-  });
+    // 7. Build the s-scaled plan with the export-plan builder UNCHANGED (D-07 /
+    //    EXPORT-02). plan.skeletonPath = summary.skeletonPath so deriveProjectName
+    //    yields clean {NAME}.* (Pattern 3 / Pitfall 4 — do NOT scale-suffix).
+    //    WR-01: try/caught like steps 5 & 6 — scaleSummaryPeaks iterates
+    //    c.regions/c.peaks unconditionally and buildExportPlan can throw on a
+    //    malformed summary; an uncaught throw here would REJECT the IPC promise
+    //    instead of returning the documented ExportResponse envelope.
+    let plan: ReturnType<typeof buildExportPlan>;
+    try {
+      plan = buildExportPlan(scaleSummaryPeaks(summary, s), effectiveOverrides, {
+        skeletonPath: summary.skeletonPath,
+        safetyBufferPercent: safeBuffer, // WR-06: clamped at the trust boundary above
+      });
+    } catch (err) {
+      return {
+        ok: false,
+        error: { kind: 'Unknown', message: err instanceof Error ? err.message : String(err) },
+      };
+    }
 
-  // 8. Source-collision guard (reuse the ipc.ts:809-827 logic). Reject when the
-  //    outDir IS the source images dir. T-49-DIR + T-49-SRC. Skip on empty plan.
-  if (plan.rows.length > 0) {
-    const normalised = plan.rows[0].sourcePath.replace(/\\/g, '/');
-    const idx = normalised.lastIndexOf('/images/');
-    if (idx >= 0) {
-      const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
-      if (pathResolve(outDir) === pathResolve(sourceImagesDir)) {
-        return {
-          ok: false,
-          error: {
-            kind: 'invalid-out-dir',
-            message:
-              'Variant output directory IS the source images folder. ' +
-              'Every output would overwrite a source — pick a different folder.',
-          },
-        };
+    // 8. Source-collision guard (reuse the ipc.ts:809-827 logic). Reject when the
+    //    outDir IS the source images dir. T-49-DIR + T-49-SRC. Skip on empty plan.
+    //    WR-04: buildExportPlan routes each region into EITHER `rows` OR
+    //    `passthroughCopies` (export.ts:452,454). When EVERY region is a passthrough
+    //    copy (already at/below source dims), `rows` is empty while
+    //    `passthroughCopies` is non-empty — yet runExport still WRITES the
+    //    passthrough copies. Derive the collision sentinel from the first row the
+    //    workers will actually write, in EITHER bucket.
+    const collisionSentinel = plan.rows[0] ?? plan.passthroughCopies[0];
+    if (collisionSentinel) {
+      const normalised = collisionSentinel.sourcePath.replace(/\\/g, '/');
+      const idx = normalised.lastIndexOf('/images/');
+      if (idx >= 0) {
+        const sourceImagesDir = normalised.slice(0, idx + '/images'.length);
+        if (pathResolve(outDir) === pathResolve(sourceImagesDir)) {
+          return {
+            ok: false,
+            error: {
+              kind: 'invalid-out-dir',
+              message:
+                'Variant output directory IS the source images folder. ' +
+                'Every output would overwrite a source — pick a different folder.',
+            },
+          };
+        }
       }
     }
-  }
 
-  // 9. Shared rollback Set + progress closure (verbatim from ipc.ts:901-906 —
-  //    tolerates a gone sender).
-  const written = new Set<string>();
-  const sendProgress = (e: unknown) => {
-    try {
-      evt.sender.send('export:progress', e);
-    } catch {
-      /* webContents gone */
-    }
-  };
-
-  // 10. One try wrapping write-JSON-FIRST + the dispatch matrix + merge.
-  try {
-    // Write the baked variant JSON FIRST so a later texture throw rolls it back
-    // via the shared sweep (T-49-ROLLBACK / EXPORT-03 always-written).
-    await writeSkeletonJsonAtomic(join(outDir, `${NAME}.json`), baked, written);
-
-    let looseSummary: ExportSummary | undefined;
-    let repackSummary: ExportSummary | undefined;
-    if (outputMode === 'loose' || outputMode === 'both') {
-      looseSummary = await runExport(
-        plan,
-        outDir,
-        sendProgress,
-        () => false, // no separate variant cancel channel this phase
-        overwrite,
-        sharpenEnabled,
-        written,
-      );
-    }
-    if (outputMode === 'atlas' || outputMode === 'both') {
-      const repackResult = await runRepack(
-        plan,
-        outDir,
-        sendProgress,
-        () => false,
-        overwrite,
-        sharpenEnabled,
-        atlasOpts,
-        written,
-      );
-      repackSummary = repackResult.summary;
-    }
-
-    // Merge summaries (verbatim contract from ipc.ts:948-972).
-    let finalSummary: ExportSummary;
-    if (looseSummary && repackSummary) {
-      finalSummary = {
-        successes: looseSummary.successes + repackSummary.successes,
-        errors: [...looseSummary.errors, ...repackSummary.errors],
-        outputDir: looseSummary.outputDir,
-        durationMs: looseSummary.durationMs + repackSummary.durationMs,
-        cancelled: looseSummary.cancelled || repackSummary.cancelled,
-      };
-    } else if (repackSummary) {
-      finalSummary = repackSummary;
-    } else if (looseSummary) {
-      finalSummary = looseSummary;
-    } else {
-      finalSummary = {
-        successes: 0,
-        errors: [],
-        outputDir: pathResolve(outDir),
-        durationMs: 0,
-        cancelled: false,
-      };
-    }
-    return { ok: true, summary: finalSummary };
-  } catch (innerErr) {
-    // Rollback sweep — covers the baked JSON too (T-49-ROLLBACK). force-rm
-    // swallows ENOENT, so sweeping half-landed paths is safe.
-    for (const p of written) {
-      await fsRm(p, { force: true }).catch(() => {
-        /* defense-in-depth */
-      });
-    }
-    return {
-      ok: false,
-      error: { kind: 'Unknown', message: innerErr instanceof Error ? innerErr.message : String(innerErr) },
+    // 9. Shared rollback Set + progress closure (verbatim from ipc.ts:901-906 —
+    //    tolerates a gone sender).
+    const written = new Set<string>();
+    const sendProgress = (e: unknown) => {
+      try {
+        evt.sender.send('export:progress', e);
+      } catch {
+        /* webContents gone */
+      }
     };
+
+    // 10. One try wrapping write-JSON-FIRST + the dispatch matrix + merge.
+    try {
+      // Write the baked variant JSON FIRST so a later texture throw rolls it back
+      // via the shared sweep (T-49-ROLLBACK / EXPORT-03 always-written).
+      await writeSkeletonJsonAtomic(join(outDir, `${NAME}.json`), baked, written);
+
+      let looseSummary: ExportSummary | undefined;
+      let repackSummary: ExportSummary | undefined;
+      if (outputMode === 'loose' || outputMode === 'both') {
+        looseSummary = await runExport(
+          plan,
+          outDir,
+          sendProgress,
+          () => false, // no separate variant cancel channel this phase
+          overwrite,
+          sharpenEnabled,
+          written,
+        );
+      }
+      if (outputMode === 'atlas' || outputMode === 'both') {
+        const repackResult = await runRepack(
+          plan,
+          outDir,
+          sendProgress,
+          () => false,
+          overwrite,
+          sharpenEnabled,
+          atlasOpts,
+          written,
+        );
+        repackSummary = repackResult.summary;
+      }
+
+      // Merge summaries (verbatim contract from ipc.ts:948-972).
+      let finalSummary: ExportSummary;
+      if (looseSummary && repackSummary) {
+        finalSummary = {
+          successes: looseSummary.successes + repackSummary.successes,
+          errors: [...looseSummary.errors, ...repackSummary.errors],
+          outputDir: looseSummary.outputDir,
+          durationMs: looseSummary.durationMs + repackSummary.durationMs,
+          cancelled: looseSummary.cancelled || repackSummary.cancelled,
+        };
+      } else if (repackSummary) {
+        finalSummary = repackSummary;
+      } else if (looseSummary) {
+        finalSummary = looseSummary;
+      } else {
+        finalSummary = {
+          successes: 0,
+          errors: [],
+          outputDir: pathResolve(outDir),
+          durationMs: 0,
+          cancelled: false,
+        };
+      }
+      return { ok: true, summary: finalSummary };
+    } catch (innerErr) {
+      // Rollback sweep — covers the baked JSON too (T-49-ROLLBACK). force-rm
+      // swallows ENOENT, so sweeping half-landed paths is safe.
+      for (const p of written) {
+        await fsRm(p, { force: true }).catch(() => {
+          /* defense-in-depth */
+        });
+      }
+      return {
+        ok: false,
+        error: { kind: 'Unknown', message: innerErr instanceof Error ? innerErr.message : String(innerErr) },
+      };
+    }
+  } finally {
+    // WR-05: release the re-entrancy slot on EVERY exit path (success, any
+    // early-return, or throw). Mirrors ipc.ts:996-999.
+    variantExportInFlight = false;
   }
 }
