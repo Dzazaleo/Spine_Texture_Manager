@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: ready_to_plan
-last_updated: "2026-05-22T12:01:12.745Z"
-last_activity: 2026-05-22 -- Phase 48 COMPLETE + verified (4/4 must-haves, oracle green)
+status: executing
+last_updated: "2026-05-22T15:01:03.417Z"
+last_activity: 2026-05-22 -- Phase 49 planning complete
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 0
-  percent: 25
+  total_plans: 7
+  completed_plans: 4
+  percent: 57
 ---
 
 # State
@@ -19,10 +19,10 @@ progress:
 
 Phase: 49
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-22
+Status: Ready to execute
+Last activity: 2026-05-22 -- Phase 49 planning complete
 
-Next: **`/gsd-discuss-phase 49`** (recommended) or **`/gsd-plan-phase 49`** — Phase 49 is Single-Scale Variant Export (one scale → one folder: scaled JSON + resized textures + scaled atlas; `variant_peak = s × master_peak`; dual-runtime + dual-mode; source JSON never modified). It consumes the Phase-48 bake module directly.
+Next: **`/gsd-execute-phase 49`** — Phase 49 (Single-Scale Variant Export) is PLANNED: **3 plans / 2 waves, all autonomous.** Wave 1 = 49-01 (variant engine: pure `scaleSummaryPeaks` peak-only + `VariantScaleError` D-08 + first-ever atomic skeleton-JSON writer L-03 + `handleExportVariant` + `variant:export` IPC/preload). Wave 2 (both depend 49-01, disjoint) = 49-02 (renderer "Export Variant…" single-pane dialog reusing Optimize config + a basic numeric scale field) + 49-03 (package-layout/rollback + drop-in faithfulness oracle + dual-runtime×dual-mode matrix + Layer-3 arch anchor). Research + VALIDATION (V1–V8, task-bound) + PATTERNS done; plan-checker **PASSED iter-2** (iter-1 found 2 cross-plan blockers → fixed `fdd6180`: the typed `Api.exportVariant` member in `src/shared/types.ts` + the picker-only `onConfirmStartVariant` keyed to `variantDialogState`). Locked: `variant_peak = s × master_peak` (peak-only A1, D-07); `buildExportPlan` + atlas-writer pipeline reused UNCHANGED; source JSON never modified; `{PARENT}/{NAME}@{s}x/` clean basenames; reuses committed fixtures (SIMPLE_PROJECT 4.2 + SLIDER_4_3/XTRA01/02 4.3) — **no new fixture dir, SAFE-01 landmine avoided.** One non-blocking note for execute: 49-01 must `import { runRepack, type AtlasOpts } from './repack-worker.js'` (no named `AtlasOpts` in types.ts; the plan's `typecheck:node`=0 acceptance criterion self-corrects; model at `ipc.ts:65`).
 
 **Phase 48 COMPLETE + verified 2026-05-22 (4/4 must-haves, BAKE-01..04 Complete).** Delivered `src/core/scale-bake.ts` — a Layer-3-pure (zero imports), non-mutating JSON→JSON similarity bake `bake(json,s)` + `ScaleBakeError`, field-identical to spine-core `SkeletonJson.scale` across both schemas (4.2 split + 4.3 unified), with all three BAKE-03 constraint-timeline curve channels (IK softness `cy` idx 5/7 only, PATH position/spacing length-mode setup+timeline, slider remap) + scaled-default injection (physics.limit→5000×s, referenceScale→100×s; physics x/y untouched) + D-09/D-10 guards. The decisive sampling-free oracle `tests/scale-bake.spec.ts` (`parse(bake(orig,s),1) ≡ parse(orig,SkeletonJson.scale=s)`, live reference, NO golden numbers) runs in CI across 8 rigs × 3 scales [0.5, 0.26, 2.0] — GREEN on first run (the bake was already field-identical). 8 oracle fixtures committed json+atlas-only (zero PNGs, D-04), proven git-tracked. **3 waves, 4 plans, all autonomous; 2 orchestrator post-merge gate fixes:** (1) extended the locked SAFE-01 `SAFE01_EXCLUDED_PREFIXES` denylist in `tests/safe01/discover-fixtures.ts` with the SCALE_BAKE_* dirs (same class as Phase 44 skeleton2_42 / Phase 46 spineboy_4.3 — newly git-tracked oracle fixtures with no frozen golden leak into the enumeration/baseline gates; **planning blind spot — no Phase-48 plan co-required it**), (2) localized `any` cast in the oracle's `parseAt()` for the dual-runtime union-of-modules typecheck error (vitest-green but tsc-red; executor self-check ran vitest only, not typecheck:node). Code review 0 blocker / 2 warn / 3 info (WR-01 oracle-compare-overclaim falsified by the verifier under symmetric+length-strict hardening — only divergence is the id-keyed timelineIds StringSet, which SC#1 excludes). Final: typecheck 0, full suite 141 files / 1450 passed / 0 failures. v1.6 SHIPPED as v1.6.1 (reqs/roadmap archived to `milestones/v1.6-*`).
 
