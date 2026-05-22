@@ -161,7 +161,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 50-01-PLAN.md — `computeSetupPoseBounds` (Layer-3-pure, dual-runtime all-skins setup-pose AABB union, D-05/D-06/D-07) + degenerate `null` guard + additive `SkeletonSummary.bbox` seam in summary.ts/types.ts + V1-V7 [wave 1, SCALEUI-02]
+- [x] 50-01-PLAN.md — `computeSetupPoseBounds` (Layer-3-pure, dual-runtime all-skins setup-pose AABB union, D-05/D-06/D-07) + degenerate `null` guard + additive `SkeletonSummary.bbox` seam in summary.ts/types.ts + V1-V7 [wave 1, SCALEUI-02]
 
 **Wave 2** *(depends on 50-01 — reads `summary.bbox`)*
 - [ ] 50-02-PLAN.md — enrich the `VariantDialog` Scale card IN PLACE (D-09): bbox W×H reference line + three coupled aspect-locked inputs (factor/W/H, uniform, D-01/D-02/D-03) + over-range allow-but-disable-Export (D-04) + pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers + V8-V12 [wave 2, depends 50-01, SCALEUI-01]
@@ -189,5 +189,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
-| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 0/2 | Not started | - |
+| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 1/2 | In Progress|  |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
