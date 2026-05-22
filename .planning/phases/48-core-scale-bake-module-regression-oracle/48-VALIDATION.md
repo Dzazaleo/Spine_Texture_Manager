@@ -2,7 +2,7 @@
 phase: 48
 slug: core-scale-bake-module-regression-oracle
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-22
 ---
@@ -79,6 +79,6 @@ created: 2026-05-22
 - [ ] Wave 0 covers all MISSING references (oracle spec + 3 fixture dirs)
 - [ ] No watch-mode flags (`vitest run`, not `vitest`)
 - [ ] Feedback latency < ~10s (oracle)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending

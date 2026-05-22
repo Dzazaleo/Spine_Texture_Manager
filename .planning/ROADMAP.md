@@ -118,9 +118,14 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 **Plans**: 4 plans (3 waves)
 
 Plans:
+**Wave 1**
 - [ ] 48-01-PLAN.md — promote `baker.mjs` → `src/core/scale-bake.ts` (dual-schema setup-side: bones/constraints/attachments + scaled-default injection) + D-09 degenerate-`s` guard + D-10 assert-known guard [wave 1, BAKE-01/02/04]
 - [ ] 48-02-PLAN.md — fixture-commit-safety (D-06a, explicit task: COPY DEMON+TEST_01+TEST_03 json+atlas-only into new non-ignored dirs, prove tracked) + author the synthetic 4.3 path-Fixed fixture (D-05) [wave 1, BAKE-04]
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 48-03-PLAN.md — finish the 3 constraint-timeline curve channels: slider remap slope + PATH position/spacing length-mode (setup+timeline) + IK softness-curve cy (channel-specific) [wave 2, depends 48-01, BAKE-03]
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 48-04-PLAN.md — wire the field-identity oracle `tests/scale-bake.spec.ts` across the matrix (hard-fail-on-missing, no skipIf) + optional arch-spec Layer-3 anchor + full-suite green [wave 3, depends 48-02+48-03, BAKE-01/02/03/04]
 
 ### Phase 49: Single-Scale Variant Export
