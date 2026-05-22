@@ -1,0 +1,5 @@
+PATH_FIXED.png
+size:64,64
+filter:Linear,Linear
+region
+bounds:0,0,32,32

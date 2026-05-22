@@ -1,0 +1,68 @@
+{
+	"skeleton": {
+		"spine": "4.3.0",
+		"x": 0,
+		"y": 0,
+		"width": 64,
+		"height": 64,
+		"referenceScale": 100
+	},
+	"bones": [
+		{ "name": "root" },
+		{ "name": "bone1", "parent": "root", "x": 10, "y": 0, "length": 20 },
+		{ "name": "bone2", "parent": "bone1", "x": 20, "y": 0, "length": 20 }
+	],
+	"slots": [
+		{ "name": "pathSlot", "bone": "root", "attachment": "path1" }
+	],
+	"constraints": [
+		{
+			"name": "pathConstraint",
+			"type": "path",
+			"order": 0,
+			"bones": ["bone1", "bone2"],
+			"slot": "pathSlot",
+			"positionMode": "fixed",
+			"spacingMode": "fixed",
+			"rotateMode": "tangent",
+			"position": 15,
+			"spacing": 8,
+			"mixRotate": 1,
+			"mixX": 1,
+			"mixY": 1
+		}
+	],
+	"skins": [
+		{
+			"name": "default",
+			"attachments": {
+				"pathSlot": {
+					"path1": {
+						"type": "path",
+						"closed": false,
+						"constantSpeed": true,
+						"lengths": [10, 30],
+						"vertexCount": 6,
+						"vertices": [0, 0, 10, 10, 20, 0, 30, 10, 40, 0, 50, 10]
+					}
+				}
+			}
+		}
+	],
+	"animations": {
+		"slide": {
+			"path": {
+				"pathConstraint": {
+					"position": [
+						{ "time": 0, "value": 15, "curve": [0.25, 22, 0.75, 45] },
+						{ "time": 1, "value": 60 }
+					],
+					"spacing": [
+						{ "time": 0, "value": 8 },
+						{ "time": 1, "value": 24 }
+					]
+				}
+			}
+		}
+	}
+}
