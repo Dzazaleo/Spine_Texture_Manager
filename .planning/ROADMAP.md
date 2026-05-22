@@ -99,7 +99,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 
 **Milestone Goal:** From one full-size Spine export, produce faithful scaled-down rig variants — each a complete drop-in package (scaled skeleton JSON + scaled atlas + resized textures, in its own folder) sized to the peak render demand of that smaller rig, dual-runtime (4.2 + 4.3) and dual-mode (atlas-source + atlas-less).
 
-- [ ] **Phase 48: Core Scale-Bake Module + Regression Oracle** - Promote the spike `baker.mjs` to a Layer-3-pure `core/` JSON→JSON bake mirroring `SkeletonJson.scale`; finish the constraint-timeline curve channels; wire the field-identity oracle as a CI test across a fixture matrix incl. a deform-heavy rig
+- [x] **Phase 48: Core Scale-Bake Module + Regression Oracle** - Promote the spike `baker.mjs` to a Layer-3-pure `core/` JSON→JSON bake mirroring `SkeletonJson.scale`; finish the constraint-timeline curve channels; wire the field-identity oracle as a CI test across a fixture matrix incl. a deform-heavy rig (completed 2026-05-22)
 - [ ] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified
 - [ ] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase)
 - [ ] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale
@@ -126,7 +126,7 @@ Plans:
 - [x] 48-03-PLAN.md — finish the 3 constraint-timeline curve channels: slider remap slope + PATH position/spacing length-mode (setup+timeline) + IK softness-curve cy (channel-specific) [wave 2, depends 48-01, BAKE-03]
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 48-04-PLAN.md — wire the field-identity oracle `tests/scale-bake.spec.ts` across the matrix (hard-fail-on-missing, no skipIf) + optional arch-spec Layer-3 anchor + full-suite green [wave 3, depends 48-02+48-03, BAKE-01/02/03/04]
+- [x] 48-04-PLAN.md — wire the field-identity oracle `tests/scale-bake.spec.ts` across the matrix (hard-fail-on-missing, no skipIf) + optional arch-spec Layer-3 anchor + full-suite green [wave 3, depends 48-02+48-03, BAKE-01/02/03/04]
 
 ### Phase 49: Single-Scale Variant Export
 **Goal**: Deliver the first end-user value — export one scaled-down variant to a chosen folder as a complete, drop-in package, reusing the existing export-sizing + atlas-writer pipeline and sizing textures arithmetically (`variant_peak = s × master_peak`, never by re-sampling the variant).
@@ -181,7 +181,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 3/4 | In Progress|  |
+| 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete   | 2026-05-22 |
 | 49. Single-Scale Variant Export | v1.7 | 0/3 | Not started | - |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 0/2 | Not started | - |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
