@@ -155,13 +155,16 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. The user can specify a variant scale either as a factor (e.g. `0.5`) or as a target dimension in pixels; entering one displays the corresponding other value (two-way binding). *(SCALEUI-01)*
   2. The dimension reference shown to the user is the rig's overall **setup-pose bounding box** (width × height in px), computed for both 4.2 and 4.3 rigs. *(SCALEUI-02)*
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
 **UI hint**: yes
 **Note**: The exact two-way-input UX (field layout, rounding/lock behavior, per-axis vs longest-edge) is an open product decision for `/gsd-discuss-phase` (NOT a roadmap blocker).
 
 Plans:
-- [ ] 50-01: TBD — setup-pose bounding box computation (dual-runtime), surfaced as the W×H reference
-- [ ] 50-02: TBD — two-way scale↔dimension input control wired to the variant export path
+**Wave 1**
+- [ ] 50-01-PLAN.md — `computeSetupPoseBounds` (Layer-3-pure, dual-runtime all-skins setup-pose AABB union, D-05/D-06/D-07) + degenerate `null` guard + additive `SkeletonSummary.bbox` seam in summary.ts/types.ts + V1-V7 [wave 1, SCALEUI-02]
+
+**Wave 2** *(depends on 50-01 — reads `summary.bbox`)*
+- [ ] 50-02-PLAN.md — enrich the `VariantDialog` Scale card IN PLACE (D-09): bbox W×H reference line + three coupled aspect-locked inputs (factor/W/H, uniform, D-01/D-02/D-03) + over-range allow-but-disable-Export (D-04) + pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers + V8-V12 [wave 2, depends 50-01, SCALEUI-01]
 
 ### Phase 51: Batch Variant Export
 **Goal**: Fan one master out to many resolutions in a single operation — N scales → N folders — reusing the single-scale export per scale.
