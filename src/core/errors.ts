@@ -217,3 +217,20 @@ export class MissingImagesDirError extends SpineLoaderError {
     this.name = 'MissingImagesDirError';
   }
 }
+
+/**
+ * Phase 49 D-08 — the variant export edge accepts 0 < s < 1 and rejects s >= 1
+ * (and NaN / <= 0). Lives here in the typed-error module (errors.ts culture);
+ * the GUARD CALL is main-side (the export edge), NOT in core bake() — bake stays
+ * direction-agnostic (Phase-48 D-09 preserved). Carries the offending scale as a
+ * typed field; the renderer displays .message.
+ */
+export class VariantScaleError extends Error {
+  constructor(public readonly scale: number) {
+    super(
+      `Variants are scaled-down only (0 < scale < 1). Got ${scale}. ` +
+        `Use Optimize Assets to export at full size.`,
+    );
+    this.name = 'VariantScaleError';
+  }
+}
