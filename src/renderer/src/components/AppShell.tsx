@@ -62,6 +62,7 @@ import { UnusedAssetsPanel } from '../panels/UnusedAssetsPanel';
 import { SearchBar } from './SearchBar';
 import { OverrideDialog } from '../modals/OverrideDialog';
 import { OptimizeDialog } from '../modals/OptimizeDialog';
+import { VariantDialog } from '../modals/VariantDialog';
 import { ConflictDialog } from '../modals/ConflictDialog';
 import { AtlasPreviewModal } from '../modals/AtlasPreviewModal';
 import { AnimationPlayerModalRouter } from '../modals/AnimationPlayerModalRouter';
@@ -549,6 +550,19 @@ export function AppShell({
   } | null>(null);
   const [exportInFlight, setExportInFlight] = useState(false);
 
+  // Phase 49 Plan 02 EXPORT-01 / D-04 — variant-export dialog state. Held
+  // INDEPENDENTLY of exportDialogState (the shipped Optimize flow is untouched).
+  // Mirrors exportDialogState's shape: the display-only plan + the parent
+  // outDir pre-fill. The {NAME}@{s}x/ subfolder is appended MAIN-side (Plan-01).
+  const [variantDialogState, setVariantDialogState] = useState<{
+    plan: ExportPlan;
+    outDir: string | null;
+  } | null>(null);
+  // Phase 49 D-05 — the basic numeric scale field's value. Default 0.5 (half
+  // size); Phase 50 enriches this control in place. Constrained to (0,1) at the
+  // dialog edge + the authoritative main-side VariantScaleError guard (D-08).
+  const [variantScale, setVariantScale] = useState<number>(0.5);
+
   // Gap-Fix Round 3 (2026-04-25) — ConflictDialog state. Mounted on top of
   // OptimizeDialog (z-50 overlay → topmost) when probeExportConflicts
   // returns a non-empty list. Three user actions resolve the pending
@@ -790,6 +804,45 @@ export function AppShell({
     });
     setExportDialogState({ plan, outDir: lastOutDir });
   }, [summary, activeOverrides, lastOutDir, safetyBufferPercentLocal]);
+
+  // Phase 49 Plan 02 EXPORT-01 / D-04 — open the variant dialog. Modeled on
+  // onClickOptimize: builds the SAME master plan (display-only; the dialog's
+  // summary tiles render it). Per Plan-01 + RESEARCH A2, MAIN builds the
+  // s-scaled plan from `summary` + `s`; the renderer passes `summary` + `s`
+  // over IPC, so the dialog's `summary` prop is `summary` and `plan` is this
+  // display plan. Reads activeOverrides (mode-aware slice, D-07) verbatim.
+  const onClickExportVariant = useCallback(() => {
+    const plan = buildExportPlan(summary, activeOverrides, {
+      skeletonPath: summary.skeletonPath,
+      safetyBufferPercent: safetyBufferPercentLocal,
+    });
+    setVariantDialogState({ plan, outDir: lastOutDir });
+  }, [summary, activeOverrides, lastOutDir, safetyBufferPercentLocal]);
+
+  // Phase 49 Plan 02 D-03 — DEDICATED picker-only confirm for the variant flow.
+  // This is the REQUIRED handler (NOT a fallback): the Optimize onConfirmStart
+  // early-returns { proceed:false } whenever exportDialogState===null — which is
+  // ALWAYS the case while VariantDialog is open — so reusing it would never fire
+  // exportVariant. This handler is keyed to variantDialogState, runs ONLY the
+  // native parent-folder picker, and returns the decision. It does NOT read
+  // exportDialogState, does NOT probe a plan, and does NOT call
+  // setExportDialogState. D-03: the pre-existing-target conflict is enforced
+  // MAIN-side (Plan-01 source-collision guard + the workers' per-artifact
+  // overwrite gates) — NO ConflictDialog invented in the variant path. The user
+  // picks the PARENT; main appends {NAME}@{s}x/.
+  const onConfirmStartVariant = useCallback(async (): Promise<{
+    proceed: boolean;
+    overwrite?: boolean;
+    outDir?: string | null;
+  }> => {
+    if (variantDialogState === null) return { proceed: false };
+    const startPath =
+      lastOutDir ?? (summary.skeletonPath.replace(/[\\/][^\\/]+$/, '') || '.');
+    const picked = await pickOutputDir(startPath);
+    if (picked === null) return { proceed: false }; // user cancelled → stay pre-flight
+    setLastOutDir(picked);
+    return { proceed: true, overwrite: false, outDir: picked };
+  }, [variantDialogState, lastOutDir, summary.skeletonPath, pickOutputDir]);
 
   // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
   //
@@ -2171,6 +2224,21 @@ export function AppShell({
           >
             Documentation
           </button>
+          {/* Phase 49 Plan 02 EXPORT-01 / D-04 — NEW "Export Variant…" toolbar
+              action, SEPARATE from "Optimize Assets". Uses the SECONDARY/outlined
+              class string (byte-identical to the Documentation button above) so
+              it is visually distinct from the primary Optimize action. Tailwind
+              v4 literal-class discipline (Pitfall 3) — class string copied
+              verbatim, never composed dynamically. Disabled predicate mirrors
+              Optimize (no-peaks gate + exportInFlight). */}
+          <button
+            type="button"
+            onClick={onClickExportVariant}
+            disabled={effectiveSummary.peaks.length === 0 || exportInFlight}
+            className="border border-border rounded-md px-3 h-8 text-xs font-semibold transition-colors cursor-pointer hover:border-accent hover:text-accent active:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-fg disabled:active:bg-transparent flex-shrink-0"
+          >
+            Export Variant…
+          </button>
           <button
             type="button"
             onClick={onClickOptimize}
@@ -2487,6 +2555,43 @@ export function AppShell({
           // onAtlasOptsChange callback fan-outs the merged shape across the
           // 3 useState setters so the existing per-field dirty-check just
           // works without extra plumbing.
+          outputMode={atlasOutputMode}
+          onOutputModeChange={setAtlasOutputMode}
+          atlasOpts={{
+            maxPageSize: atlasMaxPageSize,
+            allowRotation: atlasAllowRotation,
+            padding: atlasPadding,
+          }}
+          onAtlasOptsChange={(opts) => {
+            setAtlasMaxPageSize(opts.maxPageSize);
+            setAtlasAllowRotation(opts.allowRotation);
+            setAtlasPadding(opts.padding);
+          }}
+        />
+      )}
+      {/* Phase 49 Plan 02 EXPORT-01 / D-04 — variant-export dialog. Mounted
+          alongside (NOT replacing) OptimizeDialog. Wired from the SAME config
+          locals (D-07 — full active export-config inheritance: activeOverrides +
+          buffer + sharpen + output mode + atlas opts) and the DEDICATED
+          picker-only onConfirmStartVariant (D-03 — keyed to variantDialogState,
+          NOT the Optimize onConfirmStart which early-returns when
+          exportDialogState===null). The variant picks a PARENT folder; the
+          {NAME}@{s}x/ subfolder is appended MAIN-side (Plan-01). */}
+      {variantDialogState !== null && (
+        <VariantDialog
+          open={true}
+          plan={variantDialogState.plan}
+          summary={summary}
+          outDir={variantDialogState.outDir}
+          scale={variantScale}
+          onScaleChange={setVariantScale}
+          effectiveOverrides={activeOverrides}
+          onClose={() => setVariantDialogState(null)}
+          onConfirmStart={onConfirmStartVariant}
+          sharpenOnExport={sharpenOnExportLocal}
+          onSharpenChange={setSharpenOnExportLocal}
+          safetyBufferPercent={safetyBufferPercentLocal}
+          onSafetyBufferChange={setSafetyBufferPercentLocal}
           outputMode={atlasOutputMode}
           onOutputModeChange={setAtlasOutputMode}
           atlasOpts={{
