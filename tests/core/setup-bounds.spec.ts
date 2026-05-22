@@ -30,7 +30,6 @@ import type { LoadResult } from '../../src/core/types.js';
 import type { SpineRuntime } from '../../src/core/runtime/runtime.js';
 import type {
   OpaqueSkeleton,
-  OpaqueSkeletonData,
   OpaqueSlot,
   OpaqueAttachment,
   OpaqueSkin,

@@ -37,6 +37,7 @@ import type {
 } from '../shared/types.js';
 import { analyze, analyzeBreakdown, analyzeRegions } from '../core/analyzer.js';
 import { findOrphanedFiles } from '../core/usage.js';
+import { computeSetupPoseBounds } from '../core/setup-bounds.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -540,6 +541,12 @@ export function buildSummary(
   const hasAtlasFile = fs.existsSync(siblingAtlasPath);
   const hasImagesDir = fs.existsSync(path.join(projectDir, 'images'));
 
+  // Phase 50 SCALEUI-02 — setup-pose all-skins bbox, computed ONCE here via the
+  // already-bound `rt` (= load.runtime, null-guarded at ~line 326). REUSE that
+  // adapter — do NOT add a second makeSkeleton / raw ctor. `null` for a
+  // degenerate rig (T-50-FIN — structuredClone-safe).
+  const bbox = computeSetupPoseBounds(load);
+
   return {
     skeletonPath: load.skeletonPath,
     atlasPath: load.atlasPath,
@@ -550,6 +557,9 @@ export function buildSummary(
     // version (locks feedback_explicit_identity_over_inference; same
     // bug-class as REG-47-01's cross-runtime handoff). Purely additive.
     runtimeTag: rt.tag,
+    // Phase 50 SCALEUI-02 — additive setup-pose all-skins bbox (D-05/D-06/D-07).
+    // Sibling to runtimeTag; the same additive-field precedent. {w,h} | null.
+    bbox,
     bones: {
       count: skeletonData.bones.length,
       names: skeletonData.bones.map((b) => b.name),
