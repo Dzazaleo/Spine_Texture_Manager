@@ -20,14 +20,15 @@ result: [pending]
 ### 2. Re-export-into-existing-folder result surfacing (CR-01 partial-failure path)
 expected: Export a variant once (fresh folder, succeeds). Export the SAME scale into the SAME parent again. Decide whether the dialog must surface the worker's overwrite-collision errors rather than reporting "0 files exported" as success. (Code review CR-01: VariantDialog judges success solely on a thrown error and ignores `summary.errors[]`; `writeSkeletonJsonAtomic` overwrites `{NAME}.json` unconditionally while images are refused with `overwrite=false`, leaving a mismatched package presented as success.) The happy-path first export to a fresh folder is fully correct and verified.
 why_human: Whether this misleading-success-on-re-export is acceptable for shipping, or must be fixed before EXPORT-01 is signed off, is a product/correctness decision — not programmatically resolvable.
-result: [pending]
+result: resolved — user chose "fix now"; CR-01 fixed in commits 268e8fd + 2b82b82 (writeSkeletonJsonAtomic honors an overwrite gate; VariantDialog surfaces summary.errors[] as a partial failure mirroring OptimizeDialog) plus a discriminating regression test. Re-verification (49-VERIFICATION.md) confirmed CR-01 closed — no maintainer decision needed.
 
 ## Summary
 
 total: 2
 passed: 0
 issues: 0
-pending: 2
+pending: 1
+resolved: 1
 skipped: 0
 blocked: 0
 
