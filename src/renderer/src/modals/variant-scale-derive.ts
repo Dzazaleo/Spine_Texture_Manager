@@ -38,3 +38,12 @@ export const scaleFromPx = (px: number, axis: number): number => px / axis;
  * Operates on the display only — never rounds the stored `s`.
  */
 export const displayFactor = (s: number): number => Number(s.toFixed(4));
+
+/**
+ * Phase 51 D-10 — the renderer-local @{s}x folder token. Byte-identical to main's
+ * formatScaleToken (`String(Number(s.toFixed(4)))`, src/main/variant-export.ts:57)
+ * but kept renderer-local (Layer-3 — the renderer must NOT import the Node-only
+ * variant-export module). Used for the per-row folder hint AND the duplicate-token
+ * dedup gate so both share ONE source of truth.
+ */
+export const tokenFor = (s: number): string => String(displayFactor(s));
