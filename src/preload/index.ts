@@ -204,6 +204,14 @@ const api: Api = {
     ),
 
   /**
+   * Phase-51 follow-up — pre-flight conflict probe for the batch fan-out: which
+   * `{NAME}@{s}x/` target folders already exist under `parentDir`. Drives the
+   * variant ConflictDialog (overwrite all / cancel) before the run.
+   */
+  probeVariantBatchConflicts: (summary, scales, parentDir) =>
+    ipcRenderer.invoke('variant:probe-conflicts', summary, scales, parentDir),
+
+  /**
    * D-115: one-way cancel signal. Fire-and-forget. The next progress
    * event the renderer receives will be the final one and startExport()
    * resolves with summary.cancelled === true.

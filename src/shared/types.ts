@@ -1543,6 +1543,16 @@ export interface Api {
     },
   ) => Promise<ProbeConflictsResponse>;
   /**
+   * Phase-51 follow-up — pre-flight conflict probe for the batch fan-out. Returns
+   * the `{NAME}@{s}x/` target folders (under `parentDir`) that already exist, so
+   * the renderer can surface the variant ConflictDialog before the run.
+   */
+  probeVariantBatchConflicts: (
+    summary: SkeletonSummary,
+    scales: number[],
+    parentDir: string,
+  ) => Promise<{ ok: true; conflicts: string[] }>;
+  /**
    * Phase 6 Plan 05 — One-way cancel signal. Fire-and-forget. The next
    * progress event the renderer receives will be the final one and
    * startExport() resolves with summary.cancelled === true.

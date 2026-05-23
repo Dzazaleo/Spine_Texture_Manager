@@ -24,7 +24,7 @@
  *   - EXPORT-02: the baked variant JSON is registered in the shared `written`
  *                rollback Set so a mid-export failure rolls it back too.
  */
-import { rm as fsRm, readFile } from 'node:fs/promises';
+import { rm as fsRm, readFile, access as fsAccess } from 'node:fs/promises';
 import { basename, join, resolve as pathResolve } from 'node:path';
 import { bake } from '../core/scale-bake.js';
 import { scaleSummaryPeaks } from '../core/scale-summary-peaks.js';
@@ -489,4 +489,50 @@ export async function handleExportVariantBatch(
   } finally {
     variantExportInFlight = false;
   }
+}
+
+/**
+ * Phase-51 follow-up — pre-flight conflict probe for the batch fan-out (mirrors
+ * the Optimize flow's probeExportConflicts, but for the N `{NAME}@{s}x/` target
+ * folders). Returns the target folders that ALREADY exist on disk, so the
+ * renderer can surface a ConflictDialog ("overwrite all / cancel") BEFORE the run
+ * instead of every variant failing per-file with overwrite off.
+ *
+ * Universal signal: exportOneVariant ALWAYS writes `{NAME}.json` first (every
+ * output mode), and with overwrite off the writer refuses if it exists — so the
+ * presence of `{NAME}.json` in a target folder is the exact, mode-agnostic
+ * predictor of a per-folder overwrite conflict. Invalid / degenerate-token scales
+ * are skipped (the renderer already gates them; they never produce a target).
+ * Never throws across the IPC boundary — on any trouble it returns no conflicts
+ * and lets the real export surface the authoritative error.
+ */
+export async function probeVariantBatchConflicts(
+  summary: SkeletonSummary,
+  scales: number[],
+  parentDir: string,
+): Promise<{ ok: true; conflicts: string[] }> {
+  if (typeof parentDir !== 'string' || parentDir.length === 0) {
+    return { ok: true, conflicts: [] };
+  }
+  if (typeof summary?.skeletonPath !== 'string' || summary.skeletonPath.length === 0) {
+    return { ok: true, conflicts: [] };
+  }
+  const NAME = basename(summary.skeletonPath).replace(/\.json$/i, '');
+  if (!NAME || NAME.includes(':')) return { ok: true, conflicts: [] };
+
+  const exists = (p: string) =>
+    fsAccess(p).then(
+      () => true,
+      () => false,
+    );
+
+  const conflictSet = new Set<string>();
+  for (const s of scales) {
+    if (!Number.isFinite(s) || s <= 0 || s >= 1) continue; // renderer-gated
+    const token = formatScaleToken(s);
+    if (token === '0' || token === '1') continue; // WR-01 degenerate, never a target
+    const outDir = join(parentDir, `${NAME}@${token}x`);
+    if (await exists(join(outDir, `${NAME}.json`))) conflictSet.add(outDir);
+  }
+  return { ok: true, conflicts: Array.from(conflictSet).sort() };
 }

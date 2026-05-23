@@ -21,7 +21,10 @@ import { loadSkeleton } from '../../src/core/loader.js';
 import { sampleSkeleton } from '../../src/core/sampler.js';
 import { buildSummary } from '../../src/main/summary.js';
 import { bake } from '../../src/core/scale-bake.js';
-import { handleExportVariant } from '../../src/main/variant-export.js';
+import {
+  handleExportVariant,
+  probeVariantBatchConflicts,
+} from '../../src/main/variant-export.js';
 import { VariantScaleError } from '../../src/core/errors.js';
 import type { SkeletonSummary } from '../../src/shared/types.js';
 
@@ -99,6 +102,50 @@ describe('handleExportVariant — D-08 scale-direction guard (V5)', () => {
     const minimal = { skeleton: {}, bones: [{ name: 'root' }] };
     expect(() => bake(minimal, 1.0)).not.toThrow();
     expect(() => bake(minimal, 2.0)).not.toThrow();
+  });
+});
+
+describe('probeVariantBatchConflicts — pre-flight overwrite probe', () => {
+  let summary: SkeletonSummary;
+  beforeAll(() => {
+    summary = buildFixtureSummary(); // NAME === 'SIMPLE_TEST'
+  });
+
+  it('reports only the target folders whose {NAME}.json already exists', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-variant-probe-'));
+    try {
+      // Simulate a prior export of the 0.5 variant (the universal {NAME}.json signal).
+      const existing = path.join(parent, 'SIMPLE_TEST@0.5x');
+      fs.mkdirSync(existing, { recursive: true });
+      fs.writeFileSync(path.join(existing, 'SIMPLE_TEST.json'), '{}');
+
+      const res = await probeVariantBatchConflicts(summary, [0.5, 0.36], parent);
+      expect(res.ok).toBe(true);
+      expect(res.conflicts).toEqual([existing]); // only 0.5, not 0.36
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('returns no conflicts for a clean parent dir', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-variant-probe-clean-'));
+    try {
+      const res = await probeVariantBatchConflicts(summary, [0.5, 0.36], parent);
+      expect(res.conflicts).toEqual([]);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores an empty orphan target folder (no {NAME}.json is not a conflict)', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-variant-probe-orphan-'));
+    try {
+      fs.mkdirSync(path.join(parent, 'SIMPLE_TEST@0.5x'), { recursive: true }); // empty
+      const res = await probeVariantBatchConflicts(summary, [0.5], parent);
+      expect(res.conflicts).toEqual([]);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
   });
 });
 

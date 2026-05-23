@@ -55,8 +55,14 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface ConflictDialogProps {
   open: boolean;
-  /** Absolute paths of files that would be overwritten. Sorted, deduped. */
+  /** Absolute paths of files (or folders) that would be overwritten. Sorted, deduped. */
   conflicts: string[];
+  /**
+   * The noun for the conflict items in the title/copy. 'file' (default, the
+   * Optimize flow) or 'folder' (the variant batch flow, where each conflict is
+   * a whole `{NAME}@{s}x/` target directory). Pluralized with a trailing 's'.
+   */
+  noun?: string;
   /**
    * User clicked Cancel (or hit ESC, or clicked the overlay). Backs out of
    * the export entirely — AppShell closes both ConflictDialog AND
@@ -68,9 +74,10 @@ export interface ConflictDialogProps {
    * re-triggers pickOutputDirectory; the resulting picker may itself be
    * cancelled (user changes mind) or yield a new outDir which is then
    * re-probed and either OK'd straight to startExport or surfaces a fresh
-   * ConflictDialog if the new folder also collides.
+   * ConflictDialog if the new folder also collides. OPTIONAL — when omitted
+   * (the variant batch flow), the "Pick different folder" button is hidden.
    */
-  onPickDifferent: () => void;
+  onPickDifferent?: () => void;
   /**
    * User clicked "Overwrite all". AppShell closes this dialog and calls
    * startExport(plan, outDir, overwrite=true). OptimizeDialog flips to
@@ -100,10 +107,11 @@ export function ConflictDialog(props: ConflictDialogProps) {
   if (!props.open) return null;
 
   const count = props.conflicts.length;
+  const noun = props.noun ?? 'file';
   const title =
     count === 1
-      ? '1 file will be overwritten'
-      : `${count} files will be overwritten`;
+      ? `1 ${noun} will be overwritten`
+      : `${count} ${noun}s will be overwritten`;
 
   return (
     <div
@@ -133,8 +141,9 @@ export function ConflictDialog(props: ConflictDialogProps) {
           ))}
         </ul>
         <p className="text-fg-muted text-xs mb-4">
-          Choose Cancel to back out, Pick different folder to choose a new
-          output directory, or Overwrite all to proceed (this cannot be undone).
+          {props.onPickDifferent
+            ? 'Choose Cancel to back out, Pick different folder to choose a new output directory, or Overwrite all to proceed (this cannot be undone).'
+            : 'Choose Cancel to back out, or Overwrite all to proceed (this cannot be undone).'}
         </p>
         <div className="flex gap-2 justify-end">
           <button
@@ -144,13 +153,15 @@ export function ConflictDialog(props: ConflictDialogProps) {
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={props.onPickDifferent}
-            className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
-          >
-            Pick different folder
-          </button>
+          {props.onPickDifferent && (
+            <button
+              type="button"
+              onClick={props.onPickDifferent}
+              className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg"
+            >
+              Pick different folder
+            </button>
+          )}
           <button
             type="button"
             onClick={props.onOverwrite}

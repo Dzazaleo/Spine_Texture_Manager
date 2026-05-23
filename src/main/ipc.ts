@@ -69,6 +69,7 @@ import { runRepack, type AtlasOpts } from './repack-worker.js';
 import {
   handleExportVariant,
   handleExportVariantBatch,
+  probeVariantBatchConflicts,
   setVariantBatchCancelRequested,
 } from './variant-export.js';
 // UAT Round 3 (2026-05-15) — shared atlas-target derivation. probe and
@@ -1142,6 +1143,21 @@ export function registerIpcHandlers(): void {
   ipcMain.on('variant:cancelBatch', () => {
     setVariantBatchCancelRequested();
   });
+
+  // Phase-51 follow-up — pre-flight conflict probe for the batch fan-out. Mirrors
+  // export:probe-conflicts but for the N {NAME}@{s}x/ target folders. Coerces the
+  // untrusted args (the documented ipc.ts trust boundary) before delegating.
+  ipcMain.handle(
+    'variant:probe-conflicts',
+    async (_evt, summary, scales, parentDir) =>
+      probeVariantBatchConflicts(
+        summary as SkeletonSummary,
+        Array.isArray(scales)
+          ? (scales as unknown[]).map(Number).filter((n) => Number.isFinite(n))
+          : [],
+        typeof parentDir === 'string' ? parentDir : '',
+      ),
+  );
 
   // Phase 9 Plan 02 D-194 — forceful sampler cancel via worker.terminate().
   // The byte-frozen sampler (D-102) has no inner-loop emit point so cooperative

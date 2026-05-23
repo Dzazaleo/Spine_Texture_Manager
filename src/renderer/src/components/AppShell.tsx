@@ -583,6 +583,11 @@ export function AppShell({
   // before flipping to in-progress state.
   const [conflictState, setConflictState] = useState<{
     conflicts: string[];
+    // Phase-51 follow-up — which flow raised the conflict. 'optimize' (default)
+    // backs out the OptimizeDialog on Cancel + offers "pick different folder";
+    // 'variant' leaves the VariantDialog in pre-flight on Cancel + hides
+    // "pick different" (the variant flow re-picks by clicking Export again).
+    flow?: 'optimize' | 'variant';
   } | null>(null);
   // Pending resolver from the OptimizeDialog's onConfirmStart promise.
   // We use a ref (not state) because the resolver is consumed exactly once
@@ -844,8 +849,37 @@ export function AppShell({
     const picked = await pickOutputDir(startPath);
     if (picked === null) return { proceed: false }; // user cancelled → stay pre-flight
     setLastOutDir(picked);
-    return { proceed: true, overwrite: false, outDir: picked };
-  }, [variantDialogState, lastOutDir, summary.skeletonPath, pickOutputDir]);
+
+    // Phase-51 follow-up — pre-flight overwrite probe over the {NAME}@{s}x/ fan-out.
+    // If any target folder already exists, surface the ConflictDialog (Overwrite
+    // all / Cancel) BEFORE the run instead of letting each existing variant fail
+    // per-file with overwrite off. No conflicts → proceed straight with
+    // overwrite=false (today's behavior).
+    const probe = await window.api.probeVariantBatchConflicts(
+      summary,
+      variantRows.map((r) => r.scale),
+      picked,
+    );
+    if (probe.conflicts.length === 0) {
+      return { proceed: true, overwrite: false, outDir: picked };
+    }
+    // Conflicts exist — mount the ConflictDialog (variant flow) on top of the
+    // pre-flight VariantDialog and resolve this promise on the user's choice.
+    // Cancel → proceed:false (VariantDialog stays pre-flight); Overwrite all →
+    // proceed:true + overwrite:true (the picked dir rides along on the decision).
+    return new Promise((resolve) => {
+      pendingConfirmResolve.current = (decision) =>
+        resolve({ ...decision, outDir: decision.outDir ?? picked });
+      setConflictState({ conflicts: probe.conflicts, flow: 'variant' });
+    });
+  }, [
+    variantDialogState,
+    lastOutDir,
+    summary.skeletonPath,
+    summary,
+    pickOutputDir,
+    variantRows,
+  ]);
 
   // Gap-Fix Round 3 (2026-04-25) — probe-then-confirm pipeline.
   //
@@ -952,11 +986,15 @@ export function AppShell({
   // doesn't move past pre-flight.
   const onConflictCancel = useCallback(() => {
     const resolve = pendingConfirmResolve.current;
+    const flow = conflictState?.flow;
     pendingConfirmResolve.current = null;
     setConflictState(null);
-    setExportDialogState(null);
+    // Optimize flow: Cancel backs out of the whole export (close OptimizeDialog).
+    // Variant flow: leave the VariantDialog open in pre-flight (proceed:false) so
+    // the user can adjust scales/output and retry.
+    if (flow !== 'variant') setExportDialogState(null);
     if (resolve) resolve({ proceed: false });
-  }, []);
+  }, [conflictState]);
 
   // ConflictDialog: Overwrite all — proceed with overwrite=true.
   const onConflictOverwrite = useCallback(() => {
@@ -2618,8 +2656,16 @@ export function AppShell({
         <ConflictDialog
           open={true}
           conflicts={conflictState.conflicts}
+          // Variant flow: each conflict is a whole {NAME}@{s}x/ folder; and there
+          // is no "pick different folder" (the user re-picks by clicking Export
+          // again). Optimize flow keeps file-noun + the pick-different button.
+          noun={conflictState.flow === 'variant' ? 'folder' : 'file'}
           onCancel={onConflictCancel}
-          onPickDifferent={onConflictPickDifferent}
+          onPickDifferent={
+            conflictState.flow === 'variant'
+              ? undefined
+              : onConflictPickDifferent
+          }
           onOverwrite={onConflictOverwrite}
         />
       )}
