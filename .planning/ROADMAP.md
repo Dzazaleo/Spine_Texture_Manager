@@ -103,6 +103,8 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 - [x] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified (completed 2026-05-22)
 - [x] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase) (completed 2026-05-22)
 - [x] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale (completed 2026-05-23)
+- [ ] **Phase 52: Batch Export Robustness + Variant-Dialog Cleanup** - Harden the batch path (per-row duplicate handling, no orphan folders, consistent coercion) + clear the Phase-51 code-review backlog (EXPORT-06)
+- [ ] **Phase 53: Persist Variant State in .stmproj** - The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved (SCALEUI-03)
 
 ## Phase Details
 
@@ -183,10 +185,33 @@ Plans:
 **Wave 2** *(depends on 51-01 — consumes the `variant:exportBatch` IPC shape + `BatchVariantResult`)*
 - [x] 51-02-PLAN.md — renderer multi-row `VariantDialog`: `tokenFor` helper + rows[] list (per-row two-way control, add/remove, dedup gate D-10, invalid gate D-11) + one `exportVariantBatch` call (D-04) + per-folder result list + aggregate (D-08) + batch-progress prefix + Cancel (D-09) + AppShell `variantRows` wiring (reuse `onConfirmStartVariant` D-12, `activeOverrides` D-13) [EXPORT-04 SC#1 UI half]
 
+> **Post-Phase-51 UX polish (landed 2026-05-23/24, NOT separate phases — direct user-requested fixes on `main`):** per-image progress bar + live green/amber/red row coloring (`167d6e0`); variant-export overwrite via a pre-flight ConflictDialog, superseding 51 D-12's "fail per-folder" (`fc92a54`); footer-overflow + Cancel-feedback + WR-01/IN-02 (`1c68cb8`). Remaining `51-REVIEW.md` items + the persistence feature are scheduled as Phases 52–53 below (kept in v1.7).
+
+### Phase 52: Batch Export Robustness + Variant-Dialog Cleanup
+**Goal**: Harden the batch path against partial-failure + edge inputs and clear the Phase-51 code-review backlog, with no change to happy-path behavior.
+**Depends on**: Phase 51 (the batch engine + dialog this hardens).
+**Requirements**: EXPORT-06
+**Success Criteria** (what must be TRUE):
+  1. A duplicate `@{s}x` token fails ONLY its own row(s); all non-colliding scales still export (continue-on-error parity with D-07). *(EXPORT-06 / WR-02)*
+  2. A failed variant leaves NO orphan empty `{NAME}@{s}x/` folder behind. *(EXPORT-06 / WR-03)*
+  3. Boundary input coercion is consistent (and documented) across the variant channels. *(EXPORT-06 / WR-04)*
+  4. Cleanup landed: a cross-boundary `tokenFor`≡`formatScaleToken` equivalence test (IN-01); the dead `plan` prop + its `buildExportPlan` call removed (IN-03); `onStart` deps fixed (IN-04).
+**Note**: Pure hardening/cleanup — no new user-facing capability; planned `--skip-ui` (no UI-SPEC). All items are from `51-REVIEW.md`.
+
+### Phase 53: Persist Variant State in `.stmproj`
+**Goal**: The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved.
+**Depends on**: Phase 51 (the `rows[]` + output flow) and the `.stmproj` save/load seam.
+**Requirements**: SCALEUI-03
+**Success Criteria** (what must be TRUE):
+  1. Saving a project persists the variant scale rows (the `scale`s) + the last variant output/parent folder; reopening restores them. *(SCALEUI-03)*
+  2. Old `.stmproj` files with no such fields open cleanly → defaults (one row at 0.5; no output pre-fill). *(SCALEUI-03)*
+  3. A saved output folder that no longer exists/accessible falls back to the picker — load never hard-fails. *(SCALEUI-03)*
+**Note**: Additive optional fields following the `sharpenOnExport`/`safetyBufferPercent`/`overridesAtlasLess` precedent (no version bump). Has one design decision (output-path portability) → start with `/gsd-discuss-phase 53`. Detail in `.planning/todos/pending/2026-05-23-persist-variant-rows-and-output-location.md`.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 48 → 49 → 50 → 51
+Phases execute in numeric order: 48 → 49 → 50 → 51 → 52 → 53
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -194,3 +219,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete    | 2026-05-23 |
+| 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 0/? | Not started | — |
+| 53. Persist Variant State in .stmproj | v1.7 | 0/? | Not started | — |

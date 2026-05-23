@@ -2,9 +2,13 @@
 created: 2026-05-23
 type: feature
 status: pending
-target_milestone: v1.8
+target_milestone: v1.7
+resolves_phase: 53
 deferred_from: user request after Phase 51 UAT (2026-05-23) — flagged "if not convenient, save for later"
 ---
+
+> **2026-05-24 — SCHEDULED as v1.7 Phase 53** (SCALEUI-03). The user kept this IN v1.7 (not v1.8). Start with `/gsd-discuss-phase 53` (the one open decision is output-path portability), then plan. The rest of this file is the original capture + design notes.
+
 
 # Persist Export-Variant rows + output location in the .stmproj project file
 
