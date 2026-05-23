@@ -173,12 +173,15 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. The user can export multiple scales in one batch run, each variant written to its own folder. *(EXPORT-04)*
   2. Each variant in the batch is a complete drop-in package identical to what the single-scale path would produce for that scale, respecting the chosen output mode and working across dual-runtime + dual-mode. *(EXPORT-04)*
-**Plans**: TBD
-**Note**: Folder-naming convention for the per-scale output folders is an open product decision for `/gsd-discuss-phase` (shared with Phase 49's naming question; NOT a roadmap blocker).
+**Plans**: 2 plans
+**Note**: Folder naming `{PARENT}/{NAME}@{s}x/` is LOCKED (L-05 / 49-D-01) — it was designed as the no-collision batch fan-out, so the planned 51-02 is the multi-row dialog + per-folder results/progress UI (NOT folder-naming work). Single + batch unify in the ONE Export Variant dialog (1 row = single, 2+ = batch, D-04); single pane, NO tabs (D-06 overturns the 49-D-06/50-D-09 tabs-at-51 expectation).
 
 Plans:
-- [ ] 51-01: TBD — batch orchestration: N scales → N folders, one run, reusing the single-scale export
-- [ ] 51-02: TBD — folder-naming UX + batch progress/result surfacing
+**Wave 1**
+- [ ] 51-01-PLAN.md — main-side batch engine: extract `exportOneVariant` (behavior-preserving) + `handleExportVariantBatch` loop (continue-on-error D-07, between-variants cancel D-09) + `BatchVariantResult` type + `variant:exportBatch`/`variant:cancelBatch` channels + the byte-identity/rollback/cancel proof over the 4.2/4.3 × atlas-source/atlas-less matrix [EXPORT-04 SC#1/SC#2, L-03/L-04]
+
+**Wave 2** *(depends on 51-01 — consumes the `variant:exportBatch` IPC shape + `BatchVariantResult`)*
+- [ ] 51-02-PLAN.md — renderer multi-row `VariantDialog`: `tokenFor` helper + rows[] list (per-row two-way control, add/remove, dedup gate D-10, invalid gate D-11) + one `exportVariantBatch` call (D-04) + per-folder result list + aggregate (D-08) + batch-progress prefix + Cancel (D-09) + AppShell `variantRows` wiring (reuse `onConfirmStartVariant` D-12, `activeOverrides` D-13) [EXPORT-04 SC#1 UI half]
 
 ## Progress
 
