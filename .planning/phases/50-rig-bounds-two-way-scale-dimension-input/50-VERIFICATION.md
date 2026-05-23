@@ -1,7 +1,8 @@
 ---
 phase: 50-rig-bounds-two-way-scale-dimension-input
 verified: 2026-05-23T01:00:00Z
-status: human_needed
+status: passed
+human_verification_resolved: 2026-05-23 — user ran the dual-runtime UAT and approved the rendered control (50-HUMAN-UAT.md status:passed). One interaction defect found (Width/Height focus steal) FIXED in 7fe4528 + V13 regression test.
 score: 2/2 must-haves verified
 overrides_applied: 0
 human_verification:
@@ -14,8 +15,9 @@ human_verification:
 
 **Phase Goal:** Give the animator an intuitive way to choose a scale — anchor it to the rig's overall setup-pose bounding box and let them enter either a factor or a target pixel dimension and see the other.
 **Verified:** 2026-05-23T01:00:00Z
-**Status:** human_needed
+**Status:** passed (automated 2/2 + human UAT approved 2026-05-23)
 **Re-verification:** No — initial verification
+**Human sign-off:** 2026-05-23 — user approved the rendered dual-runtime control (50-HUMAN-UAT.md). One UAT-found interaction defect (Width/Height focus steal) fixed in `7fe4528` with the V13 regression test; full suite 150 files / 1510 passed, typecheck clean.
 
 ## Goal Achievement
 
