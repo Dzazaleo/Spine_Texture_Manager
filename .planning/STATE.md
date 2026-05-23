@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: planning
-last_updated: "2026-05-23T11:47:57.952Z"
-last_activity: 2026-05-23
+status: executing
+last_updated: "2026-05-23T13:35:49.010Z"
+last_activity: 2026-05-23 -- Phase 51 planning complete
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 9
+  total_plans: 11
   completed_plans: 9
-  percent: 100
+  percent: 82
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 51
 Plan: Not started
-Status: Context gathered — ready to plan
-Last activity: 2026-05-23 -- Phase 51 context gathered (`/gsd-discuss-phase 51`)
+Status: Ready to execute
+Last activity: 2026-05-23 -- Phase 51 planning complete
 
 Next: **`/gsd-plan-phase 51`** — Phase 51 (Batch Variant Export, the v1.7 finale, EXPORT-04) CONTEXT gathered `ab9f8d3` (`51-CONTEXT.md` + `51-DISCUSSION-LOG.md`). **13 decisions (D-01..D-13) + 5 locked carry-forwards (L-01..L-05).** Scope: turn the existing single-pane `VariantDialog` into a **multi-row scale list** (each row = the Phase-50 two-way factor↔W↔H control; opens with one row at 0.5; no presets — D-01/02/03) and orchestrate **one export per scale** by reusing the proven Phase-49 `handleExportVariant` body per scale (SC#2 byte-identical-to-single-scale satisfied by construction); N variants → N `{PARENT}/{NAME}@{s}x/` sibling folders (the no-collision fan-out the 49-D-01 layout was designed for, L-05). **Action model: unify single+batch into the ONE "Export Variant…" dialog (1 row = single, 2+ = batch); Optimize Assets stays SEPARATE + byte-untouched (49-D-04 preserved) — the Optimize⊕Variant merge is a deferred v1.8 UX refactor (user challenged "why two buttons", accepted the baked-JSON intent-line rationale, D-04/D-05).** Single pane, **NO tabs** (D-06 OVERTURNS the 49-D-06/50-D-09 "tabs land at 51" expectation — don't re-add). **Continue-on-error, each folder atomic (its OWN rollback Set) + per-folder result list (D-07/08); Cancel = stop-after-current-variant, between-variants gate only (D-09); duplicate `@{s}x` tokens flagged + Start blocked (D-10); invalid rows disable Start per the existing D-04/D-08 gate (D-11); one overwrite choice for the whole run, pre-existing folders fail per-folder (D-12); overrides SHARED across all scales — the one active %-of-peak bucket, per-scale override divergence stays deferred L-05 (D-13).** Dual-runtime (4.2+4.3) + dual-mode (atlas-source/atlas-less) hard requirements; `core/` Layer-3 pure. **DEFERRED to v1.8/Future Req:** what-if preview (per-scale dims/peak + Atlas Preview reflection — user explicitly deferred), unified Export dialog, per-scale overrides, scale presets, saved scale-sets, `%` readout. Research flags: orchestration seam (renderer N×`exportVariant` loop vs main-side `variant:exportBatch` channel — reuse `handleExportVariant` body, per-variant rollback scope); dedup via `formatScaleToken`; SC#2 faithfulness matrix (reuse Phase-49 fixtures + drop-in oracle, likely NO new fixture dir).
 
