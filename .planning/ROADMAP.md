@@ -178,7 +178,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 51-01-PLAN.md — main-side batch engine: extract `exportOneVariant` (behavior-preserving) + `handleExportVariantBatch` loop (continue-on-error D-07, between-variants cancel D-09) + `BatchVariantResult` type + `variant:exportBatch`/`variant:cancelBatch` channels + the byte-identity/rollback/cancel proof over the 4.2/4.3 × atlas-source/atlas-less matrix [EXPORT-04 SC#1/SC#2, L-03/L-04]
+- [x] 51-01-PLAN.md — main-side batch engine: extract `exportOneVariant` (behavior-preserving) + `handleExportVariantBatch` loop (continue-on-error D-07, between-variants cancel D-09) + `BatchVariantResult` type + `variant:exportBatch`/`variant:cancelBatch` channels + the byte-identity/rollback/cancel proof over the 4.2/4.3 × atlas-source/atlas-less matrix [EXPORT-04 SC#1/SC#2, L-03/L-04]
 
 **Wave 2** *(depends on 51-01 — consumes the `variant:exportBatch` IPC shape + `BatchVariantResult`)*
 - [ ] 51-02-PLAN.md — renderer multi-row `VariantDialog`: `tokenFor` helper + rows[] list (per-row two-way control, add/remove, dedup gate D-10, invalid gate D-11) + one `exportVariantBatch` call (D-04) + per-folder result list + aggregate (D-08) + batch-progress prefix + Cancel (D-09) + AppShell `variantRows` wiring (reuse `onConfirmStartVariant` D-12, `activeOverrides` D-13) [EXPORT-04 SC#1 UI half]
@@ -193,4 +193,4 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
-| 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |
+| 51. Batch Variant Export | v1.7 | 1/2 | In Progress|  |
