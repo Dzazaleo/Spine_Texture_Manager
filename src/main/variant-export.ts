@@ -34,6 +34,7 @@ import { writeSkeletonJsonAtomic } from './skeleton-json-writer.js';
 import { runExport } from './image-worker.js';
 import { runRepack, type AtlasOpts } from './repack-worker.js';
 import type {
+  BatchVariantResult,
   ExportResponse,
   ExportSummary,
   SkeletonSummary,
@@ -66,7 +67,19 @@ export function formatScaleToken(s: number): string {
 // flag rather than a shared one — the variant path never forks handleStartExport.)
 let variantExportInFlight = false;
 
-export async function handleExportVariant(
+// Phase 51 D-09 — between-variants batch cancel flag. Reset to false at the START
+// of every handleExportVariantBatch run (Pitfall 5 — a stale true from a prior
+// cancelled batch must not poison the next run), set true by ipcMain.on('variant:cancelBatch'),
+// checked at the top of each loop iteration. The in-flight variant is NEVER
+// interrupted (D-09 between-variants only) — the per-worker () => false cbs stay () => false.
+let variantBatchCancelRequested = false;
+
+// Phase 51 — the UN-GUARDED single-variant body. Extracted VERBATIM from the former
+// handleExportVariant lines 90-295 (the D-08 guard → read → bake → plan →
+// collision guard → write-JSON-first → dispatch under its OWN `written` Set → merge
+// → ExportResponse). NO re-entrancy slot here: the guard lives in the wrapper below
+// and the batch claims it ONCE. Each call mints its own rollback Set (D-07 / Pitfall 4).
+async function exportOneVariant(
   evt: { sender: { send: (channel: string, ...args: unknown[]) => void } },
   summary: SkeletonSummary,
   s: number,
@@ -78,15 +91,6 @@ export async function handleExportVariant(
   effectiveOverrides: ReadonlyMap<string, number> = new Map(),
   safetyBufferPercent: number = 0,
 ): Promise<ExportResponse> {
-  // 0. WR-05: re-entrancy guard — checked FIRST (mirrors ipc.ts:763) so a second
-  //    invocation while a first is pending bails immediately. Claimed below, AFTER
-  //    the synchronous validation guards (steps 1-8) and BEFORE the first await
-  //    (the readFile in step 5 — actually moved into the guarded block) so a bad
-  //    input never poisons the slot. Released in the finally at the bottom.
-  if (variantExportInFlight) {
-    return { ok: false, error: { kind: 'already-running', message: 'A variant export is already in progress.' } };
-  }
-
   // 1. D-08 guard FIRST — at the export EDGE, NOT in core bake() (Phase-48 D-09
   //    preserved: bake stays direction-agnostic). Rejects NaN / <=0 / >=1.
   if (!Number.isFinite(s) || s <= 0 || s >= 1) {
@@ -128,12 +132,10 @@ export async function handleExportVariant(
   //    basenames stay clean {NAME}.* (Pattern 3 / Pitfall 4 — never scale-suffix).
   const outDir = join(parentDir, `${NAME}@${formatScaleToken(s)}x`);
 
-  // WR-05: claim the re-entrancy slot synchronously, BEFORE the first await (the
-  // readFile in step 5 below), AFTER all synchronous validation so a bad input
-  // never poisons the slot. The finally at the very bottom releases it on every
-  // exit path (success, early-return, or throw). Mirrors ipc.ts:847,997.
-  variantExportInFlight = true;
-  try {
+  // Phase 51 — NO re-entrancy slot claim here. The wrapper handleExportVariant (and
+  // the batch handleExportVariantBatch) claim variantExportInFlight ONCE before
+  // calling this body; exportOneVariant runs un-guarded so the batch can loop it.
+  {
     // 5. Read the source skeleton JSON (main-only fs read; the path is only ever
     //    read, never written — EXPORT-02 / T-49-SRC).
     let sourceJson: Record<string, unknown>;
@@ -293,9 +295,166 @@ export async function handleExportVariant(
         error: { kind: 'Unknown', message: innerErr instanceof Error ? innerErr.message : String(innerErr) },
       };
     }
+  }
+}
+
+/**
+ * Phase 49 EXPORT-01 — single-scale variant export. The thin guard wrapper around
+ * exportOneVariant: the EXTERNAL contract is byte-identical to the pre-Phase-51
+ * function (ipc.ts + every Phase-49 test call this unchanged).
+ *
+ * WR-05: the re-entrancy guard is checked FIRST (mirrors the former step 0). The
+ * slot is claimed ONCE at the very top and released in the finally on every exit
+ * path. The former code claimed the slot AFTER the synchronous validation guards
+ * and before the first await; moving the claim to the top is safe — exportOneVariant's
+ * synchronous early-returns (bad scale, bad parentDir) now happen while the slot is
+ * held, but the `finally` releases it on every path, so no input can poison the slot.
+ * A bad input still returns the same typed error; a concurrent call still gets
+ * 'already-running'.
+ */
+export async function handleExportVariant(
+  evt: { sender: { send: (channel: string, ...args: unknown[]) => void } },
+  summary: SkeletonSummary,
+  s: number,
+  parentDir: string,
+  overwrite: boolean,
+  sharpenEnabled: boolean,
+  outputMode: 'loose' | 'atlas' | 'both',
+  atlasOpts: AtlasOpts,
+  effectiveOverrides: ReadonlyMap<string, number> = new Map(),
+  safetyBufferPercent: number = 0,
+): Promise<ExportResponse> {
+  if (variantExportInFlight) {
+    return { ok: false, error: { kind: 'already-running', message: 'A variant export is already in progress.' } };
+  }
+  variantExportInFlight = true;
+  try {
+    return await exportOneVariant(
+      evt,
+      summary,
+      s,
+      parentDir,
+      overwrite,
+      sharpenEnabled,
+      outputMode,
+      atlasOpts,
+      effectiveOverrides,
+      safetyBufferPercent,
+    );
   } finally {
-    // WR-05: release the re-entrancy slot on EVERY exit path (success, any
-    // early-return, or throw). Mirrors ipc.ts:996-999.
+    variantExportInFlight = false;
+  }
+}
+
+/**
+ * Phase 51 D-09 — one-way cancel entrypoint for the ipcMain.on('variant:cancelBatch')
+ * handler. Keeps the flag module-private; the IPC layer flips it via this setter.
+ */
+export function setVariantBatchCancelRequested(): void {
+  variantBatchCancelRequested = true;
+}
+
+/**
+ * Phase 51 EXPORT-04 — fan one master out to N scales in one run (SC#1). Loops
+ * exportOneVariant per scale under ONE outer re-entrancy claim. SC#2 is satisfied
+ * BY CONSTRUCTION: each scale runs the same exportOneVariant body the single-scale
+ * path runs. Continue-on-error (D-07): a per-variant failure rolls back ONLY that
+ * variant's folder (its own written Set) and the loop continues. Between-variants
+ * cancel (D-09): the flag is checked at the top of each iteration; on cancel the
+ * remaining scales are recorded 'skipped' and the loop breaks (the in-flight
+ * variant is never interrupted). Returns a per-folder result array (D-08); never
+ * throws across the IPC boundary.
+ */
+export async function handleExportVariantBatch(
+  evt: { sender: { send: (channel: string, ...args: unknown[]) => void } },
+  summary: SkeletonSummary,
+  scales: number[],
+  parentDir: string,
+  overwrite: boolean,
+  sharpenEnabled: boolean,
+  outputMode: 'loose' | 'atlas' | 'both',
+  atlasOpts: AtlasOpts,
+  effectiveOverrides: ReadonlyMap<string, number> = new Map(),
+  safetyBufferPercent: number = 0,
+): Promise<{ ok: true; results: BatchVariantResult[] }> {
+  const results: BatchVariantResult[] = [];
+
+  // Defense-in-depth (RESEARCH §Q3): reject the whole batch if two scales collide
+  // on the SAME normalized token (the renderer also blocks this pre-flight, D-10).
+  const seen = new Map<string, number>();
+  for (const s of scales) seen.set(formatScaleToken(s), (seen.get(formatScaleToken(s)) ?? 0) + 1);
+  const collision = [...seen.entries()].find(([, n]) => n > 1);
+  if (collision) {
+    for (const s of scales) {
+      results.push({
+        token: formatScaleToken(s),
+        status: 'failed',
+        reason: `Duplicate scale token @${collision[0]}x — two rows produce the same folder.`,
+      });
+    }
+    return { ok: true, results };
+  }
+
+  if (variantExportInFlight) {
+    for (const s of scales) {
+      results.push({
+        token: formatScaleToken(s),
+        status: 'failed',
+        reason: 'A variant export is already in progress.',
+      });
+    }
+    return { ok: true, results };
+  }
+
+  variantBatchCancelRequested = false; // Pitfall 5 — reset at batch start
+  variantExportInFlight = true;
+  try {
+    for (let i = 0; i < scales.length; i++) {
+      if (variantBatchCancelRequested) {
+        // D-09 — record remaining scales as skipped, leave completed variants intact.
+        for (let j = i; j < scales.length; j++) {
+          results.push({ token: formatScaleToken(scales[j]), status: 'skipped' });
+        }
+        break;
+      }
+      // Optional progress marker (consumed by the renderer's "variant N of M" prefix, 51-02).
+      try {
+        evt.sender.send('variant:batch-progress', {
+          variantIndex: i,
+          variantTotal: scales.length,
+          token: formatScaleToken(scales[i]),
+        });
+      } catch {
+        /* sender gone */
+      }
+
+      const res = await exportOneVariant(
+        evt,
+        summary,
+        scales[i],
+        parentDir,
+        overwrite,
+        sharpenEnabled,
+        outputMode,
+        atlasOpts,
+        effectiveOverrides,
+        safetyBufferPercent,
+      );
+      const token = formatScaleToken(scales[i]);
+      if (res.ok) {
+        results.push({
+          token,
+          status: res.summary.errors.length > 0 ? 'exported-with-errors' : 'exported',
+          successes: res.summary.successes,
+          errors: res.summary.errors.length > 0 ? res.summary.errors : undefined,
+        });
+      } else {
+        results.push({ token, status: 'failed', reason: res.error.message });
+      }
+      // LOOP CONTINUES regardless of res.ok (D-07 continue-on-error) — no break, no rethrow.
+    }
+    return { ok: true, results };
+  } finally {
     variantExportInFlight = false;
   }
 }

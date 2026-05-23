@@ -608,6 +608,21 @@ export type ExportResponse =
     };
 
 /**
+ * Phase 51 EXPORT-04 — per-variant outcome in a batch run (D-07/D-08).
+ * One entry per scale in the batch. 'exported' = full success; 'exported-with-errors'
+ * = ok:true but summary.errors non-empty (per-row worker failures); 'failed' = the
+ * variant's exportOneVariant returned ok:false (its own folder rolled back, D-07);
+ * 'skipped' = a between-variants cancel (D-09) prevented this scale from starting.
+ */
+export interface BatchVariantResult {
+  token: string; // formatScaleToken(s) — the @{s}x folder token
+  status: 'exported' | 'exported-with-errors' | 'failed' | 'skipped';
+  successes?: number; // present for exported / exported-with-errors
+  errors?: ExportError[]; // present for exported-with-errors
+  reason?: string; // present for failed (the ExportResponse error.message)
+}
+
+/**
  * Phase 6 Gap-Fix Round 3 (2026-04-25) — Result of the pre-start probe
  * RPC `'export:probe-conflicts'`. The renderer calls this BEFORE
  * startExport so it can mount a ConflictDialog listing the exact files
