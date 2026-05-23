@@ -31,11 +31,13 @@ pending: 0
 skipped: 0
 blocked: 0
 
-## Follow-up UX observations (non-blocking — user-flagged for later, v1.8 candidates)
+## Follow-up UX observations (user-flagged at UAT — RESOLVED 2026-05-23 in `1c68cb8`)
 
-These do NOT affect the EXPORT-04 success criteria (both passed). Captured for a future polish pass:
+These did NOT affect the EXPORT-04 success criteria (both passed). The user flagged them at UAT and approved fixing them immediately; both are now done (commit `1c68cb8`, full suite 152 files / 1532 passed):
 
-1. **No progress bar during a batch run.** The "variant N of M" infrastructure exists (`onVariantBatchProgress`) but there is no visual progress bar like the Optimize Assets dialog — especially wanted when several exports run in sequence. (Relates to code-review WR-05: the Cancel affordance has no in-flight feedback.)
-2. **Dialog footer buttons overflow the modal.** When the content grows (more scale rows, or per-folder error rows with reasons), the bottom-right action buttons (Close / Open output folder) get pushed outside the dialog box — the modal body needs an internal scroll region so the footer stays pinned. (Layout-fragility class — see `project_layout_fragility_root_min_h_screen`.)
+1. **No progress bar during a batch run.** ✅ FIXED — a pinned linear progress bar (OptimizeDialog idiom) now sits below the header during a run, driven by the existing `onVariantBatchProgress` markers; also fixed code-review WR-05 (Cancel now latches "Cancelling after current…" + disables, and is disabled on a 1-scale run / last variant / before the first event).
+2. **Dialog footer buttons overflow the modal.** ✅ FIXED — the modal body is now a `flex-1 overflow-y-auto min-h-0` scroll region with the footer pinned (`shrink-0`), so Close / Open output folder stay inside the dialog when content grows.
+
+Bundled in the same fix: WR-01 (reject a valid 0<s<1 scale whose 4dp token collapses to a degenerate `@0x`/`@1x` folder — main guard + renderer mirror + regression test) and IN-02 (factor input `max` 0.99 → 0.9999). Remaining `51-REVIEW.md` items (WR-02/WR-03/WR-04, IN-01/IN-03/IN-04) stay deferred to v1.8.
 
 ## Gaps

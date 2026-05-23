@@ -223,6 +223,28 @@ is misleading dead ceremony.
 
 ---
 
+## Resolution (post-review, 2026-05-23 — commit `1c68cb8`)
+
+Fixed immediately after the user's live UAT (alongside the two user-flagged UX
+items), with a new regression test:
+
+- **WR-01 — FIXED.** `exportOneVariant` now rejects a valid 0<s<1 scale whose 4dp
+  token collapses to `@0x`/`@1x` (step-1b guard); renderer `isRowInvalid` mirrors
+  it (row flagged pre-submit with a clearer hint). Locked by
+  `tests/main/variant-scale-guard.spec.ts` (degenerate-token cases + no-folder-written).
+- **WR-05 — FIXED.** Cancel latches ("Cancelling after current…" + disabled) and is
+  disabled on a 1-scale run, on the last variant, and before the first progress event.
+- **IN-02 — FIXED.** Factor input `max` 0.99 → 0.9999 (matches the real accepted range).
+
+Deferred to v1.8 (tracked in PROJECT.md → Next Milestone): **WR-02** (dedup aborts
+the whole batch — make it continue-on-error parity), **WR-03** (orphan empty variant
+dir on failure), **WR-04** (variant-channel coerce-and-clamp vs `export:start`
+validate-and-reject), **IN-01** (no cross-boundary `tokenFor`≡`formatScaleToken`
+test), **IN-03** (dead `plan` prop + `buildExportPlan` call), **IN-04** (`onStart`
+useCallback deps).
+
+---
+
 _Reviewed: 2026-05-23_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
