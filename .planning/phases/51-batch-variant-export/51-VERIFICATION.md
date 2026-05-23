@@ -1,9 +1,12 @@
 ---
 phase: 51-batch-variant-export
 verified: 2026-05-23T15:18:00Z
-status: human_needed
+status: passed
+human_verified_by: user
+human_verified_at: 2026-05-23
 score: 2/2 must-haves verified
 overrides_applied: 0
+note: "Both human_verification items below were run live in the Electron app and APPROVED by the user 2026-05-23 (see 51-HUMAN-UAT.md status: passed). Two non-blocking UX follow-ups were flagged for a v1.8 polish pass (batch progress bar; dialog footer overflow) — they do not affect the EXPORT-04 success criteria."
 human_verification:
   - test: "Live in-app batch run: open Export Variant on a real loaded project, add a second scale row (e.g. 0.36 + 0.57), pick ONE parent folder, click Export Variants."
     expected: "Exactly two sibling folders {NAME}@0.57x/ and {NAME}@0.36x/ are written under the picked parent; the complete state shows '2 of 2 exported' with one row per folder; only one folder picker appeared (D-12)."
