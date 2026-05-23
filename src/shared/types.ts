@@ -1558,6 +1558,18 @@ export interface Api {
    */
   onExportProgress: (handler: (e: ExportProgressEvent) => void) => () => void;
   /**
+   * Phase 51 D-09/D-08 — subscribe to per-variant batch progress (variant N of
+   * M). Drives the in-progress "variant N of M — {token}" prefix. Returns an
+   * unsubscribe function (same captured-reference pattern as onExportProgress).
+   */
+  onVariantBatchProgress: (
+    handler: (e: {
+      variantIndex: number;
+      variantTotal: number;
+      token: string;
+    }) => void,
+  ) => () => void;
+  /**
    * Phase 6 Plan 05 — Open Finder/Explorer at the output directory after
    * a completed export (Electron shell.showItemInFolder). One-way.
    */

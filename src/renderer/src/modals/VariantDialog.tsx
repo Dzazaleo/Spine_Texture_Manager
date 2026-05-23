@@ -131,6 +131,14 @@ export function VariantDialog(props: VariantDialogProps) {
   const [results, setResults] = useState<BatchVariantResult[] | null>(null);
   // WR-02 catch-path error line (a rejected IPC promise, not an envelope).
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Phase 51 D-09/D-08 — the live "variant N of M — {token}" progress marker,
+  // driven by the main loop's `variant:batch-progress` event. `null` before the
+  // first event (and after the run completes).
+  const [progress, setProgress] = useState<{
+    variantIndex: number;
+    variantTotal: number;
+    token: string;
+  } | null>(null);
 
   // Phase 50 SCALEUI-01 / Phase 51 — which ROW + axis is being actively edited as
   // px, plus the raw string typed into it. Generalizes the single-scale
@@ -154,6 +162,21 @@ export function VariantDialog(props: VariantDialogProps) {
     if (state === 'pre-flight') startBtnRef.current?.focus();
     if (state === 'complete') closeBtnRef.current?.focus();
   }, [props.open, state]);
+
+  // Phase 51 D-09/D-08 — subscribe to the per-variant batch progress marker while
+  // the run is in-flight (mirror OptimizeDialog's onExportProgress useEffect). The
+  // captured-reference unsubscribe (Pitfall 9) lives inside window.api. Clear the
+  // marker on cleanup (leaving in-progress) so a stale prefix never lingers.
+  useEffect(() => {
+    if (state !== 'in-progress') return;
+    const unsubscribe = window.api.onVariantBatchProgress((event) => {
+      setProgress(event);
+    });
+    return () => {
+      unsubscribe();
+      setProgress(null);
+    };
+  }, [state]);
 
   // D-11 — per-row cheap invalid gate (mirrors the single-scale rule). The
   // authoritative reject stays main-side VariantScaleError.
@@ -721,18 +744,78 @@ export function VariantDialog(props: VariantDialogProps) {
               : 'The scaled skeleton + textures are written to a new folder inside the parent you pick — the source project is never modified.'}
           </p>
         )}
-        {/* Phase 51 D-08 — per-folder result list + aggregate (Task 2 enriches
-            this block). The WR-02 catch path sets errorMessage for a rejected IPC. */}
+        {/* Phase 51 D-08 — per-folder result list + aggregate. One row per
+            BatchVariantResult (with the per-file error sublist for
+            exported-with-errors / failed) plus an aggregate "X of N exported"
+            line. The WR-02 catch path sets errorMessage for a rejected IPC. */}
         {state === 'complete' && results !== null && (
           <div className="text-xs mb-2">
             {errorMessage !== null && (
-              <p className="text-[color:var(--color-danger)]">{errorMessage}</p>
-            )}
-            {results.map((r, i) => (
-              <p key={i} className="text-fg-muted">
-                {projectName}@{r.token}x/ — {r.status}
+              <p className="mb-1 text-[color:var(--color-danger)]">
+                {errorMessage}
               </p>
-            ))}
+            )}
+            {/* Aggregate: count exported + exported-with-errors over the total.
+                If any scale was skipped (between-variants cancel, D-09), note the
+                first skipped token. */}
+            <p className="mb-2 text-fg">
+              {
+                results.filter(
+                  (r) =>
+                    r.status === 'exported' ||
+                    r.status === 'exported-with-errors',
+                ).length
+              }{' '}
+              of {results.length} exported
+              {results.some((r) => r.status === 'skipped')
+                ? ` (cancelled before ${projectName}@${
+                    results.find((r) => r.status === 'skipped')?.token ?? ''
+                  }x)`
+                : ''}
+            </p>
+            {results.map((r, i) => {
+              if (r.status === 'exported') {
+                return (
+                  <p key={i} className="text-fg-muted">
+                    ✓ {projectName}@{r.token}x/ — {r.successes} file
+                    {r.successes === 1 ? '' : 's'}
+                  </p>
+                );
+              }
+              if (r.status === 'exported-with-errors') {
+                return (
+                  <div key={i}>
+                    <p className="text-fg-muted">
+                      ⚠ {projectName}@{r.token}x/ — {r.successes} exported,{' '}
+                      {r.errors?.length ?? 0} failed
+                    </p>
+                    {r.errors !== undefined && r.errors.length > 0 && (
+                      <ul className="mt-1 mb-1 text-[color:var(--color-danger)]">
+                        {r.errors.map((err, j) => (
+                          <li key={j}>
+                            {err.path ? `${err.path}: ` : ''}
+                            {err.message}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              }
+              if (r.status === 'failed') {
+                return (
+                  <p key={i} className="text-[color:var(--color-danger)]">
+                    ✗ {projectName}@{r.token}x/ — {r.reason}
+                  </p>
+                );
+              }
+              // 'skipped'
+              return (
+                <p key={i} className="text-fg-muted">
+                  ⊘ {projectName}@{r.token}x/ — skipped
+                </p>
+              );
+            })}
           </div>
         )}
 
@@ -758,13 +841,33 @@ export function VariantDialog(props: VariantDialogProps) {
             </>
           )}
           {state === 'in-progress' && (
-            <button
-              type="button"
-              disabled
-              className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
-            >
-              Exporting…
-            </button>
+            <>
+              {/* D-09 — Cancel = stop-after-current-variant (between-variants gate
+                  only, main-side). Disabled on the last variant (nothing left to
+                  skip) and before the first progress event arrives. */}
+              <button
+                type="button"
+                onClick={() => window.api.cancelVariantBatch()}
+                disabled={
+                  progress !== null &&
+                  progress.variantIndex === progress.variantTotal - 1
+                }
+                className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled
+                className="bg-accent text-panel rounded-md px-3 py-1 text-xs font-semibold disabled:opacity-50"
+              >
+                {progress !== null
+                  ? `Exporting variant ${progress.variantIndex + 1} of ${
+                      progress.variantTotal
+                    } — ${projectName}@${progress.token}x`
+                  : 'Exporting…'}
+              </button>
+            </>
           )}
           {state === 'complete' && (
             <>

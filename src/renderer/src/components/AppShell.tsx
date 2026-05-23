@@ -560,8 +560,8 @@ export function AppShell({
   } | null>(null);
   // Phase 51 D-01/D-03 — the variant scale SET (a list of rows). Opens with one
   // row at 0.5 (a 1-row list IS a single export, D-04). Lifted here mirroring the
-  // former variantScale so AppShell owns the canonical set; `crypto.randomUUID()`
-  // keys each row (Pitfall 6 — stable React key, not array index).
+  // former single-scale state so AppShell owns the canonical set;
+  // `crypto.randomUUID()` keys each row (Pitfall 6 — stable React key, not index).
   const [variantRows, setVariantRows] = useState<
     { id: string; scale: number }[]
   >(() => [{ id: crypto.randomUUID(), scale: 0.5 }]);

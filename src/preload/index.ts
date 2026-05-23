@@ -237,6 +237,24 @@ const api: Api = {
   },
 
   /**
+   * Phase 51 D-09/D-08 — subscribe to per-variant batch progress markers
+   * (variant N of M). Main emits `variant:batch-progress` before each variant
+   * (51-01 loop). Returns an unsubscribe fn. Same captured-reference pattern as
+   * onExportProgress (RESEARCH Pitfall 9) so removeListener targets the SAME
+   * reference, not a new closure.
+   */
+  onVariantBatchProgress: (handler) => {
+    const wrapped = (
+      _evt: Electron.IpcRendererEvent,
+      event: { variantIndex: number; variantTotal: number; token: string },
+    ) => handler(event);
+    ipcRenderer.on('variant:batch-progress', wrapped);
+    return () => {
+      ipcRenderer.removeListener('variant:batch-progress', wrapped);
+    };
+  },
+
+  /**
    * D-120 close-state action: open Finder/Explorer with the output
    * directory. One-way (shell.showItemInFolder has no useful return).
    */
