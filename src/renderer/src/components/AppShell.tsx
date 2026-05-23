@@ -558,10 +558,13 @@ export function AppShell({
     plan: ExportPlan;
     outDir: string | null;
   } | null>(null);
-  // Phase 49 D-05 — the basic numeric scale field's value. Default 0.5 (half
-  // size); Phase 50 enriches this control in place. Constrained to (0,1) at the
-  // dialog edge + the authoritative main-side VariantScaleError guard (D-08).
-  const [variantScale, setVariantScale] = useState<number>(0.5);
+  // Phase 51 D-01/D-03 — the variant scale SET (a list of rows). Opens with one
+  // row at 0.5 (a 1-row list IS a single export, D-04). Lifted here mirroring the
+  // former variantScale so AppShell owns the canonical set; `crypto.randomUUID()`
+  // keys each row (Pitfall 6 — stable React key, not array index).
+  const [variantRows, setVariantRows] = useState<
+    { id: string; scale: number }[]
+  >(() => [{ id: crypto.randomUUID(), scale: 0.5 }]);
 
   // Gap-Fix Round 3 (2026-04-25) — ConflictDialog state. Mounted on top of
   // OptimizeDialog (z-50 overlay → topmost) when probeExportConflicts
@@ -2583,8 +2586,8 @@ export function AppShell({
           plan={variantDialogState.plan}
           summary={summary}
           outDir={variantDialogState.outDir}
-          scale={variantScale}
-          onScaleChange={setVariantScale}
+          rows={variantRows}
+          onRowsChange={setVariantRows}
           effectiveOverrides={activeOverrides}
           onClose={() => setVariantDialogState(null)}
           onConfirmStart={onConfirmStartVariant}
