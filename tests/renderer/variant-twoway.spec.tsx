@@ -261,4 +261,50 @@ describe('VariantDialog — Phase 50 SCALEUI-01 two-way scale↔dimension contro
     fireEvent.change(factorInput, { target: { value: '0.25' } });
     expect(onScaleChange).toHaveBeenLastCalledWith(0.25);
   });
+
+  // V13 (UAT regression, 2026-05-23): typing a multi-digit value in Width/Height
+  // was impossible — after the first digit, focus jumped to the Factor field, so
+  // every subsequent digit needed a re-click. Root cause: useFocusTrap listed
+  // `onEscape` in its effect deps; the caller derives onEscape from an inline
+  // `props.onClose` (AppShell `onClose={() => setVariantDialogState(null)}`), so
+  // each onScaleChange-driven parent re-render handed the hook a fresh onEscape
+  // identity → the effect re-ran → its mount-time auto-focus yanked focus to the
+  // first tabbable (the Factor input). This harness reproduces the parent churn
+  // (a fresh onClose every render) and asserts focus stays on the edited field.
+  it('V13 (regression): editing Width across re-renders keeps focus on Width (no steal to Factor)', () => {
+    function ControlledHarness() {
+      const [scale, setScale] = React.useState(0.5);
+      // buildProps() is invoked on every render, so onClose (and every other
+      // callback) is a fresh closure each render — exactly AppShell's behavior.
+      return (
+        <VariantDialog
+          {...buildProps({ summary: makeSummary(), scale, onScaleChange: setScale })}
+        />
+      );
+    }
+    render(<ControlledHarness />);
+
+    const widthInput = screen.getByTestId(
+      'variant-target-width',
+    ) as HTMLInputElement;
+    const factorInput = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+
+    act(() => {
+      widthInput.focus();
+    });
+    expect(document.activeElement).toBe(widthInput);
+
+    // First digit — triggers onScaleChange → parent re-render with a fresh
+    // onClose → (pre-fix) the focus-trap effect re-ran and stole focus.
+    fireEvent.change(widthInput, { target: { value: '5' } });
+    expect(document.activeElement).toBe(widthInput);
+    expect(document.activeElement).not.toBe(factorInput);
+
+    // Subsequent digits continue to land in Width — the user can actually type
+    // "512" without re-clicking.
+    fireEvent.change(widthInput, { target: { value: '51' } });
+    fireEvent.change(widthInput, { target: { value: '512' } });
+    expect(document.activeElement).toBe(widthInput);
+    expect(widthInput.value).toBe('512');
+  });
 });

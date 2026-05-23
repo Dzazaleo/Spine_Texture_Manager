@@ -58,7 +58,7 @@
  * imports only from react. It NEVER reaches into src/core/* — the
  * tests/arch.spec.ts grep gate auto-scans this file on every test run.
  */
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 /**
  * Standard tabbable selector. Matches every interactive element that
@@ -104,6 +104,23 @@ export function useFocusTrap(
 ): void {
   const { onEscape } = options;
 
+  // Keep the latest onEscape in a ref so the document-level keydown listener can
+  // always call the current callback WITHOUT the main effect re-subscribing.
+  // Callers routinely build `onEscape` inline (e.g. VariantDialog derives it from
+  // an inline `props.onClose` = AppShell's `() => setVariantDialogState(null)`),
+  // so its identity churns on every parent re-render. If `onEscape` were a dep of
+  // the main effect (as it once was), each such re-render would tear down and
+  // re-run the effect — and its mount-time auto-focus would yank focus back to
+  // the FIRST tabbable element. That made multi-digit typing in any non-first
+  // field impossible (UAT regression 2026-05-23: Width/Height focus jumped to
+  // the Factor field after the first keystroke). The ref decouples Escape's
+  // freshness from the effect's lifecycle so auto-focus is genuinely mount-only,
+  // matching this hook's documented "auto-focus on mount" invariant.
+  const onEscapeRef = useRef(onEscape);
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
+
   useEffect(() => {
     if (!enabled) return;
     const container = containerRef.current;
@@ -132,9 +149,10 @@ export function useFocusTrap(
       // Escape handling by passing undefined (OptimizeDialog's
       // 'in-progress' state per D-115).
       if (event.key === 'Escape') {
-        if (onEscape) {
+        const escapeHandler = onEscapeRef.current;
+        if (escapeHandler) {
           event.preventDefault();
-          onEscape();
+          escapeHandler();
         }
         return;
       }
@@ -182,9 +200,11 @@ export function useFocusTrap(
         previouslyFocused.focus();
       }
     };
-    // Re-run when enabled flips so the trap mounts/unmounts cleanly
-    // alongside the host dialog's open/close. onEscape changes per
-    // render in some callers but the closure capture is stable for
-    // the duration of any given (enabled === true) lifecycle.
-  }, [containerRef, enabled, onEscape]);
+    // Re-run ONLY when enabled flips so the trap mounts/unmounts cleanly
+    // alongside the host dialog's open/close — and so the mount-time auto-focus
+    // fires exactly once per open, never on incidental parent re-renders.
+    // `onEscape` is deliberately NOT a dependency: it is read live from
+    // onEscapeRef inside the listener, so callers may pass a fresh closure every
+    // render without retriggering this effect (see the onEscapeRef comment above).
+  }, [containerRef, enabled]);
 }
