@@ -1488,6 +1488,26 @@ export interface Api {
     safetyBufferPercent: number,
   ) => Promise<ExportResponse>;
   /**
+   * Phase 51 EXPORT-04 — batch variant export. Returns one BatchVariantResult per
+   * scale (D-08). effectiveOverrides crosses as [name, pct] entries (D-13 one
+   * bucket for all scales). MAIN loops the single-scale body per scale (SC#2).
+   */
+  exportVariantBatch: (
+    summary: SkeletonSummary,
+    scales: number[],
+    parentDir: string,
+    overwrite: boolean,
+    sharpenEnabled: boolean,
+    outputMode: 'loose' | 'atlas' | 'both',
+    atlasOpts: {
+      maxPageSize: 1024 | 2048 | 4096 | 8192;
+      allowRotation: boolean;
+      padding: number;
+    },
+    effectiveOverrides: [string, number][],
+    safetyBufferPercent: number,
+  ) => Promise<{ ok: true; results: BatchVariantResult[] }>;
+  /**
    * Phase 6 Gap-Fix Round 3 (2026-04-25) — Pre-start conflict probe.
    * The renderer calls this BEFORE startExport so it can mount a
    * ConflictDialog listing exact files that would be overwritten,
@@ -1528,6 +1548,8 @@ export interface Api {
    * startExport() resolves with summary.cancelled === true.
    */
   cancelExport: () => void;
+  /** Phase 51 D-09 — one-way between-variants batch cancel. */
+  cancelVariantBatch: () => void;
   /**
    * Phase 6 Plan 05 — Subscribe to streaming export progress events.
    * Returns an unsubscribe function. Implementation detail: the wrapped

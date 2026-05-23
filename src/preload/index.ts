@@ -149,6 +149,36 @@ const api: Api = {
     ),
 
   /**
+   * Phase 51 EXPORT-04 — batch variant export. Same per-variant config as
+   * exportVariant (D-13 one active bucket for all scales), but takes a `scales`
+   * number[] and returns a per-folder result array (D-08). MAIN loops the proven
+   * single-scale body per scale (SC#2 by construction).
+   */
+  exportVariantBatch: (
+    summary,
+    scales,
+    parentDir,
+    overwrite,
+    sharpenEnabled,
+    outputMode,
+    atlasOpts,
+    effectiveOverrides,
+    safetyBufferPercent,
+  ) =>
+    ipcRenderer.invoke(
+      'variant:exportBatch',
+      summary,
+      scales,
+      parentDir,
+      overwrite === true,
+      sharpenEnabled === true,
+      outputMode,
+      atlasOpts,
+      effectiveOverrides,
+      safetyBufferPercent,
+    ),
+
+  /**
    * Gap-Fix Round 3 (2026-04-25) — pre-start conflict probe. The renderer
    * (AppShell) calls this BEFORE startExport so it can mount a
    * ConflictDialog listing the exact files that would be overwritten and
@@ -179,6 +209,14 @@ const api: Api = {
    */
   cancelExport: (): void => {
     ipcRenderer.send('export:cancel');
+  },
+
+  /**
+   * Phase 51 D-09 — between-variants batch cancel. Fire-and-forget; the batch
+   * skips remaining scales after the in-flight variant finishes.
+   */
+  cancelVariantBatch: (): void => {
+    ipcRenderer.send('variant:cancelBatch');
   },
 
   /**
