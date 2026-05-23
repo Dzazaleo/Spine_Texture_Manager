@@ -26,3 +26,15 @@ touched by plan 51-01 (which modifies only `variant-export.ts`, `ipc.ts`,
 Both are environmental (missing local fixtures), pre-existing, and orthogonal to
 the batch-export engine. The relevant batch + Phase-49 + typecheck gates are all
 green (see 51-01-SUMMARY.md). No action taken per the SCOPE BOUNDARY rule.
+
+## Re-observed during 51-02 (2026-05-23)
+
+The SAME two failures recur in the 51-02 worktree (same absent gitignored
+fixtures). 51-02 touches only renderer + preload + types + renderer tests
+(`VariantDialog.tsx`, `variant-scale-derive.ts`, `AppShell.tsx`,
+`preload/index.ts`, `types.ts`, the variant `.spec.tsx`/`.spec.ts` tests) — none
+of the two failing files. The full suite is otherwise green
+(1482 passed / 1 failed [the Girl warm-up] / 24 skipped + 2 todo; the second
+failure is a FAILED SUITE = the SAMPLER_ALPHA_ZERO import). typecheck:node +
+typecheck:web + arch.spec.ts + all four variant specs are green. No action taken
+per the SCOPE BOUNDARY rule.

@@ -41,21 +41,17 @@ import {
 import { VariantDialog } from '../../src/renderer/src/modals/VariantDialog';
 import type { ExportPlan, SkeletonSummary } from '../../src/shared/types';
 
-let exportVariantMock: ReturnType<typeof vi.fn>;
+let exportVariantBatchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  exportVariantMock = vi.fn(async () => ({
+  exportVariantBatchMock = vi.fn(async () => ({
     ok: true,
-    summary: {
-      successes: 3,
-      errors: [],
-      outputDir: '/tmp/parent/SIMPLE_TEST@0.5x',
-      durationMs: 100,
-      cancelled: false,
-    },
+    results: [{ token: '0.5', status: 'exported', successes: 3 }],
   }));
   vi.stubGlobal('api', {
-    exportVariant: exportVariantMock,
+    exportVariantBatch: exportVariantBatchMock,
+    cancelVariantBatch: vi.fn(),
+    onVariantBatchProgress: vi.fn(() => () => {}),
     pickOutputDirectory: vi.fn(async () => '/tmp/parent'),
     openOutputFolder: vi.fn(),
   });
@@ -123,8 +119,8 @@ function buildProps(
       overwrite: false,
       outDir: '/tmp/parent',
     })),
-    scale: 0.5,
-    onScaleChange: vi.fn(),
+    rows: [{ id: 'r1', scale: 0.5 }],
+    onRowsChange: vi.fn(),
     effectiveOverrides: new Map<string, number>([['CIRCLE', 150]]),
     sharpenOnExport: false,
     onSharpenChange: vi.fn(),
@@ -139,40 +135,50 @@ function buildProps(
 }
 
 describe('VariantDialog — Phase 50 SCALEUI-01 two-way scale↔dimension control', () => {
+  // Helper: the scale row 0 was set to by the most recent onRowsChange call. Each
+  // call passes the full rows array; row 0's scale is the canonical s for that row.
+  const lastRow0Scale = (onRowsChange: ReturnType<typeof vi.fn>): number => {
+    const calls = onRowsChange.mock.calls;
+    const last = calls[calls.length - 1][0] as Array<{ scale: number }>;
+    return last[0].scale;
+  };
+
   it('V9 two-way (D-02): factor/W/H are views of the single s; editing W or the factor writes s', () => {
-    const onScaleChange = vi.fn();
+    const onRowsChange = vi.fn();
     render(
       <VariantDialog
         {...buildProps({
           summary: makeSummary(), // bbox { w:2190, h:1847 }
-          scale: 0.5,
-          onScaleChange,
+          rows: [{ id: 'r1', scale: 0.5 }],
+          onRowsChange,
         })}
       />,
     );
 
-    // (a) Both px fields are derived from s.
+    // (a) Both px fields are derived from s (row 0).
     const widthInput = screen.getByTestId(
-      'variant-target-width',
+      'variant-target-width-0',
     ) as HTMLInputElement;
     const heightInput = screen.getByTestId(
-      'variant-target-height',
+      'variant-target-height-0',
     ) as HTMLInputElement;
     expect(widthInput.value).toBe('1095'); // round(0.5 * 2190)
     expect(heightInput.value).toBe('924'); // round(0.5 * 1847)
 
-    // (b) Editing the width field to 512 fires onScaleChange with EXACTLY 512/2190.
+    // (b) Editing the width field to 512 sets row 0's scale to EXACTLY 512/2190.
     fireEvent.change(widthInput, { target: { value: '512' } });
-    expect(onScaleChange).toHaveBeenLastCalledWith(512 / 2190);
+    expect(lastRow0Scale(onRowsChange)).toBe(512 / 2190);
 
-    // (c) Editing the factor field to 0.25 fires onScaleChange with 0.25.
-    const factorInput = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+    // (c) Editing the factor field to 0.25 sets row 0's scale to 0.25.
+    const factorInput = screen.getByTestId(
+      'variant-factor-0',
+    ) as HTMLInputElement;
     fireEvent.change(factorInput, { target: { value: '0.25' } });
-    expect(onScaleChange).toHaveBeenLastCalledWith(0.25);
+    expect(lastRow0Scale(onRowsChange)).toBe(0.25);
 
     // Uniform: there is exactly ONE scale write per edit (never two independent
-    // axis scales). Each onChange called onScaleChange a single time.
-    expect(onScaleChange).toHaveBeenCalledTimes(2);
+    // axis scales). Each onChange called onRowsChange a single time.
+    expect(onRowsChange).toHaveBeenCalledTimes(2);
   });
 
   it('V10 no drift (D-02): a typed 512 stays 512 in the focused width field (no re-round to 511/513)', () => {
@@ -180,11 +186,14 @@ describe('VariantDialog — Phase 50 SCALEUI-01 two-way scale↔dimension contro
     // edited axis must not re-derive from the rounded display and drift.
     render(
       <VariantDialog
-        {...buildProps({ summary: makeSummary(), scale: 0.5 })}
+        {...buildProps({
+          summary: makeSummary(),
+          rows: [{ id: 'r1', scale: 0.5 }],
+        })}
       />,
     );
     const widthInput = screen.getByTestId(
-      'variant-target-width',
+      'variant-target-width-0',
     ) as HTMLInputElement;
     act(() => {
       widthInput.focus();
@@ -196,70 +205,75 @@ describe('VariantDialog — Phase 50 SCALEUI-01 two-way scale↔dimension contro
   });
 
   it('V11 over-range (D-04): a typed W giving s>=1 is allowed; scale>=1 disables Export + shows the hint', () => {
-    // Drive 1 — the over-range edit is ALLOWED (onScaleChange fires).
-    const onScaleChange = vi.fn();
+    // Drive 1 — the over-range edit is ALLOWED (onRowsChange fires).
+    const onRowsChange = vi.fn();
     render(
       <VariantDialog
         {...buildProps({
           summary: makeSummary(),
-          scale: 0.5,
-          onScaleChange,
+          rows: [{ id: 'r1', scale: 0.5 }],
+          onRowsChange,
         })}
       />,
     );
     const widthInput = screen.getByTestId(
-      'variant-target-width',
+      'variant-target-width-0',
     ) as HTMLInputElement;
     fireEvent.change(widthInput, { target: { value: '3000' } }); // s ≈ 1.37
-    expect(onScaleChange).toHaveBeenLastCalledWith(3000 / 2190);
+    expect(lastRow0Scale(onRowsChange)).toBe(3000 / 2190);
     cleanup();
 
     // Drive 2 — rendering with the resulting s>=1 shows the >=1 factor, disables
     // Export, and surfaces the existing inline scaled-down hint (D-04).
     render(
-      <VariantDialog {...buildProps({ summary: makeSummary(), scale: 1.37 })} />,
+      <VariantDialog
+        {...buildProps({
+          summary: makeSummary(),
+          rows: [{ id: 'r1', scale: 1.37 }],
+        })}
+      />,
     );
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
     expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
-    const factorInput = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+    const factorInput = screen.getByTestId(
+      'variant-factor-0',
+    ) as HTMLInputElement;
     expect(factorInput.value).toBe('1.37'); // the >=1 factor is shown
-    expect(
-      screen.getByText(/enter a value between 0 and 1/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/enter a value between 0 and 1/i)).toBeTruthy();
   });
 
   it('V12 no geometry (T-50-FIN): bbox==null disables px fields, degrades the bbox line, keeps the factor usable', () => {
-    const onScaleChange = vi.fn();
+    const onRowsChange = vi.fn();
     render(
       <VariantDialog
         {...buildProps({
           summary: makeSummaryNoBbox(), // bbox null
-          scale: 0.5,
-          onScaleChange,
+          rows: [{ id: 'r1', scale: 0.5 }],
+          onRowsChange,
         })}
       />,
     );
 
     // The bbox reference line degrades gracefully.
-    expect(
-      screen.getByText(/Setup-pose size:.*unavailable/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/Setup-pose size:.*unavailable/i)).toBeTruthy();
 
     // The two px fields are disabled.
     const widthInput = screen.getByTestId(
-      'variant-target-width',
+      'variant-target-width-0',
     ) as HTMLInputElement;
     const heightInput = screen.getByTestId(
-      'variant-target-height',
+      'variant-target-height-0',
     ) as HTMLInputElement;
     expect(widthInput.disabled).toBe(true);
     expect(heightInput.disabled).toBe(true);
 
     // The factor field is still fully usable.
-    const factorInput = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+    const factorInput = screen.getByTestId(
+      'variant-factor-0',
+    ) as HTMLInputElement;
     expect(factorInput.disabled).toBe(false);
     fireEvent.change(factorInput, { target: { value: '0.25' } });
-    expect(onScaleChange).toHaveBeenLastCalledWith(0.25);
+    expect(lastRow0Scale(onRowsChange)).toBe(0.25);
   });
 
   // V13 (UAT regression, 2026-05-23): typing a multi-digit value in Width/Height
@@ -273,28 +287,34 @@ describe('VariantDialog — Phase 50 SCALEUI-01 two-way scale↔dimension contro
   // (a fresh onClose every render) and asserts focus stays on the edited field.
   it('V13 (regression): editing Width across re-renders keeps focus on Width (no steal to Factor)', () => {
     function ControlledHarness() {
-      const [scale, setScale] = React.useState(0.5);
+      const [rows, setRows] = React.useState([{ id: 'r1', scale: 0.5 }]);
       // buildProps() is invoked on every render, so onClose (and every other
       // callback) is a fresh closure each render — exactly AppShell's behavior.
       return (
         <VariantDialog
-          {...buildProps({ summary: makeSummary(), scale, onScaleChange: setScale })}
+          {...buildProps({
+            summary: makeSummary(),
+            rows,
+            onRowsChange: setRows,
+          })}
         />
       );
     }
     render(<ControlledHarness />);
 
     const widthInput = screen.getByTestId(
-      'variant-target-width',
+      'variant-target-width-0',
     ) as HTMLInputElement;
-    const factorInput = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+    const factorInput = screen.getByTestId(
+      'variant-factor-0',
+    ) as HTMLInputElement;
 
     act(() => {
       widthInput.focus();
     });
     expect(document.activeElement).toBe(widthInput);
 
-    // First digit — triggers onScaleChange → parent re-render with a fresh
+    // First digit — triggers onRowsChange → parent re-render with a fresh
     // onClose → (pre-fix) the focus-trap effect re-ran and stole focus.
     fireEvent.change(widthInput, { target: { value: '5' } });
     expect(document.activeElement).toBe(widthInput);

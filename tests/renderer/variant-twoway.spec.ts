@@ -16,6 +16,7 @@ import {
   displayFactor,
   pxFromScale,
   scaleFromPx,
+  tokenFor,
 } from '../../src/renderer/src/modals/variant-scale-derive';
 
 describe('variant-scale-derive — V8 pure derivation helpers (D-03)', () => {
@@ -62,5 +63,12 @@ describe('variant-scale-derive — V8 pure derivation helpers (D-03)', () => {
     for (const s of samples) {
       expect(displayFactor(s)).toBe(Number(s.toFixed(4)));
     }
+  });
+
+  it('tokenFor normalizes IEEE-754 drift to the canonical @{s}x token (D-10)', () => {
+    expect(tokenFor(0.5)).toBe('0.5');
+    expect(tokenFor(0.50001)).toBe('0.5');
+    expect(tokenFor(0.5)).toBe(tokenFor(0.50001));
+    expect(tokenFor(0.36)).toBe('0.36');
   });
 });

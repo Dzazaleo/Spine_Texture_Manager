@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
 /**
  * Phase 49 Plan 02 — VariantDialog renderer test (EXPORT-01).
+ * Phase 51 Plan 02 — MIGRATED to the rows[] prop (the scale → rows props change
+ * is the cause; a 1-row list IS the single-export case, D-03/D-04).
  *
  * Mirrors the harness pattern from `tests/renderer/optimize-dialog-output-card.spec.tsx`
  * (window.api stub + ComponentProps builder + @testing-library/react).
  *
- * Coverage:
- * - The basic numeric scale field (D-05) renders and shows the controlled value.
+ * Coverage (migrated to the multi-row API):
+ * - The factor field (D-05/D-09, still id-via-testid) renders the controlled value.
  * - Clicking Export → onConfirmStart resolves { proceed:true, outDir } →
- *   window.api.exportVariant fires ONCE with the Plan-01 arg order:
- *   (summary, s, parentDir, overwrite, sharpen, mode, atlasOpts, overrides[], buffer).
- *   Asserts the 2nd arg is the scale and the 3rd arg is the picked parent dir.
- * - s >= 1 disables the Export button + shows the inline hint (cheap D-08 pre-check).
- * - s <= 0 (e.g. 2.0 and 0) likewise disables Export.
+ *   window.api.exportVariantBatch fires ONCE with a 1-element scales array (the
+ *   single-export case, D-04). Asserts arg[1] === [0.5] and arg[2] is the picked
+ *   parent dir.
+ * - A failed BatchVariantResult surfaces its reason in the complete state.
+ * - A rejected exportVariantBatch promise transitions to the complete state.
+ * - s >= 1 / s <= 0 (a 1-row invalid list) disables Export + shows the hint.
  */
 import * as React from 'react';
 import type { ComponentProps } from 'react';
@@ -28,21 +31,17 @@ import {
 import { VariantDialog } from '../../src/renderer/src/modals/VariantDialog';
 import type { ExportPlan, SkeletonSummary } from '../../src/shared/types';
 
-let exportVariantMock: ReturnType<typeof vi.fn>;
+let exportVariantBatchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  exportVariantMock = vi.fn(async () => ({
+  exportVariantBatchMock = vi.fn(async () => ({
     ok: true,
-    summary: {
-      successes: 3,
-      errors: [],
-      outputDir: '/tmp/parent/SIMPLE_TEST@0.5x',
-      durationMs: 100,
-      cancelled: false,
-    },
+    results: [{ token: '0.5', status: 'exported', successes: 3 }],
   }));
   vi.stubGlobal('api', {
-    exportVariant: exportVariantMock,
+    exportVariantBatch: exportVariantBatchMock,
+    cancelVariantBatch: vi.fn(),
+    onVariantBatchProgress: vi.fn(() => () => {}),
     pickOutputDirectory: vi.fn(async () => '/tmp/parent'),
     openOutputFolder: vi.fn(),
   });
@@ -81,6 +80,7 @@ function makeSummary(): SkeletonSummary {
     runtimeTag: '4.2',
     peaks: [{ peakScale: 1 }],
     regions: [{ peakScale: 1 }],
+    bbox: { w: 1000, h: 800 },
   } as unknown as SkeletonSummary;
 }
 
@@ -98,8 +98,8 @@ function buildProps(
       overwrite: false,
       outDir: '/tmp/parent',
     })),
-    scale: 0.5,
-    onScaleChange: vi.fn(),
+    rows: [{ id: 'r1', scale: 0.5 }],
+    onRowsChange: vi.fn(),
     effectiveOverrides: new Map<string, number>([['CIRCLE', 150]]),
     sharpenOnExport: false,
     onSharpenChange: vi.fn(),
@@ -113,21 +113,19 @@ function buildProps(
   } as ComponentProps<typeof VariantDialog>;
 }
 
-describe('VariantDialog — Phase 49 EXPORT-01', () => {
+describe('VariantDialog — Phase 49 EXPORT-01 (migrated to rows[])', () => {
   it('renders the numeric scale (factor) field showing the controlled value', () => {
-    // Phase 50 SCALEUI-01 enriched this control IN PLACE (D-09): the field's
-    // identity is preserved (id="variant-scale-input", controlled by props.scale)
-    // but its visible label changed "Scale:" → "Factor:" as the px target fields
-    // joined it. The factor display is displayFactor(s) === Number(s.toFixed(4)).
-    render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
-    const input = screen.getByLabelText(/Factor:/i) as HTMLInputElement;
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 0.5 }] })} />,
+    );
+    const input = screen.getByTestId('variant-factor-0') as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.type).toBe('number');
     expect(input.value).toBe('0.5');
   });
 
-  it('invokes window.api.exportVariant once with (summary, 0.5, "/tmp/parent", ...) on Export', async () => {
-    const props = buildProps({ scale: 0.5 });
+  it('invokes window.api.exportVariantBatch once with (summary, [0.5], "/tmp/parent", ...) on Export', async () => {
+    const props = buildProps({ rows: [{ id: 'r1', scale: 0.5 }] });
     render(<VariantDialog {...props} />);
 
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
@@ -138,92 +136,90 @@ describe('VariantDialog — Phase 49 EXPORT-01', () => {
     });
 
     await waitFor(() => {
-      expect(exportVariantMock).toHaveBeenCalledTimes(1);
+      expect(exportVariantBatchMock).toHaveBeenCalledTimes(1);
     });
 
-    const callArgs = exportVariantMock.mock.calls[0];
-    // Arg order: (summary, s, parentDir, overwrite, sharpen, mode, atlasOpts,
-    //             effectiveOverrides[], safetyBufferPercent).
+    const callArgs = exportVariantBatchMock.mock.calls[0];
+    // Arg order: (summary, scales[], parentDir, overwrite, sharpen, mode,
+    //             atlasOpts, effectiveOverrides[], safetyBufferPercent).
     expect(callArgs[0]).toBe(props.summary); // summary
-    expect(callArgs[1]).toBe(0.5); // scale
+    expect(callArgs[1]).toEqual([0.5]); // 1-element scales array (single export)
     expect(callArgs[2]).toBe('/tmp/parent'); // picked parent dir
     expect(callArgs[3]).toBe(false); // overwrite
     expect(callArgs[5]).toBe('loose'); // outputMode
-    // effectiveOverrides crosses the wire as a [name, pct] entries array.
-    expect(callArgs[7]).toEqual([['CIRCLE', 150]]);
+    expect(callArgs[7]).toEqual([['CIRCLE', 150]]); // overrides entries
     expect(callArgs[8]).toBe(0); // safetyBufferPercent
   });
 
-  it('CR-01: surfaces per-row worker failures when the IPC returns ok:true with a non-empty errors[]', async () => {
-    // runExport/runRepack do NOT throw on per-row failures (overwrite
-    // collisions, missing sources, sharp errors) — they return ok:true with a
-    // populated summary.errors[]. The dialog must NOT render that as success.
-    exportVariantMock.mockResolvedValueOnce({
+  it('surfaces a failed BatchVariantResult reason in the complete state', async () => {
+    exportVariantBatchMock.mockResolvedValueOnce({
       ok: true,
-      summary: {
-        successes: 0,
-        errors: [
-          {
-            kind: 'overwrite-source',
-            path: '/tmp/parent/SIMPLE_TEST@0.5x/images/CIRCLE.png',
-            message: 'Refusing to overwrite existing file: …/CIRCLE.png',
-          },
-        ],
-        outputDir: '/tmp/parent/SIMPLE_TEST@0.5x',
-        durationMs: 12,
-        cancelled: false,
-      },
+      results: [
+        {
+          token: '0.5',
+          status: 'failed',
+          reason: 'Refusing to overwrite existing file: …/CIRCLE.png',
+        },
+      ],
     });
 
-    render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 0.5 }] })} />,
+    );
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Export Variant/i }));
     });
 
-    // The failed-count summary line and the per-row error are both visible; the
-    // "0 files exported" success copy is NOT.
     await waitFor(() => {
-      expect(screen.getByText(/0 succeeded, 1 failed\./i)).toBeTruthy();
+      expect(screen.getByText(/0 of 1 exported/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Refusing to overwrite existing file/i)).toBeTruthy();
-    expect(screen.queryByText(/files? exported\./i)).toBeNull();
+    expect(
+      screen.getByText(/Refusing to overwrite existing file/i),
+    ).toBeTruthy();
   });
 
-  it('WR-02: a rejected exportVariant promise transitions to the complete error state (no wedged in-progress)', async () => {
-    exportVariantMock.mockRejectedValueOnce(new Error('unexpected main-side throw'));
+  it('WR-02: a rejected exportVariantBatch promise transitions to the complete error state (no wedged in-progress)', async () => {
+    exportVariantBatchMock.mockRejectedValueOnce(
+      new Error('unexpected main-side throw'),
+    );
 
-    render(<VariantDialog {...buildProps({ scale: 0.5 })} />);
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 0.5 }] })} />,
+    );
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Export Variant/i }));
     });
 
-    // The dialog reached the complete state (Close button present) instead of
-    // staying stuck on "Exporting…", and the rejection message is surfaced
-    // (it appears in both the top error line and the synthesized per-row list).
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /^Close$/i })).toBeTruthy();
     });
-    expect(screen.getAllByText(/unexpected main-side throw/i).length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText(/unexpected main-side throw/i).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Exporting…/i)).toBeNull();
   });
 
   it('disables Export and shows the inline hint when scale >= 1 (s = 1.0)', () => {
-    render(<VariantDialog {...buildProps({ scale: 1.0 })} />);
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 1.0 }] })} />,
+    );
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
     expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
-    expect(
-      screen.getByText(/enter a value between 0 and 1/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/enter a value between 0 and 1/i)).toBeTruthy();
   });
 
   it('disables Export when scale >= 1 (s = 2.0)', () => {
-    render(<VariantDialog {...buildProps({ scale: 2.0 })} />);
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 2.0 }] })} />,
+    );
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
     expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('disables Export when scale <= 0 (s = 0)', () => {
-    render(<VariantDialog {...buildProps({ scale: 0 })} />);
+    render(
+      <VariantDialog {...buildProps({ rows: [{ id: 'r1', scale: 0 }] })} />,
+    );
     const exportBtn = screen.getByRole('button', { name: /Export Variant/i });
     expect((exportBtn as HTMLButtonElement).disabled).toBe(true);
   });
