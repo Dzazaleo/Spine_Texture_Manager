@@ -66,7 +66,11 @@ import { runRepack, type AtlasOpts } from './repack-worker.js';
 // Phase 49 EXPORT-01 — the single-scale variant export orchestrator. A NEW
 // channel (variant:export) delegates here; handleStartExport / export:start are
 // byte-untouched (D-04 "shipped Optimize flow untouched").
-import { handleExportVariant } from './variant-export.js';
+import {
+  handleExportVariant,
+  handleExportVariantBatch,
+  setVariantBatchCancelRequested,
+} from './variant-export.js';
 // UAT Round 3 (2026-05-15) — shared atlas-target derivation. probe and
 // runRepack MUST agree byte-for-byte on filenames or the probe is moot.
 import { deriveProjectName, pageFilename } from './atlas-paths.js';
@@ -1089,10 +1093,54 @@ export function registerIpcHandlers(): void {
         Number(safetyBufferPercent) || 0,
       ),
   );
+  // Phase 51 EXPORT-04 — NEW variant:exportBatch channel. Mirrors variant:export's
+  // coercion ladder (the documented trust boundary, ipc.ts:30-32) but takes a
+  // `scales` array instead of a single `s`. Security V5: coerce scales to a finite
+  // number array (drop NaN/Infinity); a per-scale s>=1/<=0 still fails per-variant
+  // inside exportOneVariant (recorded as a failed result, not a crash). parentDir
+  // coerced to string; safetyBufferPercent re-clamped per-variant inside the body.
+  ipcMain.handle('variant:exportBatch',
+    async (
+      evt,
+      summary,
+      scales,
+      parentDir,
+      overwrite,
+      sharpenEnabled,
+      outputMode,
+      atlasOpts,
+      effectiveOverrides,
+      safetyBufferPercent,
+    ) =>
+      handleExportVariantBatch(
+        evt,
+        summary as SkeletonSummary,
+        Array.isArray(scales) ? (scales as unknown[]).map(Number).filter((n) => Number.isFinite(n)) : [],
+        typeof parentDir === 'string' ? parentDir : '',
+        overwrite === true,
+        sharpenEnabled === true,
+        outputMode === 'loose' || outputMode === 'atlas' || outputMode === 'both'
+          ? outputMode
+          : 'loose',
+        atlasOpts && typeof atlasOpts === 'object'
+          ? (atlasOpts as AtlasOpts)
+          : { maxPageSize: 4096, allowRotation: false, padding: 2 },
+        Array.isArray(effectiveOverrides)
+          ? new Map(effectiveOverrides as [string, number][])
+          : new Map<string, number>(),
+        Number(safetyBufferPercent) || 0,
+      ),
+  );
   ipcMain.on('export:cancel', () => {
     // D-115: cooperative cancel. Flag is read on every iteration of the
     // runExport loop between files. In-flight cannot be aborted mid-libvips.
     exportCancelFlag = true;
+  });
+  // Phase 51 D-09 — between-variants batch cancel. One-way renderer→main send;
+  // flips the module-level variantBatchCancelRequested flag the batch loop reads
+  // at the top of each iteration. The in-flight variant is never interrupted.
+  ipcMain.on('variant:cancelBatch', () => {
+    setVariantBatchCancelRequested();
   });
 
   // Phase 9 Plan 02 D-194 — forceful sampler cancel via worker.terminate().
