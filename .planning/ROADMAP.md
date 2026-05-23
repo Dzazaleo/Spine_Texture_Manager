@@ -189,5 +189,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. Core Scale-Bake Module + Regression Oracle | v1.7 | 4/4 | Complete    | 2026-05-22 |
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
-| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete   | 2026-05-22 |
+| 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 0/2 | Not started | - |

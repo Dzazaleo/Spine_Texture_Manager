@@ -40,8 +40,8 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 ### Scale Input & Preview (SCALEUI)
 
-- [ ] **SCALEUI-01**: User can specify a variant scale either as a factor (e.g. `0.5`) or as a target dimension in pixels; entering one displays the corresponding other value.
-- [ ] **SCALEUI-02**: The dimension reference shown to the user is the rig's overall setup-pose bounding box (width × height in px).
+- [x] **SCALEUI-01**: User can specify a variant scale either as a factor (e.g. `0.5`) or as a target dimension in pixels; entering one displays the corresponding other value.
+- [x] **SCALEUI-02**: The dimension reference shown to the user is the rig's overall setup-pose bounding box (width × height in px).
 
 ---
 
@@ -75,6 +75,6 @@ Maps every v1.7 REQ-ID to exactly one phase. Coverage: 11/11 mapped, no orphans,
 | EXPORT-02 | Phase 49 | Complete |
 | EXPORT-03 | Phase 49 | Complete |
 | EXPORT-05 | Phase 49 | Complete |
-| SCALEUI-01 | Phase 50 | Pending |
-| SCALEUI-02 | Phase 50 | Pending |
+| SCALEUI-01 | Phase 50 | Complete |
+| SCALEUI-02 | Phase 50 | Complete |
 | EXPORT-04 | Phase 51 | Pending |

@@ -2,25 +2,25 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: executing
+status: ready_to_plan
 last_updated: "2026-05-22T23:28:11.945Z"
 last_activity: 2026-05-22 -- Phase 50 execution started
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
   completed_plans: 7
-  percent: 78
+  percent: 75
 ---
 
 # State
 
 ## Current Position
 
-Phase: 50 (rig-bounds-two-way-scale-dimension-input) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 50
-Last activity: 2026-05-22 -- Phase 50 execution started
+Phase: 51
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-23
 
 Next: **`/gsd-execute-phase 50`** — Phase 50 (Rig-Bounds + Two-Way Scale↔Dimension Input) is PLANNED: **2 plans / 2 waves, all autonomous.** Wave 1 = 50-01 (SCALEUI-02): NEW `src/core/setup-bounds.ts` `computeSetupPoseBounds` — Layer-3-pure dual-runtime **ALL-SKINS** setup-pose AABB union (generalizes the proven `aggregateWorldAABB` body, swapping slot-bindings → sampler Pass-1.5 manifest loop) with the mandatory `measured===0 → null` degenerate guard (no non-finite ever crosses IPC — RESEARCH Pitfall 1) + additive `SkeletonSummary.bbox: {w,h}|null` computed ONCE in `summary.ts` via the already-bound `rt` (REG-47-01-safe `load.runtime.makeSkeleton`) + V1–V7. Wave 2 = 50-02 (SCALEUI-01, depends 50-01): enrich the `VariantDialog` Scale card **IN PLACE** (D-09, tabs deferred to Phase 51) — bbox W×H reference line + three coupled aspect-locked inputs (factor / target-W / target-H, **uniform-only**) backed by pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers; typed px honored EXACTLY no-snap (D-03), `s` is the single source of truth the export consumes (D-02), over-range `s≥1` allows entry but disables Export + shows the inline hint (D-04, authoritative reject stays main-side `VariantScaleError`); reads `summary.bbox`, **zero new IPC/props** + V8–V12. Research + VALIDATION (V1–V12 task-bound) + PATTERNS (9/9 shipped analogs) done; planned **`--skip-ui`** (in-place enrichment, no UI-SPEC — user choice 2026-05-22); plan-checker **PASSED iter-1** (0 blockers / 0 warnings, all 12 dimensions; decision-coverage 9/9 D-01..D-09). Locked: compute bbox ourselves, NOT the JSON `skeleton.width/height` header (D-05, untrusted editor metadata like `fps`); all-skins union ≥ editor setup-visible subset (D-06 — avoids the "eyes-only setup" trap; empirically SIMPLE_TEST Δ0.0%, skeleton2 +19.3%); dual-runtime via the adapter only never a hardcoded ctor (D-07); editor `width/height` kept only as a test cross-check oracle (D-08). **NO new fixture dir** (bbox math reads no PNG bytes → mode-invariant; degenerate case constructed in-test) — SAFE-01 landmine pre-empted. Plans committed `ce129a2`.
 
