@@ -257,6 +257,9 @@ function makeSummary(
     // tests don't exercise runtime identity; inert '4.2' stub satisfies the
     // contract.
     runtimeTag: '4.2',
+    // Debug `moon-glow-double-squares` — required atlas-pma render flag on
+    // SkeletonSummary. Drift-helper tests don't exercise rendering; false stub.
+    premultipliedAlpha: false,
     // Phase 50 SCALEUI-02 — required setup-pose bbox on SkeletonSummary.
     // Drift-helper tests don't exercise the bbox surface; null stub satisfies
     // the {w,h}|null contract.

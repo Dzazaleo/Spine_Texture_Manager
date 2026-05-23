@@ -505,22 +505,36 @@ export function AnimationPlayerModal42(props: AnimationPlayerModal42Props) {
       }
       if (cancelled) return;
 
+      // Debug `moon-glow-double-squares` PART 2 — mirror buildAssetFeed's
+      // isAtlasLess test (line 363). Atlas-less feeds the SYNTHESIZED atlas +
+      // loose region PNGs, which are STRAIGHT (un-premultiplied) on disk; we
+      // premultiply them at GPU upload below so Spine's screen/multiply blend
+      // modes (which require premultiplied textures) render like the editor.
+      const isAtlasLess =
+        props.summary.atlasPath === null || props.loaderMode === 'atlas-less';
+
       const config: SpinePlayerConfig = {
         skeleton: feed.skeletonUrl,
         atlas: feed.atlasUrl,
         rawDataURIs: feed.rawDataURIs,
         showControls: false, // We own the control bar (anti-pattern from RESEARCH).
         backgroundColor: '23273200', // D-02c #232732 panel-surface, 00 alpha.
-        // Straight alpha (not PMA). Spine 4.x atlas PNGs may ship PMA-encoded
-        // on disk, but Chrome/Electron's PNG decoder UN-premultiplies during
-        // the `Image`-element decode path that spine-player uses
-        // (assetManager.loadTexture → `new Image()` → `texImage2D`), so the
-        // in-memory texture is always straight alpha here. Setting
-        // premultipliedAlpha:true makes spine-player's shader pick
-        // srcFunc=gl.ONE (Player.js:13167) and transparent-white border
-        // pixels (255,255,255,0) blend as opaque white — the artifact ring
-        // around mesh attachments the user reproduced on SIMPLE_TEST.
-        premultipliedAlpha: false,
+        // Debug `moon-glow-double-squares` — the render flag MUST match the GPU
+        // texture encoding, NOT a hardcoded literal. (The OLD comment here claimed
+        // the OS PNG decoder un-premultiplies — FALSE: spine-webgl keeps
+        // UNPACK_PREMULTIPLY_ALPHA_WEBGL at WebGL's default and uploads PNG bytes
+        // verbatim.)
+        //   - Atlas-source: a pma:true atlas (e.g. Chicken/SYMBOLS) is premultiplied
+        //     on disk → true; a straight atlas (SIMPLE_TEST, no `pma:`) → false.
+        //     summary.premultipliedAlpha carries the loaded atlas's pma flag.
+        //   - Atlas-less (PART 2): the loose images are STRAIGHT, but we premultiply
+        //     them at GPU upload below (UNPACK_PREMULTIPLY_ALPHA_WEBGL=true), so the
+        //     GPU texture IS premultiplied → true. Required because Spine's
+        //     screen/multiply blend modes (srcRgb=ONE/DST_COLOR, never alpha-gated)
+        //     flood the quad with the un-premult amplified-color halo otherwise.
+        premultipliedAlpha: isAtlasLess
+          ? true
+          : props.summary.premultipliedAlpha,
         alpha: false,
         // Auto-fit neutralizer (see CameraState doc). spine-player calls this
         // every frame AFTER it sets ITS camera and BEFORE it draws — so
@@ -629,6 +643,22 @@ export function AnimationPlayerModal42(props: AnimationPlayerModal42Props) {
       try {
         player = new SpinePlayer(container, config);
         playerRef.current = player;
+        // Debug `moon-glow-double-squares` PART 2 — premultiply loose textures at
+        // GPU upload for atlas-less. The SpinePlayer ctor calls initialize()
+        // synchronously (Player.js:97), which creates the GL context AND only
+        // STARTS async texture loading (texImage2D fires later on Image.onload), so
+        // setting this now lands before every texture upload. Spine's screen/multiply
+        // blend modes require premultiplied textures; the loose "Alpha: Auto"
+        // extracted images are straight (un-premultiplied) with amplified color in
+        // their transparent regions, which those blend modes would flood across each
+        // quad (the atlas-less squares). This makes WebGL premultiply on upload —
+        // exactly what the Spine editor does for loose images — paired with
+        // premultipliedAlpha:true above. Atlas-source is untouched (its pages are
+        // already premultiplied on disk; double-premultiply would be wrong).
+        if (isAtlasLess) {
+          const gl = player.context?.gl;
+          if (gl) gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        }
       } catch (e) {
         // spine-player THROWS after firing config.error (RESEARCH Pitfall 2,
         // vendored line 14954) — swallow the throw because the error

@@ -541,6 +541,27 @@ export function buildSummary(
   const hasAtlasFile = fs.existsSync(siblingAtlasPath);
   const hasImagesDir = fs.existsSync(path.join(projectDir, 'images'));
 
+  // Debug `moon-glow-double-squares` (2026-05-23) — derive the Animation Viewer's
+  // `premultipliedAlpha` render flag from the LOADED atlas's `pma:` declaration.
+  // The on-disk PNG encoding (premultiplied vs straight) is what spine-webgl
+  // uploads verbatim, so the render flag must match it. Read `load.atlasPath`
+  // (the atlas actually fed to the viewer in atlas-source mode); `null` in
+  // atlas-less mode → synthesized atlas is always straight → `false`. Layer-3 I/O
+  // (fs read lives in src/main/, never src/core/). Defaults `false` on any read
+  // failure / missing `pma:` line (preserves straight-alpha fixtures like
+  // SIMPLE_TEST, whose atlas omits `pma`).
+  let premultipliedAlpha = false;
+  if (load.atlasPath !== null) {
+    try {
+      const atlasText = fs.readFileSync(load.atlasPath, 'utf8');
+      premultipliedAlpha = atlasText
+        .split(/\r?\n/)
+        .some((line) => line.replace(/\s+/g, '').toLowerCase() === 'pma:true');
+    } catch {
+      premultipliedAlpha = false;
+    }
+  }
+
   // Phase 50 SCALEUI-02 — setup-pose all-skins bbox, computed ONCE here via the
   // already-bound `rt` (= load.runtime, null-guarded at ~line 326). REUSE that
   // adapter — do NOT add a second makeSkeleton / raw ctor. `null` for a
@@ -557,6 +578,10 @@ export function buildSummary(
     // version (locks feedback_explicit_identity_over_inference; same
     // bug-class as REG-47-01's cross-runtime handoff). Purely additive.
     runtimeTag: rt.tag,
+    // Debug `moon-glow-double-squares` (2026-05-23) — atlas pma flag (computed
+    // above from load.atlasPath). Threads the correct render-pipeline encoding to
+    // the Animation Viewer; additive field, structuredClone-safe boolean.
+    premultipliedAlpha,
     // Phase 50 SCALEUI-02 — additive setup-pose all-skins bbox (D-05/D-06/D-07).
     // Sibling to runtimeTag; the same additive-field precedent. {w,h} | null.
     bbox,

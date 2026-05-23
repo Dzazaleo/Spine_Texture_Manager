@@ -815,6 +815,22 @@ export interface SkeletonSummary {
    */
   runtimeTag: '4.2' | '4.3';
   /**
+   * Debug `moon-glow-double-squares` (2026-05-23) — whether the LOADED atlas
+   * (`load.atlasPath`) declares `pma:true`, i.e. its packed PNG is premultiplied
+   * on disk. spine-webgl uploads PNG bytes verbatim
+   * (UNPACK_PREMULTIPLY_ALPHA_WEBGL stays at its WebGL default of false), so the
+   * GPU texture's encoding == the on-disk encoding, and the Animation Viewer's
+   * `premultipliedAlpha` render flag MUST track this — NOT a hardcoded literal.
+   * A pma:true atlas rendered with the straight-alpha pipeline leaves a faint
+   * wash across every glow attachment's full rectangular quad (the visible
+   * "double squares"); a straight atlas (e.g. SIMPLE_TEST, which omits `pma`)
+   * rendered with the PMA pipeline gets the white-ring artifact instead.
+   * `false` when atlas-less / no atlas file / no `pma:` line (the synthesized
+   * atlas is always straight). The 4.2-leg modal additionally forces `false`
+   * whenever it actually renders the synthesized atlas (atlas-less toggle).
+   */
+  premultipliedAlpha: boolean;
+  /**
    * Phase 50 SCALEUI-02 — setup-pose all-skins bounding box (W×H px), computed
    * via `load.runtime` in summary.ts (D-05 we compute it ourselves, never the
    * untrusted editor `skeleton.width/height` header; D-06 all-skins manifest

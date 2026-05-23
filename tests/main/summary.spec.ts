@@ -174,3 +174,48 @@ describe('Phase 50 SCALEUI-02 — SkeletonSummary.bbox seam', () => {
     expect(cloned.bbox!.h).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Debug `moon-glow-double-squares` (2026-05-23) — buildSummary derives the
+// Animation Viewer's `premultipliedAlpha` render flag from the LOADED atlas's
+// `pma:` declaration. The on-disk PNG encoding (premultiplied vs straight) is
+// uploaded verbatim by spine-webgl, so the render flag must match it. A pma:true
+// atlas rendered straight-alpha leaves a faint wash across every glow quad (the
+// "double squares" on Chicken/SYMBOLS); a straight atlas (SIMPLE_TEST, which
+// omits the flag) rendered PMA gets the white-ring artifact. Regression guard.
+// ---------------------------------------------------------------------------
+describe('SkeletonSummary.premultipliedAlpha (moon-glow-double-squares)', () => {
+  it('straight-alpha atlas (no pma: line) → premultipliedAlpha=false', () => {
+    const jsonPath = makeScratchProject({ withAtlas: true, withImagesDir: false });
+    const summary = buildSummaryAt(jsonPath, 'auto');
+    expect(summary.premultipliedAlpha).toBe(false);
+  });
+
+  it('pma:true atlas → premultipliedAlpha=true', () => {
+    const jsonPath = makeScratchProject({ withAtlas: true, withImagesDir: false });
+    // Inject a `pma:true` line into the page header (after `filter:`), mirroring
+    // a Spine export of premultiplied pages (cf. Chicken/SYMBOLS.atlas).
+    const atlasPath = path.join(path.dirname(jsonPath), 'TEST.atlas');
+    const lines = fs.readFileSync(atlasPath, 'utf8').split(/\r?\n/);
+    const filterIdx = lines.findIndex((l) => l.trim().toLowerCase().startsWith('filter:'));
+    expect(filterIdx, 'fixture atlas must have a filter: header line').toBeGreaterThanOrEqual(0);
+    lines.splice(filterIdx + 1, 0, 'pma:true');
+    fs.writeFileSync(atlasPath, lines.join('\n'));
+
+    const summary = buildSummaryAt(jsonPath, 'auto');
+    expect(summary.premultipliedAlpha).toBe(true);
+  });
+
+  it('atlas-less mode (synthesized straight atlas) → premultipliedAlpha=false', () => {
+    const jsonPath = makeScratchProject({ withAtlas: false, withImagesDir: true });
+    const summary = buildSummaryAt(jsonPath, 'atlas-less');
+    expect(summary.premultipliedAlpha).toBe(false);
+  });
+
+  it('IPC structuredClone safety: premultipliedAlpha round-trips as a primitive boolean', () => {
+    const jsonPath = makeScratchProject({ withAtlas: true, withImagesDir: false });
+    const summary = buildSummaryAt(jsonPath, 'auto');
+    const cloned = structuredClone(summary);
+    expect(typeof cloned.premultipliedAlpha).toBe('boolean');
+  });
+});
