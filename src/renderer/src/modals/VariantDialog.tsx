@@ -139,6 +139,10 @@ export function VariantDialog(props: VariantDialogProps) {
     variantTotal: number;
     token: string;
   } | null>(null);
+  // WR-05 — once the user clicks Cancel, latch it so the button reflects the
+  // between-variants semantic ("Cancelling after current…") + disables, instead
+  // of silently accepting repeat clicks with no feedback. Reset at each run start.
+  const [cancelRequested, setCancelRequested] = useState(false);
 
   // Phase 50 SCALEUI-01 / Phase 51 — which ROW + axis is being actively edited as
   // px, plus the raw string typed into it. Generalizes the single-scale
@@ -180,8 +184,14 @@ export function VariantDialog(props: VariantDialogProps) {
 
   // D-11 — per-row cheap invalid gate (mirrors the single-scale rule). The
   // authoritative reject stays main-side VariantScaleError.
-  const isRowInvalid = (r: VariantRow) =>
-    !Number.isFinite(r.scale) || r.scale <= 0 || r.scale >= 1;
+  const isRowInvalid = (r: VariantRow) => {
+    if (!Number.isFinite(r.scale) || r.scale <= 0 || r.scale >= 1) return true;
+    // WR-01 — a valid sub-range scale must not round to a DEGENERATE folder
+    // token (@0x / @1x); the on-disk folder name must identify the variant.
+    // Mirror of the main-side exportOneVariant 1b guard (variant-export.ts).
+    const t = tokenFor(r.scale);
+    return t === '0' || t === '1';
+  };
   const anyInvalid = props.rows.some(isRowInvalid);
 
   // D-10 — duplicate-token detection. Group rows by tokenFor(scale); any token
@@ -265,6 +275,7 @@ export function VariantDialog(props: VariantDialogProps) {
     setState('in-progress');
     setErrorMessage(null);
     setResults(null);
+    setCancelRequested(false); // WR-05 — clear any latched cancel from a prior run
     // WR-02: wrap the IPC await in try/catch. After setState('in-progress'), a
     // rejected promise (unexpected main-side throw) would otherwise leave the
     // dialog wedged on "Exporting…" forever — ESC + click-outside are no-ops
@@ -352,9 +363,46 @@ export function VariantDialog(props: VariantDialogProps) {
         onClick={(e) => e.stopPropagation()}
         onKeyDown={keyDown}
       >
-        <h2 id="variant-title" className="text-sm text-fg mb-4">
+        <h2 id="variant-title" className="text-sm text-fg mb-4 shrink-0">
           {headerTitle}
         </h2>
+
+        {/* (a) Phase-51 follow-up — batch progress bar, pinned below the header
+            (outside the scroll region so it stays visible while a long run
+            scrolls). pct uses a half-step for the in-flight variant so a slow
+            first/only variant never looks stuck at 0%, and the bar never claims
+            100% before the run truly completes. Mirrors OptimizeDialog's linear
+            bar markup. The "variant N of M — {token}" label lives on the action
+            button below. */}
+        {state === 'in-progress' && (
+          <div className="mb-4 shrink-0">
+            <div className="h-2 bg-panel border border-border rounded-md overflow-hidden">
+              <div
+                className="h-full bg-accent"
+                style={{
+                  width: `${
+                    progress !== null
+                      ? Math.round(
+                          ((progress.variantIndex + 0.5) /
+                            progress.variantTotal) *
+                            100,
+                        )
+                      : 0
+                  }%`,
+                }}
+                aria-hidden
+              />
+            </div>
+          </div>
+        )}
+
+        {/* (b) Phase-51 follow-up — scrollable body region so the footer action
+            buttons stay PINNED inside the modal when content grows (many scale
+            rows, or a long per-folder error list). min-h-0 lets this flex child
+            shrink below its content height so overflow-y-auto actually scrolls
+            (mirrors OptimizeDialog's flex-1 overflow region). Closed just before
+            the footer below. */}
+        <div className="flex-1 overflow-y-auto min-h-0">
 
         {/* Phase 51 D-01/D-03/D-06 — the multi-row scale list (single pane, NO
             tabs). Each row is the Phase-50 two-way control (factor / target-W px /
@@ -406,7 +454,7 @@ export function VariantDialog(props: VariantDialogProps) {
                       data-testid={`variant-factor-${idx}`}
                       step="0.05"
                       min="0"
-                      max="0.99"
+                      max="0.9999"
                       value={displayFactor(row.scale)}
                       onChange={(e) => {
                         const parsed = parseFloat(e.target.value);
@@ -537,7 +585,11 @@ export function VariantDialog(props: VariantDialogProps) {
 
                 {rowInvalid && (
                   <p className="mt-1 text-xs text-[color:var(--color-danger)]">
-                    Variants are scaled-down — enter a value between 0 and 1.
+                    {Number.isFinite(row.scale) &&
+                    row.scale > 0 &&
+                    row.scale < 1
+                      ? `That scale rounds to @${tokenFor(row.scale)}x — pick a value between 0.0001 and 0.9999.`
+                      : 'Variants are scaled-down — enter a value between 0 and 1.'}
                   </p>
                 )}
               </div>
@@ -819,7 +871,10 @@ export function VariantDialog(props: VariantDialogProps) {
           </div>
         )}
 
-        <div className="flex gap-2 mt-6 justify-end">
+        </div>
+        {/* (b) end scrollable body region — footer below is pinned (shrink-0). */}
+
+        <div className="flex gap-2 mt-6 justify-end shrink-0">
           {state === 'pre-flight' && (
             <>
               <button
@@ -843,18 +898,27 @@ export function VariantDialog(props: VariantDialogProps) {
           {state === 'in-progress' && (
             <>
               {/* D-09 — Cancel = stop-after-current-variant (between-variants gate
-                  only, main-side). Disabled on the last variant (nothing left to
-                  skip) and before the first progress event arrives. */}
+                  only, main-side). WR-05 — latch the click so the label reflects
+                  the real semantic ("Cancelling after current…") + disable, rather
+                  than silently accepting repeat clicks. Disabled: once latched; on
+                  a 1-scale run (nothing to skip); on the last variant; and before
+                  the first progress event arrives (we don't yet know the total, and
+                  cancelling then has no observable effect). */}
               <button
                 type="button"
-                onClick={() => window.api.cancelVariantBatch()}
+                onClick={() => {
+                  setCancelRequested(true);
+                  window.api.cancelVariantBatch();
+                }}
                 disabled={
-                  progress !== null &&
+                  cancelRequested ||
+                  progress === null ||
+                  progress.variantTotal === 1 ||
                   progress.variantIndex === progress.variantTotal - 1
                 }
                 className="border border-border rounded-md px-3 py-1 text-xs text-fg-muted hover:text-fg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Cancel
+                {cancelRequested ? 'Cancelling after current…' : 'Cancel'}
               </button>
               <button
                 type="button"

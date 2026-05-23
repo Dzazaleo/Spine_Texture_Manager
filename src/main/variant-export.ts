@@ -97,6 +97,25 @@ async function exportOneVariant(
     return { ok: false, error: { kind: 'Unknown', message: new VariantScaleError(s).message } };
   }
 
+  // 1b. WR-01 — reject a valid sub-range scale whose 4-decimal folder token
+  //     collapses to a DEGENERATE name. formatScaleToken rounds to 4dp, so
+  //     s = 0.000049 → "0" and s = 0.99999 → "1": both pass the 0<s<1 guard above
+  //     but would write a real baked package into {NAME}@0x/ or {NAME}@1x/, whose
+  //     name no longer identifies the variant (the bake used the exact unrounded
+  //     s). The renderer isRowInvalid mirrors this so the row is flagged pre-submit.
+  {
+    const token = formatScaleToken(s);
+    if (token === '0' || token === '1') {
+      return {
+        ok: false,
+        error: {
+          kind: 'Unknown',
+          message: `Scale ${s} rounds to a degenerate folder token @${token}x; choose a scale between 0.0001 and 0.9999.`,
+        },
+      };
+    }
+  }
+
   // 2. Validate boundary inputs (mirror ipc.ts:763-765).
   if (typeof parentDir !== 'string' || parentDir.length === 0) {
     return { ok: false, error: { kind: 'Unknown', message: 'parentDir must be a non-empty string' } };

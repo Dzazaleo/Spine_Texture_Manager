@@ -101,3 +101,44 @@ describe('handleExportVariant — D-08 scale-direction guard (V5)', () => {
     expect(() => bake(minimal, 2.0)).not.toThrow();
   });
 });
+
+describe('handleExportVariant — WR-01 degenerate folder-token guard', () => {
+  let summary: SkeletonSummary;
+  beforeAll(() => {
+    summary = buildFixtureSummary();
+  });
+
+  // Both scales pass the 0 < s < 1 D-08 guard but round (4dp) to a degenerate
+  // folder token: 0.99999 → "1", 0.00001 → "0". The on-disk folder name would no
+  // longer identify the variant, so the export EDGE must reject them — and leave
+  // NO folder behind.
+  for (const [badScale, token] of [
+    [0.99999, '1'],
+    [0.00001, '0'],
+  ] as const) {
+    it(`rejects s = ${badScale} (rounds to @${token}x) with the degenerate-token message and writes no folder`, async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stm-variant-wr01-'));
+      try {
+        const res = await handleExportVariant(
+          fakeEvt,
+          summary,
+          badScale,
+          tmpDir,
+          false,
+          false,
+          'loose',
+          defaultAtlasOpts,
+        );
+        expect(res.ok).toBe(false);
+        if (!res.ok) {
+          expect(res.error.message).toContain('degenerate folder token');
+          expect(res.error.message).toContain(`@${token}x`);
+        }
+        // No folder was written for the rejected scale (rejected before any I/O).
+        expect(fs.readdirSync(tmpDir)).toHaveLength(0);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  }
+});
