@@ -47,6 +47,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type {
   Api,
+  BatchVariantResult,
   ExportProgressEvent,
   LoadResponse,
   ViewerAssetFeedResponse,
@@ -251,6 +252,21 @@ const api: Api = {
     ipcRenderer.on('variant:batch-progress', wrapped);
     return () => {
       ipcRenderer.removeListener('variant:batch-progress', wrapped);
+    };
+  },
+
+  /**
+   * Phase-51 follow-up — subscribe to per-variant RESULT markers. Main emits
+   * `variant:result` (a BatchVariantResult) as EACH variant finishes, so the
+   * renderer can color the scale rows + summary rows green/amber/red live. Same
+   * captured-reference unsubscribe pattern as onVariantBatchProgress (Pitfall 9).
+   */
+  onVariantResult: (handler) => {
+    const wrapped = (_evt: Electron.IpcRendererEvent, result: BatchVariantResult) =>
+      handler(result);
+    ipcRenderer.on('variant:result', wrapped);
+    return () => {
+      ipcRenderer.removeListener('variant:result', wrapped);
     };
   },
 

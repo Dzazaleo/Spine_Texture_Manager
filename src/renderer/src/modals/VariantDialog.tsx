@@ -143,6 +143,21 @@ export function VariantDialog(props: VariantDialogProps) {
   // between-variants semantic ("Cancelling after current…") + disables, instead
   // of silently accepting repeat clicks with no feedback. Reset at each run start.
   const [cancelRequested, setCancelRequested] = useState(false);
+  // Phase-51 follow-up — per-IMAGE progress WITHIN the current variant (drives the
+  // 0→100 bar). Reset to null each time a new variant starts (the bar restarts per
+  // variant); driven by the existing per-file export:progress stream. null = no
+  // image processed yet for the current variant.
+  const [imageProgress, setImageProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+  // Phase-51 follow-up — per-variant outcome accumulated LIVE (token → status) from
+  // the variant:result stream, so each scale row + summary row colors green/amber/
+  // red AS its variant finishes. Reset at run start; intentionally PERSISTS into
+  // the complete state so the colors stay.
+  const [liveResults, setLiveResults] = useState<
+    Map<string, BatchVariantResult['status']>
+  >(new Map());
 
   // Phase 50 SCALEUI-01 / Phase 51 — which ROW + axis is being actively edited as
   // px, plus the raw string typed into it. Generalizes the single-scale
@@ -173,12 +188,35 @@ export function VariantDialog(props: VariantDialogProps) {
   // marker on cleanup (leaving in-progress) so a stale prefix never lingers.
   useEffect(() => {
     if (state !== 'in-progress') return;
-    const unsubscribe = window.api.onVariantBatchProgress((event) => {
+    // (1) Per-variant marker: which variant of the batch is starting → set the
+    // "variant N of M" label AND reset the per-image bar to 0 for the new variant.
+    const unsubBatch = window.api.onVariantBatchProgress((event) => {
       setProgress(event);
+      setImageProgress(null);
+    });
+    // (2) Per-IMAGE marker (the existing export:progress stream the variant export
+    // already emits via runExport/runRepack): fill the 0→100 bar within the current
+    // variant. In 'both' mode a variant emits two streams (loose then atlas), so
+    // the bar sweeps once per stream — expected.
+    const unsubImage = window.api.onExportProgress((event) => {
+      setImageProgress({ current: event.index + 1, total: event.total });
+    });
+    // (3) Per-variant RESULT marker: color that variant's scale row + summary row
+    // green/amber/red the moment it finishes (keyed by the canonical @{s}x token).
+    const unsubResult = window.api.onVariantResult((result) => {
+      setLiveResults((prev) => {
+        const next = new Map(prev);
+        next.set(result.token, result.status);
+        return next;
+      });
     });
     return () => {
-      unsubscribe();
+      unsubBatch();
+      unsubImage();
+      unsubResult();
       setProgress(null);
+      setImageProgress(null);
+      // liveResults is intentionally NOT cleared — colors persist into 'complete'.
     };
   }, [state]);
 
@@ -276,6 +314,8 @@ export function VariantDialog(props: VariantDialogProps) {
     setErrorMessage(null);
     setResults(null);
     setCancelRequested(false); // WR-05 — clear any latched cancel from a prior run
+    setImageProgress(null); // restart the per-image bar
+    setLiveResults(new Map()); // clear prior-run row colors
     // WR-02: wrap the IPC await in try/catch. After setState('in-progress'), a
     // rejected promise (unexpected main-side throw) would otherwise leave the
     // dialog wedged on "Exporting…" forever — ESC + click-outside are no-ops
@@ -367,13 +407,13 @@ export function VariantDialog(props: VariantDialogProps) {
           {headerTitle}
         </h2>
 
-        {/* (a) Phase-51 follow-up — batch progress bar, pinned below the header
+        {/* (a) Phase-51 follow-up — per-IMAGE progress bar, pinned below the header
             (outside the scroll region so it stays visible while a long run
-            scrolls). pct uses a half-step for the in-flight variant so a slow
-            first/only variant never looks stuck at 0%, and the bar never claims
-            100% before the run truly completes. Mirrors OptimizeDialog's linear
-            bar markup. The "variant N of M — {token}" label lives on the action
-            button below. */}
+            scrolls). It fills 0→100 across the images of the CURRENT variant and
+            resets to 0 when the next variant starts (driven by the per-file
+            export:progress stream + the per-variant reset). Mirrors OptimizeDialog's
+            linear bar markup. The "variant N of M — {token}" label lives on the
+            action button below. */}
         {state === 'in-progress' && (
           <div className="mb-4 shrink-0">
             <div className="h-2 bg-panel border border-border rounded-md overflow-hidden">
@@ -381,11 +421,12 @@ export function VariantDialog(props: VariantDialogProps) {
                 className="h-full bg-accent"
                 style={{
                   width: `${
-                    progress !== null
-                      ? Math.round(
-                          ((progress.variantIndex + 0.5) /
-                            progress.variantTotal) *
-                            100,
+                    imageProgress !== null && imageProgress.total > 0
+                      ? Math.min(
+                          100,
+                          Math.round(
+                            (imageProgress.current / imageProgress.total) * 100,
+                          ),
                         )
                       : 0
                   }%`,
@@ -436,14 +477,26 @@ export function VariantDialog(props: VariantDialogProps) {
               activePx?.rowId === row.id && activePx.field === 'w';
             const heightActive =
               activePx?.rowId === row.id && activePx.field === 'h';
+            // Phase-51 follow-up — live per-variant status (green/amber/red) keyed
+            // by the canonical @{s}x token. Set as each variant finishes; persists
+            // into the complete state. Collision (pre-flight) still wins visually.
+            const rowStatus = liveResults.get(tokenFor(row.scale));
+            const rowClass = rowColliding
+              ? 'border border-[color:var(--color-danger)] rounded-md p-2 mb-2'
+              : rowStatus === 'exported'
+                ? 'border border-success/40 bg-success/15 rounded-md p-2 mb-2'
+                : rowStatus === 'exported-with-errors'
+                  ? 'border border-warning/40 bg-warning/15 rounded-md p-2 mb-2'
+                  : rowStatus === 'failed'
+                    ? 'border border-danger/40 bg-danger/15 rounded-md p-2 mb-2'
+                    : rowStatus === 'skipped'
+                      ? 'border border-border bg-surface/40 rounded-md p-2 mb-2 opacity-60'
+                      : 'border border-border rounded-md p-2 mb-2';
             return (
               <div
                 key={row.id}
-                className={
-                  rowColliding
-                    ? 'border border-[color:var(--color-danger)] rounded-md p-2 mb-2'
-                    : 'border border-border rounded-md p-2 mb-2'
-                }
+                data-testid={`variant-row-${idx}`}
+                className={rowClass}
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Factor field — the canonical s for this row. */}
@@ -825,10 +878,16 @@ export function VariantDialog(props: VariantDialogProps) {
                   }x)`
                 : ''}
             </p>
+            {/* Phase-51 follow-up — each result row gets a status-colored
+                background (green / amber / red / neutral), matching the live
+                scale-row colors above. */}
             {results.map((r, i) => {
               if (r.status === 'exported') {
                 return (
-                  <p key={i} className="text-fg-muted">
+                  <p
+                    key={i}
+                    className="bg-success/15 border border-success/30 rounded-md px-2 py-1 mb-1 text-success"
+                  >
                     ✓ {projectName}@{r.token}x/ — {r.successes} file
                     {r.successes === 1 ? '' : 's'}
                   </p>
@@ -836,8 +895,11 @@ export function VariantDialog(props: VariantDialogProps) {
               }
               if (r.status === 'exported-with-errors') {
                 return (
-                  <div key={i}>
-                    <p className="text-fg-muted">
+                  <div
+                    key={i}
+                    className="bg-warning/15 border border-warning/30 rounded-md px-2 py-1 mb-1"
+                  >
+                    <p className="text-warning">
                       ⚠ {projectName}@{r.token}x/ — {r.successes} exported,{' '}
                       {r.errors?.length ?? 0} failed
                     </p>
@@ -856,14 +918,20 @@ export function VariantDialog(props: VariantDialogProps) {
               }
               if (r.status === 'failed') {
                 return (
-                  <p key={i} className="text-[color:var(--color-danger)]">
+                  <p
+                    key={i}
+                    className="bg-danger/15 border border-danger/30 rounded-md px-2 py-1 mb-1 text-[color:var(--color-danger)]"
+                  >
                     ✗ {projectName}@{r.token}x/ — {r.reason}
                   </p>
                 );
               }
               // 'skipped'
               return (
-                <p key={i} className="text-fg-muted">
+                <p
+                  key={i}
+                  className="bg-surface/40 border border-border rounded-md px-2 py-1 mb-1 text-fg-muted opacity-70"
+                >
                   ⊘ {projectName}@{r.token}x/ — skipped
                 </p>
               );

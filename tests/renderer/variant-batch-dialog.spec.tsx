@@ -37,6 +37,11 @@ import type { ExportPlan, SkeletonSummary } from '../../src/shared/types';
 
 let exportVariantBatchMock: ReturnType<typeof vi.fn>;
 let cancelVariantBatchMock: ReturnType<typeof vi.fn>;
+// Captured live per-variant result handler (set when the dialog subscribes in the
+// in-progress effect) so a test can drive variant:result events directly.
+let variantResultHandler:
+  | ((r: { token: string; status: string; successes?: number; reason?: string }) => void)
+  | null;
 
 beforeEach(() => {
   exportVariantBatchMock = vi.fn(async () => ({
@@ -47,10 +52,16 @@ beforeEach(() => {
     ],
   }));
   cancelVariantBatchMock = vi.fn();
+  variantResultHandler = null;
   vi.stubGlobal('api', {
     exportVariantBatch: exportVariantBatchMock,
     cancelVariantBatch: cancelVariantBatchMock,
     onVariantBatchProgress: vi.fn(() => () => {}),
+    onExportProgress: vi.fn(() => () => {}),
+    onVariantResult: vi.fn((h) => {
+      variantResultHandler = h;
+      return () => {};
+    }),
     pickOutputDirectory: vi.fn(async () => '/tmp/parent'),
     openOutputFolder: vi.fn(),
   });
@@ -256,5 +267,43 @@ describe('VariantDialog — Phase 51 EXPORT-04 multi-row batch', () => {
     });
     // The failed row's reason is surfaced.
     expect(screen.getByText(/boom/i)).toBeTruthy();
+  });
+
+  it('live: a variant:result event colors the matching scale row (green exported / red failed)', async () => {
+    // Keep the batch pending so the dialog stays in 'in-progress' and remains
+    // subscribed to the variant:result stream.
+    exportVariantBatchMock.mockImplementationOnce(
+      () => new Promise<never>(() => {}),
+    );
+    render(
+      <VariantDialog
+        {...buildProps({
+          rows: [
+            { id: 'r1', scale: 0.5 }, // tokenFor === '0.5'
+            { id: 'r2', scale: 0.36 }, // tokenFor === '0.36'
+          ],
+          onConfirmStart: vi.fn(async () => ({
+            proceed: true,
+            overwrite: false,
+            outDir: '/tmp/parent',
+          })),
+        })}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Export Variants/i }));
+    });
+    // The in-progress effect subscribed and captured the live result handler.
+    await waitFor(() => expect(variantResultHandler).not.toBeNull());
+
+    // Drive a success for row 0 (0.5) and a failure for row 1 (0.36).
+    act(() => {
+      variantResultHandler?.({ token: '0.5', status: 'exported', successes: 3 });
+      variantResultHandler?.({ token: '0.36', status: 'failed', reason: 'boom' });
+    });
+
+    expect(screen.getByTestId('variant-row-0').className).toContain('bg-success');
+    expect(screen.getByTestId('variant-row-1').className).toContain('bg-danger');
   });
 });

@@ -1570,6 +1570,13 @@ export interface Api {
     }) => void,
   ) => () => void;
   /**
+   * Phase-51 follow-up — subscribe to per-variant RESULT markers. Main emits a
+   * BatchVariantResult as EACH variant finishes (exported / exported-with-errors
+   * / failed / skipped), so the renderer can color the scale rows + summary rows
+   * live. Returns an unsubscribe fn (captured-reference pattern).
+   */
+  onVariantResult: (handler: (result: BatchVariantResult) => void) => () => void;
+  /**
    * Phase 6 Plan 05 — Open Finder/Explorer at the output directory after
    * a completed export (Electron shell.showItemInFolder). One-way.
    */

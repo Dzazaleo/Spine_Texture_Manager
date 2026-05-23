@@ -398,6 +398,19 @@ export async function handleExportVariantBatch(
 ): Promise<{ ok: true; results: BatchVariantResult[] }> {
   const results: BatchVariantResult[] = [];
 
+  // Phase-51 follow-up — emit each per-variant result on the `variant:result`
+  // channel as it lands, so the renderer can color the scale rows + summary rows
+  // LIVE (green / amber / red) as the batch runs, not only when the whole run
+  // returns. The full `results` array is still the return value (unchanged contract).
+  const pushResult = (r: BatchVariantResult) => {
+    results.push(r);
+    try {
+      evt.sender.send('variant:result', r);
+    } catch {
+      /* sender gone */
+    }
+  };
+
   // Defense-in-depth (RESEARCH §Q3): reject the whole batch if two scales collide
   // on the SAME normalized token (the renderer also blocks this pre-flight, D-10).
   const seen = new Map<string, number>();
@@ -405,7 +418,7 @@ export async function handleExportVariantBatch(
   const collision = [...seen.entries()].find(([, n]) => n > 1);
   if (collision) {
     for (const s of scales) {
-      results.push({
+      pushResult({
         token: formatScaleToken(s),
         status: 'failed',
         reason: `Duplicate scale token @${collision[0]}x — two rows produce the same folder.`,
@@ -416,7 +429,7 @@ export async function handleExportVariantBatch(
 
   if (variantExportInFlight) {
     for (const s of scales) {
-      results.push({
+      pushResult({
         token: formatScaleToken(s),
         status: 'failed',
         reason: 'A variant export is already in progress.',
@@ -432,7 +445,7 @@ export async function handleExportVariantBatch(
       if (variantBatchCancelRequested) {
         // D-09 — record remaining scales as skipped, leave completed variants intact.
         for (let j = i; j < scales.length; j++) {
-          results.push({ token: formatScaleToken(scales[j]), status: 'skipped' });
+          pushResult({ token: formatScaleToken(scales[j]), status: 'skipped' });
         }
         break;
       }
@@ -461,14 +474,14 @@ export async function handleExportVariantBatch(
       );
       const token = formatScaleToken(scales[i]);
       if (res.ok) {
-        results.push({
+        pushResult({
           token,
           status: res.summary.errors.length > 0 ? 'exported-with-errors' : 'exported',
           successes: res.summary.successes,
           errors: res.summary.errors.length > 0 ? res.summary.errors : undefined,
         });
       } else {
-        results.push({ token, status: 'failed', reason: res.error.message });
+        pushResult({ token, status: 'failed', reason: res.error.message });
       }
       // LOOP CONTINUES regardless of res.ok (D-07 continue-on-error) — no break, no rethrow.
     }

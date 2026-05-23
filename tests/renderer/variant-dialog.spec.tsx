@@ -42,6 +42,8 @@ beforeEach(() => {
     exportVariantBatch: exportVariantBatchMock,
     cancelVariantBatch: vi.fn(),
     onVariantBatchProgress: vi.fn(() => () => {}),
+    onExportProgress: vi.fn(() => () => {}),
+    onVariantResult: vi.fn(() => () => {}),
     pickOutputDirectory: vi.fn(async () => '/tmp/parent'),
     openOutputFolder: vi.fn(),
   });
