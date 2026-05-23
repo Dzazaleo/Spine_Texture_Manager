@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: ready_to_plan
-last_updated: "2026-05-22T23:28:11.945Z"
-last_activity: 2026-05-22 -- Phase 50 execution started
+status: planning
+last_updated: "2026-05-23T11:47:57.952Z"
+last_activity: 2026-05-23
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 9
-  completed_plans: 7
-  percent: 75
+  completed_plans: 9
+  percent: 100
 ---
 
 # State
@@ -19,10 +19,10 @@ progress:
 
 Phase: 51
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-23
+Status: Context gathered — ready to plan
+Last activity: 2026-05-23 -- Phase 51 context gathered (`/gsd-discuss-phase 51`)
 
-Next: **`/gsd-execute-phase 50`** — Phase 50 (Rig-Bounds + Two-Way Scale↔Dimension Input) is PLANNED: **2 plans / 2 waves, all autonomous.** Wave 1 = 50-01 (SCALEUI-02): NEW `src/core/setup-bounds.ts` `computeSetupPoseBounds` — Layer-3-pure dual-runtime **ALL-SKINS** setup-pose AABB union (generalizes the proven `aggregateWorldAABB` body, swapping slot-bindings → sampler Pass-1.5 manifest loop) with the mandatory `measured===0 → null` degenerate guard (no non-finite ever crosses IPC — RESEARCH Pitfall 1) + additive `SkeletonSummary.bbox: {w,h}|null` computed ONCE in `summary.ts` via the already-bound `rt` (REG-47-01-safe `load.runtime.makeSkeleton`) + V1–V7. Wave 2 = 50-02 (SCALEUI-01, depends 50-01): enrich the `VariantDialog` Scale card **IN PLACE** (D-09, tabs deferred to Phase 51) — bbox W×H reference line + three coupled aspect-locked inputs (factor / target-W / target-H, **uniform-only**) backed by pure `pxFromScale`/`scaleFromPx`/`displayFactor` helpers; typed px honored EXACTLY no-snap (D-03), `s` is the single source of truth the export consumes (D-02), over-range `s≥1` allows entry but disables Export + shows the inline hint (D-04, authoritative reject stays main-side `VariantScaleError`); reads `summary.bbox`, **zero new IPC/props** + V8–V12. Research + VALIDATION (V1–V12 task-bound) + PATTERNS (9/9 shipped analogs) done; planned **`--skip-ui`** (in-place enrichment, no UI-SPEC — user choice 2026-05-22); plan-checker **PASSED iter-1** (0 blockers / 0 warnings, all 12 dimensions; decision-coverage 9/9 D-01..D-09). Locked: compute bbox ourselves, NOT the JSON `skeleton.width/height` header (D-05, untrusted editor metadata like `fps`); all-skins union ≥ editor setup-visible subset (D-06 — avoids the "eyes-only setup" trap; empirically SIMPLE_TEST Δ0.0%, skeleton2 +19.3%); dual-runtime via the adapter only never a hardcoded ctor (D-07); editor `width/height` kept only as a test cross-check oracle (D-08). **NO new fixture dir** (bbox math reads no PNG bytes → mode-invariant; degenerate case constructed in-test) — SAFE-01 landmine pre-empted. Plans committed `ce129a2`.
+Next: **`/gsd-plan-phase 51`** — Phase 51 (Batch Variant Export, the v1.7 finale, EXPORT-04) CONTEXT gathered `ab9f8d3` (`51-CONTEXT.md` + `51-DISCUSSION-LOG.md`). **13 decisions (D-01..D-13) + 5 locked carry-forwards (L-01..L-05).** Scope: turn the existing single-pane `VariantDialog` into a **multi-row scale list** (each row = the Phase-50 two-way factor↔W↔H control; opens with one row at 0.5; no presets — D-01/02/03) and orchestrate **one export per scale** by reusing the proven Phase-49 `handleExportVariant` body per scale (SC#2 byte-identical-to-single-scale satisfied by construction); N variants → N `{PARENT}/{NAME}@{s}x/` sibling folders (the no-collision fan-out the 49-D-01 layout was designed for, L-05). **Action model: unify single+batch into the ONE "Export Variant…" dialog (1 row = single, 2+ = batch); Optimize Assets stays SEPARATE + byte-untouched (49-D-04 preserved) — the Optimize⊕Variant merge is a deferred v1.8 UX refactor (user challenged "why two buttons", accepted the baked-JSON intent-line rationale, D-04/D-05).** Single pane, **NO tabs** (D-06 OVERTURNS the 49-D-06/50-D-09 "tabs land at 51" expectation — don't re-add). **Continue-on-error, each folder atomic (its OWN rollback Set) + per-folder result list (D-07/08); Cancel = stop-after-current-variant, between-variants gate only (D-09); duplicate `@{s}x` tokens flagged + Start blocked (D-10); invalid rows disable Start per the existing D-04/D-08 gate (D-11); one overwrite choice for the whole run, pre-existing folders fail per-folder (D-12); overrides SHARED across all scales — the one active %-of-peak bucket, per-scale override divergence stays deferred L-05 (D-13).** Dual-runtime (4.2+4.3) + dual-mode (atlas-source/atlas-less) hard requirements; `core/` Layer-3 pure. **DEFERRED to v1.8/Future Req:** what-if preview (per-scale dims/peak + Atlas Preview reflection — user explicitly deferred), unified Export dialog, per-scale overrides, scale presets, saved scale-sets, `%` readout. Research flags: orchestration seam (renderer N×`exportVariant` loop vs main-side `variant:exportBatch` channel — reuse `handleExportVariant` body, per-variant rollback scope); dedup via `formatScaleToken`; SC#2 faithfulness matrix (reuse Phase-49 fixtures + drop-in oracle, likely NO new fixture dir).
 
 **Phase 49 COMPLETE 2026-05-22 (3/3 plans — EXPORT-01/02/03/05; v1.7 first end-user value).** Single-scale variant export shipped: an "Export Variant…" action bakes a scaled skeleton JSON + sizes textures `variant_peak = s × master_peak` (never re-sampling the variant) into `{PARENT}/{NAME}@{s}x/`, reusing `buildExportPlan` + atlas-writer UNCHANGED across `loose|atlas|both`, dual-runtime + dual-mode; the source JSON is never modified (first feature to ever WRITE a skeleton JSON, via an atomic writer L-03). Wave 1 = 49-01 (engine + `variant:export` IPC/preload + `VariantScaleError` D-08), Wave 2 = 49-02 (renderer single-pane dialog + basic scale field — the field Phase 50 now enriches) + 49-03 (per-mode package layout + rollback + drop-in faithfulness oracle + dual-runtime×dual-mode matrix + Layer-3 anchor). Code review **CR-01** (silent re-export JSON corruption) FIXED before close per user fix-now decision ([[feedback_fix_review_blockers_before_close]]), re-verified **12/12** (`f82178e`); the native folder-picker visual UAT remains the one open carry-forward item. Full detail in `49-*-SUMMARY.md` + ROADMAP.
 
