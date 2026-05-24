@@ -202,9 +202,9 @@ Plans:
 
 Plans:
 **Wave 1** *(no inter-plan deps — disjoint files: variant-export.ts / ipc.ts / renderer; run in parallel)*
-- [ ] 52-01-PLAN.md — `variant-export.ts` hardening: D-01 per-row duplicate-token continue-on-error (replace the whole-batch abort with a `dupTokens` skip+continue, preserve the re-entrancy guard + between-variants cancel) + D-03 no-orphan-empty-dir (readdir-empty `outDir` cleanup in the rollback catch, only-if-empty) [wave 1, EXPORT-06 / SC#1+SC#2]
-- [ ] 52-02-PLAN.md — `ipc.ts` D-04 coerce-and-clamp: drop the redundant `Number(...) || 0` at BOTH variant handlers → `Number(...)` (single canonical clamp in exportOneVariant step 2b) + documenting comment at both; NOT validate-and-reject [wave 1, EXPORT-06 / SC#3]
-- [ ] 52-03-PLAN.md — renderer cleanup: D-06 remove the dead `plan` prop (VariantDialogProps + AppShell `variantDialogState` type + `<VariantDialog/>` site + the dead `buildExportPlan` call; KEEP `buildExportPlan` + AppShell `ExportPlan` imports) + D-07 fix `onStart`'s misleading memoization; D-02 renderer dup gate UNCHANGED [wave 1, EXPORT-06 / SC#4]
+- [x] 52-01-PLAN.md — `variant-export.ts` hardening: D-01 per-row duplicate-token continue-on-error (replace the whole-batch abort with a `dupTokens` skip+continue, preserve the re-entrancy guard + between-variants cancel) + D-03 no-orphan-empty-dir (readdir-empty `outDir` cleanup in the rollback catch, only-if-empty) [wave 1, EXPORT-06 / SC#1+SC#2]
+- [x] 52-02-PLAN.md — `ipc.ts` D-04 coerce-and-clamp: drop the redundant `Number(...) || 0` at BOTH variant handlers → `Number(...)` (single canonical clamp in exportOneVariant step 2b) + documenting comment at both; NOT validate-and-reject [wave 1, EXPORT-06 / SC#3]
+- [x] 52-03-PLAN.md — renderer cleanup: D-06 remove the dead `plan` prop (VariantDialogProps + AppShell `variantDialogState` type + `<VariantDialog/>` site + the dead `buildExportPlan` call; KEEP `buildExportPlan` + AppShell `ExportPlan` imports) + D-07 fix `onStart`'s misleading memoization; D-02 renderer dup gate UNCHANGED [wave 1, EXPORT-06 / SC#4]
 
 **Wave 2** *(depends on 52-01 — the dup-skip + dir-cleanup behaviors the tests lock)*
 - [ ] 52-04-PLAN.md — regression locks: D-05 NEW `tests/main/variant-token-equivalence.spec.ts` (`tokenFor` ≡ `formatScaleToken` over IEEE-754 + near-collision sample; tests/main, no TS6307) + D-08 (a) tighten the orphan tolerance to assert the failed folder is GONE + D-08 (b) WR-02 partial-failure regression (colliding rows failed, non-colliding exported, colliding folder never created); no new committed fixture [wave 2, depends 52-01, EXPORT-06 / SC#1+SC#2+SC#4]
@@ -230,5 +230,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51 → 52 → 53
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete    | 2026-05-23 |
-| 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 0/? | Not started | — |
+| 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 3/4 | In Progress|  |
 | 53. Persist Variant State in .stmproj | v1.7 | 0/? | Not started | — |
