@@ -8,6 +8,17 @@
     "src/shared/**/*.ts",
     "src/core/**/*.ts",
     "src/renderer/src/lib/**/*.ts",
+    // Phase 52 (D-05 / IN-01): the renderer-local PURE token helper
+    // variant-scale-derive.ts (zero imports, ES2022-clean — no React/DOM) is
+    // imported by tests/main/variant-token-equivalence.spec.ts to lock the
+    // cross-boundary tokenFor ≡ formatScaleToken mirror. Because this is a
+    // `composite` project, an imported file must be EXPLICITLY listed (not just
+    // pulled in via the import edge) or tsc raises TS6307. Listing only the
+    // single-level *.ts here pulls in exactly that one pure helper; the sibling
+    // React/DOM modal *.tsx files do NOT match (and stay out of this no-DOM
+    // node program, lib: ES2022 / types: node). Mirrors the existing
+    // src/renderer/src/lib/**/*.ts include for the same Layer-3 reason.
+    "src/renderer/src/modals/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"
   ],
