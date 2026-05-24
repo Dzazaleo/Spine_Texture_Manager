@@ -33,7 +33,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { VariantDialog } from '../../src/renderer/src/modals/VariantDialog';
-import type { ExportPlan, SkeletonSummary } from '../../src/shared/types';
+import type { SkeletonSummary } from '../../src/shared/types';
 
 let exportVariantBatchMock: ReturnType<typeof vi.fn>;
 let cancelVariantBatchMock: ReturnType<typeof vi.fn>;
@@ -72,27 +72,6 @@ afterEach(() => {
   cleanup();
 });
 
-function makePlan(): ExportPlan {
-  return {
-    skeletonPath: '/proj/SIMPLE_TEST.json',
-    rows: [
-      {
-        sourcePath: '/fake/CIRCLE.png',
-        outPath: 'images/CIRCLE.png',
-        sourceW: 699,
-        sourceH: 699,
-        outW: 350,
-        outH: 350,
-        effectiveScale: 0.5,
-        attachmentNames: ['CIRCLE'],
-      },
-    ],
-    excludedUnused: [],
-    passthroughCopies: [],
-    totals: { count: 1 },
-  } as unknown as ExportPlan;
-}
-
 function makeSummary(): SkeletonSummary {
   return {
     skeletonPath: '/proj/SIMPLE_TEST.json',
@@ -110,7 +89,6 @@ function buildProps(
 ): ComponentProps<typeof VariantDialog> {
   return {
     open: true,
-    plan: makePlan(),
     summary: makeSummary(),
     outDir: null,
     onClose: vi.fn(),
