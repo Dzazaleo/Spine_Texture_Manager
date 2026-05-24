@@ -47,7 +47,6 @@ import {
 } from 'react';
 import type {
   BatchVariantResult,
-  ExportPlan,
   SkeletonSummary,
 } from '../../../shared/types.js';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -68,11 +67,6 @@ export interface VariantRow {
 
 export interface VariantDialogProps {
   open: boolean;
-  /**
-   * Display-only plan for the summary tiles (master-sized; the actual
-   * s-scaling happens MAIN-side per Plan-01 from `summary` + each `scale`).
-   */
-  plan: ExportPlan;
   /**
    * The live skeleton summary. Sent over IPC alongside the scales — main builds
    * the s-scaled plan + bakes the JSON from this per scale (Plan-01 RESEARCH A2).
