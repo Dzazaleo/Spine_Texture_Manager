@@ -1194,6 +1194,16 @@ export interface ProjectFileV1 {
    * field; the validator pre-massages missing → 2 per CONTEXT D-01e.
    */
   atlasPadding: number;
+  /**
+   * Phase 53 SCALEUI-03 — additive-optional, validator pre-massages missing
+   * → [{ scale: 0.5 }]; per D-04/D-05. The Export Variant dialog's scale rows
+   * (scales only — ephemeral row ids / activePx are never persisted). No
+   * schema version bump (still version: 1). Declared non-optional in the TS
+   * type exactly like the fields above — the validator/materializer guarantee
+   * it is present after load; the on-disk optionality is realized solely by the
+   * missing → default massage in src/core/project-file.ts.
+   */
+  variantRows: { scale: number }[];
 }
 
 export type ProjectFile = ProjectFileV1;
@@ -1230,6 +1240,12 @@ export interface AppSessionState {
   atlasAllowRotation: boolean;
   /** Phase 40 REPACK-07 — round-trips through .stmproj per D-01e. Integer 0-16. */
   atlasPadding: number;
+  /**
+   * Phase 53 SCALEUI-03 — additive-optional, validator pre-massages missing
+   * → [{ scale: 0.5 }]; per D-04/D-05. The in-memory editable scale rows
+   * (scales only — ids regenerated on load, never serialized).
+   */
+  variantRows: { scale: number }[];
 }
 
 /**
@@ -1310,6 +1326,12 @@ export interface MaterializedProject {
   atlasAllowRotation: boolean;
   /** Phase 40 REPACK-07 — integer 0..16; validator-defaulted to 2. */
   atlasPadding: number;
+  /**
+   * Phase 53 SCALEUI-03 — additive-optional, validator pre-massages missing
+   * → [{ scale: 0.5 }]; per D-04/D-05. Threaded through main/project-io.ts so
+   * AppShell can re-seed its lifted variantRows state (with fresh ids) on Open.
+   */
+  variantRows: { scale: number }[];
 }
 
 export type SaveResponse =
