@@ -103,7 +103,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 - [x] **Phase 49: Single-Scale Variant Export** - One scale → one folder (scaled JSON + resized textures + scaled atlas), `variant_peak = s × master_peak`, respecting `loose | atlas | both`; dual-runtime + dual-mode; source JSON never modified (completed 2026-05-22)
 - [x] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase) (completed 2026-05-22)
 - [x] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale (completed 2026-05-23)
-- [ ] **Phase 52: Batch Export Robustness + Variant-Dialog Cleanup** - Harden the batch path (per-row duplicate handling, no orphan folders, consistent coercion) + clear the Phase-51 code-review backlog (EXPORT-06)
+- [x] **Phase 52: Batch Export Robustness + Variant-Dialog Cleanup** - Harden the batch path (per-row duplicate handling, no orphan folders, consistent coercion) + clear the Phase-51 code-review backlog (EXPORT-06) (completed 2026-05-24)
 - [ ] **Phase 53: Persist Variant State in .stmproj** - The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved (SCALEUI-03)
 
 ## Phase Details
@@ -207,7 +207,7 @@ Plans:
 - [x] 52-03-PLAN.md — renderer cleanup: D-06 remove the dead `plan` prop (VariantDialogProps + AppShell `variantDialogState` type + `<VariantDialog/>` site + the dead `buildExportPlan` call; KEEP `buildExportPlan` + AppShell `ExportPlan` imports) + D-07 fix `onStart`'s misleading memoization; D-02 renderer dup gate UNCHANGED [wave 1, EXPORT-06 / SC#4]
 
 **Wave 2** *(depends on 52-01 — the dup-skip + dir-cleanup behaviors the tests lock)*
-- [ ] 52-04-PLAN.md — regression locks: D-05 NEW `tests/main/variant-token-equivalence.spec.ts` (`tokenFor` ≡ `formatScaleToken` over IEEE-754 + near-collision sample; tests/main, no TS6307) + D-08 (a) tighten the orphan tolerance to assert the failed folder is GONE + D-08 (b) WR-02 partial-failure regression (colliding rows failed, non-colliding exported, colliding folder never created); no new committed fixture [wave 2, depends 52-01, EXPORT-06 / SC#1+SC#2+SC#4]
+- [x] 52-04-PLAN.md — regression locks: D-05 NEW `tests/main/variant-token-equivalence.spec.ts` (`tokenFor` ≡ `formatScaleToken` over IEEE-754 + near-collision sample; tests/main, no TS6307) + D-08 (a) tighten the orphan tolerance to assert the failed folder is GONE + D-08 (b) WR-02 partial-failure regression (colliding rows failed, non-colliding exported, colliding folder never created); no new committed fixture [wave 2, depends 52-01, EXPORT-06 / SC#1+SC#2+SC#4]
 
 ### Phase 53: Persist Variant State in `.stmproj`
 **Goal**: The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved.
@@ -230,5 +230,5 @@ Phases execute in numeric order: 48 → 49 → 50 → 51 → 52 → 53
 | 49. Single-Scale Variant Export | v1.7 | 3/3 | Complete    | 2026-05-22 |
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete    | 2026-05-23 |
-| 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 3/4 | In Progress|  |
+| 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete   | 2026-05-24 |
 | 53. Persist Variant State in .stmproj | v1.7 | 0/? | Not started | — |
