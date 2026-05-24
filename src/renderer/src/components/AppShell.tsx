@@ -1111,6 +1111,11 @@ export function AppShell({
         atlasMaxPageSize,
         atlasAllowRotation,
         atlasPadding,
+        // Phase 53 SCALEUI-03 — persist the Export Variant scale rows. Project
+        // the lifted { id, scale }[] state to the persisted { scale }[] shape
+        // (ephemeral row ids are never serialized; regenerated on load). The
+        // full restore-on-load + dirty wiring lands in Plan 53-02.
+        variantRows: variantRows.map((r) => ({ scale: r.scale })),
       };
     },
     [
@@ -1118,6 +1123,7 @@ export function AppShell({
       summary.atlasPath,
       overrides,
       overridesAtlasLess, // Phase 36 OVR-05 — sibling bucket in Save payload
+      variantRows, // Phase 53 SCALEUI-03 — scale rows in Save payload
       samplingHzLocal,
       documentation,
       loaderMode,

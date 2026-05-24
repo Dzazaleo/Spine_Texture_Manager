@@ -691,6 +691,10 @@ export async function handleProjectOpenFromPath(
     atlasMaxPageSize: materialized.atlasMaxPageSize,
     atlasAllowRotation: materialized.atlasAllowRotation,
     atlasPadding: materialized.atlasPadding,
+    // Phase 53 SCALEUI-03 — thread variantRows so AppShell can re-seed its
+    // lifted variantRows state (with fresh ids) on Open. materializeProjectFile
+    // already back-filled the default [{ scale: 0.5 }] for legacy files.
+    variantRows: materialized.variantRows,
   };
   // Phase 8.2 D-180 — successful Open re-bumps the path to the front of
   // recent.json. Both drag-drop and toolbar Open and menu Open Recent
@@ -1077,6 +1081,13 @@ export async function handleProjectReloadWithSkeleton(
     // intersects against the new skeleton without crashing. A future polish
     // phase can thread documentation through the locate-skeleton args.
     documentation: { ...DEFAULT_DOCUMENTATION },
+    // Phase 53 SCALEUI-03 — recovery-envelope threading is DEFERRED this phase
+    // (Task 1 NOTE): the locate-skeleton recovery hop reuses the renderer's
+    // cached args, which do NOT carry variantRows today. Default to the single
+    // 0.5 row so the type contract holds; consequence — on the rare missing-
+    // skeleton-on-open recovery hop, the dialog's rows reset to [{ scale: 0.5 }].
+    // Not an SC; acceptable. Mirrors the `documentation` default above.
+    variantRows: [{ scale: 0.5 }],
   };
   return { ok: true, project };
 }
@@ -1363,6 +1374,13 @@ export async function handleProjectResample(
       && a.atlasPadding <= 16
         ? a.atlasPadding
         : 2,
+    // Phase 53 SCALEUI-03 — resample is renderer-driven; the renderer's
+    // variantRows state is the source of truth and AppShell preserves it
+    // across resample (it ignores this field on the resample path, same as
+    // documentation above). ResampleArgs does not carry variantRows today
+    // (DEFERRED — Task 1 NOTE); default to the single 0.5 row to satisfy the
+    // type contract. Mirrors the `documentation` default above.
+    variantRows: [{ scale: 0.5 }],
   };
   return { ok: true, project };
 }

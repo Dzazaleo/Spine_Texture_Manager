@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: executing
-last_updated: "2026-05-24T13:24:49.449Z"
-last_activity: 2026-05-24 -- Phase 53 planning complete
+last_updated: "2026-05-24T13:30:55.233Z"
+last_activity: 2026-05-24 -- Phase 53 execution started
 progress:
   total_phases: 6
   completed_phases: 5
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 53
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-24 -- Phase 53 planning complete
+Phase: 53 (persist-variant-state-in-stmproj) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 53
+Last activity: 2026-05-24 -- Phase 53 execution started
 
 Next: **`/gsd-plan-phase 52`** — Phase 52 (Batch Export Robustness + Variant-Dialog Cleanup, EXPORT-06). **v1.7 was NOT shipped** — the user kept the milestone OPEN to do two more phases (52 then 53) rather than push the work to v1.8. Phase 52 = clear the Phase-51 `51-REVIEW.md` backlog: WR-02 (duplicate `@{s}x` token currently aborts the WHOLE batch → make it fail only the colliding row(s), continue-on-error parity with D-07), WR-03 (a failed variant leaves an orphan empty `{NAME}@{s}x/` folder → rmdir-if-empty in the rollback), WR-04 (variant channels coerce-and-clamp vs `export:start`'s validate-and-reject — unify or document), IN-01 (no cross-boundary `tokenFor`≡`formatScaleToken` equivalence test), IN-03 (dead `plan` prop + its `buildExportPlan` call in the variant path), IN-04 (`onStart` `useCallback` deps include whole `props`). Pure hardening/cleanup, no new user capability → planned `--skip-ui`, likely no discuss needed. **Phase 53 (after 52)** = Persist Variant State in `.stmproj` (SCALEUI-03; rows + output location round-trip; has one design decision — output-path portability — so start with `/gsd-discuss-phase 53`; detail in `.planning/todos/pending/2026-05-23-persist-variant-rows-and-output-location.md`).
 
@@ -73,7 +73,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 52 — batch-export-robustness-variant-dialog-cleanup
+**Current focus:** Phase 53 — persist-variant-state-in-stmproj
 
 ## Last Completed Milestone
 

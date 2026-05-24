@@ -378,6 +378,27 @@ export function validateProjectFile(input: unknown): ValidateResult {
     }
   }
 
+  // Phase 53 SCALEUI-03 forward-compat — files written before Phase 53 have no
+  // `variantRows` field; default to one row at 0.5 (matches AppShell in-memory
+  // default). Each element must carry a FINITE-number `scale` (NaN/Infinity would
+  // serialize to JSON null and silently corrupt — mirrors overridesAtlasLess loop).
+  // Additive-optional, NO version bump (D-05). Ephemeral row ids are NOT persisted.
+  if (obj.variantRows === undefined) {
+    obj.variantRows = [{ scale: 0.5 }];
+  }
+  if (!Array.isArray(obj.variantRows)) {
+    return { ok: false, error: { kind: 'invalid-shape', message: 'variantRows is not an array' } };
+  }
+  for (const [i, row] of (obj.variantRows as unknown[]).entries()) {
+    if (
+      !row || typeof row !== 'object' || Array.isArray(row)
+      || typeof (row as { scale?: unknown }).scale !== 'number'
+      || !Number.isFinite((row as { scale: number }).scale)
+    ) {
+      return { ok: false, error: { kind: 'invalid-shape', message: `variantRows[${i}].scale is not a finite number` } };
+    }
+  }
+
   // Reaching here, the shape matches ProjectFileV1.
   return { ok: true, project: obj as unknown as ProjectFileV1 };
 }
@@ -452,6 +473,14 @@ export function serializeProjectFile(
     atlasMaxPageSize: state.atlasMaxPageSize,
     atlasAllowRotation: state.atlasAllowRotation,
     atlasPadding: state.atlasPadding,
+    // Phase 53 SCALEUI-03 — round-trips through .stmproj per D-04/D-05. Defensive
+    // shallow clone (mirrors the `overrides` `{ ...x }` idiom) strips any stray
+    // field (e.g. ephemeral row id / activePx) so only `scale` is persisted. The
+    // `?? []` mirrors the spread-tolerates-undefined behaviour of the `overrides`
+    // / `overridesAtlasLess` fields above, so a caller that constructs a partial
+    // AppSessionState (e.g. via a Partial cast) does not throw; the materializer
+    // and validator both back-fill the [{ scale: 0.5 }] default downstream.
+    variantRows: (state.variantRows ?? []).map((r) => ({ scale: r.scale })),
   };
 }
 
@@ -550,6 +579,12 @@ export interface PartialMaterialized {
    */
   atlasPadding: number;
   /**
+   * Phase 53 SCALEUI-03 — defence-in-depth fallback (validator pre-massage
+   * already substitutes [{ scale: 0.5 }]). Mirrors atlasPadding above. Scales
+   * only — ephemeral row ids are regenerated renderer-side on Open.
+   */
+  variantRows: { scale: number }[];
+  /**
    * Absolute path of the .stmproj file the user opened — same value the
    * caller passed in. Mirrored onto the partial so AppShell can persist it
    * as `currentProjectPath` without re-threading the arg through the IPC
@@ -633,6 +668,10 @@ export function materializeProjectFile(
     atlasMaxPageSize: file.atlasMaxPageSize ?? 4096,
     atlasAllowRotation: file.atlasAllowRotation ?? false,
     atlasPadding: file.atlasPadding ?? 2,
+    // Phase 53 SCALEUI-03 — defence-in-depth nullish-coalesce; validator
+    // pre-massage already substitutes [{ scale: 0.5 }]. Mirrors atlasPadding
+    // line above.
+    variantRows: file.variantRows ?? [{ scale: 0.5 }],
     projectFilePath,
     // summary intentionally omitted — Plan 03 fills it after loader+sampler.
   };

@@ -44,6 +44,8 @@ describe('materializeProjectFile — L3 loaderMode heal', () => {
     atlasMaxPageSize: 4096,
     atlasAllowRotation: false,
     atlasPadding: 2,
+    // Phase 53 SCALEUI-03 — variant scale rows; default single 0.5 row.
+    variantRows: [{ scale: 0.5 }],
   };
 
   it('heals (atlas-less + atlasPath set) → auto, flags loaderModeHealed=true', () => {
