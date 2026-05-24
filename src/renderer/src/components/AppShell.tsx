@@ -441,6 +441,12 @@ export function AppShell({
     atlasMaxPageSize: 1024 | 2048 | 4096 | 8192;
     atlasAllowRotation: boolean;
     atlasPadding: number;
+    // Phase 53 SCALEUI-03 (53-02) — order-sensitive scale projection of the
+    // persisted variant rows. NOT the { id, scale } objects: ephemeral ids
+    // regenerate via crypto.randomUUID() on load and would false-dirty every
+    // open (D-03 / Pitfall 2). Compared against variantRows.map(r => r.scale)
+    // in the isDirty memo.
+    variantScales: number[];
   } | null>(
     initialProject
       ? {
@@ -456,6 +462,11 @@ export function AppShell({
           atlasMaxPageSize: initialProject.atlasMaxPageSize ?? 4096,
           atlasAllowRotation: initialProject.atlasAllowRotation ?? false,
           atlasPadding: initialProject.atlasPadding ?? 2,
+          // Phase 53 SCALEUI-03 (53-02) — seed the dirty baseline from the
+          // restored scales so a freshly-opened project is NOT dirty (D-03).
+          variantScales: (initialProject.variantRows ?? [{ scale: 0.5 }]).map(
+            (r) => r.scale,
+          ),
         }
       : null,
   );
@@ -562,9 +573,19 @@ export function AppShell({
   // row at 0.5 (a 1-row list IS a single export, D-04). Lifted here mirroring the
   // former single-scale state so AppShell owns the canonical set;
   // `crypto.randomUUID()` keys each row (Pitfall 6 — stable React key, not index).
+  // Phase 53 SCALEUI-03 (53-02) — load-path A: restore the persisted scale set
+  // from the materialized project on first open. Restored rows ALWAYS get a
+  // fresh `crypto.randomUUID()` id (the ephemeral key is never serialized);
+  // only the `scale` numbers round-trip. Legacy / missing → the single 0.5
+  // default. Mirrors the `safetyBufferPercentLocal` seed (:353-354).
   const [variantRows, setVariantRows] = useState<
     { id: string; scale: number }[]
-  >(() => [{ id: crypto.randomUUID(), scale: 0.5 }]);
+  >(() =>
+    (initialProject?.variantRows ?? [{ scale: 0.5 }]).map((r) => ({
+      id: crypto.randomUUID(),
+      scale: r.scale,
+    })),
+  );
 
   // Gap-Fix Round 3 (2026-04-25) — ConflictDialog state. Mounted on top of
   // OptimizeDialog (z-50 overlay → topmost) when probeExportConflicts
@@ -1221,6 +1242,13 @@ export function AppShell({
       if (atlasMaxPageSize !== 4096) return true;
       if (atlasAllowRotation !== false) return true;
       if (atlasPadding !== 2) return true;
+      // Phase 53 SCALEUI-03 (53-02) — untitled-session variant dirty: dirty
+      // when the scale set differs from the single default row [0.5] (D-03).
+      // Block-scoped so the loaded-arm `variantScales` const below is distinct.
+      {
+        const variantScales = variantRows.map((r) => r.scale);
+        if (variantScales.length !== 1 || variantScales[0] !== 0.5) return true;
+      }
       return false;
     }
     if (overrides.size !== Object.keys(lastSaved.overrides).length) return true;
@@ -1249,6 +1277,16 @@ export function AppShell({
     if (atlasMaxPageSize !== lastSaved.atlasMaxPageSize) return true;
     if (atlasAllowRotation !== lastSaved.atlasAllowRotation) return true;
     if (atlasPadding !== lastSaved.atlasPadding) return true;
+    // Phase 53 SCALEUI-03 (53-02) — loaded-arm variant dirty check. ORDER-
+    // SENSITIVE scale-projection compare (D-03): the `id`s never enter the
+    // equality test, so a fresh-id load is NOT dirty while a real scale edit
+    // (or row add/remove/reorder) IS. Mirrors the `overrides` length-then-
+    // elementwise loop above.
+    const variantScales = variantRows.map((r) => r.scale);
+    if (variantScales.length !== lastSaved.variantScales.length) return true;
+    for (let i = 0; i < variantScales.length; i++) {
+      if (variantScales[i] !== lastSaved.variantScales[i]) return true; // ORDER-SENSITIVE (D-03)
+    }
     return false;
   }, [
     overrides,
@@ -1257,6 +1295,8 @@ export function AppShell({
     samplingHzLocal,
     sharpenOnExportLocal,
     safetyBufferPercentLocal,
+    // Phase 53 SCALEUI-03 (53-02) — variant scale rows feed the dirty check.
+    variantRows,
     // Phase 40 REPACK-07 — atlas dependencies
     atlasOutputMode,
     atlasMaxPageSize,
@@ -1342,6 +1382,10 @@ export function AppShell({
           atlasMaxPageSize: state.atlasMaxPageSize,
           atlasAllowRotation: state.atlasAllowRotation,
           atlasPadding: state.atlasPadding,
+          // Phase 53 SCALEUI-03 (53-02) — refresh the post-save scale baseline so
+          // the project goes clean after Save. `state.variantRows` is already the
+          // persisted { scale }[] shape (buildSessionState strips ephemeral ids).
+          variantScales: state.variantRows.map((r) => r.scale),
         });
         // Auto-clear stale-override notice on successful save (CONTEXT discretion).
         setStaleOverrideNotice(null);
@@ -1390,6 +1434,10 @@ export function AppShell({
           atlasMaxPageSize: state.atlasMaxPageSize,
           atlasAllowRotation: state.atlasAllowRotation,
           atlasPadding: state.atlasPadding,
+          // Phase 53 SCALEUI-03 (53-02) — Pitfall 3: Save As has its OWN
+          // setLastSaved; omitting this here leaves the project dirty after a
+          // Save As… while Save clears it. Mirror the onClickSave snapshot above.
+          variantScales: state.variantRows.map((r) => r.scale),
         });
         setStaleOverrideNotice(null);
         // Phase 29 D-06 — Save As also rewrites with regionName-keyed overrides.
@@ -1622,6 +1670,10 @@ export function AppShell({
       atlasMaxPageSize: project.atlasMaxPageSize ?? 4096,
       atlasAllowRotation: project.atlasAllowRotation ?? false,
       atlasPadding: project.atlasPadding ?? 2,
+      // Phase 53 SCALEUI-03 (53-02) — baseline the dirty snapshot from the
+      // restored scales on re-open so the re-opened project is NOT dirty (D-03,
+      // sibling of the setVariantRows restore below at the end of this callback).
+      variantScales: (project.variantRows ?? [{ scale: 0.5 }]).map((r) => r.scale),
     });
     setStaleOverrideNotice(
       project.staleOverrideKeys.length > 0 ? project.staleOverrideKeys : null,
@@ -1664,6 +1716,17 @@ export function AppShell({
     setAtlasAllowRotation(project.atlasAllowRotation ?? false);
     setAtlasPadding(project.atlasPadding ?? 2);
     setLastOutDir(project.lastOutDir ?? null);
+    // Phase 53 SCALEUI-03 (53-02) — load-path B: re-open-in-session restore
+    // (Pitfall 1 — the highest-risk omission; AppShell is NOT keyed per project
+    // so a mid-session Open dispatches HERE, not the useState initializer at
+    // :565). Regenerate fresh ids; only the persisted `scale`s round-trip. The
+    // callback deps array stays `[]` — `setVariantRows` is a stable setter.
+    setVariantRows(
+      (project.variantRows ?? [{ scale: 0.5 }]).map((r) => ({
+        id: crypto.randomUUID(),
+        scale: r.scale,
+      })),
+    );
   }, []);
 
   // Phase 19 onClickOpen callback removed — toolbar "Open" button was lifted
