@@ -11,10 +11,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { webcrypto } from 'node:crypto';
 import { AppShell } from '../../src/renderer/src/components/AppShell';
 import { App } from '../../src/renderer/src/App';
 import type { SkeletonSummary, OpenResponse, SaveResponse, LoadResponse } from '../../src/shared/types';
 import { DEFAULT_DOCUMENTATION } from '../../src/shared/types';
+
+// Phase 53 SCALEUI-03 (53-02) — defensive crypto.randomUUID polyfill for jsdom
+// runtimes where globalThis.crypto is undefined (older Node). The variantRows
+// restore paths call crypto.randomUUID() to re-key restored rows. Production
+// Electron/Chromium has it natively; this guard exists only for the test runtime.
+if (!globalThis.crypto) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).crypto = webcrypto as Crypto;
+}
 
 afterEach(cleanup);
 
@@ -701,5 +711,106 @@ describe('Phase 34 onMenuOpen — File menu accepts .json + .stmproj (OPEN-01..0
     await cb();
     await cb();
     expect(api.openProjectPicker).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Phase 53 SCALEUI-03 (53-02) — variantRows persistence renderer specs.
+ *
+ * Locks the user-facing "sticky scale set": rows restore from the materialized
+ * project on open (SC#1), a freshly-opened project is NOT dirty despite the
+ * regenerated row ids (D-03 / Pitfall 2 — the dirty compare is an order-
+ * sensitive scale projection, never the { id, scale } objects), and editing a
+ * row's scale marks the project dirty (quit-guard protects authored content).
+ *
+ * The Export Variant dialog renders each row's factor in a
+ * `data-testid="variant-factor-{idx}"` number input (VariantDialog.tsx); the
+ * unsaved indicator is the leading '• ' (U+2022) in the filename chip
+ * (AppShell.tsx — `{isDirty ? '• ' : ''}`).
+ */
+describe('Phase 53 — variantRows persistence (SCALEUI-03)', () => {
+  // Build a MaterializedProject literal mirroring the existing harness
+  // (stale-override-banner spec at line ~321), with the persisted variant
+  // scale set added. `variantRows` is { scale: number }[] (53-01 data tier).
+  function makeProjectWithVariantRows(
+    summary: SkeletonSummary,
+    variantRows: { scale: number }[],
+  ) {
+    return {
+      summary,
+      restoredOverrides: {},
+      restoredOverridesAtlasLess: {},
+      staleOverrideKeys: [],
+      migratedKeyCount: 0,
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      projectFilePath: '/a/b/proj.stmproj',
+      documentation: DEFAULT_DOCUMENTATION,
+      variantRows,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it('variant rows restore from initialProject into the Export Variant dialog (SC#1, order preserved)', async () => {
+    const summary = makeSummary();
+    render(
+      <AppShell
+        summary={summary}
+        samplingHz={120}
+        initialProject={makeProjectWithVariantRows(summary, [
+          { scale: 0.5 },
+          { scale: 0.36 },
+        ])}
+      />,
+    );
+
+    // Open the Export Variant dialog so the lifted rows render as factor inputs.
+    const openBtn = screen.getByRole('button', { name: /Export Variant/i });
+    await userEvent.click(openBtn);
+
+    // The two restored scales appear in order (displayFactor(0.5)==0.5,
+    // displayFactor(0.36)==0.36). The dialog reflects AppShell.variantRows,
+    // which was seeded from initialProject.variantRows by the useState
+    // initializer (load-path A) — proving the rows restored into the UI.
+    const factor0 = (await screen.findByTestId('variant-factor-0')) as HTMLInputElement;
+    const factor1 = screen.getByTestId('variant-factor-1') as HTMLInputElement;
+    expect(factor0.value).toBe('0.5');
+    expect(factor1.value).toBe('0.36');
+    // Exactly two rows restored (no spurious default row appended).
+    expect(screen.queryByTestId('variant-factor-2')).toBeNull();
+  });
+
+  it('variant rows dirty: freshly opened project is NOT dirty (D-03 scale-projection), then editing a row marks dirty', async () => {
+    const summary = makeSummary();
+    const { container } = render(
+      <AppShell
+        summary={summary}
+        samplingHz={120}
+        initialProject={makeProjectWithVariantRows(summary, [
+          { scale: 0.5 },
+          { scale: 0.36 },
+        ])}
+      />,
+    );
+
+    // NOT dirty on open: the dirty compare projects to a number[] of scales
+    // (order-sensitive) and never touches the { id, scale } objects, so the
+    // ids regenerated on load via crypto.randomUUID() do NOT false-dirty.
+    // The filename chip carries no leading '• ' (U+2022) bullet.
+    expect(container.textContent).not.toContain('•');
+
+    // Edit a row's scale via the dialog → the scale projection now differs
+    // from the lastSaved baseline → the project goes dirty.
+    const openBtn = screen.getByRole('button', { name: /Export Variant/i });
+    await userEvent.click(openBtn);
+    const factor1 = (await screen.findByTestId('variant-factor-1')) as HTMLInputElement;
+    // Change 0.36 → 0.4 (a distinct, still-valid sub-1 factor).
+    fireEvent.change(factor1, { target: { value: '0.4' } });
+
+    // The unsaved bullet now appears (isDirty flipped true via the loaded-arm
+    // order-sensitive scale-projection compare).
+    expect(await screen.findByText(/•/)).toBeTruthy();
   });
 });
