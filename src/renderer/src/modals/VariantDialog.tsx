@@ -47,7 +47,6 @@ import {
 } from 'react';
 import type {
   BatchVariantResult,
-  ExportPlan,
   SkeletonSummary,
 } from '../../../shared/types.js';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -68,11 +67,6 @@ export interface VariantRow {
 
 export interface VariantDialogProps {
   open: boolean;
-  /**
-   * Display-only plan for the summary tiles (master-sized; the actual
-   * s-scaling happens MAIN-side per Plan-01 from `summary` + each `scale`).
-   */
-  plan: ExportPlan;
   /**
    * The live skeleton summary. Sent over IPC alongside the scales — main builds
    * the s-scaled plan + bakes the JSON from this per scale (Plan-01 RESEARCH A2).
@@ -278,7 +272,12 @@ export function VariantDialog(props: VariantDialogProps) {
       ? rawBbox
       : null;
 
-  const onStart = useCallback(async () => {
+  // D-07: plain function (not useCallback) — onStart reads ~9 props, so an honest
+  // deps list would be ≡ "all props" and memoization buys nothing. Intentionally
+  // closes over the latest props on each render (the handler must read the current
+  // set). The prior useCallback depended on the whole `props` object, which is
+  // freshly allocated every render, so it re-created the callback anyway.
+  const onStart = async () => {
     // Cheap renderer guard (the button is already disabled, but defense-in-depth
     // against an Enter shortcut firing on an invalid/duplicate set, D-10/D-11).
     if (startDisabled) return;
@@ -346,7 +345,7 @@ export function VariantDialog(props: VariantDialogProps) {
       setErrorMessage(message);
     }
     setState('complete');
-  }, [props, startDisabled]);
+  };
 
   const onCloseSafely = useCallback(() => {
     // ESC + click-outside no-op while in-progress (mirror OptimizeDialog:367-381).

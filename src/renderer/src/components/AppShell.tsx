@@ -552,10 +552,10 @@ export function AppShell({
 
   // Phase 49 Plan 02 EXPORT-01 / D-04 — variant-export dialog state. Held
   // INDEPENDENTLY of exportDialogState (the shipped Optimize flow is untouched).
-  // Mirrors exportDialogState's shape: the display-only plan + the parent
-  // outDir pre-fill. The {NAME}@{s}x/ subfolder is appended MAIN-side (Plan-01).
+  // Holds the parent outDir pre-fill; the {NAME}@{s}x/ subfolder is appended
+  // MAIN-side (Plan-01). The s-scaled plan is built MAIN-side per scale, so no
+  // display-only plan is carried here (Phase 52 D-06 — dead `plan` prop removed).
   const [variantDialogState, setVariantDialogState] = useState<{
-    plan: ExportPlan;
     outDir: string | null;
   } | null>(null);
   // Phase 51 D-01/D-03 — the variant scale SET (a list of rows). Opens with one
@@ -817,15 +817,11 @@ export function AppShell({
   // onClickOptimize: builds the SAME master plan (display-only; the dialog's
   // summary tiles render it). Per Plan-01 + RESEARCH A2, MAIN builds the
   // s-scaled plan from `summary` + `s`; the renderer passes `summary` + `s`
-  // over IPC, so the dialog's `summary` prop is `summary` and `plan` is this
-  // display plan. Reads activeOverrides (mode-aware slice, D-07) verbatim.
+  // over IPC, so the dialog's `summary` prop is `summary`. The s-scaled plan is
+  // built MAIN-side per scale (Plan-01) — the renderer just opens the dialog.
   const onClickExportVariant = useCallback(() => {
-    const plan = buildExportPlan(summary, activeOverrides, {
-      skeletonPath: summary.skeletonPath,
-      safetyBufferPercent: safetyBufferPercentLocal,
-    });
-    setVariantDialogState({ plan, outDir: lastOutDir });
-  }, [summary, activeOverrides, lastOutDir, safetyBufferPercentLocal]);
+    setVariantDialogState({ outDir: lastOutDir });
+  }, [lastOutDir]);
 
   // Phase 49 Plan 02 D-03 — DEDICATED picker-only confirm for the variant flow.
   // This is the REQUIRED handler (NOT a fallback): the Optimize onConfirmStart
@@ -2621,7 +2617,6 @@ export function AppShell({
       {variantDialogState !== null && (
         <VariantDialog
           open={true}
-          plan={variantDialogState.plan}
           summary={summary}
           outDir={variantDialogState.outDir}
           rows={variantRows}
