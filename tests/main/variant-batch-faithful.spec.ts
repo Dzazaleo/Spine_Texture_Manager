@@ -275,12 +275,15 @@ describe('handleExportVariantBatch — continue-on-error (D-07)', () => {
         fs.existsSync(path.join(folder, `${NAME}.json`)),
         `orphan {NAME}.json survived rollback for @${formatScaleToken(s)}x`,
       ).toBe(false);
-      if (fs.existsSync(folder)) {
-        const remaining = fs
-          .readdirSync(folder)
-          .filter((n) => n.endsWith('.atlas') || n.endsWith('.png') || n.endsWith('.json'));
-        expect(remaining, `partial artifacts survived rollback in @${formatScaleToken(s)}x`).toEqual([]);
-      }
+      // D-08 (a) (WR-03 lock, Plan 52-01 D-03) — the readdir-empty cleanup in
+      // exportOneVariant's rollback catch now removes the failed variant's
+      // freshly-created dir entirely. This is the tightened assertion (replaces
+      // the former folder-exists tolerance that allowed an empty leftover dir):
+      // the folder must be GONE, not merely empty.
+      expect(
+        fs.existsSync(folder),
+        `orphan empty dir survived rollback for @${formatScaleToken(s)}x`,
+      ).toBe(false);
     }
   });
 
@@ -306,6 +309,66 @@ describe('handleExportVariantBatch — continue-on-error (D-07)', () => {
         `landed folder missing for @${formatScaleToken(s)}x`,
       ).toBe(true);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // D-08 (b) (WR-02 lock, Plan 52-01 D-01) — partial-failure: two scales that
+  // collide on ONE token both fail (with the dup reason), a non-colliding scale
+  // exports, and the colliding token's folder is NEVER created (the dup-skip
+  // `continue`s before exportOneVariant, so no mkdir happens).
+  // -------------------------------------------------------------------------
+  it('continue-on-error: two scales colliding on one token both fail while a non-colliding scale exports (D-01/WR-02)', async () => {
+    const summary = simpleSummary();
+    // 0.5 and 0.50001 both → token '0.5' (toFixed(4) collapse); 0.36 → '0.36'.
+    // 'loose' + defaultAtlasOpts so the non-colliding scale actually exports.
+    const SCALES = [0.5, 0.50001, 0.36];
+    const DUP_TOKEN = formatScaleToken(0.5); // '0.5'
+    const OK_TOKEN = formatScaleToken(0.36); // '0.36'
+
+    const batch = await handleExportVariantBatch(
+      fakeEvt,
+      summary,
+      SCALES,
+      tmp,
+      false,
+      false,
+      'loose',
+      defaultAtlasOpts,
+    );
+
+    // Never threw across the boundary (continue-on-error envelope).
+    expect(batch.ok).toBe(true);
+    // One result per input scale (the dup-skip pushes a result for each colliding row).
+    expect(batch.results.length, 'a result per input scale').toBe(SCALES.length);
+
+    // BOTH colliding rows (token '0.5') are failed with the verbatim dup reason.
+    const dupRows = batch.results.filter((r) => r.token === DUP_TOKEN);
+    expect(dupRows.length, 'two input rows collapse to the dup token').toBe(2);
+    for (const r of dupRows) {
+      expect(r.status, `colliding @${DUP_TOKEN}x row must be failed`).toBe('failed');
+      expect(
+        r.reason,
+        `colliding @${DUP_TOKEN}x row must carry the dup reason`,
+      ).toBe(`Duplicate scale token @${DUP_TOKEN}x — two rows produce the same folder.`);
+    }
+    expect(
+      batch.results.filter((r) => r.token === DUP_TOKEN && r.status === 'failed').length,
+      'both colliding rows failed with the dup reason',
+    ).toBe(2);
+
+    // The non-colliding scale exported and its folder exists.
+    const okRow = batch.results.find((r) => r.token === OK_TOKEN);
+    expect(okRow?.status, `@${OK_TOKEN}x should be exported`).toBe('exported');
+    expect(
+      fs.existsSync(path.join(tmp, `${NAME}@${OK_TOKEN}x`, `${NAME}.json`)),
+      `non-colliding @${OK_TOKEN}x folder should exist`,
+    ).toBe(true);
+
+    // The colliding token's folder was NEVER created (dup-skip continues before mkdir).
+    expect(
+      fs.existsSync(path.join(tmp, `${NAME}@${DUP_TOKEN}x`)),
+      `colliding @${DUP_TOKEN}x folder must never be created`,
+    ).toBe(false);
   });
 });
 
