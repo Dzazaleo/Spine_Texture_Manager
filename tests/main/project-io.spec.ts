@@ -125,6 +125,8 @@ const baseState: AppSessionState = {
   atlasMaxPageSize: 4096,
   atlasAllowRotation: false,
   atlasPadding: 2,
+  // Phase 53 SCALEUI-03 — variant scale rows; default single 0.5 row.
+  variantRows: [{ scale: 0.5 }],
 };
 
 describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
@@ -142,6 +144,19 @@ describe('handleProjectSave / handleProjectSaveAs (F9.1, T-08-IO)', () => {
     expect(parsed.documentation).toEqual(DEFAULT_DOCUMENTATION);
     expect(parsed.samplingHz).toBe(120);
     expect(parsed.sortColumn).toBe('attachmentName');
+  });
+
+  it('save writes variantRows (the scales) to disk (SC#1 save)', async () => {
+    const fs = await import('node:fs/promises');
+    const state: AppSessionState = {
+      ...baseState,
+      variantRows: [{ scale: 0.5 }, { scale: 0.36 }],
+    };
+    const result = await handleProjectSave(state, '/a/b/proj.stmproj');
+    expect(result.ok).toBe(true);
+    const writtenJson = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+    const parsed = JSON.parse(writtenJson);
+    expect(parsed.variantRows).toEqual([{ scale: 0.5 }, { scale: 0.36 }]);
   });
 
   it('atomic-write tmp then rename (D-141 + Pattern B)', async () => {
@@ -408,6 +423,122 @@ describe('Phase 21 G-04 — toggle-resample-into-atlas-less precedence (handlePr
     } finally {
       fsSync.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 53 SCALEUI-03 — variantRows round-trip + SC#3 stale-dir + no-fs-check.
+//
+// These cases reach result.ok === true by pointing the loaded .stmproj at the
+// REAL canonical fixture (fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json + .atlas),
+// which the loader reads via the UNMOCKED node:fs (only node:fs/promises is
+// mocked). The .stmproj JSON itself is fed through the mocked fs/promises
+// readFile, mirroring the G-04 real-fixture pattern above.
+// ---------------------------------------------------------------------------
+describe('Phase 53 — variantRows + lastOutDir persistence (SCALEUI-03)', () => {
+  it('load restores variantRows order-preserved (SC#1 load)', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const skeletonPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+    const atlasPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.atlas');
+    const stmproj = JSON.stringify({
+      version: 1,
+      skeletonPath,
+      atlasPath,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      variantRows: [{ scale: 0.5 }, { scale: 0.36 }],
+    });
+    vi.mocked(fs.readFile).mockResolvedValue(stmproj as unknown as string);
+    const result = await handleProjectOpenFromPath(skeletonPath.replace(/\.json$/, '.stmproj'));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.project.variantRows.map((r) => r.scale)).toEqual([0.5, 0.36]);
+    }
+  });
+
+  it('old .stmproj with no variantRows opens clean with the default single 0.5 row (SC#2)', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const skeletonPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+    const atlasPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.atlas');
+    const stmproj = JSON.stringify({
+      version: 1,
+      skeletonPath,
+      atlasPath,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      // variantRows INTENTIONALLY ABSENT (pre-Phase-53 file)
+    });
+    vi.mocked(fs.readFile).mockResolvedValue(stmproj as unknown as string);
+    const result = await handleProjectOpenFromPath(skeletonPath.replace(/\.json$/, '.stmproj'));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.project.variantRows).toEqual([{ scale: 0.5 }]);
+    }
+  });
+
+  it('a stale lastOutDir pointing nowhere never hard-fails the load; returned verbatim (SC#3)', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const skeletonPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.json');
+    const atlasPath = path.resolve('fixtures/SIMPLE_PROJECT/SIMPLE_TEST.atlas');
+    const staleDir = '/nope/does/not/exist';
+    const stmproj = JSON.stringify({
+      version: 1,
+      skeletonPath,
+      atlasPath,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: null,
+      lastOutDir: staleDir,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      variantRows: [{ scale: 0.5 }],
+    });
+    vi.mocked(fs.readFile).mockResolvedValue(stmproj as unknown as string);
+    const result = await handleProjectOpenFromPath(skeletonPath.replace(/\.json$/, '.stmproj'));
+    // SC#3: the load must succeed despite the stale output dir, and return it
+    // verbatim (it is only a picker start hint; no fs check is performed on it).
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.project.lastOutDir).toBe(staleDir);
+    }
+  });
+
+  it('no new fs existence check is keyed on lastOutDir / variantOutputDir (SC#3 / D-02 grep guard)', async () => {
+    // NOTE: node:fs/promises is mocked module-wide; use the UNMOCKED node:fs
+    // readFileSync to read the real source file as text. project-io.spec.ts is
+    // a main-tier .ts test; reading the source is allowed (fs is permitted).
+    // Strip comment lines so doc-comments mentioning these tokens don't
+    // self-trip the guard.
+    const fsRealSync = await import('node:fs');
+    const path = await import('node:path');
+    const src = fsRealSync.readFileSync(path.resolve('src/main/project-io.ts'), 'utf8');
+    const codeLines = src
+      .split('\n')
+      .filter((line) => {
+        const t = line.trim();
+        return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'));
+      })
+      .join('\n');
+    // Any existsSync/access/stat call on the same line as lastOutDir or
+    // variantOutputDir would indicate a new fs existence check was added.
+    const fsCheckOnOutDir = /(existsSync|\baccess\(|\bstat\()[^\n]*(lastOutDir|variantOutputDir)/;
+    const outDirThenFsCheck = /(lastOutDir|variantOutputDir)[^\n]*(existsSync|\baccess\(|\bstat\()/;
+    expect(fsCheckOnOutDir.test(codeLines)).toBe(false);
+    expect(outDirThenFsCheck.test(codeLines)).toBe(false);
   });
 });
 

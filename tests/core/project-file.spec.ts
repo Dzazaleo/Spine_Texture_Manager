@@ -130,6 +130,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const back = materializeProjectFile(file, '/a/b/proj.stmproj');
@@ -154,6 +155,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     expect(file.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -194,6 +196,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const file = serializeProjectFile(state, '/a/b/proj.stmproj');
     const json = JSON.stringify(file);
@@ -227,6 +230,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasMaxPageSize: 4096 as const,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const mat = materializeProjectFile(oldFile, '/a/b/proj.stmproj');
     expect(mat.documentation).toEqual(DEFAULT_DOCUMENTATION);
@@ -303,6 +307,7 @@ describe('round-trip (D-145 + D-148 + D-155)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const projPath = path.join(basedir, 'proj.stmproj');
     const file = serializeProjectFile(state, projPath);
@@ -347,6 +352,7 @@ describe('migrate (D-151)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     expect(migrate(file)).toBe(file); // reference equality on v1 passthrough
   });
@@ -415,6 +421,7 @@ describe('Phase 21 — loaderMode (D-08)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.loaderMode).toBe('atlas-less');
@@ -488,6 +495,7 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(true);
@@ -514,6 +522,7 @@ describe('Phase 28 — sharpenOnExport (D-06)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.sharpenOnExport).toBe(false);
@@ -598,6 +607,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.safetyBufferPercent).toBe(5);
@@ -624,6 +634,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.safetyBufferPercent).toBe(0);
@@ -650,6 +661,7 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.version).toBe(1);
@@ -674,11 +686,157 @@ describe('Phase 30 — safetyBufferPercent (BUFFER-03)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const a = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
     const b = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
     expect(a).toBe(b);
     expect(a).toMatch(/"safetyBufferPercent":7/);
+  });
+});
+
+describe('Phase 53 — variantRows (SCALEUI-03)', () => {
+  // Helper: a full AppSessionState whose variantRows can be overridden per-case.
+  const sessionWith = (variantRows: { scale: number }[]): AppSessionState => ({
+    skeletonPath: '/abs/rig.json',
+    atlasPath: null,
+    imagesDir: null,
+    overrides: {},
+    overridesAtlasLess: {},
+    samplingHz: 120,
+    lastOutDir: null,
+    sortColumn: null,
+    sortDir: null,
+    documentation: { ...DEFAULT_DOCUMENTATION },
+    loaderMode: 'auto',
+    sharpenOnExport: false,
+    safetyBufferPercent: 0,
+    atlasOutputMode: 'loose',
+    atlasMaxPageSize: 4096,
+    atlasAllowRotation: false,
+    atlasPadding: 2,
+    variantRows,
+  });
+
+  it('validateProjectFile pre-massages missing variantRows to [{ scale: 0.5 }] (SC#2 back-compat for pre-Phase-53 files)', () => {
+    const legacy: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+      // variantRows INTENTIONALLY ABSENT (pre-Phase-53 shape)
+    };
+    const result = validateProjectFile(legacy);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).variantRows).toEqual([{ scale: 0.5 }]);
+    }
+  });
+
+  it('validateProjectFile rejects bad variantRows values (non-array / NaN / Infinity / missing scale / string scale)', () => {
+    const cases: Array<[string, unknown]> = [
+      ['non-array (5)', 5],
+      ['element scale NaN', [{ scale: NaN }]],
+      ['element scale Infinity', [{ scale: Infinity }]],
+      ['element missing scale ({})', [{}]],
+      ['element string scale', [{ scale: '0.5' }]],
+    ];
+    for (const [label, badValue] of cases) {
+      const file: Record<string, unknown> = {
+        version: 1,
+        skeletonPath: '/abs/rig.json',
+        atlasPath: null,
+        imagesDir: null,
+        overrides: {},
+        samplingHz: 120,
+        lastOutDir: null,
+        sortColumn: null,
+        sortDir: null,
+        documentation: DEFAULT_DOCUMENTATION,
+        loaderMode: 'auto',
+        sharpenOnExport: false,
+        safetyBufferPercent: 0,
+        variantRows: badValue,
+      };
+      const result = validateProjectFile(file);
+      expect(result.ok, label).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind, label).toBe('invalid-shape');
+        expect(result.error.message, label).toMatch(/variantRows/);
+      }
+    }
+  });
+
+  it('serialize → materialize round-trips NON-default multi-row variantRows order-preserved (SC#1)', () => {
+    const session = sessionWith([{ scale: 0.5 }, { scale: 0.36 }, { scale: 0.57 }]);
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.variantRows.map((r) => r.scale)).toEqual([0.5, 0.36, 0.57]);
+  });
+
+  it('serialize → materialize round-trips the DEFAULT variantRows [{ scale: 0.5 }] identically', () => {
+    const session = sessionWith([{ scale: 0.5 }]);
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    const materialized = materializeProjectFile(serialized, '/abs/project.stmproj');
+    expect(materialized.variantRows.map((r) => r.scale)).toEqual([0.5]);
+  });
+
+  it('serializing with multi-row variantRows keeps schema version === 1 (no schema bump, D-05)', () => {
+    const session = sessionWith([{ scale: 0.5 }, { scale: 0.36 }]);
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.version).toBe(1);
+  });
+
+  it('double serialize of variantRows produces byte-identical JSON containing the scales', () => {
+    const session = sessionWith([{ scale: 0.5 }, { scale: 0.36 }, { scale: 0.57 }]);
+    const a = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
+    const b = JSON.stringify(serializeProjectFile(session, '/abs/project.stmproj'));
+    expect(a).toBe(b);
+    expect(a).toMatch(/"variantRows":\[\{"scale":0\.5\},\{"scale":0\.36\},\{"scale":0\.57\}\]/);
+  });
+
+  it('serialize strips stray per-row fields (ephemeral id / activePx) — only scale persisted', () => {
+    // Simulate the renderer's { id, scale } row shape leaking in; serialize must
+    // project to { scale } only (defensive shallow clone in serializeProjectFile).
+    const session = sessionWith([
+      { scale: 0.5, id: 'uuid-1', activePx: 256 } as unknown as { scale: number },
+    ]);
+    const serialized = serializeProjectFile(session, '/abs/project.stmproj');
+    expect(serialized.variantRows).toEqual([{ scale: 0.5 }]);
+    expect(JSON.stringify(serialized.variantRows)).not.toMatch(/uuid-1|activePx/);
+  });
+
+  it('validator accepts an empty variantRows array (renderer back-fills)', () => {
+    const file: Record<string, unknown> = {
+      version: 1,
+      skeletonPath: '/abs/rig.json',
+      atlasPath: null,
+      imagesDir: null,
+      overrides: {},
+      samplingHz: 120,
+      lastOutDir: null,
+      sortColumn: null,
+      sortDir: null,
+      documentation: {},
+      loaderMode: 'auto',
+      sharpenOnExport: false,
+      safetyBufferPercent: 0,
+      variantRows: [],
+    };
+    const result = validateProjectFile(file);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.project as ProjectFileV1).variantRows).toEqual([]);
+    }
   });
 });
 
@@ -737,6 +895,7 @@ describe('Phase 36 — overridesAtlasLess (SEED-007 L-01)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     expect(serialized.overrides).toEqual({ CIRCLE: 75 });
@@ -791,6 +950,7 @@ describe('Phase 40 — atlas fields (REPACK-07)', () => {
       atlasMaxPageSize: 8192,
       atlasAllowRotation: true,
       atlasPadding: 16,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     // JSON round-trip simulates the on-disk persist→read path.
@@ -825,6 +985,7 @@ describe('Phase 40 — atlas fields (REPACK-07)', () => {
       atlasMaxPageSize: 2048,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const serialized = serializeProjectFile(session, '/abs/project.stmproj');
     // Existing tests use `serialized.version` for the schema-version assertion
@@ -850,6 +1011,7 @@ describe('Phase 40 — atlas fields (REPACK-07)', () => {
       atlasMaxPageSize: 4096,
       atlasAllowRotation: false,
       atlasPadding: 2,
+      variantRows: [{ scale: 0.5 }],
     };
     const cases: Array<[string, unknown, RegExp]> = [
       ['atlasOutputMode', 'rgba', /atlasOutputMode/],

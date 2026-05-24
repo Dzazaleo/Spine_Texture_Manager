@@ -475,8 +475,12 @@ export function serializeProjectFile(
     atlasPadding: state.atlasPadding,
     // Phase 53 SCALEUI-03 — round-trips through .stmproj per D-04/D-05. Defensive
     // shallow clone (mirrors the `overrides` `{ ...x }` idiom) strips any stray
-    // field (e.g. ephemeral row id / activePx) so only `scale` is persisted.
-    variantRows: state.variantRows.map((r) => ({ scale: r.scale })),
+    // field (e.g. ephemeral row id / activePx) so only `scale` is persisted. The
+    // `?? []` mirrors the spread-tolerates-undefined behaviour of the `overrides`
+    // / `overridesAtlasLess` fields above, so a caller that constructs a partial
+    // AppSessionState (e.g. via a Partial cast) does not throw; the materializer
+    // and validator both back-fill the [{ scale: 0.5 }] default downstream.
+    variantRows: (state.variantRows ?? []).map((r) => ({ scale: r.scale })),
   };
 }
 
