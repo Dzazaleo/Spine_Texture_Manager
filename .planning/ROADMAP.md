@@ -231,4 +231,4 @@ Phases execute in numeric order: 48 → 49 → 50 → 51 → 52 → 53
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete    | 2026-05-24 |
-| 53. Persist Variant State in .stmproj | v1.7 | 0/? | Not started | — |
+| 53. Persist Variant State in .stmproj | v1.7 | 1/2 | In Progress|  |
