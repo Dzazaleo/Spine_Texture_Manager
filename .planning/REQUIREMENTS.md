@@ -37,7 +37,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 - [x] **EXPORT-03**: Variant export respects the existing output mode (`loose | atlas | both`) — the scaled JSON is the one always-present new artifact; textures/atlas follow the chosen mode.
 - [x] **EXPORT-04**: User can export multiple scales in one batch run, each variant written to its own folder.
 - [x] **EXPORT-05**: Variant export works for both atlas-source and atlas-less projects, and for both 4.2 and 4.3 rigs.
-- [ ] **EXPORT-06**: Batch variant export is robust against partial-failure and edge inputs — a duplicate `@{s}x` token fails only its own row(s) while the rest continue (not the whole batch), a failed variant leaves no orphan empty folder, and inputs are coerced consistently at the IPC boundary. *(Phase 51 code-review hardening: WR-02/WR-03/WR-04 + the IN-01/IN-03/IN-04 cleanup.)*
+- [x] **EXPORT-06**: Batch variant export is robust against partial-failure and edge inputs — a duplicate `@{s}x` token fails only its own row(s) while the rest continue (not the whole batch), a failed variant leaves no orphan empty folder, and inputs are coerced consistently at the IPC boundary. *(Phase 51 code-review hardening: WR-02/WR-03/WR-04 + the IN-01/IN-03/IN-04 cleanup.)*
 
 ### Scale Input & Preview (SCALEUI)
 
@@ -80,5 +80,5 @@ Maps every v1.7 REQ-ID to exactly one phase. Coverage: 13/13 mapped, no orphans,
 | SCALEUI-01 | Phase 50 | Complete |
 | SCALEUI-02 | Phase 50 | Complete |
 | EXPORT-04 | Phase 51 | Complete |
-| EXPORT-06 | Phase 52 | Pending |
+| EXPORT-06 | Phase 52 | Complete |
 | SCALEUI-03 | Phase 53 | Pending |
