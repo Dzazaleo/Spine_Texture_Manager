@@ -24,7 +24,7 @@
  *   - EXPORT-02: the baked variant JSON is registered in the shared `written`
  *                rollback Set so a mid-export failure rolls it back too.
  */
-import { rm as fsRm, readFile, access as fsAccess } from 'node:fs/promises';
+import { rm as fsRm, readFile, readdir, access as fsAccess } from 'node:fs/promises';
 import { basename, join, resolve as pathResolve } from 'node:path';
 import { bake } from '../core/scale-bake.js';
 import { scaleSummaryPeaks } from '../core/scale-summary-peaks.js';
@@ -309,6 +309,18 @@ async function exportOneVariant(
           /* defense-in-depth */
         });
       }
+      // D-03 (WR-03) — remove the freshly-created variant dir ONLY if it is empty
+      // after the file sweep. The only-if-empty guard preserves a pre-existing
+      // non-empty folder (overwrite=true re-export) — never nuke user content. The
+      // happy path returns above at the try-block's success return and never reaches
+      // this catch, so this is unchanged on success.
+      try {
+        if ((await readdir(outDir)).length === 0) {
+          await fsRm(outDir, { recursive: true, force: true });
+        }
+      } catch {
+        /* outDir already gone / unreadable — nothing to clean up */
+      }
       return {
         ok: false,
         error: { kind: 'Unknown', message: innerErr instanceof Error ? innerErr.message : String(innerErr) },
@@ -411,21 +423,16 @@ export async function handleExportVariantBatch(
     }
   };
 
-  // Defense-in-depth (RESEARCH §Q3): reject the whole batch if two scales collide
-  // on the SAME normalized token (the renderer also blocks this pre-flight, D-10).
+  // D-01 (WR-02) — continue-on-error duplicate handling. Build the SET of tokens
+  // that two-or-more rows map to. Instead of aborting the whole batch, the export
+  // loop below skips ONLY the colliding rows (fails all rows sharing a duplicated
+  // token — an ambiguous token cannot faithfully name a folder) and exports every
+  // non-colliding scale normally (continue-on-error parity with 51 D-07). The
+  // renderer also blocks this pre-flight (D-02/D-10); this is defense-in-depth for
+  // a relaxed/compromised renderer.
   const seen = new Map<string, number>();
   for (const s of scales) seen.set(formatScaleToken(s), (seen.get(formatScaleToken(s)) ?? 0) + 1);
-  const collision = [...seen.entries()].find(([, n]) => n > 1);
-  if (collision) {
-    for (const s of scales) {
-      pushResult({
-        token: formatScaleToken(s),
-        status: 'failed',
-        reason: `Duplicate scale token @${collision[0]}x — two rows produce the same folder.`,
-      });
-    }
-    return { ok: true, results };
-  }
+  const dupTokens = new Set([...seen.entries()].filter(([, n]) => n > 1).map(([t]) => t));
 
   if (variantExportInFlight) {
     for (const s of scales) {
@@ -458,6 +465,18 @@ export async function handleExportVariantBatch(
         });
       } catch {
         /* sender gone */
+      }
+
+      const dupToken = formatScaleToken(scales[i]);
+      if (dupTokens.has(dupToken)) {
+        // D-01 — this row's token collides with another row's. Fail it (continue-
+        // on-error) WITHOUT calling exportOneVariant, so its folder is never created.
+        pushResult({
+          token: dupToken,
+          status: 'failed',
+          reason: `Duplicate scale token @${dupToken}x — two rows produce the same folder.`,
+        });
+        continue;
       }
 
       const res = await exportOneVariant(
