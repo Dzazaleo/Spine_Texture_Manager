@@ -1091,7 +1091,12 @@ export function registerIpcHandlers(): void {
         Array.isArray(effectiveOverrides)
           ? new Map(effectiveOverrides as [string, number][])
           : new Map<string, number>(),
-        Number(safetyBufferPercent) || 0,
+        // D-04 (WR-04): variant channels coerce-and-clamp (single canonical clamp in
+        // exportOneVariant step 2b); intentionally distinct from export:start's
+        // validate-and-reject (validateExportOpts) because the renderer pre-clamps and
+        // the body is the single authority. The body's Number.isFinite guard coerces
+        // NaN→0, so the boundary `|| 0` was redundant.
+        Number(safetyBufferPercent),
       ),
   );
   // Phase 51 EXPORT-04 — NEW variant:exportBatch channel. Mirrors variant:export's
@@ -1129,7 +1134,12 @@ export function registerIpcHandlers(): void {
         Array.isArray(effectiveOverrides)
           ? new Map(effectiveOverrides as [string, number][])
           : new Map<string, number>(),
-        Number(safetyBufferPercent) || 0,
+        // D-04 (WR-04): variant channels coerce-and-clamp (single canonical clamp in
+        // exportOneVariant step 2b); intentionally distinct from export:start's
+        // validate-and-reject (validateExportOpts) because the renderer pre-clamps and
+        // the body is the single authority. The body's Number.isFinite guard coerces
+        // NaN→0, so the boundary `|| 0` was redundant.
+        Number(safetyBufferPercent),
       ),
   );
   ipcMain.on('export:cancel', () => {
