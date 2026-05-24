@@ -104,7 +104,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 - [x] **Phase 50: Rig-Bounds + Two-Way Scale↔Dimension Input** - Setup-pose bounding box reference (W×H px) + factor↔target-px two-way input binding (frontend / UI phase) (completed 2026-05-22)
 - [x] **Phase 51: Batch Variant Export** - N scales → N folders in one run + folder-naming UX, reusing the single-scale export per scale (completed 2026-05-23)
 - [x] **Phase 52: Batch Export Robustness + Variant-Dialog Cleanup** - Harden the batch path (per-row duplicate handling, no orphan folders, consistent coercion) + clear the Phase-51 code-review backlog (EXPORT-06) (completed 2026-05-24)
-- [ ] **Phase 53: Persist Variant State in .stmproj** - The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved (SCALEUI-03)
+- [x] **Phase 53: Persist Variant State in .stmproj** - The Export Variant dialog's scale rows + chosen output location round-trip across sessions when the project is saved (SCALEUI-03) (completed 2026-05-24)
 
 ## Phase Details
 
@@ -231,4 +231,4 @@ Phases execute in numeric order: 48 → 49 → 50 → 51 → 52 → 53
 | 50. Rig-Bounds + Two-Way Scale↔Dimension Input | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete    | 2026-05-23 |
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete    | 2026-05-24 |
-| 53. Persist Variant State in .stmproj | v1.7 | 1/2 | In Progress|  |
+| 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete   | 2026-05-24 |
