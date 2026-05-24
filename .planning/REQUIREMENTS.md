@@ -43,7 +43,7 @@ Active scope for this milestone. Each maps to exactly one phase.
 
 - [x] **SCALEUI-01**: User can specify a variant scale either as a factor (e.g. `0.5`) or as a target dimension in pixels; entering one displays the corresponding other value.
 - [x] **SCALEUI-02**: The dimension reference shown to the user is the rig's overall setup-pose bounding box (width × height in px).
-- [ ] **SCALEUI-03**: The Export Variant dialog's scale rows + chosen output location persist in the `.stmproj` project file and restore on reopen (additive optional fields; missing → defaults; output path falls back to the picker if no longer accessible).
+- [x] **SCALEUI-03**: The Export Variant dialog's scale rows + chosen output location persist in the `.stmproj` project file and restore on reopen (additive optional fields; missing → defaults; output path falls back to the picker if no longer accessible).
 
 ---
 
@@ -81,4 +81,4 @@ Maps every v1.7 REQ-ID to exactly one phase. Coverage: 13/13 mapped, no orphans,
 | SCALEUI-02 | Phase 50 | Complete |
 | EXPORT-04 | Phase 51 | Complete |
 | EXPORT-06 | Phase 52 | Complete |
-| SCALEUI-03 | Phase 53 | Pending |
+| SCALEUI-03 | Phase 53 | Complete |
