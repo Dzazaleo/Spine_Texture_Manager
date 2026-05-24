@@ -411,21 +411,16 @@ export async function handleExportVariantBatch(
     }
   };
 
-  // Defense-in-depth (RESEARCH §Q3): reject the whole batch if two scales collide
-  // on the SAME normalized token (the renderer also blocks this pre-flight, D-10).
+  // D-01 (WR-02) — continue-on-error duplicate handling. Build the SET of tokens
+  // that two-or-more rows map to. Instead of aborting the whole batch, the export
+  // loop below skips ONLY the colliding rows (fails all rows sharing a duplicated
+  // token — an ambiguous token cannot faithfully name a folder) and exports every
+  // non-colliding scale normally (continue-on-error parity with 51 D-07). The
+  // renderer also blocks this pre-flight (D-02/D-10); this is defense-in-depth for
+  // a relaxed/compromised renderer.
   const seen = new Map<string, number>();
   for (const s of scales) seen.set(formatScaleToken(s), (seen.get(formatScaleToken(s)) ?? 0) + 1);
-  const collision = [...seen.entries()].find(([, n]) => n > 1);
-  if (collision) {
-    for (const s of scales) {
-      pushResult({
-        token: formatScaleToken(s),
-        status: 'failed',
-        reason: `Duplicate scale token @${collision[0]}x — two rows produce the same folder.`,
-      });
-    }
-    return { ok: true, results };
-  }
+  const dupTokens = new Set([...seen.entries()].filter(([, n]) => n > 1).map(([t]) => t));
 
   if (variantExportInFlight) {
     for (const s of scales) {
@@ -458,6 +453,18 @@ export async function handleExportVariantBatch(
         });
       } catch {
         /* sender gone */
+      }
+
+      const dupToken = formatScaleToken(scales[i]);
+      if (dupTokens.has(dupToken)) {
+        // D-01 — this row's token collides with another row's. Fail it (continue-
+        // on-error) WITHOUT calling exportOneVariant, so its folder is never created.
+        pushResult({
+          token: dupToken,
+          status: 'failed',
+          reason: `Duplicate scale token @${dupToken}x — two rows produce the same folder.`,
+        });
+        continue;
       }
 
       const res = await exportOneVariant(
