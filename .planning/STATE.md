@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: in_progress
-last_updated: "2026-05-24T00:00:00.000Z"
-last_activity: 2026-05-24 -- v1.7 reopened; Phases 52-53 added (still in v1.7)
+status: executing
+last_updated: "2026-05-24T09:13:46.022Z"
+last_activity: 2026-05-24 -- Phase 52 planning complete
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 11
+  total_plans: 15
   completed_plans: 11
-  percent: 67
+  percent: 73
 ---
 
 # State
@@ -19,8 +19,8 @@ progress:
 
 Phase: 52
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-24 -- v1.7 reopened (NOT shipping yet); Phases 52-53 added, still in v1.7
+Status: Ready to execute
+Last activity: 2026-05-24 -- Phase 52 planning complete
 
 Next: **`/gsd-plan-phase 52`** — Phase 52 (Batch Export Robustness + Variant-Dialog Cleanup, EXPORT-06). **v1.7 was NOT shipped** — the user kept the milestone OPEN to do two more phases (52 then 53) rather than push the work to v1.8. Phase 52 = clear the Phase-51 `51-REVIEW.md` backlog: WR-02 (duplicate `@{s}x` token currently aborts the WHOLE batch → make it fail only the colliding row(s), continue-on-error parity with D-07), WR-03 (a failed variant leaves an orphan empty `{NAME}@{s}x/` folder → rmdir-if-empty in the rollback), WR-04 (variant channels coerce-and-clamp vs `export:start`'s validate-and-reject — unify or document), IN-01 (no cross-boundary `tokenFor`≡`formatScaleToken` equivalence test), IN-03 (dead `plan` prop + its `buildExportPlan` call in the variant path), IN-04 (`onStart` `useCallback` deps include whole `props`). Pure hardening/cleanup, no new user capability → planned `--skip-ui`, likely no discuss needed. **Phase 53 (after 52)** = Persist Variant State in `.stmproj` (SCALEUI-03; rows + output location round-trip; has one design decision — output-path portability — so start with `/gsd-discuss-phase 53`; detail in `.planning/todos/pending/2026-05-23-persist-variant-rows-and-output-location.md`).
 
