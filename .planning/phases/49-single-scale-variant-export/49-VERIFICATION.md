@@ -1,7 +1,9 @@
 ---
 phase: 49-single-scale-variant-export
 verified: 2026-05-22T17:10:00Z
-status: human_needed
+status: passed
+human_uat_completed: 2026-05-25
+human_uat_result: "PASS on both legs — see 49-HUMAN-UAT.md Test 1"
 score: 12/12 must-haves verified
 overrides_applied: 0
 re_verification:
@@ -20,14 +22,17 @@ human_verification:
   - test: "\"Export Variant…\" native end-to-end UAT (EXPORT-01) on a 4.2 AND a 4.3 project"
     expected: "In `npm run dev`: click \"Export Variant…\", enter 0.5, pick a PARENT folder via the native dialog, Export → a {NAME}@0.5x/ folder appears with the correct artifacts for the active output mode, and the variant renders in the viewer at exactly half the master size (rendered end-state, NOT just \"dialog opened\")."
     why_human: "Electron native folder picker + real WebGL render cannot be exercised in jsdom; automated coverage stops at the IPC handler (per 49-VALIDATION.md Manual-Only). Documented UAT to record in 49-HUMAN-UAT.md."
+    result: "PASS — live-confirmed 2026-05-25. Run A (4.2 SIMPLE_TEST) wrote SIMPLE_TEST@0.5x/ + half-size render; Run B (4.3 spineboy-pro) wrote spineboy-pro@0.5x/ + half-size render. Recorded in 49-HUMAN-UAT.md."
 ---
 
 # Phase 49: Single-Scale Variant Export — Verification Report
 
 **Phase Goal:** Deliver the first end-user value — export one scaled-down variant to a chosen folder as a complete, drop-in package (scaled skeleton JSON + resized textures + scaled atlas), reusing the existing export-sizing + atlas-writer pipeline and sizing textures arithmetically (`variant_peak = s × master_peak`, never by re-sampling the variant); respecting output modes `loose | atlas | both`; dual-runtime (4.2 + 4.3) × dual loader-mode (atlas-source + atlas-less); source JSON never modified; first feature to WRITE a skeleton JSON; variant never re-sampled.
-**Verified:** 2026-05-22T17:10:00Z
-**Status:** human_needed
+**Verified:** 2026-05-22T17:10:00Z (automated) · 2026-05-25 (human UAT completed)
+**Status:** passed
 **Re-verification:** Yes — after code-review gap closure (CR-01 + WR-01..06 fixed)
+
+> **UAT closed 2026-05-25:** the one remaining structurally-manual item — the "Export Variant…" native-dialog + visual half-size end-state UAT (EXPORT-01) — was run live in `npm run dev` and **PASSED on both legs** (4.2 SIMPLE_TEST → `SIMPLE_TEST@0.5x/` + half-size render; 4.3 spineboy-pro → `spineboy-pro@0.5x/` + half-size render). Recorded in 49-HUMAN-UAT.md. With 12/12 automated must-haves verified and this UAT passed, Phase 49 status is now **passed** (no remaining human items, no remaining maintainer decisions).
 
 ## Re-Verification Summary
 
@@ -37,7 +42,9 @@ The initial verification passed 12/12 must-haves (`human_needed`, with two human
 2. **CR-01 is genuinely resolved in code on BOTH legs** (see below) — its former human-decision item is closed.
 3. **D-04 (shipped Optimize flow byte-untouched) still holds** — `ipc.ts` and `AppShell.tsx` have 0 removed lines vs. phase start (`6b08e94`); `OptimizeDialog.tsx` is wholly unchanged.
 
-**Net change vs. prior report:** human items 2 → 1 (the CR-01 decision item is closed by the fix; only the structurally-manual native-dialog + visual half-size UAT remains, which is expected and acceptable). Targeted variant suite 60 → 62 tests (the 2 new CR-01 + WR-02 regression tests landed). Score unchanged at 12/12. Status remains `human_needed` solely because of the one structurally-manual UAT.
+**Net change vs. prior report:** human items 2 → 1 (the CR-01 decision item is closed by the fix; only the structurally-manual native-dialog + visual half-size UAT remained). Targeted variant suite 60 → 62 tests (the 2 new CR-01 + WR-02 regression tests landed). Score unchanged at 12/12.
+
+**UPDATE 2026-05-25:** the last human item — the structurally-manual native-dialog + visual half-size UAT — was run live and **passed on both the 4.2 and 4.3 legs** (see 49-HUMAN-UAT.md). Human items 1 → 0. **Status advanced `human_needed` → `passed`.**
 
 ## CR-01 Resolution Verification (was the blocker)
 
@@ -167,11 +174,11 @@ Re-scan of the post-fix code. The prior report's CR-01 + WR-01..06 entries are n
 
 None are BLOCKERs. The CR-01 borderline-data-integrity concern that drove the prior WARNING is RESOLVED in code (overwrite gate + error surfacing + regression test).
 
-### Human Verification Required
+### Human Verification — COMPLETED 2026-05-25
 
-1. **"Export Variant…" native end-to-end UAT (EXPORT-01)** — documented manual-only (49-VALIDATION.md). In `npm run dev`, open a 4.2 and a 4.3 project, click "Export Variant…", enter 0.5, pick a PARENT folder via the native dialog, Export. Confirm `{NAME}@0.5x/` appears with the correct artifacts for the active output mode AND the variant renders in the viewer at exactly half the master size. (UAT criterion is the *rendered* end-state, not "the dialog opened" — avoid the opened≠rendered trap.) Record in `49-HUMAN-UAT.md`.
+1. **"Export Variant…" native end-to-end UAT (EXPORT-01)** — ✅ **PASSED** (live in `npm run dev`, 2026-05-25). Ran on a 4.2 AND a 4.3 project: clicked "Export Variant…", entered 0.5, picked a PARENT folder via the native dialog, exported. **Run A (4.2 SIMPLE_TEST):** `SIMPLE_TEST@0.5x/` appeared with the correct per-mode artifacts; variant rendered at exactly half the master size. **Run B (4.3 spineboy-pro):** `spineboy-pro@0.5x/` appeared; half-size render confirmed. The criterion was the *rendered* end-state (not an opened≠rendered proxy). Recorded in `49-HUMAN-UAT.md`.
 
-   *(This is the single expected, structurally-manual item — Electron native picker + real WebGL render cannot be exercised in jsdom. Acceptable as human-only.)*
+   *(This was the single expected, structurally-manual item — Electron native picker + real WebGL render cannot be exercised in jsdom. Now closed.)*
 
 **CLOSED since the prior report:** the CR-01 "re-export-into-existing-folder result surfacing" decision item is no longer a human item — the deviation it flagged is now fixed in code (main-side overwrite gate prevents silent JSON replacement; renderer surfaces `summary.errors[]`; a discriminating regression test guards both), so it requires no maintainer decision.
 
@@ -179,9 +186,10 @@ None are BLOCKERs. The CR-01 borderline-data-integrity concern that drove the pr
 
 No must-have FAILED. After gap closure, all 12 observable truths and all 4 ROADMAP success criteria remain verified against substantive, wired, data-flowing code. The CR-01 blocker is resolved on both legs (verified in `skeleton-json-writer.ts:24-40` and `VariantDialog.tsx:191-195/533-547`, plus a new discriminating regression test). All six WR-01..06 warnings are resolved in code. The fixes were surgically scoped: ZERO `src/core/` files touched (Layer-3 purity, L-01/L-02/L-04 mechanically intact) and ZERO Optimize-flow lines touched (D-04 holds). Targeted suite green at 62 tests; `npm run typecheck` exit 0; full suite reported 1495 passed / 0 failures.
 
-Status remains **human_needed** for exactly one reason, per the gate decision tree: the EXPORT-01 native-dialog + visual half-size end-state is a documented manual-only UAT that the headless layer structurally cannot cover. This is expected and acceptable. There are no remaining automated gaps and no remaining maintainer decisions.
+Status is now **passed**. The one structurally-manual item that previously held the gate — the EXPORT-01 native-dialog + visual half-size end-state UAT — was run live on 2026-05-25 and **passed on both the 4.2 and 4.3 legs** (recorded in 49-HUMAN-UAT.md). There are no remaining automated gaps, no remaining human items, and no remaining maintainer decisions.
 
 ---
 
 _Verified: 2026-05-22T17:10:00Z (re-verification after CR-01 + WR-01..06 gap closure)_
+_Human UAT completed + status → passed: 2026-05-25_
 _Verifier: Claude (gsd-verifier)_
