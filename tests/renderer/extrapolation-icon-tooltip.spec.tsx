@@ -7,8 +7,9 @@
  * Test coverage maps 1:1 to PLAN.md <behavior> T1..T4:
  *   - T1 (PRIMARY): Hovering the icon's host span surfaces a React-managed
  *     tooltip portal in document.body with the verbatim text "Spine rig peak:
- *     X.XX× source — export capped at canonical". On mouseLeave the portal
- *     unmounts. Asserted in BOTH GlobalMaxRenderPanel and AnimationBreakdownPanel.
+ *     X.XX× source" (Phase 54 dropped the now-misleading "— export capped at
+ *     canonical" suffix). On mouseLeave the portal unmounts. Asserted in BOTH
+ *     GlobalMaxRenderPanel and AnimationBreakdownPanel.
  *   - T2 (sibling-symmetry, D-D-04): Both panels exhibit the same fix mechanism
  *     because the change lives only inside ExtrapolationIcon.tsx. We assert
  *     structural sibling-symmetry by source-walk: the panel files must NOT
@@ -310,9 +311,7 @@ describe('TOOLTIP-01 T1 — ExtrapolationIcon hover surfaces React-managed toolt
 
     const tooltip = screen.queryByRole('tooltip');
     expect(tooltip).not.toBeNull();
-    expect(tooltip!.textContent).toBe(
-      'Spine rig peak: 1.42× source — export capped at canonical',
-    );
+    expect(tooltip!.textContent).toBe('Spine rig peak: 1.42× source');
     // Portal target: the tooltip lives directly in document.body, NOT inside
     // the panel container (the regression-proof property of fix-shape (c)).
     expect(document.body.contains(tooltip)).toBe(true);
@@ -346,9 +345,7 @@ describe('TOOLTIP-01 T1 — ExtrapolationIcon hover surfaces React-managed toolt
     fireEvent.mouseEnter(host!);
     const tooltip = screen.queryByRole('tooltip');
     expect(tooltip).not.toBeNull();
-    expect(tooltip!.textContent).toBe(
-      'Spine rig peak: 1.75× source — export capped at canonical',
-    );
+    expect(tooltip!.textContent).toBe('Spine rig peak: 1.75× source');
     expect(document.body.contains(tooltip)).toBe(true);
     expect(container.contains(tooltip)).toBe(false);
 
@@ -411,8 +408,8 @@ describe('TOOLTIP-01 T2 — sibling-symmetry by construction (D-D-04)', () => {
   it('Both panels still pass the verbatim Spine-rig-peak template to ExtrapolationIcon', () => {
     // Acceptance criterion from PLAN.md: REQUIREMENTS TOOLTIP-01 verbatim text
     // is preserved at both call sites (passed via the icon `title` prop).
-    expect(globalPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source — export capped at canonical/);
-    expect(breakdownPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source — export capped at canonical/);
+    expect(globalPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
+    expect(breakdownPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
   });
 });
 

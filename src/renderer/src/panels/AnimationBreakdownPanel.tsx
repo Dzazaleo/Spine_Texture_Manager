@@ -837,7 +837,7 @@ function BreakdownRowItem({
           {row.peakScale > 1 && (
             <ExtrapolationIcon
               className="w-3.5 h-3.5 inline-block text-white"
-              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
+              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source`}
             />
           )}
           {row.override !== undefined && (

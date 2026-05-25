@@ -545,7 +545,12 @@ function Row({
         }
       >
         <span className="inline-flex items-center justify-end gap-1">
-          <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          {/* Phase 54 D-01 — Peak cell shows the TRUE render demand capped at
+              source (peakDemandW/H), restoring project_peak_anchored_invariants
+              "Peak = world demand". For a reopened peakScale>1 variant this
+              reads the SAME dims as the Source cell ⇒ "green when Peak < Source"
+              is self-evidently true to the eye (no phantom green). */}
+          <span>{`${row.peakDemandW}×${row.peakDemandH}`}</span>
           {row.peakScale > 1 && (
             // Tooltip is rendered as an SVG <title> child via ExtrapolationIcon's
             // `title` prop. SVG <title> reliably wins over the parent <td>'s
@@ -555,7 +560,7 @@ function Row({
             // own.
             <ExtrapolationIcon
               className="w-3.5 h-3.5 inline-block text-white"
-              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
+              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source`}
             />
           )}
           {row.override !== undefined && (
@@ -993,7 +998,12 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+                  // Phase 54 D-03 — both args are the EXACT rendered integers:
+                  // Peak = row.peakDemandW (Peak cell); Source =
+                  // row.actualSourceW ?? row.sourceW (the numeric form of
+                  // originalSizeLabel, the Source cell). Pure integer compare,
+                  // no epsilon ⇒ equal integers => atLimit (yellow, no green).
+                  const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
                   return (
                     <Row
                       key={row.regionName}
@@ -1117,7 +1127,9 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+              // Phase 54 D-03 — Peak = row.peakDemandW; Source =
+              // row.actualSourceW ?? row.sourceW (see the virtualized call site).
+              const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <Row
                   key={row.regionName}
