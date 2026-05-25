@@ -260,6 +260,51 @@ Plus an adjacent regression caught + fixed during Phase 36 UAT: window X-button 
 
 ---
 
+## Milestone: v1.7 — Multi-Scale Per-Resolution Variant Exporter
+
+**Completed:** 2026-05-25 (execution 2026-05-22 → 2026-05-24)
+**Phases:** 6 (48–53) | **Plans:** 17
+
+### What Was Built
+
+From one full-size Spine export, the app now produces faithful scaled-down rig variants — each a complete drop-in package (scaled skeleton JSON + resized textures + scaled atlas, in its own folder), single or batch, sized to each smaller rig's own peak render demand, across dual-runtime (4.2 + 4.3) and both loader modes. The foundation is `src/core/scale-bake.ts`, a Layer-3-pure JSON→JSON similarity bake field-identical to spine-core `SkeletonJson.scale`, gated by a sampling-free round-trip oracle in CI. This is the first feature to ever make the app *write* a skeleton JSON (the source is never modified). v1.7 also persists the variant scale rows + output location in `.stmproj`.
+
+### What Worked
+
+- **De-risking the hard part with spikes before planning.** Spikes 001–003 proved the bake field-identical to Spine's own scaling (incl. DEMON's worst 4.3 constraints) *before* a single phase was planned — so Phase 48 was promotion + finishing, not discovery. The risky core never threatened the schedule.
+- **A sampling-free correctness oracle.** `parse(bake(orig,s),1) ≡ parse(orig, SkeletonJson.scale=s)` against a *live* reference (no golden numbers) caught real divergences and stayed honest across both schemas and a deform-heavy rig. It passed on first run because the bake was already correct.
+- **Reuse over rebuild.** Variant export reused `buildExportPlan` + the image-worker + the atlas-writer UNCHANGED; batch reused the extracted single-scale body verbatim (byte-identity by construction). The new surface area was small (18 `src/` files, +2,820).
+- **Owner-driven scope extension done cleanly.** Keeping the milestone open to fold in Phases 52 (robustness) and 53 (persistence) — rather than deferring to v1.8 — landed two REQs (EXPORT-06, SCALEUI-03) with full plan/verify/security rigor instead of a backlog promise.
+
+### What Was Inefficient
+
+- **A correctness blocker shipped in a first cut.** Phase 49 CR-01 (re-export silently overwrote `{NAME}.json` while images were refused, reported as success) was caught only at code review. Fixed-now at owner choice + guarded by a discriminating regression test, but the data-integrity risk should have been designed out at the write-seam from the start.
+- **Recurring SAFE-01 denylist scramble.** Newly committed oracle/perf fixtures leaked into the frozen SAFE-01 enumeration/baseline gates again (same class as Phases 44/46) — an unplanned post-merge fix because no plan co-required the denylist extension up front.
+- **A latent shared-hook focus bug surfaced late.** Phase 50's second input field exposed a `useFocusTrap` dep-array bug latent since Phase 6 (multi-digit typing stole focus) — found only in live UAT, not by jsdom tests.
+- **Milestone-close artifact drift.** Phase 49's UAT/verification files read stale (`partial`/`human_needed`) at first close attempt though the work was done — and the close was started before the milestone audit existed. Re-verify the live files at close, don't trust the running narrative.
+
+### Patterns Established
+
+- **Spike-to-prove, then promote.** For a high-risk core, validate feasibility in throwaway spikes and let the milestone be promotion + hardening.
+- **Live-reference oracles over golden numbers** for any transform that must match a third-party library's behavior — survives library bumps, no brittle fixtures.
+- **Additive-optional `.stmproj` fields, no version bump** — the 4th instance (`variantRows` joins `sharpenOnExport`/`safetyBufferPercent`/`overridesAtlasLess`); reuse an existing persisted field (`lastOutDir`) for adjacent state rather than adding a new one.
+- **Fix correctness/data-integrity review blockers before closing the phase**, bundled with the warnings, then re-verify.
+
+### Key Lessons
+
+- A measurement-derived quantity (sampler `peakScale`) can be *invariant* under a transform that changes geometry — so you cannot measure your way to a variant's size; you must compute it arithmetically (`s × master_peak`). Knowing the blind spot up front shaped the whole sizing design.
+- "Component X parses clean in isolation" never proves the integrated pipeline is clean — reproduce across the suspected boundary (the REG-47-01 lesson, reconfirmed by Phase 49's CR-01 write-seam).
+- When committing fixtures, make the SAFE-01 denylist extension an explicit co-required task in the plan — it has bitten three milestones now.
+
+### Cost Observations
+
+- 6 phases / 17 plans / 3 days execution (2026-05-22 → 2026-05-24) — tied for the fastest-execution milestone window.
+- 164 commits in range; `src/` change small (18 files, +2,820 / −35) — the bulk of the 142-file / +45,041 repo delta is committed oracle/perf fixtures + planning docs.
+- Test suite reached 1,553 passing / 0 failed at close; both typechecks exit 0; arch 20/20 (Layer-3 purity held throughout).
+- Heavy use of worktree-isolated parallel waves (Phases 51/52/53) — surfaced a recurring worktree-lock-on-return cleanup gotcha between waves.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

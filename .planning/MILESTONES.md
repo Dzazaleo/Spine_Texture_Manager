@@ -1,5 +1,52 @@
 # Milestones
 
+## v1.7 Multi-Scale Per-Resolution Variant Exporter (Completed: 2026-05-25)
+
+**Phases completed:** 6 phases (48–53), 17 plans
+**Test baseline at close:** 1,553 vitest passing / 0 failed; both typechecks (node + web) exit 0; arch 20/20 (Layer-3 purity held)
+**Source change:** 18 files in `src/`, +2,820 / −35 (the remaining repo delta is committed oracle/perf fixtures + planning docs)
+**Timeline:** 2026-05-22 → 2026-05-24 (3 days)
+**Git range:** `73a1f0c` (milestone start, post-`v1.6.1`) → milestone-close HEAD (164 commits)
+**Tag:** `v1.7` (created locally; **not pushed** — release/publish is a separate owner decision)
+**Security:** verified for all 6 phases (`48-SECURITY.md`..`53-SECURITY.md`)
+
+**Delivered:** A complete multi-scale variant exporter. From one full-size Spine export, the animator produces faithful scaled-down rig variants (scaled skeleton JSON + resized textures + scaled atlas, each in its own folder), single or batch, sized to each smaller rig's own peak render demand, across dual-runtime (4.2 + 4.3) and both loader modes — without ever modifying the source project. Built on a proven Layer-3-pure JSON→JSON bake that is field-identical to Spine's own `SkeletonJson.scale`. The milestone was deliberately kept open by the owner to fold two extra phases (52, 53) into v1.7 rather than defer them to v1.8.
+
+**Key accomplishments:**
+
+1. **Core scale-bake module + CI regression oracle** (Phase 48) — `src/core/scale-bake.ts`, a Layer-3-pure (zero-import) non-mutating JSON→JSON similarity bake `bake(json,s)` field-identical to spine-core `SkeletonJson.scale` across both schemas (4.2 split + 4.3 unified), incl. all constraint-timeline curve channels + scaled-default injection. Proven by the decisive sampling-free oracle `parse(bake(orig,s),1) ≡ parse(orig, SkeletonJson.scale=s)` (live reference, NO golden numbers) running in CI across 8 rigs × 3 scales. BAKE-01..04.
+2. **Single-scale variant export** (Phase 49) — the first feature to ever make the app WRITE a skeleton JSON. "Export Variant…" bakes a scaled copy (source sha256-immutable), sizes textures arithmetically (`variant_peak = s × master_peak`, never re-sampling), and reuses `buildExportPlan` + the atlas-writer UNCHANGED to emit a drop-in `{NAME}@{s}x/` package across `loose|atlas|both` × dual-runtime × dual loader-mode. EXPORT-01/02/03/05.
+3. **Rig-bounds + two-way scale↔dimension input** (Phase 50) — `computeSetupPoseBounds` (dual-runtime all-skins setup-pose AABB union) + a `VariantDialog` Scale card with three coupled aspect-locked inputs (factor/W/H) over the bbox reference. SCALEUI-01/02.
+4. **Batch variant export** (Phase 51) — N scales → N folders in one run; a behavior-preserving `exportOneVariant` extraction looped per scale (byte-identity to the single-scale path BY CONSTRUCTION) + a renderer multi-row dialog (continue-on-error, dedup/invalid gates, per-folder results, Cancel). Live-UAT approved. Plus three user-requested post-UAT polish rounds (per-image progress, live row coloring, pre-flight overwrite ConflictDialog). EXPORT-04.
+5. **Batch export robustness + dialog cleanup** (Phase 52) — per-row duplicate-token continue-on-error (was whole-batch abort), no orphan empty folders, consistent boundary coercion, a `tokenFor`≡`formatScaleToken` equivalence test, and the dead-prop/onStart cleanup — clearing the Phase-51 review backlog with no happy-path change. EXPORT-06.
+6. **Persist variant state in `.stmproj`** (Phase 53) — additive-optional `variantRows: { scale: number }[]` round-tripped end-to-end (shared types → pure-core validator/serialize/materialize → main Open assembly → AppShell restore-on-both-load-paths + dirty-by-scale-projection), reusing the existing `lastOutDir` for the output half. No schema version bump (`V_LATEST` stays 1); old files open to defaults; an inaccessible output folder falls back to the picker. SCALEUI-03.
+
+**Known gaps / deferred at close:** 11 open-artifact-audit items acknowledged and deferred (all documented prior-milestone carry-forwards — Phase-0 scale-overshoot debug, the alpha-0 quick-task scanner false-positive, SEED-009 dormant, UAT/verification on 36/41/47; the one genuinely-new v1.7 item — the Phase 49 native folder-picker visual UAT — was resolved live on 2026-05-25). Future v1.7 requirements deferred: per-scale override behavior, variant presets, a what-if peak preview. See STATE.md → Deferred Items.
+
+**Archived artifacts:**
+
+- `.planning/milestones/v1.7-ROADMAP.md` (full phase details Phases 48–53 preserved)
+- `.planning/milestones/v1.7-REQUIREMENTS.md` (all 13 requirements with final statuses)
+
+---
+
+## v1.6 Spine 4.3 Runtime Port — Dual-Runtime (Shipped: 2026-05-19 as v1.6.1)
+
+**Phases completed:** 6 phases (42–47), 24 plans
+**Timeline:** 2026-05-16 → 2026-05-19
+**Tag:** `v1.6.1` (released to users; `v1.6.0` is a dead/phantom tag — its release.yml run failed before any build, gate held, fix-forwarded to v1.6.1)
+
+**Delivered:** Ported the skeleton/animation math from a single spine-core 4.2 runtime to a dual-runtime architecture that loads and correctly samples both Spine 4.2 and Spine 4.3 skeleton JSON, routed by detected skeleton version — 4.2 support retained and byte-equal regression-gated. v1.6.1 was the first public release since v1.3.6 (folds in the never-pushed v1.4 / v1.5 / v1.5.1).
+
+**Key accomplishments:** npm-alias dual install (`@esotericsoftware/spine-core@4.3.0` canonical + `spine-core-42`=`4.2.111`); a `SpineRuntime` facade so `core/sampler.ts`/`bounds.ts` call through `load.runtime.*` (Layer-3 purity preserved, arch-anchored); the loader turned from a 4.3 rejecter into a version dispatcher (`resolveRuntimeTag`); a cross-runtime equivalence oracle that caught a real ship-blocker (4.3 mesh UVs were region-space, undersizing every 4.3 mesh by 2.251×); the 4.3-only `slider` constraint validated by a closed-form oracle with owner-editor triangulation; a CI-enabled 4.3 perf budget; and a dual-runtime Animation Viewer (4.2 → frozen alias-isolated spine-player@4.2.111 + the pre-migration modal; 4.3 → migrated spine-player@4.3.0), routed off the core runtime tag.
+
+**Archived artifacts:**
+
+- `.planning/milestones/v1.6-ROADMAP.md` (full phase details Phases 42–47 preserved)
+- `.planning/milestones/v1.6-REQUIREMENTS.md` (all v1.6 requirements with final statuses)
+
+---
+
 ## v1.5 Override Routing + Coverage Hardening + Atlas Repack (Shipped: 2026-05-15)
 
 **Phases completed:** 5 phases, 23 plans, 50 tasks

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: milestone_complete
-last_updated: "2026-05-24T13:30:55.233Z"
-last_activity: 2026-05-24 -- Phase 53 execution started
+last_updated: "2026-05-25T00:00:00.000Z"
+last_activity: 2026-05-25 -- v1.7 milestone closed (/gsd-complete-milestone); archived + tagged v1.7 locally (not pushed)
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 17
   percent: 100
 ---
 
@@ -17,10 +17,16 @@ progress:
 
 ## Current Position
 
-Phase: 53
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-24
+Phase: 53 (last phase of v1.7)
+Plan: —
+Status: ✅ v1.7 MILESTONE CLOSED 2026-05-25
+Last activity: 2026-05-25 — `/gsd-complete-milestone` (v1.7 archived + tagged locally)
+
+**Next: `/gsd-new-milestone`** to scope v1.8. v1.7 (Phases 48–53) is complete, verified, security-audited (`48-SECURITY.md`..`53-SECURITY.md`), archived to `milestones/v1.7-ROADMAP.md` + `milestones/v1.7-REQUIREMENTS.md`, and tagged `v1.7` locally — **NOT pushed** (release/publish is a separate owner ship decision; v1.4.0/v1.5.0 are likewise local-only). The Phase-49 native folder-picker UAT was resolved live on both 4.2 and 4.3 legs 2026-05-25; the remaining 11 open-artifact-audit items were acknowledged + deferred at close (see `## Deferred Items` → "v1.7 close acknowledgment" below). `REQUIREMENTS.md` was removed via `git rm` (fresh for the next milestone). Phase numbering continues at **Phase 54**.
+
+---
+
+### Historical (v1.7 in-progress narrative — superseded by the close above)
 
 Next: **`/gsd-plan-phase 52`** — Phase 52 (Batch Export Robustness + Variant-Dialog Cleanup, EXPORT-06). **v1.7 was NOT shipped** — the user kept the milestone OPEN to do two more phases (52 then 53) rather than push the work to v1.8. Phase 52 = clear the Phase-51 `51-REVIEW.md` backlog: WR-02 (duplicate `@{s}x` token currently aborts the WHOLE batch → make it fail only the colliding row(s), continue-on-error parity with D-07), WR-03 (a failed variant leaves an orphan empty `{NAME}@{s}x/` folder → rmdir-if-empty in the rollback), WR-04 (variant channels coerce-and-clamp vs `export:start`'s validate-and-reject — unify or document), IN-01 (no cross-boundary `tokenFor`≡`formatScaleToken` equivalence test), IN-03 (dead `plan` prop + its `buildExportPlan` call in the variant path), IN-04 (`onStart` `useCallback` deps include whole `props`). Pure hardening/cleanup, no new user capability → planned `--skip-ui`, likely no discuss needed. **Phase 53 (after 52)** = Persist Variant State in `.stmproj` (SCALEUI-03; rows + output location round-trip; has one design decision — output-path portability — so start with `/gsd-discuss-phase 53`; detail in `.planning/todos/pending/2026-05-23-persist-variant-rows-and-output-location.md`).
 
@@ -94,6 +100,24 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 | Window X-button / Cmd+W dirty-save guard | `ef38cd3` during Phase 36 UAT (pre-existing since Phase 8/18, surfaced + fixed in same cycle) |
 
 ## Deferred Items
+
+### v1.7 close acknowledgment (2026-05-25)
+
+The pre-close open-artifact audit (`gsd-sdk query audit-open`) reported 11 open items at v1.7 close. The owner chose **acknowledge + defer** (all are documented prior-milestone carry-forwards, not new v1.7 regressions). The one genuinely-new v1.7 item — the Phase 49 native folder-picker visual UAT — was **resolved live on 2026-05-25** (PASS on both 4.2 and 4.3 legs; `49-HUMAN-UAT.md` / `49-VERIFICATION.md` → `passed`) and is NOT deferred.
+
+| Category | Item | Status | Note |
+|----------|------|--------|------|
+| debug | phase-0-scale-overshoot | investigating | v1.0-era AABB/rotation tech debt; no regression observed across 9 milestones |
+| quick_task | 260505-lk0-fix-sampler-silent-discard-of-alpha-0-at | scanner false-positive | shipped 2026-05-05 (commit `0832660`); scanner reads `[missing]` due to frontmatter-shape drift |
+| seed | SEED-009-spine-animation-viewer | dormant (already built) | the viewer shipped in v1.5.1 + v1.6; seed status label is stale, not real open work |
+| uat_gaps | Phase 36 36-HUMAN-UAT.md | passed (scanner false-positive) | 8/8 passed 2026-05-13; frontmatter-shape mismatch |
+| uat_gaps | Phase 41 41-HUMAN-UAT.md | partial | 5 visual/host viewer scenarios; v1.5.1-era carry-forward |
+| uat_gaps | Phase 47 47-HUMAN-UAT.md | passed (owner DV-3 sign-off) | v1.6-era; scanner reads `[unknown]` due to frontmatter shape |
+| verification_gaps | Phase 41 41-VERIFICATION.md | human_needed | same root as Phase 41 UAT (visual/host) |
+
+> Note: audit-open also lists Phase 49 UAT/verification, but those were resolved 2026-05-25 (see above) — not part of this deferral.
+
+---
 
 Carried forward from v1.5 milestone close (2026-05-15). Items resolved/addressed in v1.5 are noted above under "v1.5 closures".
 
