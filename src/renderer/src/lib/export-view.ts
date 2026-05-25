@@ -302,8 +302,28 @@ export function computeExportDims(
   // (outW/outH) are UNCHANGED (the export path is FROZEN — no leak).
   const actualSrcW = actualSourceW ?? canonW;
   const actualSrcH = actualSourceH ?? canonH;
-  const peakDemandW = Math.min(Math.ceil(canonW * safeScale(rawPeakEff)), actualSrcW);
-  const peakDemandH = Math.min(Math.ceil(canonH * safeScale(rawPeakEff)), actualSrcH);
+  // Phase 54 follow-up (2026-05-25) — snap a 1px rounding residual UP to source.
+  // A reopened variant's PNG is sized by the EXPORT path
+  // (ceil(canonical × min(safeScale(peakScale × (1+buffer)), 1)), core/export.ts),
+  // which can round/buffer it a single pixel above the bare render demand
+  // computed here. That 1px gap is NOT recoverable savings — re-optimizing a
+  // variant is forbidden (it would undersize peakScale>1 art → blurry) — so
+  // tinting it green is misleading. When the demand is within 1px of the on-disk
+  // source on an axis, report Peak == Source (⇒ atLimit/amber, no green). Larger
+  // (multi-px) gaps are preserved as genuine signal. Universal — no variant
+  // detection (D-02). This snaps the DISPLAYED integer (not a hidden epsilon in
+  // the comparator), so rowState still decides the tint on the exact rendered
+  // integers (D-03 spirit preserved).
+  const snapRoundingResidual = (demand: number, src: number): number =>
+    src - demand <= 1 ? src : demand;
+  const peakDemandW = snapRoundingResidual(
+    Math.min(Math.ceil(canonW * safeScale(rawPeakEff)), actualSrcW),
+    actualSrcW,
+  );
+  const peakDemandH = snapRoundingResidual(
+    Math.min(Math.ceil(canonH * safeScale(rawPeakEff)), actualSrcH),
+    actualSrcH,
+  );
 
   return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH };
 }

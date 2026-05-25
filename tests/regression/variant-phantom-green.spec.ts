@@ -22,7 +22,11 @@
  * component module would trip TS6307 (Pitfall 4). The `rowState` extraction to
  * `lib/row-state.ts` is precisely what makes the tint predicate importable here.
  *
- * Regression table R1–R8 (54-RESEARCH §5 / 54-VALIDATION) + chip≡rows + D-03.
+ * Regression table R1–R8 (54-RESEARCH §5 / 54-VALIDATION) + chip≡rows + D-03,
+ * plus R9/R10 (2026-05-25 follow-up) locking the 1px rounding-residual snap:
+ * a reopened variant's PNG can round 1px above the bare render demand, which is
+ * non-recoverable savings, so a ≤1px gap snaps Peak UP to Source (atLimit, no
+ * green) while a ≥2px gap stays green.
  */
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
@@ -157,6 +161,28 @@ describe('Phase 54 — variant reopen phantom-green-savings (synthetic rows)', (
       // overrideFrac 0.5 → rawPeakEff = 0.591 → ceil(208.5 × 0.591) = 124 < 247.
       expect(peakDemandW).toBeLessThan(247);
       expect(rowState(peakDemandW, 247, false)).toBe('under');
+    });
+  });
+
+  describe('rounding snap — a 1px residual reports Peak == Source (no green)', () => {
+    it('R9: 1px residual (canon 160, peakScale 0.99, actualSource 160) snaps to source ⇒ atLimit', () => {
+      // ceil(160 × safeScale(0.99)) = ceil(160 × 0.99) = ceil(158.4) = 159 →
+      // source 160 − 159 = 1 ⇒ snapped UP to 160 ⇒ Peak == Source ⇒ atLimit.
+      const { peakDemandW } = computeExportDims(
+        160, 160, 0.99, undefined, 160, 160, true, 160, 160,
+      );
+      expect(peakDemandW).toBe(160);
+      expect(rowState(peakDemandW, 160, false)).toBe('atLimit');
+    });
+
+    it('R10: a 2px gap is NOT snapped — genuine signal preserved (under/green)', () => {
+      // ceil(160 × safeScale(0.987)) = ceil(160 × 0.987) = ceil(157.92) = 158 →
+      // source 160 − 158 = 2 (> 1) ⇒ NOT snapped ⇒ stays under/green.
+      const { peakDemandW } = computeExportDims(
+        160, 160, 0.987, undefined, 160, 160, true, 160, 160,
+      );
+      expect(peakDemandW).toBe(158);
+      expect(rowState(peakDemandW, 160, false)).toBe('under');
     });
   });
 
