@@ -119,7 +119,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete | 2026-05-23 |
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete | 2026-05-24 |
 | 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete | 2026-05-24 |
-| 54. Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix) | — (standalone bugfix) | 0/1 | Planned | — |
+| 54. Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix) | — (standalone bugfix) | 1/1 | Complete   | 2026-05-25 |
 
 _Earlier milestones (Phases 0–47) are archived — see the collapsed sections above and `.planning/milestones/`._
 
@@ -141,7 +141,7 @@ _Earlier milestones (Phases 0–47) are archived — see the collapsed sections 
 **Requirements:** TBD (no formal v1.7 REQ — bugfix scoped from debug session; traceability anchored to D-01/D-02/D-03).
 **Depends on:** — (standalone; builds on the v1.7 variant/bake/export code from Phases 48–53).
 **UI:** `--skip-ui` (read-model/display + renderer lib; no new UI surface).
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 54-01-PLAN.md — read-model peak-demand fix: add `peakDemandW/H` to `computeExportDims` (D-01), rewrite `rowState` to compare the rendered integers (D-03, extracted to `lib/row-state.ts`), rebase `savingsPctMemo` onto per-row demand (chip ≡ rows), tooltip/docblock copy sweep; export bytes frozen, Layer-3 pure (D-02 universal). Single wave, 3 tasks (Wave-0 test + helper, demand math, panel/chip wiring).
+- [x] 54-01-PLAN.md — read-model peak-demand fix: add `peakDemandW/H` to `computeExportDims` (D-01), rewrite `rowState` to compare the rendered integers (D-03, extracted to `lib/row-state.ts`), rebase `savingsPctMemo` onto per-row demand (chip ≡ rows), tooltip/docblock copy sweep; export bytes frozen, Layer-3 pure (D-02 universal). Single wave, 3 tasks (Wave-0 test + helper, demand math, panel/chip wiring).

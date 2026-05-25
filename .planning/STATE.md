@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: executing
-last_updated: "2026-05-25T13:49:51.985Z"
-last_activity: 2026-05-25 -- Phase 54 planning complete
+last_updated: "2026-05-25T16:32:56.144Z"
+last_activity: 2026-05-25 -- Phase 54 execution started
 progress:
   total_phases: 1
   completed_phases: 0
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 54 (standalone bugfix — variant reopen phantom green-savings fix; no active milestone)
-Plan: 54-01 (1 plan / 1 wave) — PLANNED ✅, ready to execute
-Status: Ready to execute
-Last activity: 2026-05-25 -- Phase 54 planning complete (research + plan + plan-checker PASS iter 2)
+Phase: 54 (variant-reopen-dimension-reconciliation-phantom-green-saving) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 54
+Last activity: 2026-05-25 -- Phase 54 execution started
 
 **Next: `/gsd-execute-phase 54`** — execute the planned read-model fix (single wave, single plan, autonomous). 54-01 fixes the false-positive green "savings" readout on reopened variants via a renderer-side display-only change: `computeExportDims` gains `peakDemandW/H = min(ceil(canonW × safeScale(rawPeakEff)), actualSource)` (D-01, `safeScale` RETAINED — only the `min(…,1)` canonical clamp dropped); the Peak cell + rebased `savingsPctMemo` consume it (chip ≡ Σ per-row demand); `rowState` extracted to `src/renderer/src/lib/row-state.ts` and tints on the two displayed integers (D-03); universal across all rigs (D-02). Export bytes / bake / OptimizeDialog FROZEN (Option A & C rejected); `core/` stays Layer-3 pure. Artifacts: `54-CONTEXT.md` (committed `6f50ce8`), `54-RESEARCH.md` (HIGH conf), `54-PATTERNS.md`, `54-VALIDATION.md`, `54-01-PLAN.md` (committed `60f09f2`, revised `21f652d` — plan-checker caught a tooltip-string-coupled test breakage, now owned). After execute: owner manual UAT (reopen the local ARMAN/42 variant `.json` files — not jsdom-testable). **Then** `/gsd-new-milestone` to scope v1.8.
 
@@ -87,7 +87,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-16 at v1.6 milestone start).
 
 **Core value:** Animators ship atlases that are as small as they mathematically can be without visible quality loss — driven by the actual world-space transforms the runtime computes, not guesswork.
 
-**Current focus:** Phase 53 — persist-variant-state-in-stmproj
+**Current focus:** Phase 54 — variant-reopen-dimension-reconciliation-phantom-green-saving
 
 ## Last Completed Milestone
 
