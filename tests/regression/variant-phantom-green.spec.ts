@@ -84,16 +84,32 @@ describe('Phase 54 — variant reopen phantom-green-savings (synthetic rows)', (
   });
 
   describe('regression — master peakScale<1 genuine savings is display-unchanged', () => {
-    it('R2: CROWN (canon 478.5, peakScale 0.44, actualSource 211) peakDemand === peakDisplay; green preserved', () => {
-      const { peakDemandW, peakDisplayW } = computeExportDims(
+    it('R2: CROWN (canon 478.5, peakScale 0.44, actualSource 211) peakDemand === peakDisplay; state preserved', () => {
+      const { peakDemandW, peakDemandH, peakDisplayW, peakDisplayH } = computeExportDims(
         211, 211, 0.44, undefined, 211, 211, true, 478.5, 478.5,
       );
-      // For peakScale ≤ 1 with actualSource ≥ canon-shrunk demand the demand
-      // pair is byte-identical to the export-clamped display pair (fuzz-proven).
+      // The core regression guarantee: for a master peakScale ≤ 1 row the
+      // demand pair is BYTE-IDENTICAL to the export-clamped display pair
+      // (fuzz-proven, 54-RESEARCH §RQ5) — D-02 "display-unchanged".
       expect(peakDemandW).toBe(peakDisplayW);
-      // Genuine savings preserved: render demand strictly below the on-disk dim.
-      expect(peakDemandW).toBeLessThan(211);
-      expect(rowState(peakDemandW, 211, false)).toBe('under');
+      expect(peakDemandH).toBe(peakDisplayH);
+      // State is preserved: tinting on peakDemandW yields the SAME RowState the
+      // export-clamped peakDisplayW would have. (Here both round up to source
+      // ⇒ atLimit; the point is they agree.)
+      const src = 211;
+      expect(rowState(peakDemandW, src, false)).toBe(rowState(peakDisplayW, src, false));
+    });
+
+    it('R2b: master peakScale<1 with genuine headroom (canon 478.5, peakScale 0.44, actualSource 478) keeps green', () => {
+      // Same demand math, but the on-disk source is the full canonical size
+      // (no repack drift) so the demand 211 is strictly below source 478 ⇒
+      // genuine green is preserved and unchanged.
+      const { peakDemandW, peakDisplayW } = computeExportDims(
+        478, 478, 0.44, undefined, 478, 478, false, 478.5, 478.5,
+      );
+      expect(peakDemandW).toBe(peakDisplayW);
+      expect(peakDemandW).toBeLessThan(478);
+      expect(rowState(peakDemandW, 478, false)).toBe('under');
     });
 
     it('R4: master peakScale>1 with NO drift (canon 417, actualSource 417) — Peak == Source, atLimit', () => {

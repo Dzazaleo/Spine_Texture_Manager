@@ -31,9 +31,14 @@ export type EnrichedRow = RegionRow & {
 /**
  * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw row[] with render-time
  * effective fields. Uses computeExportDims (single source of truth shared
- * with OptimizeDialog) so the panel's "Peak W×H" column shows EXPORT dims
- * — Math.ceil(sourceDim × ceil-thousandth-effScale, clamped ≤ source) —
- * instead of the world-AABB.
+ * with OptimizeDialog).
+ *
+ * Phase 54 D-01: the panel's "Peak W×H" column now shows the TRUE render demand
+ * capped at source (peakDemandW/H = min(canonicalW × peakScale, actualSource)),
+ * NOT the export-clamped dims. effExportW/H (= outW/outH) remain the export dims
+ * the OptimizeDialog/export pipeline produce; peakDisplayW/H is retained as the
+ * export-dim Peak value. Dropping the premature `≤ 1.0` clamp on the demand pair
+ * is what kills the false-green readout on reopened peakScale>1 variants.
  *
  * Phase 29 D-04 (Plan 29-03 + 29-05 + 29-07): operates on RegionRow[] (one
  * row per source PNG / regionName). The override Map is regionName-keyed
