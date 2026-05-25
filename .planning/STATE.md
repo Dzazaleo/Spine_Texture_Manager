@@ -2,27 +2,35 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: milestone_complete
-last_updated: "2026-05-25T00:00:00.000Z"
-last_activity: 2026-05-25 -- v1.7 milestone closed (/gsd-complete-milestone); archived + tagged v1.7 locally (not pushed)
+status: executing
+last_updated: "2026-05-25T13:49:51.985Z"
+last_activity: 2026-05-25 -- Phase 54 planning complete
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 1
+  completed_plans: 0
+  percent: 0
 ---
 
 # State
 
 ## Current Position
 
-Phase: 53 (last phase of v1.7)
-Plan: —
-Status: ✅ v1.7 MILESTONE CLOSED 2026-05-25
-Last activity: 2026-05-25 — `/gsd-complete-milestone` (v1.7 archived + tagged locally)
+Phase: 54 (standalone bugfix — variant reopen phantom green-savings fix; no active milestone)
+Plan: 54-01 (1 plan / 1 wave) — PLANNED ✅, ready to execute
+Status: Ready to execute
+Last activity: 2026-05-25 -- Phase 54 planning complete (research + plan + plan-checker PASS iter 2)
 
-**Next: `/gsd-new-milestone`** to scope v1.8. v1.7 (Phases 48–53) is complete, verified, security-audited (`48-SECURITY.md`..`53-SECURITY.md`), archived to `milestones/v1.7-ROADMAP.md` + `milestones/v1.7-REQUIREMENTS.md`, and tagged `v1.7` locally — **NOT pushed** (release/publish is a separate owner ship decision; v1.4.0/v1.5.0 are likewise local-only). The Phase-49 native folder-picker UAT was resolved live on both 4.2 and 4.3 legs 2026-05-25; the remaining 11 open-artifact-audit items were acknowledged + deferred at close (see `## Deferred Items` → "v1.7 close acknowledgment" below). `REQUIREMENTS.md` was removed via `git rm` (fresh for the next milestone). Phase numbering continues at **Phase 54**.
+**Next: `/gsd-execute-phase 54`** — execute the planned read-model fix (single wave, single plan, autonomous). 54-01 fixes the false-positive green "savings" readout on reopened variants via a renderer-side display-only change: `computeExportDims` gains `peakDemandW/H = min(ceil(canonW × safeScale(rawPeakEff)), actualSource)` (D-01, `safeScale` RETAINED — only the `min(…,1)` canonical clamp dropped); the Peak cell + rebased `savingsPctMemo` consume it (chip ≡ Σ per-row demand); `rowState` extracted to `src/renderer/src/lib/row-state.ts` and tints on the two displayed integers (D-03); universal across all rigs (D-02). Export bytes / bake / OptimizeDialog FROZEN (Option A & C rejected); `core/` stays Layer-3 pure. Artifacts: `54-CONTEXT.md` (committed `6f50ce8`), `54-RESEARCH.md` (HIGH conf), `54-PATTERNS.md`, `54-VALIDATION.md`, `54-01-PLAN.md` (committed `60f09f2`, revised `21f652d` — plan-checker caught a tooltip-string-coupled test breakage, now owned). After execute: owner manual UAT (reopen the local ARMAN/42 variant `.json` files — not jsdom-testable). **Then** `/gsd-new-milestone` to scope v1.8.
+
+> Frontmatter note: `state.planned-phase` reset the progress counters to this standalone phase's scope (1 plan / 0 complete) and flipped `status` from `milestone_complete` to `executing`; `milestone:` still reads `v1.7` but v1.7 is CLOSED — Phase 54 is a post-close standalone bugfix with **no active milestone** (ROADMAP is authoritative). This is the known gsd-sdk STATE.md miscount ([[project_gsd_phase_complete_state_miscount]]); left as-is since it correctly scopes the *current work unit*.
+
+---
+
+### Historical (v1.7 close — preserved)
+
+v1.7 (Phases 48–53) is complete, verified, security-audited (`48-SECURITY.md`..`53-SECURITY.md`), archived to `milestones/v1.7-ROADMAP.md` + `milestones/v1.7-REQUIREMENTS.md`, and tagged `v1.7` locally — **NOT pushed** (release/publish is a separate owner ship decision; v1.4.0/v1.5.0 are likewise local-only). The Phase-49 native folder-picker UAT was resolved live on both 4.2 and 4.3 legs 2026-05-25; the remaining 11 open-artifact-audit items were acknowledged + deferred at close (see `## Deferred Items` → "v1.7 close acknowledgment" below). `REQUIREMENTS.md` was removed via `git rm` (fresh for the next milestone). Phase numbering continues at **Phase 54**.
 
 ---
 
