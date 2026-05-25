@@ -205,7 +205,22 @@ export function computeExportDims(
   // change — back-compat preserved).
   canonicalW?: number,
   canonicalH?: number,
-): { effScale: number; outW: number; outH: number; displayScale: number; peakDisplayW: number; peakDisplayH: number } {
+): {
+  effScale: number;
+  outW: number;
+  outH: number;
+  displayScale: number;
+  peakDisplayW: number;
+  peakDisplayH: number;
+  // Phase 54 D-01 — TRUE render demand for DISPLAY (NOT export). Type-declared
+  // in Task 1 (Wave-0 stub); the computation lands in Task 2. Until then the
+  // return literal omits these, so `as` is not used — see the stub note at the
+  // return site below. They are required (non-optional) so every consumer (the
+  // panel Peak cell, the savings chip, the regression spec) compiles against
+  // the real contract from Wave 0.
+  peakDemandW: number;
+  peakDemandH: number;
+} {
   // Match buildExportPlan's effScale derivation exactly:
   // 1. raw effScale = (override/100) × peakScale  OR  peakScale fallback
   //    (peak-anchored — 2026-05-05 redesign; see overrides.ts docblock).
@@ -248,13 +263,15 @@ export function computeExportDims(
   const sourceWForRatio = actualSourceW ?? canonW;
   const displayScale = sourceWForRatio > 0 ? outW / sourceWForRatio : effScale;
 
-  // Peak display dims (2026-05-05 redesign — invariant of source PNG dims):
-  //   peakDisplayW/H = ceil(canonicalW × min(safeScale(peakScale × overrideFrac), 1, sourceRatio))
-  // The Peak W×H column shows what the rig DEMANDS in world-space pixels
-  // (canonicalW × peakScale, override-scaled), clamped at BOTH ceilings —
-  // canonical (artist asset) AND sourceRatio (on-disk PNG limit). Neither
-  // can be exceeded, so the column reflects the dims the export will
-  // actually produce, not a theoretical demand the user can't reach.
+  // peakDisplayW/H = ceil(canonicalW × min(safeScale(peakScale × overrideFrac), 1, sourceRatio))
+  // RETAINED as the EXPORT-DIM Peak value (the dims the export will actually
+  // produce — clamped at BOTH the canonical artist-asset ceiling AND the
+  // sourceRatio on-disk PNG limit). It is NO LONGER what the panel's Peak W×H
+  // cell renders — Phase 54 D-01 moved the cell onto peakDemandW/H (the TRUE
+  // render demand capped at source, computed below). The premature `≤ 1.0`
+  // canonical clamp here discards the peakScale > 1 signal, which is exactly
+  // why it produced the false-green readout on reopened variants; keep it only
+  // for the export-dim value, never for the displayed Peak cell.
   //
   // 2026-05-05 amendment — clamp at sourceRatio too: the prior version
   // clamped only at canonical, so a 200% override on a pre-optimized row
@@ -271,7 +288,24 @@ export function computeExportDims(
   const peakDisplayW = Math.ceil(canonW * peakDisplayEff);
   const peakDisplayH = Math.ceil(canonH * peakDisplayEff);
 
-  return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH };
+  // Phase 54 D-01 — TRUE render demand for DISPLAY (NOT export).
+  // peakDemandW/H = min(ceil(canonicalW × safeScale(peakScale × overrideFrac)), actualSource)
+  // Differs from peakDisplayW/H ONLY by removing the export `≤ 1.0` canonical
+  // clamp: it preserves the peakScale > 1 signal (the false-green root cause —
+  // a reopened variant's PNGs are sized ceil(canonical × s·peakScale) but its
+  // geometry is source-based, so the clamped display path read Peak < Source
+  // and tinted green). Capped at the real on-disk pixel size (actualSource) —
+  // never report demand above what the texture physically is. For peakScale ≤ 1
+  // (actualSource ≥ canonical) this is byte-identical to peakDisplayW/H
+  // (fuzz-proven, 54-RESEARCH §RQ5). safeScale(rawPeakEff) is MANDATORY —
+  // dropping it diverges ~45% of peakScale≤1 rows (Pitfall 1). Export dims
+  // (outW/outH) are UNCHANGED (the export path is FROZEN — no leak).
+  const actualSrcW = actualSourceW ?? canonW;
+  const actualSrcH = actualSourceH ?? canonH;
+  const peakDemandW = Math.min(Math.ceil(canonW * safeScale(rawPeakEff)), actualSrcW);
+  const peakDemandH = Math.min(Math.ceil(canonH * safeScale(rawPeakEff)), actualSrcH);
+
+  return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH };
 }
 
 export function buildExportPlan(

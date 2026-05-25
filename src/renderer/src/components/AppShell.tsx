@@ -72,6 +72,7 @@ import { HelpDialog } from '../modals/HelpDialog';
 import { DocumentationBuilderDialog } from '../modals/DocumentationBuilderDialog';
 import { clampOverride } from '../lib/overrides-view.js';
 import { buildExportPlan } from '../lib/export-view.js';
+import { enrichWithEffective } from '../lib/enrich-overrides.js';
 // Phase 20 D-21 — atlas-preview snapshot for the Documentation Builder's
 // Export pane chip strip ("N Atlas Pages (MAX_PAGE_PXpx)"). Reuses the same
 // builder AtlasPreviewModal mounts (AtlasPreviewModal.tsx:105). Mode/dim
@@ -1177,30 +1178,36 @@ export function AppShell({
     [effectiveSummary, activeOverrides, safetyBufferPercentLocal],
   );
 
-  // Phase 20 D-21 — savings-percentage snapshot for the HTML export's
-  // Optimization Config card. Formula LOCKED in 20-CONTEXT.md D-18 sub-step 3:
-  // (1 - sumOutPixels / sumSourcePixels) * 100, byte-identical to
-  // OptimizeDialog.tsx:280-291 (visual source-of-truth on the existing Optimize
-  // Assets dialog). Returns null when there are no rows in the plan (avoids
-  // divide-by-zero AND signals "no data" to the HTML export's '—' placeholder
-  // per renderOptimizationConfigCard in src/main/doc-export.ts).
+  // Phase 54 D-01/RQ4 — section savings-% snapshot REBASED onto the SAME
+  // per-row render demand the Global Max panel tints on (enrichWithEffective +
+  // peakDemandW/H), so the chip ≡ Σ per-row states by construction. For a
+  // reopened peakScale>1 variant the chip drops from the phantom green % to the
+  // genuine rounding residual (peakScale>1 rows are at-limit ⇒ 0 contribution).
+  //
+  // This INTENTIONALLY diverges from the Optimize Assets dialog's savings %
+  // (which stays export-plan-based, locked 20-CONTEXT D-18): the section chip
+  // answers "how much of this rig's pixels exceed render demand" (honest
+  // read-model), while the Optimize dialog answers "how much will THIS optimize
+  // run shrink the files". For a variant the latter would harmfully under-size
+  // peakScale>1 art, so the two figures are correct answers to different
+  // questions. Returns null when there are no rows (divide-by-zero guard +
+  // signals "no data" to the HTML export's '—' placeholder per
+  // renderOptimizationConfigCard in src/main/doc-export.ts).
   const savingsPctMemo = useMemo<number | null>(() => {
-    // Phase 30 BUFFER-01 — thread safety buffer so the savings snapshot
-    // reflects the user's current buffer setting reactively.
     // Phase 36 D-14 — read activeOverrides (mode-aware slice) per OVR-05.
-    const plan = buildExportPlan(effectiveSummary, activeOverrides, {
-      skeletonPath: effectiveSummary.skeletonPath,
-      safetyBufferPercent: safetyBufferPercentLocal,
-    });
-    if (plan.rows.length === 0) return null;
-    const sumSourcePixels = plan.rows.reduce(
-      (acc, r) => acc + r.sourceW * r.sourceH,
-      0,
-    );
-    const sumOutPixels = plan.rows.reduce((acc, r) => acc + r.outW * r.outH, 0);
-    if (sumSourcePixels <= 0) return null;
-    return (1 - sumOutPixels / sumSourcePixels) * 100;
-  }, [effectiveSummary, activeOverrides, safetyBufferPercentLocal]);
+    const enriched = enrichWithEffective(effectiveSummary.regions, activeOverrides);
+    if (enriched.length === 0) return null;
+    let sumSource = 0;
+    let sumDemand = 0;
+    for (const r of enriched) {
+      const srcW = r.actualSourceW ?? r.sourceW;
+      const srcH = r.actualSourceH ?? r.sourceH;
+      sumSource += srcW * srcH;
+      sumDemand += r.peakDemandW * r.peakDemandH; // capped at source ⇒ ≤ srcW*srcH
+    }
+    if (sumSource <= 0) return null;
+    return (1 - sumDemand / sumSource) * 100;
+  }, [effectiveSummary, activeOverrides]);
 
   /**
    * Phase 8 dirty derivation per D-145, narrowed: (overrides, samplingHz) only.

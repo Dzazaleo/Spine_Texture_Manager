@@ -19,15 +19,26 @@ export type EnrichedRow = RegionRow & {
   displayScale: number;
   peakDisplayW: number;
   peakDisplayH: number;
+  // Phase 54 D-01 — TRUE render demand for DISPLAY (NOT export). The Peak W×H
+  // column + the savings chip read these (= min(canonicalW × peakScale,
+  // actualSource)); outW/outH/effExportW/H remain the export dims. Type-declared
+  // in Task 1; the value is computed by computeExportDims as of Task 2.
+  peakDemandW: number;
+  peakDemandH: number;
   override: number | undefined;
 };
 
 /**
  * Phase 4 Plan 03 + Round 5 (2026-04-25): enrich raw row[] with render-time
  * effective fields. Uses computeExportDims (single source of truth shared
- * with OptimizeDialog) so the panel's "Peak W×H" column shows EXPORT dims
- * — Math.ceil(sourceDim × ceil-thousandth-effScale, clamped ≤ source) —
- * instead of the world-AABB.
+ * with OptimizeDialog).
+ *
+ * Phase 54 D-01: the panel's "Peak W×H" column now shows the TRUE render demand
+ * capped at source (peakDemandW/H = min(canonicalW × peakScale, actualSource)),
+ * NOT the export-clamped dims. effExportW/H (= outW/outH) remain the export dims
+ * the OptimizeDialog/export pipeline produce; peakDisplayW/H is retained as the
+ * export-dim Peak value. Dropping the premature `≤ 1.0` clamp on the demand pair
+ * is what kills the false-green readout on reopened peakScale>1 variants.
  *
  * Phase 29 D-04 (Plan 29-03 + 29-05 + 29-07): operates on RegionRow[] (one
  * row per source PNG / regionName). The override Map is regionName-keyed
@@ -42,17 +53,18 @@ export function enrichWithEffective(
 ): EnrichedRow[] {
   return rows.map((row) => {
     const override = overrides.get(row.regionName ?? row.attachmentName);
-    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
-      row.sourceW,
-      row.sourceH,
-      row.peakScale,
-      override,
-      row.actualSourceW,
-      row.actualSourceH,
-      row.dimsMismatch,
-      row.canonicalW,
-      row.canonicalH,
-    );
+    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH } =
+      computeExportDims(
+        row.sourceW,
+        row.sourceH,
+        row.peakScale,
+        override,
+        row.actualSourceW,
+        row.actualSourceH,
+        row.dimsMismatch,
+        row.canonicalW,
+        row.canonicalH,
+      );
     return {
       ...row,
       effectiveScale: effScale,
@@ -61,6 +73,8 @@ export function enrichWithEffective(
       displayScale,
       peakDisplayW,
       peakDisplayH,
+      peakDemandW,
+      peakDemandH,
       override,
     };
   });

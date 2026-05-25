@@ -1,8 +1,10 @@
 /**
  * Extrapolation icon — marks the Peak W×H cell when the Spine rig demands
- * resolution above canonical (`peakScale > 1`). The export pipeline caps
- * at canonical, so the icon signals "rig wants more than the source can
- * provide; export capped at canonical."
+ * resolution above the drawn source size (`peakScale > 1`). The icon signals
+ * the Spine rig peaks larger than the artist-drawn source, i.e. the texture is
+ * already sized to render demand. (Phase 54: the Peak cell now shows the true
+ * render demand capped at source; the prior canonical-clamp wording was
+ * misleading and was dropped from the tooltip copy.)
  *
  * Tooltip mechanism (Phase 31 TOOLTIP-01 fix-shape c): React-managed
  * primitive — `createPortal` + `position:fixed` + `getBoundingClientRect`

@@ -63,6 +63,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, RegionRow } from '../../../shared/types.js';
 import { safeScale } from '../lib/export-view.js';
 import { type EnrichedRow, enrichWithEffective } from '../lib/enrich-overrides.js';
+import { rowState, type RowState } from '../lib/row-state.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
@@ -174,33 +175,15 @@ export interface GlobalMaxRenderPanelProps {
 
 // ----- Pure helpers (module-top) -----------------------------------------
 
-/**
- * Row state predicate. Drives the row left-accent bar (UI-SPEC §5) and the
- * tinted Peak W×H cell.
- *
- * 2026-05-05 redesign: the tint moved from the Scale column to the Peak
- * column (Peak now answers the question users care about — savings vs at-
- * limit). Predicate rebased from "peakRatio vs 1.0" to "peakDims vs
- * sourceDims":
- *   - 'under'   = peak < source     → green (export will reduce; savings)
- *   - 'atLimit' = peak == source    → yellow (byte-copy passthrough)
- *   - 'unused'/'missing'            → red (existing semantics)
- *   - 'neutral'                     → no tint (defensive fallback)
- *
- * The 'over' case (peak > source) is gone — under the new caps the Peak
- * display can never exceed source dims. peakDisplayW/H comes from
- * computeExportDims which clamps at min(canonical, sourceRatio) before
- * the panel ever sees it.
- */
-type RowState = 'under' | 'atLimit' | 'unused' | 'neutral' | 'missing';
-
-function rowState(peakDisplayW: number, sourceW: number, isUnused: boolean, isMissing?: boolean): RowState {
-  if (isMissing) return 'missing';
-  if (isUnused) return 'unused';
-  if (peakDisplayW < sourceW) return 'under';
-  if (peakDisplayW === sourceW) return 'atLimit';
-  return 'neutral';
-}
+// Phase 54 — `RowState` + `rowState` extracted VERBATIM to
+// `../lib/row-state.js` so the regression spec can import the pure tint
+// predicate as a `.spec.ts` in the node program (avoids the TS6307
+// renderer-`.ts`-test landmine). Imported at module top. The body is
+// unchanged: 'under' = peak < source (green), 'atLimit' = peak == source
+// (yellow), 'unused'/'missing' = red, 'neutral' = no tint. The Peak arg the
+// call sites pass is the displayed integer Peak dim (Task 3 switches it from
+// peakDisplayW to peakDemandW); the Source arg is the displayed Source dim
+// (`row.actualSourceW ?? row.sourceW`, the numeric originalSizeLabel).
 
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */
@@ -562,7 +545,12 @@ function Row({
         }
       >
         <span className="inline-flex items-center justify-end gap-1">
-          <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          {/* Phase 54 D-01 — Peak cell shows the TRUE render demand capped at
+              source (peakDemandW/H), restoring project_peak_anchored_invariants
+              "Peak = world demand". For a reopened peakScale>1 variant this
+              reads the SAME dims as the Source cell ⇒ "green when Peak < Source"
+              is self-evidently true to the eye (no phantom green). */}
+          <span>{`${row.peakDemandW}×${row.peakDemandH}`}</span>
           {row.peakScale > 1 && (
             // Tooltip is rendered as an SVG <title> child via ExtrapolationIcon's
             // `title` prop. SVG <title> reliably wins over the parent <td>'s
@@ -572,7 +560,7 @@ function Row({
             // own.
             <ExtrapolationIcon
               className="w-3.5 h-3.5 inline-block text-white"
-              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source — export capped at canonical`}
+              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source`}
             />
           )}
           {row.override !== undefined && (
@@ -1010,7 +998,12 @@ export function GlobalMaxRenderPanel({
               <tbody>
                 {virtualizer.getVirtualItems().map((virtualRow, idx) => {
                   const row = sorted[virtualRow.index];
-                  const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+                  // Phase 54 D-03 — both args are the EXACT rendered integers:
+                  // Peak = row.peakDemandW (Peak cell); Source =
+                  // row.actualSourceW ?? row.sourceW (the numeric form of
+                  // originalSizeLabel, the Source cell). Pure integer compare,
+                  // no epsilon ⇒ equal integers => atLimit (yellow, no green).
+                  const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
                   return (
                     <Row
                       key={row.regionName}
@@ -1134,7 +1127,9 @@ export function GlobalMaxRenderPanel({
               </tr>
             )}
             {sorted.map((row) => {
-              const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+              // Phase 54 D-03 — Peak = row.peakDemandW; Source =
+              // row.actualSourceW ?? row.sourceW (see the virtualized call site).
+              const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <Row
                   key={row.regionName}
