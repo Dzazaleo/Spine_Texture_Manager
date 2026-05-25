@@ -121,3 +121,26 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 | 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete | 2026-05-24 |
 
 _Earlier milestones (Phases 0–47) are archived — see the collapsed sections above and `.planning/milestones/`._
+
+### Phase 54: Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix)
+
+**Type:** Standalone bugfix phase (v1.7 closed; no active milestone — continues phase numbering at 54).
+
+**Goal:** Eliminate the false-positive green "savings" readout shown for **reopened exported variants**, without degrading variant texture quality and without breaking the v1.7-LOCKED scale-bake / export-plan contract unless that direction is deliberately chosen.
+
+**Problem (diagnosed):** A reopened variant's geometry JSON is sized **source-based** (`width`/`height` × s in `src/core/scale-bake.ts`) while its texture PNGs are sized **peak-based** (`ceil(canonicalW × s·peakScale)` in `src/core/export.ts`). For art drawn smaller than it renders (`peakScale > 1`, e.g. GRAND, L_SKIRT), the two disagree, so on reopen `computeExportDims` (`src/renderer/src/lib/export-view.ts`) + `rowState` (`src/renderer/src/panels/GlobalMaxRenderPanel.tsx`) compute Peak < Source and tint the cell green (e.g. 0.846×, 0.877×), falsely implying recoverable savings. **Variant-only** (master rigs are internally consistent: canonical == atlas-orig). Counts: ARMAN @0.5x = 57 false rows; 42 @0.1x = 22. Full root-cause + reproduction: [.planning/debug/variant-peaks-differ-green.md](debug/variant-peaks-differ-green.md) (status: resolved/diagnose-only).
+
+**⚠ Constraint:** Do NOT "fix" by re-optimizing variants — that shrinks PNGs below true render demand → blurry in-engine. Current variant PNGs are correct; only the reopened *display* is wrong.
+
+**Candidate fix directions (DECIDE in `/gsd-discuss-phase 54` — left open, not pre-locked):**
+- **(A) Reconcile the bake** to peak-anchored dims so JSON and PNG agree at source — most "correct"; edits the v1.7-LOCKED bake/plan contract.
+- **(B) Read-model fix** — on reopen treat the larger atlas-original as canonical/source so Peak == Source and the green disappears; no bake change.
+- **(C) Minimal safety guard** — prevent a re-optimize pass from shrinking a variant below true peak demand; leaves the tint as-is.
+
+**Requirements:** TBD (no formal v1.7 REQ — bugfix scoped from debug session).
+**Depends on:** — (standalone; builds on the v1.7 variant/bake/export code from Phases 48–53).
+**UI:** likely `--skip-ui` (read-model/display + core; no new UI surface).
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 54 to break down)
