@@ -119,6 +119,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 | 51. Batch Variant Export | v1.7 | 2/2 | Complete | 2026-05-23 |
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete | 2026-05-24 |
 | 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete | 2026-05-24 |
+| 54. Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix) | — (standalone bugfix) | 0/1 | Planned | — |
 
 _Earlier milestones (Phases 0–47) are archived — see the collapsed sections above and `.planning/milestones/`._
 
@@ -126,21 +127,21 @@ _Earlier milestones (Phases 0–47) are archived — see the collapsed sections 
 
 **Type:** Standalone bugfix phase (v1.7 closed; no active milestone — continues phase numbering at 54).
 
-**Goal:** Eliminate the false-positive green "savings" readout shown for **reopened exported variants**, without degrading variant texture quality and without breaking the v1.7-LOCKED scale-bake / export-plan contract unless that direction is deliberately chosen.
+**Goal:** Eliminate the false-positive green "savings" readout shown for **reopened exported variants**, without degrading variant texture quality and without breaking the v1.7-LOCKED scale-bake / export-plan contract. **Read-model / DISPLAY fix only** — it changes how Peak and the savings figure are computed FOR DISPLAY and how the green tint decides; it changes NO exported bytes and does NOT touch the v1.7-locked scale-bake or export sizing math.
 
-**Problem (diagnosed):** A reopened variant's geometry JSON is sized **source-based** (`width`/`height` × s in `src/core/scale-bake.ts`) while its texture PNGs are sized **peak-based** (`ceil(canonicalW × s·peakScale)` in `src/core/export.ts`). For art drawn smaller than it renders (`peakScale > 1`, e.g. GRAND, L_SKIRT), the two disagree, so on reopen `computeExportDims` (`src/renderer/src/lib/export-view.ts`) + `rowState` (`src/renderer/src/panels/GlobalMaxRenderPanel.tsx`) compute Peak < Source and tint the cell green (e.g. 0.846×, 0.877×), falsely implying recoverable savings. **Variant-only** (master rigs are internally consistent: canonical == atlas-orig). Counts: ARMAN @0.5x = 57 false rows; 42 @0.1x = 22. Full root-cause + reproduction: [.planning/debug/variant-peaks-differ-green.md](debug/variant-peaks-differ-green.md) (status: resolved/diagnose-only).
+**Problem (diagnosed):** A reopened variant's geometry JSON is sized **source-based** (`width`/`height` × s in `src/core/scale-bake.ts`) while its texture PNGs are sized **peak-based** (`ceil(canonicalW × s·peakScale)` in `src/core/export.ts`). For art drawn smaller than it renders (`peakScale > 1`, e.g. GRAND, L_SKIRT), the two disagree, so on reopen `computeExportDims` (`src/renderer/src/lib/export-view.ts`) + `rowState` (`src/renderer/src/panels/GlobalMaxRenderPanel.tsx`) compute Peak < Source and tint the cell green (e.g. 0.846×, 0.877×), falsely implying recoverable savings. The premature `≤ 1.0` clamp in the *display* path is the root cause (it discards the `peakScale > 1` signal). Counts: ARMAN @0.5x = 57 false rows; 42 @0.1x = 22. Full root-cause + reproduction: [.planning/debug/variant-peaks-differ-green.md](debug/variant-peaks-differ-green.md) (status: resolved/diagnose-only).
 
 **⚠ Constraint:** Do NOT "fix" by re-optimizing variants — that shrinks PNGs below true render demand → blurry in-engine. Current variant PNGs are correct; only the reopened *display* is wrong.
 
-**Candidate fix directions (DECIDE in `/gsd-discuss-phase 54` — left open, not pre-locked):**
-- **(A) Reconcile the bake** to peak-anchored dims so JSON and PNG agree at source — most "correct"; edits the v1.7-LOCKED bake/plan contract.
-- **(B) Read-model fix** — on reopen treat the larger atlas-original as canonical/source so Peak == Source and the green disappears; no bake change.
-- **(C) Minimal safety guard** — prevent a re-optimize pass from shrinking a variant below true peak demand; leaves the tint as-is.
+**Locked fix direction (from `54-CONTEXT.md` + `54-RESEARCH.md`):**
+- **D-01 (Option B, read-model):** display Peak demand + savings derived from TRUE world render demand `min(canonical × peakScale, actualSource)` (drop the display path's premature `≤ 1.0` clamp; keep `safeScale`). Export-side `≤ 1.0` clamp + bake stay frozen. Option A (reconcile bake) and Option C (re-optimize guard) rejected.
+- **D-02 (Universal):** applies to all rigs (master + variant, atlas-source + atlas-less, 4.2 + 4.3); no "is this a variant" detection.
+- **D-03 (Tint matches displayed integers):** green only when the displayed integer Peak dim is strictly smaller than the displayed integer Source dim; pure integer compare, no epsilon.
 
-**Requirements:** TBD (no formal v1.7 REQ — bugfix scoped from debug session).
+**Requirements:** TBD (no formal v1.7 REQ — bugfix scoped from debug session; traceability anchored to D-01/D-02/D-03).
 **Depends on:** — (standalone; builds on the v1.7 variant/bake/export code from Phases 48–53).
-**UI:** likely `--skip-ui` (read-model/display + core; no new UI surface).
-**Plans:** 0 plans
+**UI:** `--skip-ui` (read-model/display + renderer lib; no new UI surface).
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 54 to break down)
+- [ ] 54-01-PLAN.md — read-model peak-demand fix: add `peakDemandW/H` to `computeExportDims` (D-01), rewrite `rowState` to compare the rendered integers (D-03, extracted to `lib/row-state.ts`), rebase `savingsPctMemo` onto per-row demand (chip ≡ rows), tooltip/docblock copy sweep; export bytes frozen, Layer-3 pure (D-02 universal). Single wave, 3 tasks (Wave-0 test + helper, demand math, panel/chip wiring).
