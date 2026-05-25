@@ -241,10 +241,11 @@ function compareRows(a: EnrichedRow, b: EnrichedRow, col: SortCol): number {
     case 'sourceW':
       return a.sourceW - b.sourceW;
     case 'worldW':
-      // 2026-05-05 redesign: Peak W×H sort reads peakDisplayW so the
-      // ordering matches the visible Peak column (now world-space demand,
-      // invariant of source PNG dims).
-      return a.peakDisplayW - b.peakDisplayW;
+      // Peak W×H sort reads peakDemandW so the ordering matches the visible
+      // Peak column. Phase 54 moved the cell onto peakDemandW (true render
+      // demand capped at source); WR-01 fix (2026-05-25) realigns the sort
+      // comparator to the SAME field so sort order == what the eye sees.
+      return a.peakDemandW - b.peakDemandW;
     case 'peakScale':
       // Phase 4 pattern-mapper flag 3: comparator reads EFFECTIVE scale so
       // 50%-overridden high-peak rows sort correctly against 100%-kept

@@ -82,6 +82,7 @@ import type {
   BreakdownRow,
 } from '../../../shared/types.js';
 import { computeExportDims, safeScale } from '../lib/export-view.js';
+import { rowState, type RowState } from '../lib/row-state.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
@@ -151,12 +152,21 @@ type EnrichedBreakdownRow = BreakdownRow & {
    */
   displayScale: number;
   /**
-   * Peak display dims (2026-05-05): world-space pixel demand, invariant of
-   * source PNG dims. Sibling-symmetric to the Global Max Render panel's
-   * peakDisplayW/H field. Per-animation rows inherit the same semantics.
+   * Peak display dims (2026-05-05): export-clamped Peak value. Sibling-
+   * symmetric to GlobalMaxRenderPanel's peakDisplayW/H. Retained for parity;
+   * the Peak cell + tint now render peakDemandW/H (Phase 54).
    */
   peakDisplayW: number;
   peakDisplayH: number;
+  /**
+   * Phase 54 — TRUE render demand capped at source (min(canonical × peakScale,
+   * actualSource), with a 1px rounding residual snapped to source). This is
+   * what the Peak W×H cell renders and what rowState tints on, so the breakdown
+   * tab matches GlobalMaxRenderPanel and no longer shows phantom green on
+   * reopened peakScale>1 variants.
+   */
+  peakDemandW: number;
+  peakDemandH: number;
   /** undefined when no override; else the clamped integer percent. */
   override: number | undefined;
 };
@@ -175,26 +185,16 @@ type EnrichedCard = Omit<AnimationBreakdown, 'rows'> & {
 
 /**
  * Phase 19 UI-02 + D-06 — Row state predicate. Drives the row left-accent
- * bar (UI-SPEC §5) and the tinted ratio cell. The "ratio" the spec refers
- * to is the effective render scale (1.0× = source size, < 1.0× = under-
- * rendered / could be downscaled, > 1.0× = over-rendered / source too small).
+ * bar (UI-SPEC §5) and the tinted ratio cell.
  *
- * Per UI-SPEC §5: AnimationBreakdownPanel rows are PER-ANIMATION peak rows.
- * The "unused" state is tracked on the global summary level (not per-
- * animation), so `isUnused` is always false here — under/over/neutral cover
- * the typical Animation Breakdown usage. This predicate is co-located here
- * (mirroring the inline duplication in GlobalMaxRenderPanel.tsx — Plan 19-04
- * §"Hand-off Notes" allows the duplication; renderer-tree-only, two callsites).
+ * Phase 54 follow-up (2026-05-25): the formerly-local `RowState`/`rowState`
+ * copy was extracted to `../lib/row-state.js` (shared with GlobalMaxRenderPanel)
+ * so both panels tint by the IDENTICAL contract — compare the two DISPLAYED
+ * integers (Peak = row.peakDemandW, Source = row.actualSourceW ?? row.sourceW)
+ * with a pure integer compare. AnimationBreakdownPanel rows are PER-ANIMATION
+ * peak rows; the "unused" state lives on the global summary, so isUnused is
+ * always false here.
  */
-type RowState = 'under' | 'atLimit' | 'unused' | 'neutral' | 'missing';
-
-function rowState(peakDisplayW: number, sourceW: number, isUnused: boolean, isMissing?: boolean): RowState {
-  if (isMissing) return 'missing';
-  if (isUnused) return 'unused';
-  if (peakDisplayW < sourceW) return 'under';
-  if (peakDisplayW === sourceW) return 'atLimit';
-  return 'neutral';
-}
 
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */
@@ -223,17 +223,18 @@ function enrichCardsWithEffective(
       // symmetric to GlobalMaxRenderPanel.enrichWithEffective per Phase 19
       // D-06 (both panels read the same enriched shape from the same helper
       // signature).
-      const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
-        row.sourceW,
-        row.sourceH,
-        row.peakScale,
-        override,
-        row.actualSourceW,
-        row.actualSourceH,
-        row.dimsMismatch,
-        row.canonicalW,
-        row.canonicalH,
-      );
+      const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH } =
+        computeExportDims(
+          row.sourceW,
+          row.sourceH,
+          row.peakScale,
+          override,
+          row.actualSourceW,
+          row.actualSourceH,
+          row.dimsMismatch,
+          row.canonicalW,
+          row.canonicalH,
+        );
       return {
         ...row,
         effectiveScale: effScale,
@@ -242,6 +243,8 @@ function enrichCardsWithEffective(
         displayScale,
         peakDisplayW,
         peakDisplayH,
+        peakDemandW,
+        peakDemandH,
         override,
       };
     }),
@@ -833,7 +836,7 @@ function BreakdownRowItem({
         }
       >
         <span className="inline-flex items-center justify-end gap-1">
-          <span>{`${row.peakDisplayW}×${row.peakDisplayH}`}</span>
+          <span>{`${row.peakDemandW}×${row.peakDemandH}`}</span>
           {row.peakScale > 1 && (
             <ExtrapolationIcon
               className="w-3.5 h-3.5 inline-block text-white"
@@ -912,7 +915,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
             // rows do not surface the global Unused Assets membership (that
             // lives on the global summary; per-animation rows only carry
             // peak data), so isUnused is always false here.
-            const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+            const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
             return (
               <BreakdownRowItem
                 key={row.attachmentKey}
@@ -957,7 +960,7 @@ function BreakdownTable({ rows, query, onOpenOverrideDialog, loaderMode }: Break
               // rows do not surface the global Unused Assets membership (that
               // lives on the global summary; per-animation rows only carry
               // peak data), so isUnused is always false here.
-              const state = rowState(row.peakDisplayW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
+              const state = rowState(row.peakDemandW, row.actualSourceW ?? row.sourceW, false, row.isMissing);
               return (
                 <BreakdownRowItem
                   key={row.attachmentKey}
