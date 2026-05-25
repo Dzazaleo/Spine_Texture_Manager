@@ -63,6 +63,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, RegionRow } from '../../../shared/types.js';
 import { safeScale } from '../lib/export-view.js';
 import { type EnrichedRow, enrichWithEffective } from '../lib/enrich-overrides.js';
+import { rowState, type RowState } from '../lib/row-state.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
@@ -174,33 +175,15 @@ export interface GlobalMaxRenderPanelProps {
 
 // ----- Pure helpers (module-top) -----------------------------------------
 
-/**
- * Row state predicate. Drives the row left-accent bar (UI-SPEC §5) and the
- * tinted Peak W×H cell.
- *
- * 2026-05-05 redesign: the tint moved from the Scale column to the Peak
- * column (Peak now answers the question users care about — savings vs at-
- * limit). Predicate rebased from "peakRatio vs 1.0" to "peakDims vs
- * sourceDims":
- *   - 'under'   = peak < source     → green (export will reduce; savings)
- *   - 'atLimit' = peak == source    → yellow (byte-copy passthrough)
- *   - 'unused'/'missing'            → red (existing semantics)
- *   - 'neutral'                     → no tint (defensive fallback)
- *
- * The 'over' case (peak > source) is gone — under the new caps the Peak
- * display can never exceed source dims. peakDisplayW/H comes from
- * computeExportDims which clamps at min(canonical, sourceRatio) before
- * the panel ever sees it.
- */
-type RowState = 'under' | 'atLimit' | 'unused' | 'neutral' | 'missing';
-
-function rowState(peakDisplayW: number, sourceW: number, isUnused: boolean, isMissing?: boolean): RowState {
-  if (isMissing) return 'missing';
-  if (isUnused) return 'unused';
-  if (peakDisplayW < sourceW) return 'under';
-  if (peakDisplayW === sourceW) return 'atLimit';
-  return 'neutral';
-}
+// Phase 54 — `RowState` + `rowState` extracted VERBATIM to
+// `../lib/row-state.js` so the regression spec can import the pure tint
+// predicate as a `.spec.ts` in the node program (avoids the TS6307
+// renderer-`.ts`-test landmine). Imported at module top. The body is
+// unchanged: 'under' = peak < source (green), 'atLimit' = peak == source
+// (yellow), 'unused'/'missing' = red, 'neutral' = no tint. The Peak arg the
+// call sites pass is the displayed integer Peak dim (Task 3 switches it from
+// peakDisplayW to peakDemandW); the Source arg is the displayed Source dim
+// (`row.actualSourceW ?? row.sourceW`, the numeric originalSizeLabel).
 
 /** Phase 4 Plan 03: shared empty-map fallback so default-prop consumers don't
  *  allocate a fresh Map on every render. */

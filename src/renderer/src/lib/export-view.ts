@@ -205,7 +205,22 @@ export function computeExportDims(
   // change — back-compat preserved).
   canonicalW?: number,
   canonicalH?: number,
-): { effScale: number; outW: number; outH: number; displayScale: number; peakDisplayW: number; peakDisplayH: number } {
+): {
+  effScale: number;
+  outW: number;
+  outH: number;
+  displayScale: number;
+  peakDisplayW: number;
+  peakDisplayH: number;
+  // Phase 54 D-01 — TRUE render demand for DISPLAY (NOT export). Type-declared
+  // in Task 1 (Wave-0 stub); the computation lands in Task 2. Until then the
+  // return literal omits these, so `as` is not used — see the stub note at the
+  // return site below. They are required (non-optional) so every consumer (the
+  // panel Peak cell, the savings chip, the regression spec) compiles against
+  // the real contract from Wave 0.
+  peakDemandW: number;
+  peakDemandH: number;
+} {
   // Match buildExportPlan's effScale derivation exactly:
   // 1. raw effScale = (override/100) × peakScale  OR  peakScale fallback
   //    (peak-anchored — 2026-05-05 redesign; see overrides.ts docblock).
@@ -271,7 +286,16 @@ export function computeExportDims(
   const peakDisplayW = Math.ceil(canonW * peakDisplayEff);
   const peakDisplayH = Math.ceil(canonH * peakDisplayEff);
 
-  return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH };
+  // Phase 54 Wave-0 STUB (Task 1): peakDemandW/H are type-declared on the
+  // return contract but NOT yet computed — the math lands in Task 2. They
+  // resolve to `undefined` at runtime so tests/regression/variant-phantom-green.spec.ts
+  // is RED (undefined !== expected integer) while typecheck stays GREEN. Task 2
+  // REPLACES this stub with the real demand math
+  // (min(ceil(canonW × safeScale(rawPeakEff)), actualSource)).
+  const peakDemandW = undefined as unknown as number;
+  const peakDemandH = undefined as unknown as number;
+
+  return { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH };
 }
 
 export function buildExportPlan(

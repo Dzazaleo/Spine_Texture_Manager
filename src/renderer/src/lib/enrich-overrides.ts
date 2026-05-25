@@ -19,6 +19,12 @@ export type EnrichedRow = RegionRow & {
   displayScale: number;
   peakDisplayW: number;
   peakDisplayH: number;
+  // Phase 54 D-01 — TRUE render demand for DISPLAY (NOT export). The Peak W×H
+  // column + the savings chip read these (= min(canonicalW × peakScale,
+  // actualSource)); outW/outH/effExportW/H remain the export dims. Type-declared
+  // in Task 1; the value is computed by computeExportDims as of Task 2.
+  peakDemandW: number;
+  peakDemandH: number;
   override: number | undefined;
 };
 
@@ -42,17 +48,18 @@ export function enrichWithEffective(
 ): EnrichedRow[] {
   return rows.map((row) => {
     const override = overrides.get(row.regionName ?? row.attachmentName);
-    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH } = computeExportDims(
-      row.sourceW,
-      row.sourceH,
-      row.peakScale,
-      override,
-      row.actualSourceW,
-      row.actualSourceH,
-      row.dimsMismatch,
-      row.canonicalW,
-      row.canonicalH,
-    );
+    const { effScale, outW, outH, displayScale, peakDisplayW, peakDisplayH, peakDemandW, peakDemandH } =
+      computeExportDims(
+        row.sourceW,
+        row.sourceH,
+        row.peakScale,
+        override,
+        row.actualSourceW,
+        row.actualSourceH,
+        row.dimsMismatch,
+        row.canonicalW,
+        row.canonicalH,
+      );
     return {
       ...row,
       effectiveScale: effScale,
@@ -61,6 +68,8 @@ export function enrichWithEffective(
       displayScale,
       peakDisplayW,
       peakDisplayH,
+      peakDemandW,
+      peakDemandH,
       override,
     };
   });
