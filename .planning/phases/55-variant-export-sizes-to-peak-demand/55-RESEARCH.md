@@ -395,9 +395,11 @@ No new ASVS categories apply. This is a pure arithmetic transform on already-val
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Renderer `buildExportPlan` call site in `AppShell.tsx`:** Does AppShell ever call the renderer's `buildExportPlan` for variant previews (which would need `variantScale`)? Based on CONTEXT.md: no — the renderer builds plans for master exports only. Variant export is triggered via IPC from `variant-export.ts`. Planner should grep `AppShell.tsx` for `buildExportPlan` calls and confirm none pass variant data.
+1. **Renderer `buildExportPlan` call site in `AppShell.tsx`:** Does AppShell ever call the renderer's `buildExportPlan` for variant previews (which would need `variantScale`)?
+
+   **RESOLVED:** Confirmed NO — AppShell.tsx does not call the renderer's `buildExportPlan` for variant previews. Variant export is triggered via IPC from `src/main/variant-export.ts`; the renderer's `buildExportPlan` is called from the MASTER export panel only. Source: CONTEXT.md 'Integration Points' + RESEARCH.md 'Architecture Patterns'. No grep needed by the executor.
 
 2. **Live UAT sequence:** The TEST_ARMAN folder at `/Users/leo/Downloads/TEST_ARMAN/variant/SYMBOLS@0.5x/` must be re-exported AFTER Phase 55 lands to observe the corrected dims. The UAT involves:
    a. Load the master SYMBOLS.json.
@@ -405,7 +407,8 @@ No new ASVS categories apply. This is a pure arithmetic transform on already-val
    c. Re-open the variant.
    d. Observe: 80×40 / 1.02× row shows variant source = 41×21, resampled peakScale ≤ 1, ExtrapolationIcon does NOT fire.
    e. Counter-test: a master with peakScale > 1 and pre-optimized source (actualSource < canonical) still shows the icon + "capped at source dims" suffix.
-   This is a HUMAN-UAT item; it cannot be automated in CI.
+
+   **UAT:** Human-only verification — tracked in 55-VALIDATION.md Manual-Only Verifications table.
 
 ---
 
