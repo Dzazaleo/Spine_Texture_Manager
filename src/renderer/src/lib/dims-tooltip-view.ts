@@ -26,15 +26,30 @@ type LoaderMode = 'auto' | 'atlas-less';
  * @param loaderMode 'auto' resolves to atlas-source variant; 'atlas-less' to PNG-source variant.
  * @param isCapped   When true, append the cap suffix; when false, return only the first sentence.
  */
+/**
+ * Phase 54 follow-up (2026-05-26) — round dimension values to 2 decimals and
+ * strip trailing zeros so the tooltip reads "211" instead of "211.00" and
+ * "49.4" instead of "49.400000000000006" (IEEE-754 noise from variant
+ * source-scaled canonicals like canonical_master × s for s = 0.1). Integers
+ * stay integers (no ".00" suffix); fractional values round at 2 decimals.
+ */
+function fmtDim(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
+
 export function buildDimsTooltipText(
   row: Pick<DisplayRow, 'actualSourceW' | 'actualSourceH' | 'canonicalW' | 'canonicalH'>,
   loaderMode: LoaderMode,
   isCapped: boolean,
 ): string {
   const isAtlasSource = loaderMode === 'auto';
+  const srcW = row.actualSourceW !== undefined ? fmtDim(row.actualSourceW) : 'undefined';
+  const srcH = row.actualSourceH !== undefined ? fmtDim(row.actualSourceH) : 'undefined';
+  const canW = fmtDim(row.canonicalW);
+  const canH = fmtDim(row.canonicalH);
   const firstSentence = isAtlasSource
-    ? `Atlas region declares ${row.actualSourceW}×${row.actualSourceH} but canonical is ${row.canonicalW}×${row.canonicalH}.`
-    : `Source PNG (${row.actualSourceW}×${row.actualSourceH}) is smaller than canonical region dims (${row.canonicalW}×${row.canonicalH}).`;
+    ? `Atlas region declares ${srcW}×${srcH} but canonical is ${canW}×${canH}.`
+    : `Source PNG (${srcW}×${srcH}) is smaller than canonical region dims (${canW}×${canH}).`;
   if (!isCapped) return firstSentence;
   const secondSentence = isAtlasSource
     ? `Optimize will cap at on-disk size.`

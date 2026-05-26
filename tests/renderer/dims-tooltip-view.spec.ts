@@ -42,6 +42,25 @@ describe('buildDimsTooltipText', () => {
     expect(buildDimsTooltipText(baseDims, 'atlas-less', true))
       .toBe('Source PNG (670×670) is smaller than canonical region dims (1000×1000).\nOptimize will cap at source size.');
   });
+
+  // Phase 54 follow-up (2026-05-26) — canonical values are stored as floats
+  // and variant projects produce IEEE-754 noise (canonical_master × s, e.g.
+  // 494 × 0.1 = 49.400000000000006). Round to 2 decimals; integers stay
+  // integers (no ".00" suffix).
+  it('rounds float canonical dims to 2 decimals, strips trailing zeros', () => {
+    expect(buildDimsTooltipText(
+      { actualSourceW: 54, actualSourceH: 233, canonicalW: 49.400000000000006, canonicalH: 214.9 },
+      'auto',
+      false,
+    )).toBe('Atlas region declares 54×233 but canonical is 49.4×214.9.');
+  });
+  it('integer canonicals do NOT gain a .00 suffix', () => {
+    expect(buildDimsTooltipText(
+      { actualSourceW: 25, actualSourceH: 91, canonicalW: 211, canonicalH: 766 },
+      'auto',
+      false,
+    )).toBe('Atlas region declares 25×91 but canonical is 211×766.');
+  });
 });
 
 describe('deriveIsCapped (effectiveScale is explicit, second positional param — Warning 1 fix)', () => {
