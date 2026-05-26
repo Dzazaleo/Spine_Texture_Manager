@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
 status: milestone_complete
-last_updated: "2026-05-26T11:45:00Z"
-last_activity: 2026-05-26 -- Phase 54 complete + closed; Phase 55 opened (ready for /gsd-discuss-phase 55)
+last_updated: "2026-05-26T12:30:00Z"
+last_activity: 2026-05-26 -- Phase 55 context gathered (ready for /gsd-plan-phase 55)
 progress:
   total_phases: 1
   completed_phases: 1
@@ -17,12 +17,18 @@ progress:
 
 ## Current Position
 
-Phase: 55 (open; awaiting discuss)
+Phase: 55 (context gathered; awaiting plan)
 Plan: Not started
-Status: Phase 54 complete + closed 2026-05-26; Phase 55 opened (ready for /gsd-discuss-phase 55)
+Status: Phase 55 CONTEXT.md + DISCUSSION-LOG.md committed `7ba078f`; ready for /gsd-plan-phase 55
 Last activity: 2026-05-26
 
-**Next: `/gsd-discuss-phase 55`** (in a new session — `/clear` first for a fresh context) — resolve D-A..D-F in the Phase 55 ROADMAP entry and lift the variant-export `effScale` clamp from `min(safeScale(buffered), 1, sourceRatio)` to `min(safeScale(buffered), 1/s, sourceRatio)`. Surfaced by Phase 54 UAT 2026-05-26: a master with `peakScale > 1` makes its variants fire ExtrapolationIcon on every such row (non-actionable noise at the variant level). The no-upscale rule is master-source-vs-output, not output-vs-canonical, so variants at `s < 1` have headroom up to `1/s` before quality loss kicks in. Master export (s=1) stays byte-identical by construction (`1/s = 1`). This is the cleaner version of Option A that Phase 54 deferred. Worth its own discuss because it lifts a previously-rejected option and CHANGES EXPORTED BYTES for any row where master `peakScale > 1`. See ROADMAP `### Phase 55` for goal, problem, example math, decisions to resolve, and dependencies.
+**Next: `/gsd-plan-phase 55`** (in a new session — `/clear` first for a fresh context) — produce the plan for the universal `1/s` clamp lift in `src/core/export.ts`. Phase 55 discuss closed 2026-05-26 with D-A..D-F + UI scope resolved (CONTEXT.md commit `7ba078f`):
+- **D-A:** Universal `1/s` clamp (no variant detection — honors Phase 54 L-02); add `BuildExportPlanOptions.variantScale?: number` default 1.0 so master path stays byte-identical by construction.
+- **D-D:** Accept the churn — re-export to fix; no migration tool. Reconciliation captured as a deferred idea.
+- **D-F:** Keep Phase 54 `extrapolationTooltip()` wording unchanged — the "capped at source dims" branch still serves the rare master-with-pre-optimized-source case.
+- **UI:** ships `--skip-ui` (export-math seam + tests only; no new surface).
+- **Researcher/planner directives** codified in CONTEXT.md → D-B (buffer ordering unchanged), D-C (verify `1/s × sourceRatio` interaction in `dimsMismatch` master case — researcher MUST confirm `sourceRatio` is the tighter ceiling when both bind), D-E (Phase 48 oracle `tests/scale-bake.spec.ts` + master rows in `tests/core/export.spec.ts` stay byte-identical; enumerate the variant tests that WILL need updating).
+The lift site is one line: [src/core/export.ts:279](src/core/export.ts#L279). The threading seam is one option add to `BuildExportPlanOptions` + one call-site edit in `src/main/variant-export.ts:191-202`. The variant test matrix (Phase 49 dual-runtime × dual-mode × 12-cell grid) is the regression surface. See `55-CONTEXT.md` for full decisions, canonical refs, code context, and the TEST_ARMAN 80×40 / 1.02× worked example.
 
 **Phase 54 (Variant Reopen Dimension Reconciliation — Phantom Green-Savings Fix) CLOSED 2026-05-26.** Renderer-side read-model fix shipped via 7 atomic commits on `main`: 4e60bdd (plan execution + summary), 5da53b2 (verification + initial UAT), 9e5800c (code review), 1e496bb (tracking), aa38a60 (1px snap), 49ffa9e (Animation Breakdown parity + WR-01 sort), 66c239c (follow-up UAT items), 0cad1cb (tooltip cap-suffix via lib/row-state.ts → extrapolationTooltip()), 0539f8a (DimsBadge float-round to 2 decimals). 6/6 HUMAN-UAT items resolved (4 owner-confirmed live, 2 accepted on blanket approval — see `54-HUMAN-UAT.md`). Full suite green: 154 files / 1574 passed. `src/core/` untouched (Layer-3 preserved); export bytes byte-identical (Phase 48 oracle + tests/core/export.spec.ts both green). WR-02 (breakdown panel) RESOLVED; WR-01 (sort comparator) RESOLVED; WR-03 (savingsPctMemo dedup + stale prop name) accepted as-is. Code review 0 critical / 3 warning / 2 info — no blockers; all warnings either resolved or accepted-as-is per the documented Phase-54 scope.
 
