@@ -48,7 +48,7 @@ export function buildDimsTooltipText(
   const canW = fmtDim(row.canonicalW);
   const canH = fmtDim(row.canonicalH);
   const firstSentence = isAtlasSource
-    ? `Atlas region declares ${srcW}×${srcH} but canonical is ${canW}×${canH}.`
+    ? `Atlas region declares ${srcW}×${srcH} but canonical is ${canW}×${canH}`
     : `Source PNG (${srcW}×${srcH}) is smaller than canonical region dims (${canW}×${canH}).`;
   if (!isCapped) return firstSentence;
   const secondSentence = isAtlasSource
