@@ -902,6 +902,14 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
+  it('Phase 55 — both files declare variantScale on BuildExportPlanOptions', () => {
+    const coreText = readFileSync(EXPORT_SRC, 'utf8');
+    const viewText = readFileSync(VIEW_SRC, 'utf8');
+    const sig = /variantScale\?\s*:\s*number/;
+    expect(coreText).toMatch(sig);
+    expect(viewText).toMatch(sig);
+  });
+
   it('both files export the safeScale helper (ceil-thousandth single source of truth, Round 5)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');

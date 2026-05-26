@@ -81,6 +81,16 @@ export interface BuildExportPlanOptions {
    * contract is integer 0-25.
    */
   safetyBufferPercent?: number;
+  /**
+   * Phase 55 — variant scale factor (range (0, 1]; default 1.0 for master
+   * exports). Used to lift the `effScale` ceiling from `1` to `1/s` so a
+   * variant at scale `s` can size outputs up to the master-source ceiling
+   * while still honoring the "no upscale relative to master source PNG"
+   * contract. For masters: omit (defaults to 1.0 → 1/s = 1 → byte-identical
+   * behavior by construction). Validation: caller (src/main/variant-export.ts)
+   * already guards 0 < s < 1 via VariantScaleError before threading this in.
+   */
+  variantScale?: number;
 }
 
 /**
@@ -400,6 +410,13 @@ export function buildExportPlan(
     // Math order locked by CONTEXT D-09: raw → bufferedScale → clamp → cap.
     // Mirrors src/core/export.ts verbatim (hygiene test enforces parity).
     const bufferPct = opts.safetyBufferPercent ?? 0;
+    // Phase 55 D-A: lift ceiling from 1 to 1/vs so a variant at scale s can
+    // size outputs up to the master-source ceiling (variant_peak = s × master_peak
+    // and 1/s × canonical = master_source for clean atlases). Master path
+    // (variantScale omitted) defaults vs=1.0 → 1/vs=1 → byte-identical by
+    // construction. Do NOT apply safeScale to 1/vs — it is a ceiling, not demand.
+    // Do NOT add if (variantScale !== 1) branch — universal form required (D-A/L-02).
+    const vs = opts.variantScale ?? 1.0;
     const bufferedScale =
       bufferPct === 0 ? rawEffScale : rawEffScale * (1 + bufferPct / 100);
 
@@ -415,7 +432,7 @@ export function buildExportPlan(
     //
     // Phase 30 BUFFER-01 — safeScale applied to the POST-buffer value per
     // D-09 step 3 (single safeScale call; never double-applied — Pitfall 5).
-    const downscaleClampedScale = Math.min(safeScale(bufferedScale), 1);
+    const downscaleClampedScale = Math.min(safeScale(bufferedScale), 1 / vs);
 
     // Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
     // on both axes when dimsMismatch && actualSource defined. Locked memory
