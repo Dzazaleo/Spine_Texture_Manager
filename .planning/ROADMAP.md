@@ -120,7 +120,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete | 2026-05-24 |
 | 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete | 2026-05-24 |
 | 54. Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix) | — (standalone bugfix) | 1/1 | Complete    | 2026-05-26 |
-| 55. Variant Export Sizes to Peak Demand (Up to No-Upscale Ceiling) | — (standalone follow-up) | 0/0 | Discuss     | — |
+| 55. Variant Export Sizes to Peak Demand (Up to No-Upscale Ceiling) | — (standalone follow-up) | 1/1 | Complete   | 2026-05-26 |
 
 _Earlier milestones (Phases 0–47) are archived — see the collapsed sections above and `.planning/milestones/`._
 
@@ -195,7 +195,7 @@ Plans:
 **Requirements:** TBD (no formal v1.7 REQ — surfaced from Phase 54 UAT; traceability anchored to the decisions resolved in the discuss).
 **Depends on:** — (standalone; builds on the v1.7 variant/bake/export code + the Phase 54 display-model fix).
 **UI:** Likely `--skip-ui` (export-math change + test updates; no new UI surface). Confirm in discuss.
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 55-01-PLAN.md — Code lift (export.ts + export-view.ts + variant-export.ts threading) + test updates (variant-sizing.spec.ts T1/T2/T3 + export.spec.ts parity); single wave, 2 tasks (RED gate then GREEN gate); all CI gates must pass
+- [x] 55-01-PLAN.md — Code lift (export.ts + export-view.ts + variant-export.ts threading) + test updates (variant-sizing.spec.ts T1/T2/T3 + export.spec.ts parity); single wave, 2 tasks (RED gate then GREEN gate); all CI gates must pass
