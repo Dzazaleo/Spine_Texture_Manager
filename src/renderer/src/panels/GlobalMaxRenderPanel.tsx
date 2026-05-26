@@ -63,7 +63,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { SkeletonSummary, RegionRow } from '../../../shared/types.js';
 import { safeScale } from '../lib/export-view.js';
 import { type EnrichedRow, enrichWithEffective } from '../lib/enrich-overrides.js';
-import { rowState, type RowState } from '../lib/row-state.js';
+import { rowState, type RowState, extrapolationTooltip } from '../lib/row-state.js';
 import { DimsBadge } from '../components/DimsBadge.js';
 import { WarningTriangleIcon } from '../components/icons/WarningTriangleIcon';
 import { ExtrapolationIcon } from '../components/icons/ExtrapolationIcon';
@@ -561,7 +561,13 @@ function Row({
             // own.
             <ExtrapolationIcon
               className="w-3.5 h-3.5 inline-block text-white"
-              title={`Spine rig peak: ${row.peakScale.toFixed(2)}× source`}
+              title={extrapolationTooltip(
+                row.peakScale,
+                row.canonicalW,
+                row.canonicalH,
+                row.actualSourceW ?? row.sourceW,
+                row.actualSourceH ?? row.sourceH,
+              )}
             />
           )}
           {row.override !== undefined && (

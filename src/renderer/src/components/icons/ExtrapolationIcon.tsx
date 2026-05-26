@@ -1,10 +1,14 @@
 /**
  * Extrapolation icon — marks the Peak W×H cell when the Spine rig demands
- * resolution above the drawn source size (`peakScale > 1`). The icon signals
- * the Spine rig peaks larger than the artist-drawn source, i.e. the texture is
- * already sized to render demand. (Phase 54: the Peak cell now shows the true
- * render demand capped at source; the prior canonical-clamp wording was
- * misleading and was dropped from the tooltip copy.)
+ * resolution above the drawn source size (`peakScale > 1`). Tooltip copy is
+ * owned by `lib/row-state.ts → extrapolationTooltip(...)` (sibling-symmetric;
+ * both panels call the same helper). When the rig demand exceeds the source,
+ * the display path caps `peakDemandW/H` at `actualSource` (so the cell never
+ * reports demand above what the texture physically is), and the tooltip
+ * appends "— capped at source dims" so the hover text matches what the user
+ * sees in the cell (Phase 54 follow-up 2026-05-26). The suffix is omitted
+ * when the uncapped rig demand actually fits in source (peakScale > 1 with
+ * significant canonical-vs-source drift), since claiming "capped" would lie.
  *
  * Tooltip mechanism (Phase 31 TOOLTIP-01 fix-shape c): React-managed
  * primitive — `createPortal` + `position:fixed` + `getBoundingClientRect`

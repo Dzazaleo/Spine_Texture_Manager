@@ -311,7 +311,12 @@ describe('TOOLTIP-01 T1 — ExtrapolationIcon hover surfaces React-managed toolt
 
     const tooltip = screen.queryByRole('tooltip');
     expect(tooltip).not.toBeNull();
-    expect(tooltip!.textContent).toBe('Spine rig peak: 1.42× source');
+    // Phase 54 follow-up (2026-05-26): when the uncapped rig demand exceeds
+    // source (here: ceil(1000 × 1.42) = 1420 > 1000), the tooltip acknowledges
+    // the display cap so it stops conflicting with the cell (which shows Peak
+    // == Source by min(..., actualSource)). Test row has canonicalW = 1000,
+    // sourceW = 1000, peakScale 1.42 ⇒ isCapped true ⇒ suffix present.
+    expect(tooltip!.textContent).toBe('Spine rig peak: 1.42× source — capped at source dims');
     // Portal target: the tooltip lives directly in document.body, NOT inside
     // the panel container (the regression-proof property of fix-shape (c)).
     expect(document.body.contains(tooltip)).toBe(true);
@@ -345,7 +350,9 @@ describe('TOOLTIP-01 T1 — ExtrapolationIcon hover surfaces React-managed toolt
     fireEvent.mouseEnter(host!);
     const tooltip = screen.queryByRole('tooltip');
     expect(tooltip).not.toBeNull();
-    expect(tooltip!.textContent).toBe('Spine rig peak: 1.75× source');
+    // Same capped-suffix rationale as the Global panel case above
+    // (ceil(1000 × 1.75) = 1750 > 1000 ⇒ suffix present).
+    expect(tooltip!.textContent).toBe('Spine rig peak: 1.75× source — capped at source dims');
     expect(document.body.contains(tooltip)).toBe(true);
     expect(container.contains(tooltip)).toBe(false);
 
@@ -374,6 +381,12 @@ describe('TOOLTIP-01 T2 — sibling-symmetry by construction (D-D-04)', () => {
   );
   const breakdownPanelSource = readFileSync(
     path.join(repoRoot, 'src/renderer/src/panels/AnimationBreakdownPanel.tsx'),
+    'utf-8',
+  );
+  // Phase 54 follow-up (2026-05-26): tooltip copy lives in row-state.ts so
+  // the two panels can't drift. The verbatim-template assertion moved here.
+  const rowStateSource = readFileSync(
+    path.join(repoRoot, 'src/renderer/src/lib/row-state.ts'),
     'utf-8',
   );
 
@@ -405,11 +418,25 @@ describe('TOOLTIP-01 T2 — sibling-symmetry by construction (D-D-04)', () => {
     );
   });
 
-  it('Both panels still pass the verbatim Spine-rig-peak template to ExtrapolationIcon', () => {
-    // Acceptance criterion from PLAN.md: REQUIREMENTS TOOLTIP-01 verbatim text
-    // is preserved at both call sites (passed via the icon `title` prop).
-    expect(globalPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
-    expect(breakdownPanelSource).toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
+  it('Both panels call the shared extrapolationTooltip helper (no verbatim template inlined)', () => {
+    // Phase 54 follow-up (2026-05-26): tooltip copy was extracted to
+    // lib/row-state.ts → extrapolationTooltip(...) so the two panels can't
+    // drift. Sibling-symmetric by construction — both panels MUST call the
+    // helper, and neither may inline the verbatim template.
+    expect(globalPanelSource).toMatch(/extrapolationTooltip\(/);
+    expect(breakdownPanelSource).toMatch(/extrapolationTooltip\(/);
+    // Inverse: the verbatim template no longer appears inside either panel
+    // (it lives only in row-state.ts now). If a future edit re-inlines it,
+    // this catches it.
+    expect(globalPanelSource).not.toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
+    expect(breakdownPanelSource).not.toMatch(/Spine rig peak: \$\{row\.peakScale\.toFixed\(2\)\}× source`/);
+  });
+
+  it('extrapolationTooltip helper owns the verbatim copy (base + capped suffix)', () => {
+    // Single source of truth for the tooltip wording. If either string drifts
+    // here, the rendered-text assertions in T1 fail too — defense in depth.
+    expect(rowStateSource).toMatch(/Spine rig peak: \$\{peakScale\.toFixed\(2\)\}× source`/);
+    expect(rowStateSource).toMatch(/— capped at source dims/);
   });
 });
 
