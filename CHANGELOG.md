@@ -4,6 +4,20 @@ In-repo release history for Spine Texture Manager. Newest on top.
 Per-release downloads + first-launch notes are on
 [GitHub Releases](https://github.com/Dzazaleo/Spine_Texture_Manager/releases).
 
+## v1.7.1 — Variant Export Sizing Fixes
+
+- **Variant exports respect per-variant render demand.** Sub-1× scale
+  variants whose art peaks above the source dimensions are no longer
+  clipped to a stale source-size ceiling. The per-variant upper bound
+  now tracks `1/scale` of the source so upscaled-region art exports at
+  the size it actually renders at. Master-path exports are
+  byte-identical to v1.7.0.
+- **Reopened variants no longer show phantom green "savings".** The
+  Peak column, savings chip, and tooltips now read from a single
+  render-demand source of truth, eliminating the misleading
+  source-vs-peak base mismatch that surfaced on reopen.
+- Minor tooltip polish on the atlas dims-mismatch indicator.
+
 ## v1.6 — Spine 4.3 Runtime Port (Dual-Runtime)
 
 - **Spine 4.3 skeleton support (dual-runtime).** The app now loads and
