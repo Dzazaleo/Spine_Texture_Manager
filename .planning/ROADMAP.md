@@ -120,7 +120,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 | 52. Batch Export Robustness + Variant-Dialog Cleanup | v1.7 | 4/4 | Complete | 2026-05-24 |
 | 53. Persist Variant State in .stmproj | v1.7 | 2/2 | Complete | 2026-05-24 |
 | 54. Variant Reopen Dimension Reconciliation (Phantom Green-Savings Fix) | — (standalone bugfix) | 1/1 | Complete    | 2026-05-26 |
-| 55. Variant Export Sizes to Peak Demand (Up to No-Upscale Ceiling) | — (standalone follow-up) | 1/1 | Complete   | 2026-05-26 |
+| 55. Variant Export Sizes to Peak Demand (Up to No-Upscale Ceiling) | — (standalone follow-up) | 1/1 | Complete    | 2026-05-26 |
 
 _Earlier milestones (Phases 0–47) are archived — see the collapsed sections above and `.planning/milestones/`._
 
