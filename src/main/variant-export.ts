@@ -193,6 +193,7 @@ async function exportOneVariant(
       plan = buildExportPlan(scaleSummaryPeaks(summary, s), effectiveOverrides, {
         skeletonPath: summary.skeletonPath,
         safetyBufferPercent: safeBuffer, // WR-06: clamped at the trust boundary above
+        variantScale: s,                 // Phase 55 D-A — lifts effScale ceiling to 1/s
       });
     } catch (err) {
       return {
