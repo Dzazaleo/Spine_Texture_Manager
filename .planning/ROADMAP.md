@@ -195,7 +195,7 @@ Plans:
 **Requirements:** TBD (no formal v1.7 REQ — surfaced from Phase 54 UAT; traceability anchored to the decisions resolved in the discuss).
 **Depends on:** — (standalone; builds on the v1.7 variant/bake/export code + the Phase 54 display-model fix).
 **UI:** Likely `--skip-ui` (export-math change + test updates; no new UI surface). Confirm in discuss.
-**Plans:** 0 plans (open Phase 55 with `/gsd-discuss-phase 55` in a new session)
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run `/gsd-discuss-phase 55` to resolve D-A..D-F, then `/gsd-plan-phase 55`)
+- [ ] 55-01-PLAN.md — Code lift (export.ts + export-view.ts + variant-export.ts threading) + test updates (variant-sizing.spec.ts T1/T2/T3 + export.spec.ts parity); single wave, 2 tasks (RED gate then GREEN gate); all CI gates must pass
