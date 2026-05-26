@@ -28,11 +28,11 @@ const baseCapRow = {
 describe('buildDimsTooltipText', () => {
   it('atlas-source variant, no cap → first sentence only', () => {
     expect(buildDimsTooltipText(baseDims, 'auto', false))
-      .toBe('Atlas region declares 670×670 but canonical is 1000×1000.');
+      .toBe('Atlas region declares 670×670 but canonical is 1000×1000');
   });
   it('atlas-source variant, capped → first sentence + on-disk cap suffix', () => {
     expect(buildDimsTooltipText(baseDims, 'auto', true))
-      .toBe('Atlas region declares 670×670 but canonical is 1000×1000.\nOptimize will cap at on-disk size.');
+      .toBe('Atlas region declares 670×670 but canonical is 1000×1000\nOptimize will cap at on-disk size.');
   });
   it('atlas-less variant, no cap → first sentence only', () => {
     expect(buildDimsTooltipText(baseDims, 'atlas-less', false))
@@ -52,14 +52,14 @@ describe('buildDimsTooltipText', () => {
       { actualSourceW: 54, actualSourceH: 233, canonicalW: 49.400000000000006, canonicalH: 214.9 },
       'auto',
       false,
-    )).toBe('Atlas region declares 54×233 but canonical is 49.4×214.9.');
+    )).toBe('Atlas region declares 54×233 but canonical is 49.4×214.9');
   });
   it('integer canonicals do NOT gain a .00 suffix', () => {
     expect(buildDimsTooltipText(
       { actualSourceW: 25, actualSourceH: 91, canonicalW: 211, canonicalH: 766 },
       'auto',
       false,
-    )).toBe('Atlas region declares 25×91 but canonical is 211×766.');
+    )).toBe('Atlas region declares 25×91 but canonical is 211×766');
   });
 });
 
