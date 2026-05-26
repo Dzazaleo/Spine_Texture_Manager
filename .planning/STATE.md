@@ -2,27 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Multi-Scale Per-Resolution Variant Exporter
-status: executing
-last_updated: "2026-05-25T16:32:56.144Z"
-last_activity: 2026-05-25 -- Phase 54 execution started
+status: milestone_complete
+last_updated: "2026-05-26T11:45:00Z"
+last_activity: 2026-05-26 -- Phase 54 complete + closed; Phase 55 opened (ready for /gsd-discuss-phase 55)
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
   completed_plans: 0
-  percent: 0
+  percent: 100
 ---
 
 # State
 
 ## Current Position
 
-Phase: 54 (variant-reopen-dimension-reconciliation-phantom-green-saving) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 54
-Last activity: 2026-05-25 -- Phase 54 execution started
+Phase: 55 (open; awaiting discuss)
+Plan: Not started
+Status: Phase 54 complete + closed 2026-05-26; Phase 55 opened (ready for /gsd-discuss-phase 55)
+Last activity: 2026-05-26
 
-**Next: `/gsd-execute-phase 54`** — execute the planned read-model fix (single wave, single plan, autonomous). 54-01 fixes the false-positive green "savings" readout on reopened variants via a renderer-side display-only change: `computeExportDims` gains `peakDemandW/H = min(ceil(canonW × safeScale(rawPeakEff)), actualSource)` (D-01, `safeScale` RETAINED — only the `min(…,1)` canonical clamp dropped); the Peak cell + rebased `savingsPctMemo` consume it (chip ≡ Σ per-row demand); `rowState` extracted to `src/renderer/src/lib/row-state.ts` and tints on the two displayed integers (D-03); universal across all rigs (D-02). Export bytes / bake / OptimizeDialog FROZEN (Option A & C rejected); `core/` stays Layer-3 pure. Artifacts: `54-CONTEXT.md` (committed `6f50ce8`), `54-RESEARCH.md` (HIGH conf), `54-PATTERNS.md`, `54-VALIDATION.md`, `54-01-PLAN.md` (committed `60f09f2`, revised `21f652d` — plan-checker caught a tooltip-string-coupled test breakage, now owned). After execute: owner manual UAT (reopen the local ARMAN/42 variant `.json` files — not jsdom-testable). **Then** `/gsd-new-milestone` to scope v1.8.
+**Next: `/gsd-discuss-phase 55`** (in a new session — `/clear` first for a fresh context) — resolve D-A..D-F in the Phase 55 ROADMAP entry and lift the variant-export `effScale` clamp from `min(safeScale(buffered), 1, sourceRatio)` to `min(safeScale(buffered), 1/s, sourceRatio)`. Surfaced by Phase 54 UAT 2026-05-26: a master with `peakScale > 1` makes its variants fire ExtrapolationIcon on every such row (non-actionable noise at the variant level). The no-upscale rule is master-source-vs-output, not output-vs-canonical, so variants at `s < 1` have headroom up to `1/s` before quality loss kicks in. Master export (s=1) stays byte-identical by construction (`1/s = 1`). This is the cleaner version of Option A that Phase 54 deferred. Worth its own discuss because it lifts a previously-rejected option and CHANGES EXPORTED BYTES for any row where master `peakScale > 1`. See ROADMAP `### Phase 55` for goal, problem, example math, decisions to resolve, and dependencies.
+
+**Phase 54 (Variant Reopen Dimension Reconciliation — Phantom Green-Savings Fix) CLOSED 2026-05-26.** Renderer-side read-model fix shipped via 7 atomic commits on `main`: 4e60bdd (plan execution + summary), 5da53b2 (verification + initial UAT), 9e5800c (code review), 1e496bb (tracking), aa38a60 (1px snap), 49ffa9e (Animation Breakdown parity + WR-01 sort), 66c239c (follow-up UAT items), 0cad1cb (tooltip cap-suffix via lib/row-state.ts → extrapolationTooltip()), 0539f8a (DimsBadge float-round to 2 decimals). 6/6 HUMAN-UAT items resolved (4 owner-confirmed live, 2 accepted on blanket approval — see `54-HUMAN-UAT.md`). Full suite green: 154 files / 1574 passed. `src/core/` untouched (Layer-3 preserved); export bytes byte-identical (Phase 48 oracle + tests/core/export.spec.ts both green). WR-02 (breakdown panel) RESOLVED; WR-01 (sort comparator) RESOLVED; WR-03 (savingsPctMemo dedup + stale prop name) accepted as-is. Code review 0 critical / 3 warning / 2 info — no blockers; all warnings either resolved or accepted-as-is per the documented Phase-54 scope.
 
 > Frontmatter note: `state.planned-phase` reset the progress counters to this standalone phase's scope (1 plan / 0 complete) and flipped `status` from `milestone_complete` to `executing`; `milestone:` still reads `v1.7` but v1.7 is CLOSED — Phase 54 is a post-close standalone bugfix with **no active milestone** (ROADMAP is authoritative). This is the known gsd-sdk STATE.md miscount ([[project_gsd_phase_complete_state_miscount]]); left as-is since it correctly scopes the *current work unit*.
 

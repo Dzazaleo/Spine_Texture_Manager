@@ -1,8 +1,10 @@
 ---
 phase: 54-variant-reopen-dimension-reconciliation-phantom-green-saving
 verified: 2026-05-25T18:05:00Z
-status: human_needed
-score: 5/5 must-haves verified
+status: passed
+approved_by: user
+approved_at: 2026-05-26
+score: 5/5 must-haves verified (+ 6/6 HUMAN-UAT items resolved 2026-05-26: 4 owner-confirmed live, 2 accepted on blanket approval — see 54-HUMAN-UAT.md)
 overrides_applied: 0
 human_verification:
   - test: "Reopen /Users/leo/Downloads/TEST_ARMAN/variant/SYMBOLS@0.5x/SYMBOLS.json"
