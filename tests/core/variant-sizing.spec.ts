@@ -81,6 +81,7 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
     const summary = buildSyntheticSummary();
     const variantPlan: ExportPlan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
       skeletonPath: SKELETON_PATH,
+      variantScale: s,
     });
     const variantRows = [...variantPlan.rows, ...variantPlan.passthroughCopies];
     expect(variantRows.length).toBe(2);
@@ -96,7 +97,7 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
       const master = summary.regions.find((r) =>
         vRow.attachmentNames.includes(r.regionName ?? r.attachmentName),
       )!;
-      const expectedEff = Math.min(safeScale(s * master.peakScale), 1);
+      const expectedEff = Math.min(safeScale(s * master.peakScale), 1 / s);
       expect(vRow.effectiveScale).toBeCloseTo(expectedEff, 5);
       if (expectedEff < 1) provedSubOne++;
     }
@@ -122,7 +123,7 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
     const variantPlan: ExportPlan = buildExportPlan(
       scaleSummaryPeaks(summary, s),
       overrides,
-      { skeletonPath: SKELETON_PATH },
+      { skeletonPath: SKELETON_PATH, variantScale: s },
     );
     const variantRows = [...variantPlan.rows, ...variantPlan.passthroughCopies];
     const vRow = variantRows.find((r) => r.attachmentNames.includes(regionName))!;
@@ -132,7 +133,7 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
     // already multiplied the peak by s, so the variant resolves to
     // min(safeScale((pct/100) × s × peak), 1).
     const linearDemand = (overridePct / 100) * s * masterPeak; // 1.5
-    const expectedEff = Math.min(safeScale(linearDemand), 1); // 1.0
+    const expectedEff = Math.min(safeScale(linearDemand), 1 / s); // min(1.5, 2.0) = 1.5
     expect(vRow.effectiveScale).toBeCloseTo(expectedEff, 5);
     expect(vRow.outW).toBe(Math.ceil(vRow.sourceW * vRow.effectiveScale));
     expect(vRow.outH).toBe(Math.ceil(vRow.sourceH * vRow.effectiveScale));
@@ -141,5 +142,65 @@ describe('scaleSummaryPeaks + buildExportPlan — V1 sizing (EXPORT-02, peak-onl
     const wrong = s * Math.min(safeScale((overridePct / 100) * masterPeak), 1); // 0.5 × 1.0 = 0.5
     expect(Math.abs(wrong - expectedEff)).toBeGreaterThan(1e-6);
     expect(vRow.effectiveScale).not.toBeCloseTo(wrong, 5);
+  });
+});
+
+describe('Phase 55 — 1/s ceiling (variantScale option)', () => {
+  // T1: s × master_peakScale < 1/s — clamp does NOT bind; output = ceil(canonical × s × peak)
+  it('T1: clean-atlas, master peak 2.5, s=0.5 → effScale = 1.25 (not clamped at 1)', () => {
+    const s = 0.5;
+    const summary = { regions: [region('HIGH', 2.5)], peaks: [], orphanedFiles: [] } as any as SkeletonSummary;
+    const plan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
+      skeletonPath: SKELETON_PATH,
+      variantScale: s,
+    });
+    const rows = [...plan.rows, ...plan.passthroughCopies];
+    const row = rows.find((r) => r.attachmentNames.includes('HIGH'))!;
+    expect(row, 'T1: no row for HIGH').toBeDefined();
+    // bufferedScale = 0.5 × 2.5 = 1.25; 1/s = 2.0; 1.25 < 2.0 → clamp does not bind
+    expect(row.effectiveScale).toBeCloseTo(safeScale(s * 2.5), 5); // 1.25
+    expect(row.outW).toBe(Math.ceil(1000 * safeScale(s * 2.5)));   // 1250
+  });
+
+  // T2: s × master_peakScale > 1/s — clamp binds at 1/s (master-source ceiling)
+  it('T2: clean-atlas, master peak 5.0, s=0.5 → effScale clamped at 1/s = 2.0 (master-source ceiling)', () => {
+    const s = 0.5;
+    const summary = { regions: [region('HUGE', 5.0)], peaks: [], orphanedFiles: [] } as any as SkeletonSummary;
+    const plan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
+      skeletonPath: SKELETON_PATH,
+      variantScale: s,
+    });
+    const rows = [...plan.rows, ...plan.passthroughCopies];
+    const row = rows.find((r) => r.attachmentNames.includes('HUGE'))!;
+    expect(row, 'T2: no row for HUGE').toBeDefined();
+    // bufferedScale = 0.5 × 5.0 = 2.5; 1/s = 2.0; 2.5 > 2.0 → clamp binds at 2.0
+    expect(row.effectiveScale).toBeCloseTo(1 / s, 5);           // 2.0
+    expect(row.outW).toBe(Math.ceil(1000 * (1 / s)));           // 2000 = 2 × canonicalW = masterSourceW
+  });
+
+  // T3: drifted-atlas (actualSource < canonical) — sourceRatio is the tighter ceiling
+  it('T3: drifted-atlas, master peak 2.0, s=0.5 → sourceRatio (0.8) binds before 1/s (2.0)', () => {
+    const s = 0.5;
+    const canonical = 1000;
+    const actualSource = 800;
+    const r: RegionRow = {
+      ...region('DRIFTED', 2.0, canonical),
+      actualSourceW: actualSource,
+      actualSourceH: actualSource,
+      dimsMismatch: true,
+    } as any as RegionRow;
+    const summary = { regions: [r], peaks: [], orphanedFiles: [] } as any as SkeletonSummary;
+    const plan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
+      skeletonPath: SKELETON_PATH,
+      variantScale: s,
+    });
+    const rows = [...plan.rows, ...plan.passthroughCopies];
+    const row = rows.find((rw) => rw.attachmentNames.includes('DRIFTED'))!;
+    expect(row, 'T3: no row for DRIFTED').toBeDefined();
+    // scaled peak = 0.5 × 2.0 = 1.0; downscaleClampedScale = min(1.0, 2.0) = 1.0
+    // sourceRatio = 800/1000 = 0.8; cappedEffScale = min(1.0, 0.8) = 0.8 → sourceRatio binds
+    expect(row.effectiveScale).toBeCloseTo(0.8, 5);
+    expect(row.outW).toBe(Math.ceil(canonical * 0.8)); // 800 = actualSourceW
+    expect(row.isCapped).toBe(true);
   });
 });
