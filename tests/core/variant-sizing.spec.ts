@@ -178,6 +178,50 @@ describe('Phase 55 — 1/s ceiling (variantScale option)', () => {
     expect(row.outW).toBe(Math.ceil(1000 * (1 / s)));           // 2000 = 2 × canonicalW = masterSourceW
   });
 
+  // T4: buffer-inflated demand stays below 1/s ceiling (WR-01 — buffer + variantScale interaction)
+  it('T4: 10% buffer + s=0.5 + peak=1.5 → bufferedDemand=0.825 stays below 1/s=2.0', () => {
+    const s = 0.5;
+    const masterPeak = 1.5;
+    const bufPct = 10;
+    const summary = { regions: [region('BUF', masterPeak)], peaks: [], orphanedFiles: [] } as any as SkeletonSummary;
+    const plan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
+      skeletonPath: SKELETON_PATH,
+      variantScale: s,
+      safetyBufferPercent: bufPct,
+    });
+    const rows = [...plan.rows, ...plan.passthroughCopies];
+    const row = rows.find((r) => r.attachmentNames.includes('BUF'))!;
+    expect(row, 'T4: no row for BUF').toBeDefined();
+    // bufferedScale = s × peak × (1 + buf/100) = 0.5 × 1.5 × 1.1 = 0.825
+    // 1/s = 2.0; 0.825 < 2.0 → ceiling does NOT bind; effScale = safeScale(0.825)
+    const buffered = s * masterPeak * (1 + bufPct / 100); // 0.825
+    expect(buffered).toBeLessThan(1 / s);
+    expect(row.effectiveScale).toBeCloseTo(safeScale(buffered), 5);
+    expect(row.outW).toBe(Math.ceil(1000 * safeScale(buffered)));
+  });
+
+  // T5: buffer pushes demand above 1 but ceiling clamps at 1/s (WR-01 continued)
+  it('T5: 20% buffer + s=0.5 + peak=2.0 → bufferedDemand=1.2, clamped at 1/s=2.0 (not clamped)', () => {
+    const s = 0.5;
+    const masterPeak = 2.0;
+    const bufPct = 20;
+    const summary = { regions: [region('BUFHIGH', masterPeak)], peaks: [], orphanedFiles: [] } as any as SkeletonSummary;
+    const plan = buildExportPlan(scaleSummaryPeaks(summary, s), new Map(), {
+      skeletonPath: SKELETON_PATH,
+      variantScale: s,
+      safetyBufferPercent: bufPct,
+    });
+    const rows = [...plan.rows, ...plan.passthroughCopies];
+    const row = rows.find((r) => r.attachmentNames.includes('BUFHIGH'))!;
+    expect(row, 'T5: no row for BUFHIGH').toBeDefined();
+    // bufferedScale = 0.5 × 2.0 × 1.2 = 1.2; 1/s = 2.0; 1.2 < 2.0 → NOT clamped
+    const buffered = s * masterPeak * (1 + bufPct / 100); // 1.2
+    expect(buffered).toBeGreaterThan(1.0); // demand exceeds the old 1.0 hard cap
+    expect(buffered).toBeLessThan(1 / s);  // but below 1/s — no ceiling clamp
+    expect(row.effectiveScale).toBeCloseTo(safeScale(buffered), 5);
+    expect(row.outW).toBe(Math.ceil(1000 * safeScale(buffered)));
+  });
+
   // T3: drifted-atlas (actualSource < canonical) — sourceRatio is the tighter ceiling
   it('T3: drifted-atlas, master peak 2.0, s=0.5 → sourceRatio (0.8) binds before 1/s (2.0)', () => {
     const s = 0.5;

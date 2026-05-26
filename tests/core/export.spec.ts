@@ -910,6 +910,44 @@ describe('export — core ↔ renderer parity (Layer 3 inline-copy invariant)', 
     expect(viewText).toMatch(sig);
   });
 
+  it('Phase 55 CR-01 — computeExportDims with variantScale=0.5 lifts ceiling to 1/s=2.0', async () => {
+    // WR-02: behavioral parity — computeExportDims must use the same 1/vs ceiling as buildExportPlan.
+    // Case A: peakScale=1.5, s=0.5 → demand=1.5; 1/s=2.0; ceiling does NOT bind → effScale=safeScale(1.5)
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const computeExportDims = viewModule.computeExportDims;
+    const safeScaleView = viewModule.safeScale;
+    const notBound = computeExportDims(1000, 1000, 1.5, undefined, undefined, undefined, false, 1000, 1000, 0.5);
+    expect(notBound.effScale).toBeCloseTo(safeScaleView(1.5), 6); // 1.5 (NOT clamped to old 1.0)
+    expect(notBound.outW).toBe(Math.ceil(1000 * safeScaleView(1.5)));  // 1500, not 1000
+
+    // Case B: peakScale=5.0, s=0.5 → demand=5.0; 1/s=2.0; ceiling binds at 2.0
+    const bound = computeExportDims(1000, 1000, 5.0, undefined, undefined, undefined, false, 1000, 1000, 0.5);
+    expect(bound.effScale).toBeCloseTo(1 / 0.5, 6); // 2.0
+    expect(bound.outW).toBe(2000);
+  });
+
+  it('Phase 55 WR-02 — renderer buildExportPlan with variantScale produces IDENTICAL plan to core', async () => {
+    const viewModule = await import('../../src/renderer/src/lib/export-view.js');
+    const buildExportPlanView = viewModule.buildExportPlan;
+    // Synthetic summary with peakScale=1.5; with variantScale=0.5 ceiling is 1/0.5=2.0 → does NOT bind.
+    // (The 1.0 hard cap DID bind before Phase 55 — this exercises the lifted ceiling.)
+    const peaks = [
+      { attachmentKey: 'default/SLOT/LIFTED', attachmentName: 'LIFTED', skinName: 'default',
+        slotName: 'SLOT', animationName: 'test', time: 0, frame: 0,
+        peakScale: 1.5, peakScaleX: 1.5, peakScaleY: 1.5, worldW: 1500, worldH: 1500,
+        sourceW: 1000, sourceH: 1000, sourcePath: '/fake/LIFTED.png' },
+    ];
+    const summary = { peaks, regions: synthRegionsFromPeaks(peaks), orphanedFiles: [] } as unknown as SkeletonSummary;
+    const opts = { skeletonPath: '/tmp/SIMPLE_TEST.json', variantScale: 0.5 };
+    const corePlan = buildExportPlan(summary, new Map(), opts);
+    const viewPlan = buildExportPlanView(summary, new Map(), opts);
+    expect(viewPlan, 'WR-02 variantScale parity').toEqual(corePlan);
+    // Sanity: ceiling does not bind at 1/s=2.0; effScale = safeScale(1.5) = 1.5, outW = 1500
+    const row = corePlan.rows[0] ?? corePlan.passthroughCopies[0];
+    expect(row.effectiveScale).toBeCloseTo(1.5, 5); // 1.5, not clamped to old 1.0
+    expect(row.outW).toBe(1500);
+  });
+
   it('both files export the safeScale helper (ceil-thousandth single source of truth, Round 5)', () => {
     const coreText = readFileSync(EXPORT_SRC, 'utf8');
     const viewText = readFileSync(VIEW_SRC, 'utf8');

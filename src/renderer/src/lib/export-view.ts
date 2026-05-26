@@ -215,6 +215,10 @@ export function computeExportDims(
   // change — back-compat preserved).
   canonicalW?: number,
   canonicalH?: number,
+  // Phase 55 CR-01 — mirror the 1/vs ceiling from buildExportPlan so the
+  // display helper stays in parity with the export math. Optional; defaults
+  // to 1.0 (master). Existing call sites pass nothing and are unchanged.
+  variantScale?: number,
 ): {
   effScale: number;
   outW: number;
@@ -235,13 +239,14 @@ export function computeExportDims(
   // 1. raw effScale = (override/100) × peakScale  OR  peakScale fallback
   //    (peak-anchored — 2026-05-05 redesign; see overrides.ts docblock).
   // 2. ceil-thousandth (display lower-bound)
-  // 3. clamp to ≤ 1.0 (downscale-only invariant — never extrapolate)
+  // 3. clamp to ≤ 1/variantScale (= 1.0 for masters; Phase 55 CR-01 lift)
   // 4. Phase 22 DIMS-03 cap — uniform multiplier from min(actualSource/canonical)
+  const vs = variantScale ?? 1.0;
   const rawEffScale =
     override !== undefined
       ? applyOverride(override, peakScale).effectiveScale
       : peakScale;
-  const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1);
+  const downscaleClampedScale = Math.min(safeScale(rawEffScale), 1 / vs);
   // Phase 22 DIMS-03 cap — uniform multiplier from min over both axes when
   // dimsMismatch && actualSource defined; Infinity otherwise (cap inert).
   // Locked memory project_phase6_default_scaling.md: cap is single uniform
@@ -294,7 +299,7 @@ export function computeExportDims(
   // sourceRatio same shape as the export path — uniform min across both
   // axes when dimsMismatch && actualSource defined; Infinity (cap inert)
   // for canonical-no-drift rows.
-  const peakDisplayEff = Math.min(safeScale(rawPeakEff), 1, sourceRatio);
+  const peakDisplayEff = Math.min(safeScale(rawPeakEff), 1 / vs, sourceRatio);
   const peakDisplayW = Math.ceil(canonW * peakDisplayEff);
   const peakDisplayH = Math.ceil(canonH * peakDisplayEff);
 
