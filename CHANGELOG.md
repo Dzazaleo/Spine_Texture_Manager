@@ -18,6 +18,27 @@ Per-release downloads + first-launch notes are on
   source-vs-peak base mismatch that surfaced on reopen.
 - Minor tooltip polish on the atlas dims-mismatch indicator.
 
+## v1.7 — Multi-Scale Variant Export
+
+- **Export Variant…** — from a single full-size Spine export, produce
+  a scaled-down copy of a rig (smaller skeleton JSON + resized textures
+  + scaled `.atlas`) in its own `{NAME}@{scale}x/` folder. Source files
+  are never modified.
+- **Right-sized to actual render demand.** Each variant is sized to
+  its smaller rig's own peak render demand — not a naive uniform
+  shrink — so textures stay crisp at the smaller size without wasting
+  pixels.
+- **Batch export.** Queue multiple scales (e.g. `0.5×`, `0.25×`) and
+  export them all in one pass with live per-image progress and a
+  per-folder success/failure summary; if one variant can't be written
+  the rest still export.
+- **Two-way sizing.** Set a variant by scale factor *or* by target
+  width/height (aspect-locked); type one and the other updates.
+- Variant scale rows and output location persist in the `.stmproj`
+  project file. Pre-flight overwrite prompt protects existing folders.
+- Full dual-runtime, dual-mode coverage: Spine 4.2 **and** 4.3,
+  atlas-source **and** atlas-less.
+
 ## v1.6 — Spine 4.3 Runtime Port (Dual-Runtime)
 
 - **Spine 4.3 skeleton support (dual-runtime).** The app now loads and
